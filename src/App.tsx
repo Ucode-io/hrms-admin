@@ -1,0 +1,161 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
+import SignIn from "./pages/AuthPages/SignIn";
+import NotFound from "./pages/OtherPage/NotFound";
+import UnderDevelopment from "./pages/OtherPage/UnderDevelopment";
+import DashboardPage from "./modules/Dashboard";
+import MerchantsList from "./modules/Merchant/List";
+import MerchantDetail from "./modules/Merchant/Detail";
+import MerchantFormPage from "./modules/Merchant/Form";
+import MerchantTransactionsList from "./modules/MerchantTransactions/List";
+import MerchantTransactionFormPage from "./modules/MerchantTransactions/Form";
+import DebtsList from "./modules/Debts/List";
+import PaymentsList from "./modules/Payments/List";
+import ClientsList from "./modules/Client/List";
+import ClientDetail from "./modules/Client/Detail";
+import ClientFormPage from "./modules/Client/Form";
+import ContractsList from "./modules/Contracts/List";
+import ContractDetail from "./modules/Contracts/Detail";
+import CreateContractClientSearch from "./modules/Contracts/CreateContract/ClientSearch";
+import ContractForm from "./modules/Contracts/CreateContract/ContractForm";
+import ProductsList from "./modules/Products/List";
+import ProductFormPage from "./modules/Products/Form";
+import PlatformSettingsPage from "./modules/Settings/PlatformSettings";
+import SettingsGeneralPage from "./modules/Settings/General";
+import HomeSettingsPage from "./modules/Settings/Home";
+import PositionsSettingsPage from "./modules/Settings/Positions";
+import ExperienceLevelsSettingsPage from "./modules/Settings/ExperienceLevels";
+import EmploymentTypesSettingsPage from "./modules/Settings/EmploymentTypes";
+import DivisionsSettingsPage from "./modules/Settings/Divisions";
+import SkillsSettingsPage from "./modules/Settings/Skills";
+import DepartmentsSettingsPage from "./modules/Settings/Departments";
+import LocationsSettingsPage from "./modules/Settings/Locations";
+import TariffsList from "./modules/Settings/Tariffs/List";
+import TariffForm from "./modules/Settings/Tariffs/Form";
+import ProductCategoriesList from "./modules/Settings/ProductCategories/List";
+import ProductCategoryForm from "./modules/Settings/ProductCategories/Form";
+import SettingsPage from "./modules/Settings";
+import EmployeesList from "./modules/Employees/List";
+import EmployeeForm from "./modules/Employees/Form";
+import SuppliersList from "./modules/Suppliers/List";
+import SupplierForm from "./modules/Suppliers/Form";
+import OrganizationClientsList from "./modules/Clients/List";
+import OrganizationClientForm from "./modules/Clients/Form";
+import AgreementsList from "./modules/Agreements/List";
+import AgreementForm from "./modules/Agreements/Form";
+import AppLayout from "./layout/AppLayout";
+import { ScrollToTop } from "./components/common/ScrollToTop";
+import { QueryClientProvider } from "react-query";
+import queryClient from "./api/queryClient";
+import authStore from "./store/auth.store";
+import companyStore from "./store/company.store";
+import CompanyThemeProvider from "./components/common/CompanyThemeProvider";
+import { observer } from "mobx-react-lite";
+import { useEffect } from "react";
+import { Toaster } from "sonner";
+
+function App() {
+  useEffect(() => {
+    companyStore.fetchCompany();
+  }, []);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CompanyThemeProvider />
+      <Toaster
+        position="top-right"
+        richColors
+        closeButton
+        toastOptions={{
+          duration: 3000,
+        }}
+      />
+      <Router>
+        <ScrollToTop />
+        <Routes>
+          {/* Dashboard Layout */}
+          {
+            authStore.isAuth ? <Route path="/" element={<AppLayout />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+
+              <Route path="/dashboard" element={<DashboardPage />} />
+
+              <Route path="/merchants" element={<MerchantsList />} />
+              <Route path="/merchants/new" element={<MerchantFormPage />} />
+              <Route path="/merchants/:id/edit" element={<MerchantFormPage />} />
+              <Route path="/merchants/:id" element={<MerchantDetail />} />
+              <Route path="/finance/merchant-reconciliation" element={<MerchantTransactionsList />} />
+              <Route path="/finance/merchant-reconciliation/new" element={<MerchantTransactionFormPage />} />
+              <Route path="/finance/merchant-reconciliation/:id/edit" element={<MerchantTransactionFormPage />} />
+              <Route path="/finance/debts" element={<DebtsList />} />
+              <Route path="/finance/payments" element={<PaymentsList />} />
+              <Route path="/merchants/partnership-requests" element={<UnderDevelopment />} />
+
+              <Route path="/clients" element={<ClientsList />} />
+              <Route path="/clients/new" element={<ClientFormPage />} />
+              <Route path="/clients/:id/edit" element={<ClientFormPage />} />
+              <Route path="/clients/:id" element={<ClientDetail />} />
+
+              <Route path="/contracts" element={<ContractsList />} />
+              <Route path="/contracts/create" element={<CreateContractClientSearch />} />
+              <Route path="/contracts/create/form" element={<ContractForm />} />
+              <Route path="/contracts/:id" element={<ContractDetail />} />
+
+              <Route path="/products" element={<ProductsList />} />
+              <Route path="/products/new" element={<ProductFormPage />} />
+              <Route path="/products/:id/edit" element={<ProductFormPage />} />
+
+              <Route path="/settings/platform" element={<PlatformSettingsPage />} />
+              <Route path="/settings/home" element={<HomeSettingsPage />} />
+              <Route path="/settings/general" element={<SettingsGeneralPage />} />
+              <Route path="/settings/positions" element={<PositionsSettingsPage />} />
+              <Route path="/settings/experience-levels" element={<ExperienceLevelsSettingsPage />} />
+              <Route path="/settings/locations" element={<LocationsSettingsPage />} />
+              <Route path="/settings/employment-types" element={<EmploymentTypesSettingsPage />} />
+              <Route path="/settings/divisions" element={<DivisionsSettingsPage />} />
+              <Route path="/settings/skills" element={<SkillsSettingsPage />} />
+              <Route path="/settings/departments" element={<DepartmentsSettingsPage />} />
+              <Route path="/settings/tariffs" element={<TariffsList />} />
+              <Route path="/settings/tariffs/new" element={<TariffForm />} />
+              <Route path="/settings/tariffs/:id" element={<TariffForm />} />
+              <Route path="/settings/product-categories" element={<ProductCategoriesList />} />
+              <Route path="/settings/product-categories/new" element={<ProductCategoryForm />} />
+              <Route path="/settings/product-categories/:id" element={<ProductCategoryForm />} />
+              <Route path="/settings" element={<SettingsPage />} />
+
+              <Route path="/organization/employees" element={<EmployeesList />} />
+              <Route path="/organization/employees/new" element={<EmployeeForm />} />
+              <Route path="/organization/employees/:id" element={<EmployeeForm />} />
+
+              <Route path="/organization/suppliers" element={<SuppliersList />} />
+              <Route path="/organization/suppliers/new" element={<SupplierForm />} />
+              <Route path="/organization/suppliers/:id" element={<SupplierForm />} />
+
+              <Route path="/organization/clients" element={<OrganizationClientsList />} />
+              <Route path="/organization/clients/new" element={<OrganizationClientForm />} />
+              <Route path="/organization/clients/:id" element={<OrganizationClientForm />} />
+
+              <Route path="/organization/agreements" element={<AgreementsList />} />
+              <Route path="/organization/agreements/new" element={<AgreementForm />} />
+              <Route path="/organization/agreements/:id" element={<AgreementForm />} />
+
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+            </Route> : <>
+              <Route path="/login" element={<SignIn />} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </>
+          }
+
+
+
+
+
+          {/* Fallback Route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Router>
+    </QueryClientProvider>
+  );
+}
+
+
+export default observer(App);
