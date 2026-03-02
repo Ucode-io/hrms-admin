@@ -252,7 +252,10 @@ export default function LocationsSettingsPage() {
       if (editingLocation) {
         await updateMutation.mutateAsync({
           guid: editingLocation.guid,
-          data: payload,
+          data: {
+            ...editingLocation,
+            ...payload,
+          },
         });
         toast.success("Локация успешно обновлена.");
       } else {

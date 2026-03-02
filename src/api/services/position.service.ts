@@ -44,7 +44,7 @@ const positionService = {
       },
     }),
 
-  update: (guid: string, data: { title: string }) =>
+  update: (guid: string, data: Partial<Position>) =>
     httpRequest.put(`/v2/items/positions/${guid}`, { data }),
 
   delete: async (guid: string) => {
@@ -88,7 +88,7 @@ export const useUpdatePosition = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ guid, data }: { guid: string; data: { title: string } }) =>
+    mutationFn: ({ guid, data }: { guid: string; data: Partial<Position> }) =>
       positionService.update(guid, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["POSITIONS"]);

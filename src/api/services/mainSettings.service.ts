@@ -24,6 +24,8 @@ export type MainSettingsPayload = {
   show_new_hires_widget: boolean;
 };
 
+export type MainSettingsSaveData = MainSettingsPayload & Partial<MainSettings>;
+
 const mainSettingsService = {
   get: async (): Promise<MainSettings | null> => {
     const res = await httpRequest.get("/v2/items/main_settings", {
@@ -42,7 +44,7 @@ const mainSettingsService = {
     data,
   }: {
     guid?: string | null;
-    data: MainSettingsPayload;
+    data: MainSettingsSaveData;
   }) => {
     if (guid) {
       const res = await httpRequest.put(`/v2/items/main_settings/${guid}`, { data });
@@ -71,7 +73,7 @@ export const useSaveMainSettings = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: { guid?: string | null; data: MainSettingsPayload }) =>
+    mutationFn: (payload: { guid?: string | null; data: MainSettingsSaveData }) =>
       mainSettingsService.save(payload),
     onSuccess: () => {
       queryClient.invalidateQueries(["MAIN_SETTINGS"]);

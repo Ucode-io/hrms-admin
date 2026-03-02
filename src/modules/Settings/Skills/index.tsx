@@ -119,7 +119,10 @@ export default function SkillsSettingsPage() {
       if (editingSkill) {
         await updateMutation.mutateAsync({
           guid: editingSkill.guid,
-          data: { title },
+          data: {
+            ...editingSkill,
+            title,
+          },
         });
         toast.success("Навык успешно обновлен.");
       } else {

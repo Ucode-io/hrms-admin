@@ -119,7 +119,10 @@ export default function PositionsSettingsPage() {
       if (editingPosition) {
         await updateMutation.mutateAsync({
           guid: editingPosition.guid,
-          data: { title },
+          data: {
+            ...editingPosition,
+            title,
+          },
         });
         toast.success("Должность успешно обновлена.");
       } else {

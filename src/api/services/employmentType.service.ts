@@ -48,7 +48,7 @@ const employmentTypeService = {
       },
     }),
 
-  update: (guid: string, data: { title: string }) =>
+  update: (guid: string, data: Partial<EmploymentType>) =>
     httpRequest.put(`/v2/items/employment_types/${guid}`, { data }),
 
   delete: async (guid: string) => {
@@ -92,7 +92,7 @@ export const useUpdateEmploymentType = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ guid, data }: { guid: string; data: { title: string } }) =>
+    mutationFn: ({ guid, data }: { guid: string; data: Partial<EmploymentType> }) =>
       employmentTypeService.update(guid, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["EMPLOYMENT_TYPES"]);

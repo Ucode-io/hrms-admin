@@ -119,7 +119,10 @@ export default function ExperienceLevelsSettingsPage() {
       if (editingExperienceLevel) {
         await updateMutation.mutateAsync({
           guid: editingExperienceLevel.guid,
-          data: { title },
+          data: {
+            ...editingExperienceLevel,
+            title,
+          },
         });
         toast.success("Уровень опыта успешно обновлен.");
       } else {

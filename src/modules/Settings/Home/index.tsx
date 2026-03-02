@@ -6,6 +6,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Checkbox from "../../../components/form/input/Checkbox";
 import {
+  type MainSettings,
   type MainSettingsPayload,
   useMainSettingsQuery,
   useSaveMainSettings,
@@ -26,12 +27,14 @@ export default function HomeSettingsPage() {
   const [form, setForm] = useState<MainSettingsPayload>(DEFAULT_FORM);
   const [initialForm, setInitialForm] = useState<MainSettingsPayload>(DEFAULT_FORM);
   const [settingsGuid, setSettingsGuid] = useState<string | null>(null);
+  const [sourceSettings, setSourceSettings] = useState<MainSettings | null>(null);
 
   useEffect(() => {
     if (!data) {
       setForm(DEFAULT_FORM);
       setInitialForm(DEFAULT_FORM);
       setSettingsGuid(null);
+      setSourceSettings(null);
       return;
     }
 
@@ -46,6 +49,7 @@ export default function HomeSettingsPage() {
     setForm(next);
     setInitialForm(next);
     setSettingsGuid(data.guid || null);
+    setSourceSettings(data);
   }, [data]);
 
   const isDirty = useMemo(
@@ -59,9 +63,13 @@ export default function HomeSettingsPage() {
 
   const handleSave = async () => {
     try {
+      const payload = settingsGuid && sourceSettings
+        ? { ...sourceSettings, ...form }
+        : form;
+
       await saveMutation.mutateAsync({
         guid: settingsGuid,
-        data: form,
+        data: payload,
       });
 
       setInitialForm(form);

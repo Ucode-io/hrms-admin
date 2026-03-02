@@ -119,7 +119,10 @@ export default function EmploymentTypesSettingsPage() {
       if (editingEmploymentType) {
         await updateMutation.mutateAsync({
           guid: editingEmploymentType.guid,
-          data: { title },
+          data: {
+            ...editingEmploymentType,
+            title,
+          },
         });
         toast.success("Вид занятости успешно обновлен.");
       } else {

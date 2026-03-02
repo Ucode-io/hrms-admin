@@ -119,7 +119,10 @@ export default function DivisionsSettingsPage() {
       if (editingDivision) {
         await updateMutation.mutateAsync({
           guid: editingDivision.guid,
-          data: { title },
+          data: {
+            ...editingDivision,
+            title,
+          },
         });
         toast.success("Подразделение успешно обновлено.");
       } else {

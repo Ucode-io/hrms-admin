@@ -48,7 +48,7 @@ const experienceLevelService = {
       },
     }),
 
-  update: (guid: string, data: { title: string }) =>
+  update: (guid: string, data: Partial<ExperienceLevel>) =>
     httpRequest.put(`/v2/items/experience_levels/${guid}`, { data }),
 
   delete: async (guid: string) => {
@@ -92,7 +92,7 @@ export const useUpdateExperienceLevel = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ guid, data }: { guid: string; data: { title: string } }) =>
+    mutationFn: ({ guid, data }: { guid: string; data: Partial<ExperienceLevel> }) =>
       experienceLevelService.update(guid, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["EXPERIENCE_LEVELS"]);

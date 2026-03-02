@@ -352,7 +352,10 @@ export default function DepartmentsSettingsPage() {
       if (editingDepartment) {
         await updateMutation.mutateAsync({
           guid: editingDepartment.guid,
-          data: payload,
+          data: {
+            ...editingDepartment,
+            ...payload,
+          },
         });
         toast.success("Департамент успешно обновлен.");
       } else {

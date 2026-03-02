@@ -51,7 +51,7 @@ const departmentService = {
 
   update: (
     guid: string,
-    data: { title: string; departments_id?: string | null }
+    data: Partial<Department>
   ) => httpRequest.put(`/v2/items/departments/${guid}`, { data }),
 
   delete: async (guid: string) => {
@@ -101,7 +101,7 @@ export const useUpdateDepartment = () => {
       data,
     }: {
       guid: string;
-      data: { title: string; departments_id?: string | null };
+      data: Partial<Department>;
     }) => departmentService.update(guid, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["DEPARTMENTS_SETTINGS"]);

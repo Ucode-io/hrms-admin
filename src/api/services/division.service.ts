@@ -48,7 +48,7 @@ const divisionService = {
       },
     }),
 
-  update: (guid: string, data: { title: string }) =>
+  update: (guid: string, data: Partial<Division>) =>
     httpRequest.put(`/v2/items/divisions/${guid}`, { data }),
 
   delete: async (guid: string) => {
@@ -92,7 +92,7 @@ export const useUpdateDivision = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ guid, data }: { guid: string; data: { title: string } }) =>
+    mutationFn: ({ guid, data }: { guid: string; data: Partial<Division> }) =>
       divisionService.update(guid, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["DIVISIONS"]);

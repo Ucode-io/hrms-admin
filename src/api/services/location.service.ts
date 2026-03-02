@@ -83,12 +83,7 @@ const locationService = {
 
   update: (
     guid: string,
-    data: {
-      title: string;
-      address: string;
-      countries_id: string | null;
-      timezone: string[];
-    }
+    data: Partial<Location>
   ) => httpRequest.put(`/v2/items/locations/${guid}`, { data }),
 
   delete: async (guid: string) => {
@@ -154,12 +149,7 @@ export const useUpdateLocation = () => {
       data,
     }: {
       guid: string;
-      data: {
-        title: string;
-        address: string;
-        countries_id: string | null;
-        timezone: string[];
-      };
+      data: Partial<Location>;
     }) => locationService.update(guid, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["LOCATIONS"]);

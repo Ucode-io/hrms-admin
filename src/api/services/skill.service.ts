@@ -48,7 +48,7 @@ const skillService = {
       },
     }),
 
-  update: (guid: string, data: { title: string }) =>
+  update: (guid: string, data: Partial<Skill>) =>
     httpRequest.put(`/v2/items/skills/${guid}`, { data }),
 
   delete: async (guid: string) => {
@@ -92,7 +92,7 @@ export const useUpdateSkill = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ guid, data }: { guid: string; data: { title: string } }) =>
+    mutationFn: ({ guid, data }: { guid: string; data: Partial<Skill> }) =>
       skillService.update(guid, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["SKILLS"]);
