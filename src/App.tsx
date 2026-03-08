@@ -29,6 +29,11 @@ import DivisionsSettingsPage from "./modules/Settings/Divisions";
 import SkillsSettingsPage from "./modules/Settings/Skills";
 import DepartmentsSettingsPage from "./modules/Settings/Departments";
 import LocationsSettingsPage from "./modules/Settings/Locations";
+import CompensationSettingsPage from "./modules/Settings/Compensation";
+import ProbationPoliciesSettingsPage from "./modules/Settings/ProbationPolicies";
+import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
+import DismissalTypesSettingsPage from "./modules/Settings/DismissalTypes";
+import PropertyCategoriesSettingsPage from "./modules/Settings/PropertyCategories";
 import TariffsList from "./modules/Settings/Tariffs/List";
 import TariffForm from "./modules/Settings/Tariffs/Form";
 import ProductCategoriesList from "./modules/Settings/ProductCategories/List";
@@ -113,6 +118,11 @@ function App() {
               <Route path="/settings/divisions" element={<DivisionsSettingsPage />} />
               <Route path="/settings/skills" element={<SkillsSettingsPage />} />
               <Route path="/settings/departments" element={<DepartmentsSettingsPage />} />
+              <Route path="/settings/compensation" element={<CompensationSettingsPage />} />
+              <Route path="/settings/probation-policies" element={<ProbationPoliciesSettingsPage />} />
+              <Route path="/settings/dismissal-reasons" element={<DismissalReasonsSettingsPage />} />
+              <Route path="/settings/dismissal-types" element={<DismissalTypesSettingsPage />} />
+              <Route path="/settings/property-categories" element={<PropertyCategoriesSettingsPage />} />
               <Route path="/settings/tariffs" element={<TariffsList />} />
               <Route path="/settings/tariffs/new" element={<TariffForm />} />
               <Route path="/settings/tariffs/:id" element={<TariffForm />} />

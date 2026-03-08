@@ -211,11 +211,6 @@ export default function PositionsSettingsPage() {
             </label>
           </div>
 
-          {isFetching && (
-            <div className="border-t border-gray-100 px-4 py-2 text-xs text-gray-400">
-              Обновление...
-            </div>
-          )}
 
           <div className="max-w-full overflow-x-auto border-t border-gray-100">
             <Table>

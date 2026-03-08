@@ -163,18 +163,48 @@ const settingsSections: SettingsSection[] = [
     columns: [
       [
         { id: "absence-policies", title: "Политики отсутствий", icon: CalendarDays, subtitle: "Отпуска и больничные" },
-        { id: "probation-policies", title: "Политики испытательного срока", icon: UserRoundCheck, subtitle: "Правила адаптации" },
+        {
+          id: "probation-policies",
+          title: "Политики испытательного срока",
+          icon: UserRoundCheck,
+          path: "/settings/probation-policies",
+          subtitle: "Правила адаптации",
+        },
         { id: "documents", title: "Документы", icon: FolderOpen, subtitle: "Кадровые документы" },
-        { id: "asset-categories", title: "Категории имущества", icon: LaptopMinimal, subtitle: "Активы и инвентарь" },
+        {
+          id: "property-categories",
+          title: "Категории имущества",
+          icon: LaptopMinimal,
+          path: "/settings/property-categories",
+          subtitle: "Активы и инвентарь",
+        },
       ],
       [
         { id: "work-schedules", title: "Графики работы", icon: ListOrdered, subtitle: "Смены и часы" },
-        { id: "dismissal-reasons", title: "Причины увольнения", icon: UserX, subtitle: "Классификатор причин" },
+        {
+          id: "dismissal-reasons",
+          title: "Причины увольнения",
+          icon: UserX,
+          path: "/settings/dismissal-reasons",
+          subtitle: "Классификатор причин",
+        },
         { id: "people-data", title: "Данные о людях", icon: IdCard, subtitle: "Личные данные" },
       ],
       [
-        { id: "compensation", title: "Компенсация", icon: WalletCards, subtitle: "Выплаты и бонусы" },
-        { id: "dismissal-types", title: "Типы увольнения", icon: UserX, subtitle: "Виды завершения работы" },
+        {
+          id: "compensation",
+          title: "Компенсация",
+          icon: WalletCards,
+          path: "/settings/compensation",
+          subtitle: "Выплаты и бонусы",
+        },
+        {
+          id: "dismissal-types",
+          title: "Типы увольнения",
+          icon: UserX,
+          path: "/settings/dismissal-types",
+          subtitle: "Виды завершения работы",
+        },
         { id: "asset-fields", title: "Поля активов", icon: Monitor, subtitle: "Параметры имущества" },
       ],
     ],

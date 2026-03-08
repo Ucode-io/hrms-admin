@@ -23,32 +23,42 @@ import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
 import Pagination from "../../../components/pagination";
 import {
-  type Position,
-  useCreatePosition,
-  useDeletePosition,
-  usePositionsQuery,
-  useUpdatePosition,
-} from "../../../api/services/position.service";
+  type SettingsDirectoryItem,
+  useCreateSettingsDirectoryItem,
+  useDeleteSettingsDirectoryItem,
+  useSettingsDirectoryQuery,
+  useUpdateSettingsDirectoryItem,
+} from "../../../api/services/settingsDirectory.service";
 
 const PAGE_SIZE = 20;
 
-const resolveEmployeesCount = (position: Position): number => {
-  if (typeof position.employees_count === "number") return position.employees_count;
-  if (typeof position.employee_count === "number") return position.employee_count;
-  if (Array.isArray(position.employees)) return position.employees.length;
-  return 0;
+type SimpleDirectorySettingsPageProps = {
+  slug: string;
+  metaTitle: string;
+  pageTitle: string;
+  pageDescription: string;
+  emptyText: string;
+  includeDuration?: boolean;
 };
 
-export default function PositionsSettingsPage() {
+export default function SimpleDirectorySettingsPage({
+  slug,
+  metaTitle,
+  pageTitle,
+  pageDescription,
+  emptyText,
+  includeDuration = false,
+}: SimpleDirectorySettingsPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [isUpsertModalOpen, setIsUpsertModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
-  const [positionToDelete, setPositionToDelete] = useState<Position | null>(null);
-  const [positionTitle, setPositionTitle] = useState("");
+  const [editingItem, setEditingItem] = useState<SettingsDirectoryItem | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<SettingsDirectoryItem | null>(null);
+  const [itemTitle, setItemTitle] = useState("");
+  const [itemDuration, setItemDuration] = useState(1);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -72,12 +82,15 @@ export default function PositionsSettingsPage() {
     [currentPage, debouncedSearch]
   );
 
-  const { data, isLoading, isFetching } = usePositionsQuery({ params: queryParams });
-  const createMutation = useCreatePosition();
-  const updateMutation = useUpdatePosition();
-  const deleteMutation = useDeletePosition();
+  const { data, isLoading, isFetching } = useSettingsDirectoryQuery({
+    slug,
+    params: queryParams,
+  });
+  const createMutation = useCreateSettingsDirectoryItem(slug);
+  const updateMutation = useUpdateSettingsDirectoryItem(slug);
+  const deleteMutation = useDeleteSettingsDirectoryItem(slug);
 
-  const positions = data?.response || [];
+  const items = data?.response || [];
   const totalCount = data?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -88,76 +101,90 @@ export default function PositionsSettingsPage() {
   }, [currentPage, totalPages]);
 
   const openCreateModal = () => {
-    setEditingPosition(null);
-    setPositionTitle("");
+    setEditingItem(null);
+    setItemTitle("");
+    setItemDuration(1);
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
 
-  const openEditModal = (position: Position) => {
-    setEditingPosition(position);
-    setPositionTitle(String(position.title || ""));
+  const openEditModal = (item: SettingsDirectoryItem) => {
+    setEditingItem(item);
+    setItemTitle(String(item.title || ""));
+    const duration = typeof item.duration === "number" ? item.duration : 1;
+    setItemDuration(duration > 0 ? duration : 1);
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
 
   const closeUpsertModal = () => {
     setIsUpsertModalOpen(false);
-    setEditingPosition(null);
-    setPositionTitle("");
+    setEditingItem(null);
+    setItemTitle("");
+    setItemDuration(1);
   };
 
   const handleSubmit = async () => {
-    const title = positionTitle.trim();
+    const title = itemTitle.trim();
 
     if (!title) {
-      toast.error("Название должности обязательно.");
+      toast.error("Название обязательно.");
       return;
     }
 
+    if (includeDuration && (!Number.isInteger(itemDuration) || itemDuration <= 0)) {
+      toast.error("Продолжительность должна быть целым числом больше 0.");
+      return;
+    }
+
+    const payload: { title: string;[key: string]: unknown } = { title };
+    if (includeDuration) {
+      payload.duration = itemDuration;
+    }
+
     try {
-      if (editingPosition) {
+      if (editingItem) {
         await updateMutation.mutateAsync({
-          guid: editingPosition.guid,
+          guid: editingItem.guid,
           data: {
-            ...editingPosition,
-            title,
+            ...editingItem,
+            ...payload,
           },
         });
-        toast.success("Должность успешно обновлена.");
+        toast.success("Запись успешно обновлена.");
       } else {
-        await createMutation.mutateAsync({ title });
-        toast.success("Должность успешно создана.");
+        await createMutation.mutateAsync(payload);
+        toast.success("Запись успешно создана.");
       }
 
       closeUpsertModal();
     } catch (error) {
-      console.error("Failed to save position:", error);
-      toast.error("Не удалось сохранить должность. Попробуйте еще раз.");
+      console.error(`Failed to save settings directory item (${slug}):`, error);
+      toast.error("Не удалось сохранить запись. Попробуйте еще раз.");
     }
   };
 
-  const openDeleteModal = (position: Position) => {
-    setPositionToDelete(position);
+  const openDeleteModal = (item: SettingsDirectoryItem) => {
+    setItemToDelete(item);
     setIsDeleteModalOpen(true);
     setOpenActionsFor(null);
   };
 
   const closeDeleteModal = () => {
     setIsDeleteModalOpen(false);
-    setPositionToDelete(null);
+    setItemToDelete(null);
   };
 
   const confirmDelete = async () => {
-    if (!positionToDelete) return;
+    if (!itemToDelete) return;
 
     try {
-      await deleteMutation.mutateAsync(positionToDelete.guid);
-      toast.success("Должность удалена.");
+      await deleteMutation.mutateAsync(itemToDelete.guid);
+      toast.success("Запись удалена.");
       closeDeleteModal();
     } catch (error) {
-      console.error("Failed to delete position:", error);
-      toast.error("Не удалось удалить должность.");
+      console.error(`Failed to delete settings directory item (${slug}):`, error);
+      toast.error("Не удалось удалить запись.");
     }
   };
 
@@ -169,7 +196,7 @@ export default function PositionsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Должности | Настройки" description="Список должностей компании" />
+      <PageMeta title={metaTitle} description={pageDescription} />
 
       <div className="space-y-4">
         <Link
@@ -181,7 +208,7 @@ export default function PositionsSettingsPage() {
         </Link>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Должности</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{pageTitle}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -214,6 +241,7 @@ export default function PositionsSettingsPage() {
             </label>
           </div>
 
+
           <div className="max-w-full overflow-x-auto border-t border-gray-100">
             <Table>
               <TableHeader className="border-b border-gray-100">
@@ -221,9 +249,11 @@ export default function PositionsSettingsPage() {
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                     Название
                   </TableCell>
-                  <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Сотрудники
-                  </TableCell>
+                  {includeDuration && (
+                    <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
+                      Продолжительность (месяц)
+                    </TableCell>
+                  )}
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
                     Действия
                   </TableCell>
@@ -233,62 +263,66 @@ export default function PositionsSettingsPage() {
               <TableBody className="divide-y divide-gray-100">
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, index) => (
-                    <TableRow key={`positions-skeleton-${index}`}>
+                    <TableRow key={`${slug}-skeleton-${index}`}>
                       <TableCell className="px-4 py-4">
                         <div className="h-4 w-60 animate-pulse rounded bg-gray-200" />
                       </TableCell>
-                      <TableCell className="px-4 py-4 text-right">
-                        <div className="ml-auto h-4 w-8 animate-pulse rounded bg-gray-200" />
-                      </TableCell>
+                      {includeDuration && (
+                        <TableCell className="px-4 py-4 text-right">
+                          <div className="ml-auto h-4 w-10 animate-pulse rounded bg-gray-200" />
+                        </TableCell>
+                      )}
                       <TableCell className="px-4 py-4 text-right">
                         <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-200" />
                       </TableCell>
                     </TableRow>
                   ))
-                ) : positions.length === 0 ? (
+                ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Должности не найдены
+                    <TableCell colSpan={includeDuration ? 3 : 2} className="px-4 py-10 text-center text-sm text-gray-500">
+                      {emptyText}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  positions.map((position) => (
-                    <TableRow key={position.guid} className="hover:bg-gray-50 transition-colors">
+                  items.map((item) => (
+                    <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(position.title || "Без названия")}
+                        {String(item.title || "Без названия")}
                       </TableCell>
-                      <TableCell className="px-4 py-3 text-right text-sm text-gray-700">
-                        {resolveEmployeesCount(position)}
-                      </TableCell>
+                      {includeDuration && (
+                        <TableCell className="px-4 py-3 text-right text-sm text-gray-700">
+                          {typeof item.duration === "number" ? item.duration : "-"}
+                        </TableCell>
+                      )}
                       <TableCell className="px-4 py-3">
                         <div className="relative flex items-center justify-end">
                           <button
                             type="button"
-                            onClick={() => toggleActionsMenu(position.guid)}
+                            onClick={() => toggleActionsMenu(item.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
                             aria-label="Открыть действия"
                             ref={(el) => {
-                              actionButtonRefs.current[position.guid] = el;
+                              actionButtonRefs.current[item.guid] = el;
                             }}
                           >
                             <MoreHorizontal size={16} />
                           </button>
 
                           <Dropdown
-                            isOpen={openActionsFor === position.guid}
+                            isOpen={openActionsFor === item.guid}
                             onClose={() => setOpenActionsFor(null)}
                             className="w-40 p-1"
                             usePortal
-                            anchorEl={actionButtonRefs.current[position.guid]}
+                            anchorEl={actionButtonRefs.current[item.guid]}
                           >
                             <DropdownItem
-                              onClick={() => openEditModal(position)}
+                              onClick={() => openEditModal(item)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
                               Изменить
                             </DropdownItem>
                             <DropdownItem
-                              onClick={() => openDeleteModal(position)}
+                              onClick={() => openDeleteModal(item)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
                               Удалить
@@ -321,7 +355,7 @@ export default function PositionsSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingPosition ? "Изменить должность" : "Новая должность"}
+            {editingItem ? "Изменить запись" : "Новая запись"}
           </h3>
           <button
             type="button"
@@ -334,17 +368,58 @@ export default function PositionsSettingsPage() {
         </div>
 
         <div className="space-y-3 px-4 py-4">
-          <label htmlFor="position-title" className="block text-sm font-medium text-gray-700">
+          <label htmlFor={`${slug}-title`} className="block text-sm font-medium text-gray-700">
             Название
           </label>
           <input
-            id="position-title"
-            value={positionTitle}
-            onChange={(event) => setPositionTitle(event.target.value)}
-            placeholder="Введите название должности"
+            id={`${slug}-title`}
+            value={itemTitle}
+            onChange={(event) => setItemTitle(event.target.value)}
+            placeholder="Введите название"
             autoFocus
             className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
+          {includeDuration && (
+            <div className="space-y-2">
+              <label
+                htmlFor={`${slug}-duration`}
+                className="block text-sm font-medium text-gray-700"
+              >
+                Продолжительность (месяц)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id={`${slug}-duration`}
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={itemDuration}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    if (Number.isNaN(value)) return;
+                    setItemDuration(Math.max(1, Math.floor(value)));
+                  }}
+                  className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 min-w-[40px] px-0"
+                  onClick={() => setItemDuration((prev) => Math.max(1, prev - 1))}
+                >
+                  -
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 min-w-[40px] px-0"
+                  onClick={() => setItemDuration((prev) => prev + 1)}
+                >
+                  +
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-4 py-3">
@@ -369,7 +444,7 @@ export default function PositionsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить должность</h3>
+            <h3 className="text-base font-semibold text-gray-900">Удалить запись</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
@@ -386,9 +461,9 @@ export default function PositionsSettingsPage() {
             Это действие нельзя отменить.
           </p>
           <p className="text-sm text-gray-700">
-            {positionToDelete
-              ? `Вы уверены, что хотите удалить "${String(positionToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить эту должность?"}
+            {itemToDelete
+              ? `Вы уверены, что хотите удалить "${String(itemToDelete.title)}"?`
+              : "Вы уверены, что хотите удалить эту запись?"}
           </p>
 
           <div className="flex gap-2">
