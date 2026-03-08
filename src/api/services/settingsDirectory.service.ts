@@ -6,6 +6,8 @@ export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 export interface SettingsDirectoryItem {
   guid: string;
   title: string;
+  description?: string;
+  file?: string;
   companies_id: string;
   created_at: string;
   updated_at: string;
@@ -50,6 +52,20 @@ const settingsDirectoryService = {
       },
     }),
 
+  getByGuid: async (
+    slug: string,
+    guid: string
+  ): Promise<SettingsDirectoryItem | null> => {
+    const res = await httpRequest.get(`/v2/items/${slug}/${guid}`);
+    if (res?.response && typeof res.response === "object") {
+      return res.response as SettingsDirectoryItem;
+    }
+    if (res && typeof res === "object" && "guid" in res) {
+      return res as SettingsDirectoryItem;
+    }
+    return null;
+  },
+
   update: (slug: string, guid: string, data: Partial<SettingsDirectoryItem>) =>
     httpRequest.put(`/v2/items/${slug}/${guid}`, { data }),
 
@@ -89,6 +105,23 @@ export const useCreateSettingsDirectoryItem = (slug: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries(["SETTINGS_DIRECTORY", slug]);
     },
+  });
+};
+
+export const useSettingsDirectoryItemQuery = ({
+  slug,
+  guid,
+  querySettings = {},
+}: {
+  slug: string;
+  guid: string;
+  querySettings?: any;
+}) => {
+  return useQuery({
+    queryKey: ["SETTINGS_DIRECTORY_ITEM", slug, guid],
+    queryFn: () => settingsDirectoryService.getByGuid(slug, guid),
+    enabled: Boolean(slug && guid),
+    ...querySettings,
   });
 };
 

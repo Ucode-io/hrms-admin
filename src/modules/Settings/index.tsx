@@ -162,7 +162,13 @@ const settingsSections: SettingsSection[] = [
     title: "HR",
     columns: [
       [
-        { id: "absence-policies", title: "Политики отсутствий", icon: CalendarDays, subtitle: "Отпуска и больничные" },
+        {
+          id: "absence-policies",
+          title: "Политики отсутствий",
+          icon: CalendarDays,
+          path: "/settings/absence-policies",
+          subtitle: "Отпуска и больничные",
+        },
         {
           id: "probation-policies",
           title: "Политики испытательного срока",
@@ -170,7 +176,13 @@ const settingsSections: SettingsSection[] = [
           path: "/settings/probation-policies",
           subtitle: "Правила адаптации",
         },
-        { id: "documents", title: "Документы", icon: FolderOpen, subtitle: "Кадровые документы" },
+        {
+          id: "documents",
+          title: "Документы",
+          icon: FolderOpen,
+          path: "/settings/documents",
+          subtitle: "Кадровые документы",
+        },
         {
           id: "property-categories",
           title: "Категории имущества",
@@ -180,7 +192,13 @@ const settingsSections: SettingsSection[] = [
         },
       ],
       [
-        { id: "work-schedules", title: "Графики работы", icon: ListOrdered, subtitle: "Смены и часы" },
+        {
+          id: "work-schedules",
+          title: "Графики работы",
+          icon: ListOrdered,
+          subtitle: "Смены и часы",
+          path: "/settings/work-schedules",
+        },
         {
           id: "dismissal-reasons",
           title: "Причины увольнения",
@@ -188,7 +206,7 @@ const settingsSections: SettingsSection[] = [
           path: "/settings/dismissal-reasons",
           subtitle: "Классификатор причин",
         },
-        { id: "people-data", title: "Данные о людях", icon: IdCard, subtitle: "Личные данные" },
+        // { id: "people-data", title: "Данные о людях", icon: IdCard, subtitle: "Личные данные" },
       ],
       [
         {

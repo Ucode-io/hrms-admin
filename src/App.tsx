@@ -30,6 +30,10 @@ import SkillsSettingsPage from "./modules/Settings/Skills";
 import DepartmentsSettingsPage from "./modules/Settings/Departments";
 import LocationsSettingsPage from "./modules/Settings/Locations";
 import CompensationSettingsPage from "./modules/Settings/Compensation";
+import AbsencePoliciesSettingsPage from "./modules/Settings/AbsencePolicies";
+import DocumentsSettingsPage from "./modules/Settings/Documents";
+import DocumentTemplateDetailPage from "./modules/Settings/Documents/TemplateDetail";
+import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
 import ProbationPoliciesSettingsPage from "./modules/Settings/ProbationPolicies";
 import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
 import DismissalTypesSettingsPage from "./modules/Settings/DismissalTypes";
@@ -119,6 +123,10 @@ function App() {
               <Route path="/settings/skills" element={<SkillsSettingsPage />} />
               <Route path="/settings/departments" element={<DepartmentsSettingsPage />} />
               <Route path="/settings/compensation" element={<CompensationSettingsPage />} />
+              <Route path="/settings/absence-policies" element={<AbsencePoliciesSettingsPage />} />
+              <Route path="/settings/documents" element={<DocumentsSettingsPage />} />
+              <Route path="/settings/documents/templates/:id" element={<DocumentTemplateDetailPage />} />
+              <Route path="/settings/work-schedules" element={<WorkSchedulesSettingsPage />} />
               <Route path="/settings/probation-policies" element={<ProbationPoliciesSettingsPage />} />
               <Route path="/settings/dismissal-reasons" element={<DismissalReasonsSettingsPage />} />
               <Route path="/settings/dismissal-types" element={<DismissalTypesSettingsPage />} />
