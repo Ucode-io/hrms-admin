@@ -24,6 +24,7 @@ export interface SettingsDirectoryListParams {
   limit?: number;
   offset?: number;
   search?: string;
+  [key: string]: unknown;
 }
 
 const settingsDirectoryService = {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useQueryClient } from "react-query";
 import { ChevronLeft, MoreHorizontal, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
@@ -15,35 +16,38 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
-import {
+import httpRequest from "../../../api/httpRequest";
+import settingsDirectoryService, {
   type SettingsDirectoryItem,
-  useCreateSettingsDirectoryItem,
   useDeleteSettingsDirectoryItem,
   useSettingsDirectoryQuery,
-  useUpdateSettingsDirectoryItem,
 } from "../../../api/services/settingsDirectory.service";
 
-const SLUG = "work_schedule";
+const WORK_SCHEDULE_SLUG = "work_schedule";
+const WORK_SCHEDULE_DAYS_SLUG = "work_schedule_days";
 const PAGE_SIZE = 20;
 
 type UnknownRecord = Record<string, unknown>;
 
+type DayDef = {
+  key: string;
+  code: string;
+  label: string;
+  defaultWork: number;
+};
+
 type DaySchedule = {
   key: string;
+  code: string;
   label: string;
   breakHours: number;
   workHours: number;
+  guid?: string;
 };
 
 type WorkScheduleItem = SettingsDirectoryItem & {
-  days?: unknown;
-  work_days?: unknown;
-  week_days?: unknown;
-  schedule?: unknown;
-  break_hours_weekly?: number;
-  breaks_weekly_hours?: number;
-  work_hours_weekly?: number;
-  worked_weekly_hours?: number;
+  total_work_hours?: number;
+  total_break_hours?: number;
   employees_count?: number;
   employee_count?: number;
   employees?: number;
@@ -51,32 +55,24 @@ type WorkScheduleItem = SettingsDirectoryItem & {
   default?: boolean;
 };
 
-const DAY_DEFS: Array<{ key: string; label: string; defaultWork: number }> = [
-  { key: "monday", label: "Понедельник", defaultWork: 8 },
-  { key: "tuesday", label: "Вторник", defaultWork: 8 },
-  { key: "wednesday", label: "Среда", defaultWork: 8 },
-  { key: "thursday", label: "Четверг", defaultWork: 8 },
-  { key: "friday", label: "Пятница", defaultWork: 8 },
-  { key: "saturday", label: "Суббота", defaultWork: 0 },
-  { key: "sunday", label: "Воскресенье", defaultWork: 0 },
-];
-
-const DAY_ALIASES: Record<string, string> = {
-  monday: "monday",
-  понедельник: "monday",
-  tuesday: "tuesday",
-  вторник: "tuesday",
-  wednesday: "wednesday",
-  среда: "wednesday",
-  thursday: "thursday",
-  четверг: "thursday",
-  friday: "friday",
-  пятница: "friday",
-  saturday: "saturday",
-  суббота: "saturday",
-  sunday: "sunday",
-  воскресенье: "sunday",
+type WorkScheduleDayItem = {
+  guid: string;
+  day?: string[] | string;
+  break_hours?: number;
+  work_hours?: number;
+  work_schedule_id?: string;
+  [key: string]: unknown;
 };
+
+const DAY_DEFS: DayDef[] = [
+  { key: "monday", code: "mon", label: "Понедельник", defaultWork: 8 },
+  { key: "tuesday", code: "tue", label: "Вторник", defaultWork: 8 },
+  { key: "wednesday", code: "wed", label: "Среда", defaultWork: 8 },
+  { key: "thursday", code: "thu", label: "Четверг", defaultWork: 8 },
+  { key: "friday", code: "fri", label: "Пятница", defaultWork: 8 },
+  { key: "saturday", code: "sat", label: "Суббота", defaultWork: 0 },
+  { key: "sunday", code: "sun", label: "Воскресенье", defaultWork: 0 },
+];
 
 const HOURS_STEP = 0.5;
 const MIN_HOURS = 0;
@@ -85,16 +81,6 @@ const MAX_HOURS = 24;
 const toNumber = (value: unknown, fallback = 0): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const toObject = (value: unknown): UnknownRecord | null => {
-  return value && typeof value === "object" ? (value as UnknownRecord) : null;
-};
-
-const normalizeDayKey = (value: unknown): string => {
-  if (typeof value !== "string") return "";
-  const lowered = value.trim().toLowerCase();
-  return DAY_ALIASES[lowered] || "";
 };
 
 const clampHours = (value: number): number => {
@@ -113,6 +99,7 @@ const formatHoursWithComma = (value: number): string => {
 const buildDefaultDays = (): DaySchedule[] => {
   return DAY_DEFS.map((day) => ({
     key: day.key,
+    code: day.code,
     label: day.label,
     breakHours: 0,
     workHours: day.defaultWork,
@@ -127,78 +114,8 @@ const sumWorkHours = (days: DaySchedule[]): number => {
   return days.reduce((total, day) => total + day.workHours, 0);
 };
 
-const resolveDaysArray = (item: WorkScheduleItem | null): DaySchedule[] => {
-  const defaults = buildDefaultDays();
-  if (!item) return defaults;
-
-  const source =
-    (Array.isArray(item.days) && item.days) ||
-    (Array.isArray(item.work_days) && item.work_days) ||
-    (Array.isArray(item.week_days) && item.week_days) ||
-    (Array.isArray(item.schedule) && item.schedule) ||
-    null;
-
-  if (!source) return defaults;
-
-  return defaults.map((day, index) => {
-    const foundEntry = source.find((entry, sourceIndex) => {
-      if (sourceIndex === index) return true;
-      const asObject = toObject(entry);
-      if (!asObject) return false;
-      const byKey = normalizeDayKey(
-        asObject.day ?? asObject.day_key ?? asObject.weekday ?? asObject.week_day
-      );
-      const byTitle = normalizeDayKey(asObject.name ?? asObject.title ?? asObject.label);
-      return byKey === day.key || byTitle === day.key;
-    });
-
-    const asObject = toObject(foundEntry);
-    if (!asObject) return day;
-
-    const breakHours = clampHours(
-      toNumber(
-        asObject.break_hours ??
-          asObject.breaks_hours ??
-          asObject.break_time ??
-          asObject.breakHours,
-        day.breakHours
-      )
-    );
-
-    const workHours = clampHours(
-      toNumber(
-        asObject.work_hours ??
-          asObject.worked_hours ??
-          asObject.hours ??
-          asObject.workHours,
-        day.workHours
-      )
-    );
-
-    return {
-      ...day,
-      breakHours,
-      workHours,
-    };
-  });
-};
-
-const resolveBreakWeekly = (item: WorkScheduleItem, days: DaySchedule[]): number => {
-  const candidate =
-    item.breaks_weekly_hours ??
-    item.break_hours_weekly ??
-    toNumber((item as UnknownRecord).weekly_break_hours, NaN);
-
-  return Number.isFinite(candidate) ? Number(candidate) : sumBreakHours(days);
-};
-
-const resolveWorkWeekly = (item: WorkScheduleItem, days: DaySchedule[]): number => {
-  const candidate =
-    item.worked_weekly_hours ??
-    item.work_hours_weekly ??
-    toNumber((item as UnknownRecord).weekly_work_hours, NaN);
-
-  return Number.isFinite(candidate) ? Number(candidate) : sumWorkHours(days);
+const isDefaultSchedule = (item: WorkScheduleItem): boolean => {
+  return Boolean(item.is_default ?? item.default ?? (item as UnknownRecord).by_default);
 };
 
 const resolveEmployeesCount = (item: WorkScheduleItem): number => {
@@ -206,17 +123,67 @@ const resolveEmployeesCount = (item: WorkScheduleItem): number => {
   return Number.isFinite(Number(candidate)) ? Number(candidate) : 0;
 };
 
-const isDefaultSchedule = (item: WorkScheduleItem): boolean => {
-  return Boolean(item.is_default ?? item.default ?? (item as UnknownRecord).by_default);
+const normalizeDayCode = (value: unknown): string => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return typeof raw === "string" ? raw.trim().toLowerCase() : "";
 };
 
-const resolveUseTimeRange = (item: WorkScheduleItem | null): boolean => {
-  if (!item) return false;
-  const candidate =
-    (item as UnknownRecord).use_workday_time ??
-    (item as UnknownRecord).use_time_range ??
-    (item as UnknownRecord).has_time_range;
-  return Boolean(candidate);
+const resolveDaysFromRecords = (records: WorkScheduleDayItem[]): DaySchedule[] => {
+  const defaults = buildDefaultDays();
+
+  return defaults.map((defaultDay) => {
+    const matched = records.find((record) => normalizeDayCode(record.day) === defaultDay.code);
+    if (!matched) return defaultDay;
+
+    return {
+      ...defaultDay,
+      guid: typeof matched.guid === "string" ? matched.guid : undefined,
+      breakHours: clampHours(toNumber(matched.break_hours, defaultDay.breakHours)),
+      workHours: clampHours(toNumber(matched.work_hours, defaultDay.workHours)),
+    };
+  });
+};
+
+const extractGuidFromResponse = (response: unknown): string | null => {
+  if (!response || typeof response !== "object") return null;
+
+  const asRecord = response as UnknownRecord;
+  if (typeof asRecord.guid === "string" && asRecord.guid) {
+    return asRecord.guid;
+  }
+
+  const nested = asRecord.response;
+  if (nested && typeof nested === "object") {
+    const nestedGuid = (nested as UnknownRecord).guid;
+    if (typeof nestedGuid === "string" && nestedGuid) {
+      return nestedGuid;
+    }
+  }
+
+  return null;
+};
+
+const createWorkScheduleDay = (payload: {
+  day: string[];
+  break_hours: number;
+  work_hours: number;
+  work_schedule_id: string;
+}) => {
+  return httpRequest.post(`/v2/items/${WORK_SCHEDULE_DAYS_SLUG}`, { data: payload });
+};
+
+const updateWorkScheduleDay = (
+  guid: string,
+  payload: {
+    id: string;
+    guid: string;
+    day: string[];
+    break_hours: number;
+    work_hours: number;
+    work_schedule_id: string;
+  }
+) => {
+  return httpRequest.put(`/v2/items/${WORK_SCHEDULE_DAYS_SLUG}/${guid}`, { data: payload });
 };
 
 function HoursControl({
@@ -255,12 +222,16 @@ function HoursControl({
 }
 
 export default function WorkSchedulesSettingsPage() {
+  const queryClient = useQueryClient();
+
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [isUpsertModalOpen, setIsUpsertModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingItem, setEditingItem] = useState<WorkScheduleItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<WorkScheduleItem | null>(null);
   const [title, setTitle] = useState("");
@@ -291,12 +262,10 @@ export default function WorkSchedulesSettingsPage() {
   );
 
   const { data, isLoading, isFetching } = useSettingsDirectoryQuery({
-    slug: SLUG,
+    slug: WORK_SCHEDULE_SLUG,
     params: queryParams,
   });
-  const createMutation = useCreateSettingsDirectoryItem(SLUG);
-  const updateMutation = useUpdateSettingsDirectoryItem(SLUG);
-  const deleteMutation = useDeleteSettingsDirectoryItem(SLUG);
+  const deleteMutation = useDeleteSettingsDirectoryItem(WORK_SCHEDULE_SLUG);
 
   const items = (data?.response || []) as WorkScheduleItem[];
   const totalCount = data?.count || 0;
@@ -315,6 +284,7 @@ export default function WorkSchedulesSettingsPage() {
     setTitle("");
     setDays(buildDefaultDays());
     setUseTimeRange(false);
+    setIsModalLoading(false);
   };
 
   const openCreateModal = () => {
@@ -324,13 +294,49 @@ export default function WorkSchedulesSettingsPage() {
     setOpenActionsFor(null);
   };
 
+  const loadEditData = async (item: WorkScheduleItem) => {
+    setIsModalLoading(true);
+
+    try {
+      const [scheduleData, scheduleDaysData] = await Promise.all([
+        settingsDirectoryService.getByGuid(WORK_SCHEDULE_SLUG, item.guid),
+        settingsDirectoryService.getList(WORK_SCHEDULE_DAYS_SLUG, {
+          limit: 100,
+          offset: 0,
+          work_schedule_id: item.guid,
+        }),
+      ]);
+
+      const scheduleItem = ((scheduleData || item) as WorkScheduleItem);
+      const dayRecords = (scheduleDaysData.response || []) as unknown as WorkScheduleDayItem[];
+
+      setEditingItem(scheduleItem);
+      setTitle(String(scheduleItem.title || ""));
+      setUseTimeRange(
+        Boolean(
+          (scheduleItem as UnknownRecord).use_workday_time ??
+            (scheduleItem as UnknownRecord).use_time_range ??
+            (scheduleItem as UnknownRecord).has_time_range
+        )
+      );
+      setDays(resolveDaysFromRecords(dayRecords));
+    } catch (error) {
+      console.error("Failed to load work schedule details:", error);
+      toast.error("Не удалось загрузить данные графика.");
+      setEditingItem(item);
+      setTitle(String(item.title || ""));
+      setDays(buildDefaultDays());
+      setUseTimeRange(false);
+    } finally {
+      setIsModalLoading(false);
+    }
+  };
+
   const openEditModal = (item: WorkScheduleItem) => {
     setEditingItem(item);
-    setTitle(String(item.title || ""));
-    setDays(resolveDaysArray(item));
-    setUseTimeRange(resolveUseTimeRange(item));
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
+    void loadEditData(item);
   };
 
   const closeUpsertModal = () => {
@@ -339,49 +345,93 @@ export default function WorkSchedulesSettingsPage() {
     resetForm();
   };
 
+  const updateDayValue = (dayKey: string, field: "breakHours" | "workHours", value: number) => {
+    setDays((prev) =>
+      prev.map((day) =>
+        day.key === dayKey
+          ? {
+              ...day,
+              [field]: value,
+            }
+          : day
+      )
+    );
+  };
+
   const handleSubmit = async () => {
+    if (isModalLoading || isSaving) return;
+
     const preparedTitle = title.trim();
     if (!preparedTitle) {
       toast.error("Название графика обязательно.");
       return;
     }
 
-    const totalBreaks = sumBreakHours(days);
-    const totalWorked = sumWorkHours(days);
+    const totalBreakHours = Number(sumBreakHours(days).toFixed(1));
+    const totalWorkHours = Number(sumWorkHours(days).toFixed(1));
 
-    const payload = {
-      title: preparedTitle,
-      use_workday_time: useTimeRange,
-      days: days.map((day) => ({
-        day: day.key,
-        break_hours: day.breakHours,
-        work_hours: day.workHours,
-      })),
-      breaks_weekly_hours: totalBreaks,
-      break_hours_weekly: totalBreaks,
-      worked_weekly_hours: totalWorked,
-      work_hours_weekly: totalWorked,
-    };
+    setIsSaving(true);
 
     try {
+      let workScheduleGuid = editingItem?.guid || "";
+
       if (editingItem) {
-        await updateMutation.mutateAsync({
-          guid: editingItem.guid,
-          data: {
-            ...editingItem,
-            ...payload,
-          },
+        await settingsDirectoryService.update(WORK_SCHEDULE_SLUG, editingItem.guid, {
+          ...editingItem,
+          title: preparedTitle,
+          total_work_hours: totalWorkHours,
+          total_break_hours: totalBreakHours,
+          use_workday_time: useTimeRange,
         });
-        toast.success("Рабочий график обновлен.");
       } else {
-        await createMutation.mutateAsync(payload);
-        toast.success("Рабочий график создан.");
+        const createResponse = await settingsDirectoryService.create(WORK_SCHEDULE_SLUG, {
+          title: preparedTitle,
+          total_work_hours: totalWorkHours,
+          total_break_hours: totalBreakHours,
+          use_workday_time: useTimeRange,
+        });
+
+        const createdGuid = extractGuidFromResponse(createResponse);
+        if (!createdGuid) {
+          throw new Error("Work schedule guid not returned from create response");
+        }
+        workScheduleGuid = createdGuid;
       }
 
+      if (!workScheduleGuid) {
+        throw new Error("Work schedule guid is missing");
+      }
+
+      await Promise.all(
+        days.map((day) => {
+          const payload = {
+            day: [day.code],
+            break_hours: Number(day.breakHours.toFixed(1)),
+            work_hours: Number(day.workHours.toFixed(1)),
+            work_schedule_id: workScheduleGuid,
+          };
+
+          if (editingItem && day.guid) {
+            return updateWorkScheduleDay(day.guid, {
+              ...payload,
+              id: day.guid,
+              guid: day.guid,
+            });
+          }
+
+          return createWorkScheduleDay(payload);
+        })
+      );
+
+      toast.success(editingItem ? "Рабочий график обновлен." : "Рабочий график создан.");
       closeUpsertModal();
+
+      await queryClient.invalidateQueries(["SETTINGS_DIRECTORY", WORK_SCHEDULE_SLUG]);
     } catch (error) {
       console.error("Failed to save work schedule:", error);
       toast.error("Не удалось сохранить рабочий график.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -409,23 +459,8 @@ export default function WorkSchedulesSettingsPage() {
     }
   };
 
-  const isSaving = createMutation.isLoading || updateMutation.isLoading;
-
   const toggleActionsMenu = (guid: string) => {
     setOpenActionsFor((prev) => (prev === guid ? null : guid));
-  };
-
-  const updateDayValue = (dayKey: string, field: "breakHours" | "workHours", value: number) => {
-    setDays((prev) =>
-      prev.map((day) =>
-        day.key === dayKey
-          ? {
-              ...day,
-              [field]: value,
-            }
-          : day
-      )
-    );
   };
 
   const totalWorkedInModal = sumWorkHours(days);
@@ -524,10 +559,10 @@ export default function WorkSchedulesSettingsPage() {
                   </TableRow>
                 ) : (
                   items.map((item) => {
-                    const parsedDays = resolveDaysArray(item);
-                    const weeklyBreaks = resolveBreakWeekly(item, parsedDays);
-                    const weeklyWorked = resolveWorkWeekly(item, parsedDays);
+                    const weeklyBreaks = toNumber(item.total_break_hours, 0);
+                    const weeklyWorked = toNumber(item.total_work_hours, 0);
                     const employeesCount = resolveEmployeesCount(item);
+
                     return (
                       <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                         <TableCell className="px-4 py-3 text-sm text-gray-900">
@@ -624,88 +659,101 @@ export default function WorkSchedulesSettingsPage() {
         </div>
 
         <div className="space-y-3 px-4 py-3">
-          <div className="space-y-2">
-            <label htmlFor="work-schedule-title" className="block text-sm font-medium text-gray-700">
-              Название
-            </label>
-            <input
-              id="work-schedule-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Введите название"
-              autoFocus
-              className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
-            />
-          </div>
-
-          <div className="rounded-xl border border-gray-200">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
-              <h4 className="text-lg font-semibold text-gray-900">Рабочий график</h4>
-
-              <button
-                type="button"
-                onClick={() => setUseTimeRange((prev) => !prev)}
-                className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700"
-              >
-                Время начала и окончания рабочего дня
-                <span
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
-                    useTimeRange ? "bg-brand-500" : "bg-gray-200"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                      useTimeRange ? "translate-x-4" : "translate-x-1"
-                    }`}
-                  />
-                </span>
-              </button>
+          {isModalLoading ? (
+            <div className="space-y-3">
+              <div className="h-9 w-full animate-pulse rounded-lg bg-gray-100" />
+              <div className="h-72 animate-pulse rounded-xl bg-gray-100" />
             </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label htmlFor="work-schedule-title" className="block text-sm font-medium text-gray-700">
+                  Название
+                </label>
+                <input
+                  id="work-schedule-title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Введите название"
+                  autoFocus
+                  className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+                />
+              </div>
 
-            <div className="max-h-[420px] overflow-y-auto">
-              <table className="min-w-full">
-                <thead className="border-b border-gray-200 bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Будний день</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Часы перерыва</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Отработанные часы</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {days.map((day) => (
-                    <tr key={day.key} className="border-b border-gray-100 last:border-b-0">
-                      <td className="px-3 py-2 text-sm font-semibold text-gray-900">{day.label}</td>
-                      <td className="px-3 py-2">
-                        <HoursControl
-                          value={day.breakHours}
-                          onChange={(next) => updateDayValue(day.key, "breakHours", next)}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <HoursControl
-                          value={day.workHours}
-                          onChange={(next) => updateDayValue(day.key, "workHours", next)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-gray-200 bg-gray-50">
-                  <tr>
-                    <td className="px-3 py-2 text-xs font-semibold text-gray-500">Общее</td>
-                    <td className="px-3 py-2 text-xs font-semibold text-gray-500">-</td>
-                    <td className="px-3 py-2 text-xs font-semibold text-gray-700">
-                      {formatHoursWithComma(totalWorkedInModal)} час
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
+              <div className="rounded-xl border border-gray-200">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
+                  <h4 className="text-lg font-semibold text-gray-900">Рабочий график</h4>
+
+                  <button
+                    type="button"
+                    onClick={() => setUseTimeRange((prev) => !prev)}
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700"
+                  >
+                    Время начала и окончания рабочего дня
+                    <span
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                        useTimeRange ? "bg-brand-500" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                          useTimeRange ? "translate-x-4" : "translate-x-1"
+                        }`}
+                      />
+                    </span>
+                  </button>
+                </div>
+
+                <div className="max-h-[420px] overflow-y-auto">
+                  <table className="min-w-full">
+                    <thead className="border-b border-gray-200 bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Будний день</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Часы перерыва</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Отработанные часы</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {days.map((day) => (
+                        <tr key={day.key} className="border-b border-gray-100 last:border-b-0">
+                          <td className="px-3 py-2 text-sm font-semibold text-gray-900">{day.label}</td>
+                          <td className="px-3 py-2">
+                            <HoursControl
+                              value={day.breakHours}
+                              onChange={(next) => updateDayValue(day.key, "breakHours", next)}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <HoursControl
+                              value={day.workHours}
+                              onChange={(next) => updateDayValue(day.key, "workHours", next)}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t border-gray-200 bg-gray-50">
+                      <tr>
+                        <td className="px-3 py-2 text-xs font-semibold text-gray-500">Общее</td>
+                        <td className="px-3 py-2 text-xs font-semibold text-gray-500">-</td>
+                        <td className="px-3 py-2 text-xs font-semibold text-gray-700">
+                          {formatHoursWithComma(totalWorkedInModal)} час
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-2.5">
-          <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
+          <Button
+            onClick={handleSubmit}
+            disabled={isSaving || isModalLoading}
+            className="min-w-[110px] px-3 py-2 text-sm"
+          >
             {isSaving ? "Сохранение..." : "Сохранить"}
           </Button>
         </div>
