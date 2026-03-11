@@ -55,7 +55,7 @@ const moduleNavItems: NavItem[] = [
   {
     icon: <Users size={20} />,
     name: "Сотрудники",
-    path: "/organization/employees",
+    path: "/employees",
   },
   {
     icon: <Calendar size={20} />,
@@ -157,7 +157,7 @@ const AppSidebar: React.FC = () => {
   };
 
   const renderNavItem = (nav: NavItem, index: number, _groupKey: string) => {
-    const isNavEnabled = nav.name === "Главная страница";
+    const isNavEnabled = nav.name === "Главная страница" || nav.name === "Сотрудники";
 
     if (nav.subItems) {
       if (!isNavEnabled) {

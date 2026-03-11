@@ -4,6 +4,7 @@ import authStore from "../../store/auth.store";
 
 const BASE_URL = "https://api.admin.u-code.io";
 const PROJECT_ID = "84f1983d-5095-490e-ba9c-d2618b164c99";
+const SLUG = "user_base";
 
 const instance = axios.create({
   baseURL: BASE_URL,
@@ -22,57 +23,100 @@ instance.interceptors.request.use((config) => {
 
 export interface Employee {
   guid: string;
-  surname: string;
   first_name: string;
-  second_name: string;
+  second_name: string;      // Фамилия
+  middle_name: string;       // Отчество
   birth_date: string | null;
   date_hire: string | null;
   phone: string;
-  gender: string[];
+  gender: string[];          // ["male_slug"] | ["female_slug"]
+  email: string | null;
+  personal_email: string | null;
+  photo: string | null;
+  login: string | null;
+  status: string[];          // ["active"]
+  language: string[];
+
   departments_id: string | null;
   departments_id_data: {
     guid: string;
-    name_ru: string;
-    name_uz: string;
+    title: string;
+    [key: string]: any;
   } | null;
-  job_titles_id: string | null;
-  job_titles_id_data: {
+
+  positions_id: string | null;
+  positions_id_data: {
     guid: string;
-    name_ru: string;
+    title: string;
+    [key: string]: any;
   } | null;
-  foto: string | null;
-  status: boolean;
+
+  employment_types_id: string | null;
+  employment_types_id_data: {
+    guid: string;
+    title: string;
+    [key: string]: any;
+  } | null;
+
+  experience_levels_id: string | null;
+  experience_levels_id_data: {
+    guid: string;
+    title: string;
+    [key: string]: any;
+  } | null;
+
+  divisions_id: string | null;
+  divisions_id_data: {
+    guid: string;
+    title: string;
+    [key: string]: any;
+  } | null;
+
+  locations_id: string | null;
+  locations_id_data: {
+    guid: string;
+    title: string;
+    address?: string;
+    [key: string]: any;
+  } | null;
+
+  role_id: string | null;
+  role_id_data: {
+    guid: string;
+    name: string;
+    [key: string]: any;
+  } | null;
+
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
   [key: string]: any;
 }
 
-export interface Department {
-  guid: string;
-  name_ru: string;
-  name_uz: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface JobTitle {
-  guid: string;
-  name_ru: string;
-  name_uz: string;
-  created_at: string;
-  updated_at: string;
-}
+const EMPLOYEE_ROLE_ID = import.meta.env.VITE_EMPLOYEE_ROLE_ID || "";
 
 // ───── List employees ─────
 export const useEmployeesQuery = (params: { limit?: number; offset?: number; search?: string } = {}) => {
   return useQuery(["employees", params], async () => {
-    const queryParams: Record<string, string> = { "project-id": PROJECT_ID };
-    if (params.limit) queryParams["limit"] = String(params.limit);
-    if (params.offset) queryParams["offset"] = String(params.offset);
-    if (params.search) queryParams["search"] = params.search;
+    const dataObj: Record<string, any> = {
+      limit: params.limit ?? 10,
+      offset: params.offset ?? 0,
+    };
 
-    const res = await instance.get("/v2/items/employees", { params: queryParams });
+    if (EMPLOYEE_ROLE_ID) {
+      dataObj.role_id = EMPLOYEE_ROLE_ID;
+    }
+
+    if (params.search) {
+      dataObj.search = params.search;
+    }
+
+    const res = await instance.get(`/v2/items/${SLUG}`, {
+      params: {
+        "project-id": PROJECT_ID,
+        data: JSON.stringify(dataObj),
+      },
+    });
     return res.data?.data?.data;
   });
 };
@@ -80,8 +124,11 @@ export const useEmployeesQuery = (params: { limit?: number; offset?: number; sea
 // ───── Get single employee ─────
 export const useEmployeeQuery = (guid: string) => {
   return useQuery(["employee", guid], async () => {
-    const res = await instance.get(`/v2/items/employees/${guid}`, {
-      params: { "project-id": PROJECT_ID },
+    const res = await instance.get(`/v2/items/${SLUG}/${guid}`, {
+      params: { 
+        "project-id": PROJECT_ID,
+        with_relations: true,
+      },
     });
     return res.data?.data?.data?.response as Employee;
   }, { enabled: !!guid });
@@ -92,7 +139,7 @@ export const useCreateEmployee = () => {
   const qc = useQueryClient();
   return useMutation(
     async (data: Partial<Employee>) => {
-      const res = await instance.post("/v2/items/employees", { data }, {
+      const res = await instance.post(`/v2/items/${SLUG}`, { data }, {
         params: { "project-id": PROJECT_ID },
       });
       return res.data;
@@ -106,7 +153,7 @@ export const useUpdateEmployee = () => {
   const qc = useQueryClient();
   return useMutation(
     async (data: Partial<Employee> & { guid: string }) => {
-      const res = await instance.put("/v2/items/employees", { data }, {
+      const res = await instance.put(`/v2/items/${SLUG}`, { data }, {
         params: { "project-id": PROJECT_ID },
       });
       return res.data;
@@ -120,22 +167,16 @@ export const useUpdateEmployee = () => {
   );
 };
 
-// ───── List departments ─────
-export const useDepartmentsQuery = () => {
-  return useQuery(["departments"], async () => {
-    const res = await instance.get("/v2/items/departments", {
-      params: { "project-id": PROJECT_ID },
-    });
-    return (res.data?.data?.data?.response || []) as Department[];
-  });
-};
-
-// ───── List job titles ─────
-export const useJobTitlesQuery = () => {
-  return useQuery(["job_titles"], async () => {
-    const res = await instance.get("/v2/items/job_titles", {
-      params: { "project-id": PROJECT_ID },
-    });
-    return (res.data?.data?.data?.response || []) as JobTitle[];
-  });
+// ───── Delete employee ─────
+export const useDeleteEmployee = () => {
+  const qc = useQueryClient();
+  return useMutation(
+    async (guid: string) => {
+      const res = await instance.delete(`/v2/items/${SLUG}/${guid}`, {
+        params: { "project-id": PROJECT_ID },
+      });
+      return res.data;
+    },
+    { onSuccess: () => qc.invalidateQueries("employees") }
+  );
 };

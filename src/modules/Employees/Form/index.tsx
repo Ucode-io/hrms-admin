@@ -1,100 +1,135 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Pencil, Trash2, User, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, User, ChevronLeft } from "lucide-react";
 import DatePicker from "react-datepicker";
 import { InputMask } from "@react-input/mask";
+import { observer } from "mobx-react-lite";
+import { useForm, Controller } from "react-hook-form";
 import PageMeta from "../../../components/common/PageMeta";
+import SearchableSelect from "../../../components/ui/searchable-select";
+import companyStore from "../../../store/company.store";
 import {
   useEmployeeQuery,
   useCreateEmployee,
   useUpdateEmployee,
-  useDepartmentsQuery,
-  useJobTitlesQuery,
+  useDeleteEmployee,
 } from "../../../api/services/employee.service";
+import { Modal } from "../../../components/ui/modal";
 import { useUploadFile } from "../../../api/services/file-upload.service";
+import { useEmploymentTypesQuery } from "../../../api/services/employmentType.service";
+import { useDivisionsQuery } from "../../../api/services/division.service";
+import { useExperienceLevelsQuery } from "../../../api/services/experienceLevel.service";
+import { useLocationsQuery } from "../../../api/services/location.service";
+import { useDepartmentsSettingsQuery } from "../../../api/services/department.service";
+import { usePositionsQuery } from "../../../api/services/position.service";
+import type { EmployeeFormValues, SelectOption } from "./types";
+import { employeeFormDefaults } from "./types";
 
-const GENDER_OPTIONS = [
-  { value: "male", label: "Мужчина" },
-  { value: "female", label: "Женщина" },
+/* ── Constants ── */
+const GENDER_OPTIONS: SelectOption[] = [
+  { value: "male_slug", label: "Мужчина" },
+  { value: "female_slug", label: "Женщина" },
 ];
 
-const STATUS_OPTIONS = [
-  { value: "true", label: "Активный" },
-  { value: "false", label: "Неактивный" },
-];
-
-interface FormData {
-  surname: string;
-  first_name: string;
-  second_name: string;
-  birth_date: Date | null;
-  phone: string;
-  gender: string;
-  departments_id: string;
-  job_titles_id: string;
-  date_hire: Date | null;
-  status: string;
-  foto: string;
-}
-
-const initialForm: FormData = {
-  surname: "",
-  first_name: "",
-  second_name: "",
-  birth_date: null,
-  phone: "",
-  gender: "",
-  departments_id: "",
-  job_titles_id: "",
-  date_hire: null,
-  status: "true",
-  foto: "",
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "13px",
+  fontWeight: 500,
+  color: "#475569",
+  marginBottom: "6px",
 };
 
-const inputClass =
-  "w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B38D80]/30 focus:border-[#B38D80]";
-const selectClass =
-  "w-full appearance-none rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#B38D80]/30 focus:border-[#B38D80] cursor-pointer bg-white";
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 14px",
+  fontSize: "14px",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  outline: "none",
+  color: "#1e293b",
+  backgroundColor: "#fff",
+  transition: "border-color 0.2s",
+  boxSizing: "border-box",
+};
 
-export default function EmployeeForm() {
+/* ─────────────────────────────────────────────
+ *  Main component
+ * ───────────────────────────────────────────── */
+function EmployeeForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEdit = !!id;
+  const brandColor = companyStore.mainColor;
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
+  /* ── react-hook-form ── */
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { isSubmitting },
+  } = useForm<EmployeeFormValues>({ defaultValues: employeeFormDefaults });
+
+  const photo = watch("photo");
+
+  /* ── API queries ── */
   const { data: employee, isLoading } = useEmployeeQuery(id || "");
-  const { data: departments = [] } = useDepartmentsQuery();
-  const { data: jobTitles = [] } = useJobTitlesQuery();
+  const { data: departmentsData } = useDepartmentsSettingsQuery({ params: { limit: 200 } });
+  const { data: positionsData } = usePositionsQuery({ params: { limit: 200 } });
+  const { data: employmentTypesData } = useEmploymentTypesQuery({ params: { limit: 200 } });
+  const { data: divisionsData } = useDivisionsQuery({ params: { limit: 200 } });
+  const { data: experienceLevelsData } = useExperienceLevelsQuery({ params: { limit: 200 } });
+  const { data: locationsData } = useLocationsQuery({ params: { limit: 200 } });
+
+  const departments = departmentsData?.response ?? [];
+  const positions = positionsData?.response ?? [];
+  const employmentTypes = employmentTypesData?.response ?? [];
+  const divisions = divisionsData?.response ?? [];
+  const experienceLevels = experienceLevelsData?.response ?? [];
+  const locations = locationsData?.response ?? [];
+
+  const departmentOptions: SelectOption[] = departments.map((d: any) => ({ value: d.guid, label: d.title }));
+  const positionOptions: SelectOption[] = positions.map((p: any) => ({ value: p.guid, label: String(p.title) }));
+  const employmentTypeOptions: SelectOption[] = employmentTypes.map((e: any) => ({ value: e.guid, label: e.title }));
+  const divisionOptions: SelectOption[] = divisions.map((d: any) => ({ value: d.guid, label: d.title }));
+  const experienceLevelOptions: SelectOption[] = experienceLevels.map((e: any) => ({ value: e.guid, label: e.title }));
+  const locationOptions: SelectOption[] = locations.map((l: any) => ({ value: l.guid, label: l.title }));
+
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
+  const deleteMutation = useDeleteEmployee();
 
-  const [form, setForm] = useState<FormData>(initialForm);
-  const [saving, setSaving] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadFileMutation = useUploadFile({ folder: "Media", format: "jpg" });
-
-  // Populate form on edit
+  /* ── Populate form in edit mode ── */
   useEffect(() => {
     if (employee && isEdit) {
-      setForm({
-        surname: employee.surname || "",
-        first_name: employee.first_name || "",
+      reset({
         second_name: employee.second_name || "",
+        first_name: employee.first_name || "",
+        middle_name: employee.middle_name || "",
         birth_date: employee.birth_date ? new Date(employee.birth_date) : null,
         phone: employee.phone || "",
         gender: Array.isArray(employee.gender) ? employee.gender[0] || "" : employee.gender || "",
         departments_id: employee.departments_id || "",
-        job_titles_id: employee.job_titles_id || "",
+        positions_id: employee.positions_id || "",
         date_hire: employee.date_hire ? new Date(employee.date_hire) : null,
-        status: String(employee.status ?? "true"),
-        foto: employee.foto || "",
+        photo: employee.photo || "",
+        email: employee.email || "",
+        personal_email: employee.personal_email || "",
+        employment_types_id: employee.employment_types_id || "",
+        experience_levels_id: employee.experience_levels_id || "",
+        divisions_id: employee.divisions_id || "",
+        locations_id: employee.locations_id || "",
       });
     }
-  }, [employee, isEdit]);
+  }, [employee, isEdit, reset]);
 
-  const handleChange = (field: keyof FormData, value: any) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  /* ── Photo upload ── */
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadFileMutation = useUploadFile({ folder: "Media", format: "jpg" });
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,7 +137,7 @@ export default function EmployeeForm() {
     try {
       setUploadingPhoto(true);
       const cdnUrl = await uploadFileMutation.mutateAsync(file);
-      handleChange("foto", cdnUrl);
+      setValue("photo", cdnUrl);
     } catch (err) {
       console.error("Photo upload error:", err);
       alert("Ошибка при загрузке фото. Попробуйте ещё раз.");
@@ -111,8 +146,7 @@ export default function EmployeeForm() {
     }
   };
 
-  const handleRemovePhoto = () => handleChange("foto", "");
-
+  /* ── Submit ── */
   const toISODate = (d: Date | null) => {
     if (!d) return null;
     const year = d.getFullYear();
@@ -121,40 +155,72 @@ export default function EmployeeForm() {
     return `${year}-${month}-${day}`;
   };
 
-  const handleSubmit = async () => {
-    setSaving(true);
-    try {
-      const payload: Record<string, any> = {
-        surname: form.surname,
-        first_name: form.first_name,
-        second_name: form.second_name,
-        birth_date: toISODate(form.birth_date),
-        phone: form.phone,
-        gender: form.gender ? [form.gender] : [],
-        departments_id: form.departments_id || null,
-        job_titles_id: form.job_titles_id || null,
-        date_hire: toISODate(form.date_hire),
-        status: form.status === "true",
-        foto: form.foto || null,
-      };
+  const onSubmit = async (data: EmployeeFormValues) => {
+    const payload: Record<string, any> = {
+      second_name: data.second_name,
+      first_name: data.first_name,
+      middle_name: data.middle_name,
+      birth_date: toISODate(data.birth_date),
+      phone: data.phone,
+      gender: data.gender ? [data.gender] : [],
+      departments_id: data.departments_id || null,
+      positions_id: data.positions_id || null,
+      date_hire: toISODate(data.date_hire),
+      status: ["active"],
+      photo: data.photo || null,
+      email: data.email || null,
+      personal_email: data.personal_email || null,
+      employment_types_id: data.employment_types_id || null,
+      experience_levels_id: data.experience_levels_id || null,
+      divisions_id: data.divisions_id || null,
+      locations_id: data.locations_id || null,
+    };
 
+    try {
       if (isEdit) {
         await updateMutation.mutateAsync({ ...payload, guid: id } as any);
       } else {
+        payload.client_type_id = "1c435896-2f12-4b61-a684-62ad1d2307d1";
+        payload.role_id = import.meta.env.VITE_EMPLOYEE_ROLE_ID;
         await createMutation.mutateAsync(payload);
       }
-      navigate("/organization/employees");
+      navigate("/employees");
     } catch (err) {
       console.error("Save error:", err);
-    } finally {
-      setSaving(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteMutation.mutateAsync(id);
+      setIsDeleteModalOpen(false);
+      navigate("/employees");
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
+  };
+
+  const focusHandlers = {
+    onFocus: (e: React.FocusEvent<HTMLInputElement>) =>
+      (e.currentTarget.style.borderColor = brandColor),
+    onBlur: (e: React.FocusEvent<HTMLInputElement>) =>
+      (e.currentTarget.style.borderColor = "#e2e8f0"),
   };
 
   if (isEdit && isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#B38D80]" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
+        <div
+          style={{
+            width: "32px",
+            height: "32px",
+            borderRadius: "50%",
+            border: "3px solid #e2e8f0",
+            borderTopColor: brandColor,
+            animation: "spin 0.8s linear infinite",
+          }}
+        />
       </div>
     );
   }
@@ -162,247 +228,363 @@ export default function EmployeeForm() {
   return (
     <>
       <PageMeta
-        title={isEdit ? "Редактировать сотрудника | NSTEX" : "Добавить сотрудника | NSTEX"}
+        title={isEdit ? "Редактировать сотрудника | HRMS" : "Добавить сотрудника | HRMS"}
         description={isEdit ? "Редактирование сотрудника" : "Добавление нового сотрудника"}
       />
 
-      {/* Back button */}
-      <div className="mb-4">
+      {/* Back + Breadcrumb */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "36px", height: "36px",
+            border: "1px solid #e2e8f0", borderRadius: "10px",
+            backgroundColor: "#fff", color: "#475569", cursor: "pointer",
+          }}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Назад
+          <ChevronLeft style={{ width: "18px", height: "18px" }} />
         </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}>
+          <span style={{ color: brandColor, cursor: "pointer" }} onClick={() => navigate("/employees")}>
+            Сотрудники
+          </span>
+          <span style={{ color: "#cbd5e1" }}>/</span>
+          <span style={{ color: "#1e293b", fontWeight: 500 }}>
+            {isEdit ? "Редактировать" : "Добавить сотрудника"}
+          </span>
+        </div>
       </div>
 
-      {/* Breadcrumb */}
-      <div className="mb-6 flex items-center gap-2 text-sm">
-        <span className="text-[#B38D80]">Сотрудники</span>
-        <span className="text-gray-400">/</span>
-        <span className="text-gray-800 font-medium">
-          {isEdit ? "Редактировать сотрудника" : "Добавить сотрудника"}
-        </span>
-      </div>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: "20px", alignItems: "start" }}>
+          {/* ─── Left: Личное ─── */}
+          <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+            <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+              Личное
+            </div>
 
-      {/* Form Card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 sm:p-8">
-        {/* Photo Section */}
-        <div className="mb-8 flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-gray-300 bg-gray-50 overflow-hidden relative">
-            {uploadingPhoto ? (
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-[#B38D80]" />
-            ) : form.foto ? (
-              <img src={form.foto} alt="" className="h-full w-full object-cover rounded-full" />
-            ) : (
-              <User className="w-8 h-8 text-gray-400" />
-            )}
+            <div style={{ padding: "24px" }}>
+              {/* Photo */}
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
+                <div
+                  style={{
+                    width: "72px", height: "72px", borderRadius: "50%",
+                    border: "2px dashed #e2e8f0", backgroundColor: "#f8fafc",
+                    overflow: "hidden", display: "flex", alignItems: "center",
+                    justifyContent: "center", flexShrink: 0,
+                  }}
+                >
+                  {uploadingPhoto ? (
+                    <div style={{ width: "24px", height: "24px", borderRadius: "50%", border: "2px solid #e2e8f0", borderTopColor: brandColor, animation: "spin 0.8s linear infinite" }} />
+                  ) : photo ? (
+                    <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  ) : (
+                    <User style={{ width: "28px", height: "28px", color: "#94a3b8" }} />
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => !uploadingPhoto && fileInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "6px",
+                      padding: "8px 16px", fontSize: "13px", fontWeight: 500,
+                      color: "#475569", backgroundColor: "#fff",
+                      border: "1px solid #e2e8f0", borderRadius: "8px",
+                      cursor: uploadingPhoto ? "default" : "pointer",
+                      opacity: uploadingPhoto ? 0.5 : 1,
+                    }}
+                  >
+                    <Pencil style={{ width: "14px", height: "14px" }} />
+                    Изменить фото
+                  </button>
+                  {photo && (
+                    <button
+                      type="button"
+                      onClick={() => setValue("photo", "")}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        width: "36px", height: "36px",
+                        border: "1px solid #e2e8f0", borderRadius: "8px",
+                        backgroundColor: "#fff", color: "#94a3b8", cursor: "pointer",
+                        transition: "color 0.15s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                    >
+                      <Trash2 style={{ width: "14px", height: "14px" }} />
+                    </button>
+                  )}
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoChange} />
+              </div>
+
+              {/* Fields */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }}>
+                <div>
+                  <label style={labelStyle}>Фамилия *</label>
+                  <input {...register("second_name", { required: true })} type="text" placeholder="Введите фамилию" style={inputStyle} {...focusHandlers} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Имя *</label>
+                  <input {...register("first_name", { required: true })} type="text" placeholder="Введите имя" style={inputStyle} {...focusHandlers} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Отчество</label>
+                  <input {...register("middle_name")} type="text" placeholder="Введите отчество" style={inputStyle} {...focusHandlers} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Эл. почта</label>
+                  <input {...register("email")} type="email" placeholder="example@company.uz" style={inputStyle} {...focusHandlers} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Личная эл. почта</label>
+                  <input {...register("personal_email")} type="email" placeholder="example@mail.com" style={inputStyle} {...focusHandlers} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Дата рождения</label>
+                  <Controller
+                    control={control}
+                    name="birth_date"
+                    render={({ field }) => (
+                      <DatePicker
+                        selected={field.value}
+                        onChange={field.onChange}
+                        dateFormat="dd.MM.yyyy"
+                        placeholderText="дд.мм.гггг"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        maxDate={new Date()}
+                        className="employee-form-datepicker"
+                        wrapperClassName="employee-form-datepicker-wrapper"
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Пол</label>
+                  <Controller
+                    control={control}
+                    name="gender"
+                    render={({ field }) => (
+                      <SearchableSelect
+                        options={GENDER_OPTIONS}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Выберите пол"
+                        brandColor={brandColor}
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Номер телефона</label>
+                  <Controller
+                    control={control}
+                    name="phone"
+                    render={({ field }) => (
+                      <InputMask
+                        mask="+___ __ ___ __ __"
+                        replacement={{ _: /\d/ }}
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        placeholder="+998 ** *** ** **"
+                        style={inputStyle}
+                        onFocus={(e) => (e.currentTarget.style.borderColor = brandColor)}
+                        onBlur={(e) => (e.currentTarget.style.borderColor = "#e2e8f0")}
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={() => !uploadingPhoto && fileInputRef.current?.click()}
-            disabled={uploadingPhoto}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <Pencil className="w-4 h-4" />
-            Изменить фото
-          </button>
-          {form.foto && (
+
+          {/* ─── Right: Рабочие данные ─── */}
+          <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+            <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+              Рабочие данные
+            </div>
+
+            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div>
+                <label style={labelStyle}>Дата начала</label>
+                <Controller
+                  control={control}
+                  name="date_hire"
+                  render={({ field }) => (
+                    <DatePicker
+                      selected={field.value}
+                      onChange={field.onChange}
+                      dateFormat="dd.MM.yyyy"
+                      placeholderText="дд.мм.гггг"
+                      showYearDropdown
+                      showMonthDropdown
+                      dropdownMode="select"
+                      className="employee-form-datepicker"
+                      wrapperClassName="employee-form-datepicker-wrapper"
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Тип работы</label>
+                <Controller
+                  control={control}
+                  name="employment_types_id"
+                  render={({ field }) => (
+                    <SearchableSelect options={employmentTypeOptions} value={field.value} onChange={field.onChange} placeholder="Выберите тип" brandColor={brandColor} />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Должность</label>
+                <Controller
+                  control={control}
+                  name="positions_id"
+                  render={({ field }) => (
+                    <SearchableSelect options={positionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите должность" brandColor={brandColor} />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Уровень</label>
+                <Controller
+                  control={control}
+                  name="experience_levels_id"
+                  render={({ field }) => (
+                    <SearchableSelect options={experienceLevelOptions} value={field.value} onChange={field.onChange} placeholder="Выберите уровень" brandColor={brandColor} />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Департамент</label>
+                <Controller
+                  control={control}
+                  name="departments_id"
+                  render={({ field }) => (
+                    <SearchableSelect options={departmentOptions} value={field.value} onChange={field.onChange} placeholder="Выберите департамент" brandColor={brandColor} />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Подразделение</label>
+                <Controller
+                  control={control}
+                  name="divisions_id"
+                  render={({ field }) => (
+                    <SearchableSelect options={divisionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите подразделение" brandColor={brandColor} />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Локация</label>
+                <Controller
+                  control={control}
+                  name="locations_id"
+                  render={({ field }) => (
+                    <SearchableSelect options={locationOptions} value={field.value} onChange={field.onChange} placeholder="Выберите локацию" brandColor={brandColor} />
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingBottom: "40px" }}>
+          {/* <div style={{ flex: 1 }}> */}
+          {isEdit && (
             <button
-              onClick={handleRemovePhoto}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-red-500 transition-colors cursor-pointer"
+              type="button"
+              onClick={() => setIsDeleteModalOpen(true)}
+              style={{
+                padding: "10px 24px", fontSize: "14px", fontWeight: 500,
+                color: "#ef4444", backgroundColor: "#fef2f2",
+                border: "1px solid #fee2e2", borderRadius: "10px",
+                cursor: "pointer", transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#fee2e2")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fef2f2")}
             >
-              <Trash2 className="w-4 h-4" />
+              Удалить
             </button>
           )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handlePhotoChange}
-          />
-        </div>
-
-        {/* Form Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-          {/* Фамилия */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Фамилия</label>
-            <input
-              type="text"
-              value={form.surname}
-              onChange={(e) => handleChange("surname", e.target.value)}
-              placeholder="Введите фамилию"
-              className={inputClass}
-            />
-          </div>
-
-          {/* Имя */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Имя</label>
-            <input
-              type="text"
-              value={form.first_name}
-              onChange={(e) => handleChange("first_name", e.target.value)}
-              placeholder="Введите имя"
-              className={inputClass}
-            />
-          </div>
-
-          {/* Отчество */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Отчество</label>
-            <input
-              type="text"
-              value={form.second_name}
-              onChange={(e) => handleChange("second_name", e.target.value)}
-              placeholder="Введите отчество"
-              className={inputClass}
-            />
-          </div>
-
-          {/* Дата рождения */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Дата рождения</label>
-            <DatePicker
-              selected={form.birth_date}
-              onChange={(date: Date | null) => handleChange("birth_date", date)}
-              dateFormat="dd.MM.yyyy"
-              placeholderText="дд.мм.гггг"
-              showYearDropdown
-              showMonthDropdown
-              dropdownMode="select"
-              maxDate={new Date()}
-              className={inputClass}
-              calendarClassName="nstex-datepicker"
-              wrapperClassName="w-full"
-            />
-          </div>
-
-          {/* Номер телефона */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Номер телефона</label>
-            <InputMask
-              mask="+___ __ ___ __ __"
-              replacement={{ _: /\d/ }}
-              value={form.phone}
-              onChange={(e) => handleChange("phone", e.target.value)}
-              placeholder="+998 ** *** ** **"
-              className={inputClass}
-            />
-          </div>
-
-          {/* Пол */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Пол</label>
-            <div className="relative">
-              <select
-                value={form.gender}
-                onChange={(e) => handleChange("gender", e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Выберите пол</option>
-                {GENDER_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Отдел */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Отдел</label>
-            <div className="relative">
-              <select
-                value={form.departments_id}
-                onChange={(e) => handleChange("departments_id", e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Выберите отдел</option>
-                {departments.map((dept) => (
-                  <option key={dept.guid} value={dept.guid}>{dept.name_ru}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Должность */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Должность</label>
-            <div className="relative">
-              <select
-                value={form.job_titles_id}
-                onChange={(e) => handleChange("job_titles_id", e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Выберите должность</option>
-                {jobTitles.map((jt) => (
-                  <option key={jt.guid} value={jt.guid}>{jt.name_ru}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Дата найма */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Дата найма</label>
-            <DatePicker
-              selected={form.date_hire}
-              onChange={(date: Date | null) => handleChange("date_hire", date)}
-              dateFormat="dd.MM.yyyy"
-              placeholderText="дд.мм.гггг"
-              showYearDropdown
-              showMonthDropdown
-              dropdownMode="select"
-              className={inputClass}
-              calendarClassName="nstex-datepicker"
-              wrapperClassName="w-full"
-            />
-          </div>
-
-          {/* Статус */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Статус</label>
-            <div className="relative">
-              <select
-                value={form.status}
-                onChange={(e) => handleChange("status", e.target.value)}
-                className={selectClass}
-              >
-                <option value="">Выберите статус</option>
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-
-        {/* Submit */}
-        <div className="mt-8 flex justify-end">
+          {/* </div> */}
           <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="px-8 py-2.5 rounded-lg text-sm font-medium text-white transition-colors cursor-pointer disabled:opacity-50"
-            style={{ backgroundColor: "#1D2939" }}
-            onMouseEnter={(e) =>
-              !saving && ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#101828")
-            }
-            onMouseLeave={(e) =>
-              !saving && ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D2939")
-            }
+            type="button"
+            onClick={() => navigate(-1)}
+            style={{
+              padding: "10px 24px", fontSize: "14px", fontWeight: 500,
+              color: "#475569", backgroundColor: "#fff",
+              border: "1px solid #e2e8f0", borderRadius: "10px",
+              cursor: "pointer", transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
           >
-            {saving ? "Сохранение..." : "Сохранить"}
+            Отмена
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            style={{
+              padding: "10px 32px", fontSize: "14px", fontWeight: 600,
+              color: "#fff", backgroundColor: brandColor,
+              border: "none", borderRadius: "10px",
+              cursor: isSubmitting ? "default" : "pointer",
+              opacity: isSubmitting ? 0.6 : 1, transition: "opacity 0.15s",
+            }}
+            onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.opacity = "0.9")}
+            onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.opacity = "1")}
+          >
+            {isSubmitting ? "Сохранение..." : "Сохранить"}
           </button>
         </div>
-      </div>
+      </form>
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} showCloseButton={false} className="max-w-md w-full p-6">
+        <div className="text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 mb-6">
+            <Trash2 className="h-8 w-8 text-red-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Удалить сотрудника?</h3>
+          <p className="text-sm text-gray-500 mb-8">
+            Это действие нельзя отменить. Все данные сотрудника будут удалены из системы навсегда.
+          </p>
+          <div className="flex justify-end gap-3 mt-4">
+            <button
+              onClick={() => setIsDeleteModalOpen(false)}
+              className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleteMutation.isLoading}
+              className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors cursor-pointer flex justify-center items-center"
+            >
+              {deleteMutation.isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                "Удалить"
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
+
+export default observer(EmployeeForm);

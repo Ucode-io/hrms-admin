@@ -44,6 +44,7 @@ import ProductCategoriesList from "./modules/Settings/ProductCategories/List";
 import ProductCategoryForm from "./modules/Settings/ProductCategories/Form";
 import SettingsPage from "./modules/Settings";
 import EmployeesList from "./modules/Employees/List";
+import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
 import SuppliersList from "./modules/Suppliers/List";
 import SupplierForm from "./modules/Suppliers/Form";
@@ -139,9 +140,10 @@ function App() {
               <Route path="/settings/product-categories/:id" element={<ProductCategoryForm />} />
               <Route path="/settings" element={<SettingsPage />} />
 
-              <Route path="/organization/employees" element={<EmployeesList />} />
-              <Route path="/organization/employees/new" element={<EmployeeForm />} />
-              <Route path="/organization/employees/:id" element={<EmployeeForm />} />
+              <Route path="/employees" element={<EmployeesList />} />
+              <Route path="/employees/new" element={<EmployeeForm />} />
+              <Route path="/employees/:id" element={<EmployeeDetail />} />
+              <Route path="/employees/:id/edit" element={<EmployeeForm />} />
 
               <Route path="/organization/suppliers" element={<SuppliersList />} />
               <Route path="/organization/suppliers/new" element={<SupplierForm />} />
