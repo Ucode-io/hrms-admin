@@ -8,6 +8,8 @@ export interface EmployeeFormValues {
   middle_name: string;        // Отчество
   birth_date: Date | null;
   phone: string;
+  work_phone: string;
+  telegram: string;
   gender: string;
   departments_id: string;
   positions_id: string;
@@ -27,6 +29,8 @@ export const employeeFormDefaults: EmployeeFormValues = {
   middle_name: "",
   birth_date: null,
   phone: "",
+  work_phone: "",
+  telegram: "",
   gender: "",
   departments_id: "",
   positions_id: "",

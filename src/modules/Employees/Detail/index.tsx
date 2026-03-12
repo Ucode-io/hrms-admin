@@ -9,17 +9,15 @@ import {
   Briefcase,
   Users,
   Building2,
-  GraduationCap,
-  Award,
-  Heart,
-  Dumbbell,
-  Linkedin,
-  Instagram,
 } from "lucide-react";
 import { observer } from "mobx-react-lite";
 import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
 import { useEmployeeQuery } from "../../../api/services/employee.service";
+import EducationSection from "./components/EducationSection";
+import InterestsSection from "./components/InterestsSection";
+import LicenseCertificatesSection from "./components/LicenseCertificatesSection";
+import SkillsSection from "./components/SkillsSection";
 
 const TABS = [
   "Личное",
@@ -229,7 +227,7 @@ function EmployeeDetail() {
           {/* Left column */}
           <div className="flex flex-col gap-5">
             {/* Личное */}
-            <InfoSection title="Личное" icon={null} brandColor={brandColor}>
+            <InfoSection title="Личное" icon={null} brandColor={brandColor} showAction={false}>
               <InfoRow label="ID сотрудника" value={emp.guid} />
               <InfoRow label="Фамилия" value={emp.second_name} />
               <InfoRow label="Имя" value={emp.first_name} />
@@ -242,29 +240,28 @@ function EmployeeDetail() {
             </InfoSection>
 
             {/* Контакты */}
-            <InfoSection title="Контакты" icon={<Phone className="w-4 h-4" />} brandColor={brandColor}>
+            <InfoSection
+              title="Контакты"
+              icon={<Phone className="w-4 h-4" />}
+              brandColor={brandColor}
+              showAction={false}
+            >
               <InfoRow label="Мобильный телефон" value={emp.phone} linkType="phone" />
+              <InfoRow label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
+              <InfoRow label="Телеграм" value={emp.telegram || ""} />
             </InfoSection>
 
             {/* Интересы */}
-            <InfoSection title="Интересы" icon={<Heart className="w-4 h-4" />} brandColor={brandColor}>
-              <EmptyState />
-            </InfoSection>
+            <InterestsSection employeeGuid={emp.guid} brandColor={brandColor} />
 
             {/* Навыки */}
-            <InfoSection title="Навыки" icon={<Award className="w-4 h-4" />} brandColor={brandColor} actionLabel="+ Добавить">
-              <EmptyState />
-            </InfoSection>
+            <SkillsSection employeeGuid={emp.guid} brandColor={brandColor} />
 
             {/* Образование */}
-            <InfoSection title="Образование" icon={<GraduationCap className="w-4 h-4" />} brandColor={brandColor} actionLabel="+ Добавить">
-              <EmptyState />
-            </InfoSection>
+            <EducationSection employeeGuid={emp.guid} brandColor={brandColor} />
 
             {/* Лицензии и сертификаты */}
-            <InfoSection title="Лицензии и сертификаты" icon={<Award className="w-4 h-4" />} brandColor={brandColor} actionLabel="+ Добавить">
-              <EmptyState />
-            </InfoSection>
+            <LicenseCertificatesSection employeeGuid={emp.guid} brandColor={brandColor} />
           </div>
 
           {/* Right column */}
@@ -278,6 +275,8 @@ function EmployeeDetail() {
               <div className="flex flex-col gap-4">
                 <SummaryItem label="Почта" value={emp.email || ""} linkType="email" />
                 <SummaryItem label="Мобильный телефон" value={emp.phone || ""} linkType="phone" />
+                <SummaryItem label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
+                <SummaryItem label="Телеграм" value={emp.telegram || ""} />
                 <SummaryItem label="Дата начала" value={formatDate(emp.date_hire)} />
                 <SummaryItem label="Тип работы" value={employmentTypeTitle} />
                 <SummaryItem label="Должность" value={positionTitle} />
@@ -357,6 +356,7 @@ function EmployeeDetail() {
           </p>
         </div>
       )}
+
     </>
   );
 }
@@ -373,12 +373,14 @@ function InfoSection({
   children,
   brandColor,
   actionLabel,
+  showAction = true,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   brandColor: string;
   actionLabel?: string;
+  showAction?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -387,16 +389,18 @@ function InfoSection({
           {icon && <span style={{ color: brandColor }}>{icon}</span>}
           <h3 className="text-[15px] font-bold text-slate-900 m-0">{title}</h3>
         </div>
-        <button className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-[12px] font-medium cursor-pointer transition-colors hover:bg-slate-50">
-          {actionLabel ? (
-            <span className="font-semibold" style={{ color: brandColor }}>{actionLabel}</span>
-          ) : (
-            <>
-              <Pencil className="w-3 h-3" />
-              Редактировать
-            </>
-          )}
-        </button>
+        {showAction && (
+          <button className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-[12px] font-medium cursor-pointer transition-colors hover:bg-slate-50">
+            {actionLabel ? (
+              <span className="font-semibold" style={{ color: brandColor }}>{actionLabel}</span>
+            ) : (
+              <>
+                <Pencil className="w-3 h-3" />
+                Редактировать
+              </>
+            )}
+          </button>
+        )}
       </div>
       <div className="px-6 pt-1 pb-4">{children}</div>
     </div>
@@ -483,14 +487,6 @@ function SummaryItem({
       >
         {value || "—"}
       </Wrapper>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="py-4 text-[13px] text-slate-400">
-      Результаты не найдены
     </div>
   );
 }

@@ -111,6 +111,8 @@ function EmployeeForm() {
         middle_name: employee.middle_name || "",
         birth_date: employee.birth_date ? new Date(employee.birth_date) : null,
         phone: employee.phone || "",
+        work_phone: employee.work_phone || "",
+        telegram: employee.telegram || "",
         gender: Array.isArray(employee.gender) ? employee.gender[0] || "" : employee.gender || "",
         departments_id: employee.departments_id || "",
         positions_id: employee.positions_id || "",
@@ -162,6 +164,8 @@ function EmployeeForm() {
       middle_name: data.middle_name,
       birth_date: toISODate(data.birth_date),
       phone: data.phone,
+      work_phone: data.work_phone || null,
+      telegram: data.telegram || null,
       gender: data.gender ? [data.gender] : [],
       departments_id: data.departments_id || null,
       positions_id: data.positions_id || null,
@@ -259,146 +263,191 @@ function EmployeeForm() {
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: "20px", alignItems: "start" }}>
-          {/* ─── Left: Личное ─── */}
-          <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
-            <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
-              Личное
-            </div>
-
-            <div style={{ padding: "24px" }}>
-              {/* Photo */}
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
-                <div
-                  style={{
-                    width: "72px", height: "72px", borderRadius: "50%",
-                    border: "2px dashed #e2e8f0", backgroundColor: "#f8fafc",
-                    overflow: "hidden", display: "flex", alignItems: "center",
-                    justifyContent: "center", flexShrink: 0,
-                  }}
-                >
-                  {uploadingPhoto ? (
-                    <div style={{ width: "24px", height: "24px", borderRadius: "50%", border: "2px solid #e2e8f0", borderTopColor: brandColor, animation: "spin 0.8s linear infinite" }} />
-                  ) : photo ? (
-                    <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  ) : (
-                    <User style={{ width: "28px", height: "28px", color: "#94a3b8" }} />
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={() => !uploadingPhoto && fileInputRef.current?.click()}
-                    disabled={uploadingPhoto}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "6px",
-                      padding: "8px 16px", fontSize: "13px", fontWeight: 500,
-                      color: "#475569", backgroundColor: "#fff",
-                      border: "1px solid #e2e8f0", borderRadius: "8px",
-                      cursor: uploadingPhoto ? "default" : "pointer",
-                      opacity: uploadingPhoto ? 0.5 : 1,
-                    }}
-                  >
-                    <Pencil style={{ width: "14px", height: "14px" }} />
-                    Изменить фото
-                  </button>
-                  {photo && (
-                    <button
-                      type="button"
-                      onClick={() => setValue("photo", "")}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        width: "36px", height: "36px",
-                        border: "1px solid #e2e8f0", borderRadius: "8px",
-                        backgroundColor: "#fff", color: "#94a3b8", cursor: "pointer",
-                        transition: "color 0.15s",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
-                    >
-                      <Trash2 style={{ width: "14px", height: "14px" }} />
-                    </button>
-                  )}
-                </div>
-                <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoChange} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            {/* ─── Left: Личное ─── */}
+            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                Личное
               </div>
 
-              {/* Fields */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }}>
-                <div>
-                  <label style={labelStyle}>Фамилия *</label>
-                  <input {...register("second_name", { required: true })} type="text" placeholder="Введите фамилию" style={inputStyle} {...focusHandlers} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Имя *</label>
-                  <input {...register("first_name", { required: true })} type="text" placeholder="Введите имя" style={inputStyle} {...focusHandlers} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Отчество</label>
-                  <input {...register("middle_name")} type="text" placeholder="Введите отчество" style={inputStyle} {...focusHandlers} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Эл. почта</label>
-                  <input {...register("email")} type="email" placeholder="example@company.uz" style={inputStyle} {...focusHandlers} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Личная эл. почта</label>
-                  <input {...register("personal_email")} type="email" placeholder="example@mail.com" style={inputStyle} {...focusHandlers} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Дата рождения</label>
-                  <Controller
-                    control={control}
-                    name="birth_date"
-                    render={({ field }) => (
-                      <DatePicker
-                        selected={field.value}
-                        onChange={field.onChange}
-                        dateFormat="dd.MM.yyyy"
-                        placeholderText="дд.мм.гггг"
-                        showYearDropdown
-                        showMonthDropdown
-                        dropdownMode="select"
-                        maxDate={new Date()}
-                        className="employee-form-datepicker"
-                        wrapperClassName="employee-form-datepicker-wrapper"
-                      />
+              <div style={{ padding: "24px" }}>
+                {/* Photo */}
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
+                  <div
+                    style={{
+                      width: "72px", height: "72px", borderRadius: "50%",
+                      border: "2px dashed #e2e8f0", backgroundColor: "#f8fafc",
+                      overflow: "hidden", display: "flex", alignItems: "center",
+                      justifyContent: "center", flexShrink: 0,
+                    }}
+                  >
+                    {uploadingPhoto ? (
+                      <div style={{ width: "24px", height: "24px", borderRadius: "50%", border: "2px solid #e2e8f0", borderTopColor: brandColor, animation: "spin 0.8s linear infinite" }} />
+                    ) : photo ? (
+                      <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    ) : (
+                      <User style={{ width: "28px", height: "28px", color: "#94a3b8" }} />
                     )}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Пол</label>
-                  <Controller
-                    control={control}
-                    name="gender"
-                    render={({ field }) => (
-                      <SearchableSelect
-                        options={GENDER_OPTIONS}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="Выберите пол"
-                        brandColor={brandColor}
-                      />
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={() => !uploadingPhoto && fileInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        padding: "8px 16px", fontSize: "13px", fontWeight: 500,
+                        color: "#475569", backgroundColor: "#fff",
+                        border: "1px solid #e2e8f0", borderRadius: "8px",
+                        cursor: uploadingPhoto ? "default" : "pointer",
+                        opacity: uploadingPhoto ? 0.5 : 1,
+                      }}
+                    >
+                      <Pencil style={{ width: "14px", height: "14px" }} />
+                      Изменить фото
+                    </button>
+                    {photo && (
+                      <button
+                        type="button"
+                        onClick={() => setValue("photo", "")}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          width: "36px", height: "36px",
+                          border: "1px solid #e2e8f0", borderRadius: "8px",
+                          backgroundColor: "#fff", color: "#94a3b8", cursor: "pointer",
+                          transition: "color 0.15s",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                      >
+                        <Trash2 style={{ width: "14px", height: "14px" }} />
+                      </button>
                     )}
-                  />
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoChange} />
                 </div>
-                <div>
-                  <label style={labelStyle}>Номер телефона</label>
-                  <Controller
-                    control={control}
-                    name="phone"
-                    render={({ field }) => (
-                      <InputMask
-                        mask="+___ __ ___ __ __"
-                        replacement={{ _: /\d/ }}
-                        value={field.value}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        placeholder="+998 ** *** ** **"
-                        style={inputStyle}
-                        onFocus={(e) => (e.currentTarget.style.borderColor = brandColor)}
-                        onBlur={(e) => (e.currentTarget.style.borderColor = "#e2e8f0")}
-                      />
-                    )}
-                  />
+
+                {/* Fields */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }}>
+                  <div>
+                    <label style={labelStyle}>Фамилия *</label>
+                    <input {...register("second_name", { required: true })} type="text" placeholder="Введите фамилию" style={inputStyle} {...focusHandlers} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Имя *</label>
+                    <input {...register("first_name", { required: true })} type="text" placeholder="Введите имя" style={inputStyle} {...focusHandlers} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Отчество</label>
+                    <input {...register("middle_name")} type="text" placeholder="Введите отчество" style={inputStyle} {...focusHandlers} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Эл. почта</label>
+                    <input {...register("email")} type="email" placeholder="example@company.uz" style={inputStyle} {...focusHandlers} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Личная эл. почта</label>
+                    <input {...register("personal_email")} type="email" placeholder="example@mail.com" style={inputStyle} {...focusHandlers} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Дата рождения</label>
+                    <Controller
+                      control={control}
+                      name="birth_date"
+                      render={({ field }) => (
+                        <DatePicker
+                          selected={field.value}
+                          onChange={field.onChange}
+                          dateFormat="dd.MM.yyyy"
+                          placeholderText="дд.мм.гггг"
+                          showYearDropdown
+                          showMonthDropdown
+                          dropdownMode="select"
+                          maxDate={new Date()}
+                          className="employee-form-datepicker"
+                          wrapperClassName="employee-form-datepicker-wrapper"
+                        />
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Пол</label>
+                    <Controller
+                      control={control}
+                      name="gender"
+                      render={({ field }) => (
+                        <SearchableSelect
+                          options={GENDER_OPTIONS}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Выберите пол"
+                          brandColor={brandColor}
+                        />
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── Left: Контакты ─── */}
+            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                Контакты
+              </div>
+
+              <div style={{ padding: "24px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }}>
+                  <div>
+                    <label style={labelStyle}>Мобильный телефон</label>
+                    <Controller
+                      control={control}
+                      name="phone"
+                      render={({ field }) => (
+                        <InputMask
+                          mask="+___ __ ___ __ __"
+                          replacement={{ _: /\d/ }}
+                          value={field.value}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          placeholder="+998 ** *** ** **"
+                          style={inputStyle}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = brandColor)}
+                          onBlur={(e) => (e.currentTarget.style.borderColor = "#e2e8f0")}
+                        />
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Рабочий телефон</label>
+                    <Controller
+                      control={control}
+                      name="work_phone"
+                      render={({ field }) => (
+                        <InputMask
+                          mask="+___ __ ___ __ __"
+                          replacement={{ _: /\d/ }}
+                          value={field.value}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          placeholder="+998 ** *** ** **"
+                          style={inputStyle}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = brandColor)}
+                          onBlur={(e) => (e.currentTarget.style.borderColor = "#e2e8f0")}
+                        />
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Телеграм</label>
+                    <input
+                      {...register("telegram")}
+                      type="text"
+                      placeholder="@username"
+                      style={inputStyle}
+                      {...focusHandlers}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

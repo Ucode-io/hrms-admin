@@ -172,8 +172,9 @@ export const useDeleteEmployee = () => {
   const qc = useQueryClient();
   return useMutation(
     async (guid: string) => {
-      const res = await instance.delete(`/v2/items/${SLUG}/${guid}`, {
+      const res = await instance.delete(`/v2/items/${SLUG}`, {
         params: { "project-id": PROJECT_ID },
+        data: { ids: [guid] },
       });
       return res.data;
     },
