@@ -157,14 +157,25 @@ function EmployeeForm() {
     return `${year}-${month}-${day}`;
   };
 
+  const normalizePhoneForBackend = (value: string | null | undefined) => {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    const hasPlus = raw.startsWith("+");
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return null;
+
+    return hasPlus ? `+${digits}` : digits;
+  };
+
   const onSubmit = async (data: EmployeeFormValues) => {
     const payload: Record<string, any> = {
       second_name: data.second_name,
       first_name: data.first_name,
       middle_name: data.middle_name,
       birth_date: toISODate(data.birth_date),
-      phone: data.phone,
-      work_phone: data.work_phone || null,
+      phone: normalizePhoneForBackend(data.phone),
+      work_phone: normalizePhoneForBackend(data.work_phone),
       telegram: data.telegram || null,
       gender: data.gender ? [data.gender] : [],
       departments_id: data.departments_id || null,
