@@ -38,6 +38,77 @@ import {
 const PAGE_SIZE = 20;
 const DEFAULT_COLOR = "#3B82F6";
 const DEFAULT_ICON = DEFAULT_ICON_OPTIONS[0].value;
+const DEFAULT_TYPE = "paid";
+const DEFAULT_PERIOD = "year";
+const DEFAULT_VALUE = 1;
+
+const TYPE_OPTIONS = [
+  { value: "paid", label: "Оплачиваемый" },
+  { value: "unpaid", label: "Неоплачиваемый" },
+];
+
+const PERIOD_OPTIONS = [
+  { value: "week", label: "Неделя" },
+  { value: "month", label: "Месяц" },
+  { value: "year", label: "Год" },
+];
+
+const resolveStringOrArrayValue = (value: unknown, fallback: string): string => {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    return typeof first === "string" && first ? first : fallback;
+  }
+
+  return typeof value === "string" && value ? value : fallback;
+};
+
+const resolveNumericValue = (value: unknown, fallback: number): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+};
+
+const getTypeBadgeClassName = (type: string): string => {
+  if (type === "paid") {
+    return "bg-[#D1FAE5] text-[#0F9F6E]";
+  }
+  if (type === "unpaid") {
+    return "bg-[#FEE2E2] text-[#DC2626]";
+  }
+  return "bg-gray-100 text-gray-700";
+};
+
+const getTypeLabel = (type: string): string => {
+  const found = TYPE_OPTIONS.find((option) => option.value === type);
+  return found?.label || type || "—";
+};
+
+const getPeriodBadgeClassName = (period: string): string => {
+  if (period === "week") {
+    return "bg-[#F3E8FF] text-[#7C3AED]";
+  }
+  if (period === "year") {
+    return "bg-[#DCFCE7] text-[#16A34A]";
+  }
+  if (period === "month") {
+    return "bg-[#DBEAFE] text-[#1D4ED8]";
+  }
+  return "bg-gray-100 text-gray-700";
+};
+
+const getPeriodLabel = (period: string): string => {
+  const found = PERIOD_OPTIONS.find((option) => option.value === period);
+  return found?.label || period || "—";
+};
 
 export default function AbsencePoliciesSettingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -51,6 +122,9 @@ export default function AbsencePoliciesSettingsPage() {
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState(DEFAULT_ICON);
   const [color, setColor] = useState(DEFAULT_COLOR);
+  const [policyType, setPolicyType] = useState(DEFAULT_TYPE);
+  const [policyPeriod, setPolicyPeriod] = useState(DEFAULT_PERIOD);
+  const [policyValue, setPolicyValue] = useState(String(DEFAULT_VALUE));
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -75,7 +149,7 @@ export default function AbsencePoliciesSettingsPage() {
   );
 
   const slug = "absence_policies";
-  const { data, isLoading, isFetching } = useSettingsDirectoryQuery({
+  const { data, isLoading } = useSettingsDirectoryQuery({
     slug,
     params: queryParams,
   });
@@ -97,6 +171,9 @@ export default function AbsencePoliciesSettingsPage() {
     setTitle("");
     setIcon(DEFAULT_ICON);
     setColor(DEFAULT_COLOR);
+    setPolicyType(DEFAULT_TYPE);
+    setPolicyPeriod(DEFAULT_PERIOD);
+    setPolicyValue(String(DEFAULT_VALUE));
   };
 
   const openCreateModal = () => {
@@ -111,6 +188,9 @@ export default function AbsencePoliciesSettingsPage() {
     setTitle(String(item.title || ""));
     setIcon(resolveIconValue(String(item.icon || DEFAULT_ICON)));
     setColor(normalizeHexColor(String(item.color || DEFAULT_COLOR), DEFAULT_COLOR));
+    setPolicyType(resolveStringOrArrayValue(item.type, DEFAULT_TYPE));
+    setPolicyPeriod(resolveStringOrArrayValue(item.period, DEFAULT_PERIOD));
+    setPolicyValue(String(resolveNumericValue(item.value, DEFAULT_VALUE)));
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -125,6 +205,9 @@ export default function AbsencePoliciesSettingsPage() {
     const preparedTitle = title.trim();
     const preparedIcon = resolveIconValue(icon);
     const preparedColor = normalizeHexColor(color, DEFAULT_COLOR);
+    const preparedType = resolveStringOrArrayValue(policyType, DEFAULT_TYPE);
+    const preparedPeriod = resolveStringOrArrayValue(policyPeriod, DEFAULT_PERIOD);
+    const preparedValue = resolveNumericValue(policyValue, NaN);
 
     if (!preparedTitle) {
       toast.error("Название обязательно.");
@@ -136,10 +219,18 @@ export default function AbsencePoliciesSettingsPage() {
       return;
     }
 
+    if (!Number.isFinite(preparedValue) || preparedValue < 0) {
+      toast.error("Значение должно быть числом 0 или больше.");
+      return;
+    }
+
     const payload = {
       title: preparedTitle,
       icon: preparedIcon,
       color: preparedColor,
+      type: [preparedType],
+      period: [preparedPeriod],
+      value: preparedValue,
     };
 
     try {
@@ -192,14 +283,6 @@ export default function AbsencePoliciesSettingsPage() {
 
   const toggleActionsMenu = (guid: string) => {
     setOpenActionsFor((prev) => (prev === guid ? null : guid));
-  };
-
-  const resolveTrackingSubtitle = (item: SettingsDirectoryItem): string => {
-    const raw =
-      (typeof item.tracking_mode === "string" && item.tracking_mode) ||
-      (typeof item.tracking_type === "string" && item.tracking_type) ||
-      (typeof item.tracking_unit === "string" && item.tracking_unit);
-    return raw ? `Отслеживание: ${raw}` : "Отслеживание в днях";
   };
 
   return (
@@ -294,6 +377,9 @@ export default function AbsencePoliciesSettingsPage() {
                     String(item.color || DEFAULT_COLOR),
                     DEFAULT_COLOR
                   );
+                  const itemType = resolveStringOrArrayValue(item.type, "—");
+                  const itemPeriod = resolveStringOrArrayValue(item.period, "—");
+                  const itemValue = resolveNumericValue(item.value, 0);
                   const iconOption = getIconOption(itemIcon);
                   return (
                     <div
@@ -317,9 +403,17 @@ export default function AbsencePoliciesSettingsPage() {
                           <p className="truncate text-lg font-semibold text-gray-900">
                             {String(item.title || "Без названия")}
                           </p>
-                          <p className="truncate text-sm font-medium text-gray-500">
-                            {resolveTrackingSubtitle(item)}
-                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-medium ${getTypeBadgeClassName(itemType)}`}>
+                              {getTypeLabel(itemType)}
+                            </span>
+                            <span className={`inline-flex rounded-lg px-2.5 py-1 text-sm font-medium ${getPeriodBadgeClassName(itemPeriod)}`}>
+                              {getPeriodLabel(itemPeriod)}
+                            </span>
+                            <span className="inline-flex rounded-lg bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-700">
+                              {itemValue}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -449,6 +543,60 @@ export default function AbsencePoliciesSettingsPage() {
               <ColorPicker
                 value={color}
                 onChange={setColor}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="space-y-2">
+              <label htmlFor="absence-policy-type" className="block text-sm font-medium text-gray-700">
+                Тип
+              </label>
+              <select
+                id="absence-policy-type"
+                value={policyType}
+                onChange={(event) => setPolicyType(event.target.value)}
+                className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+              >
+                {TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="absence-policy-period" className="block text-sm font-medium text-gray-700">
+                Период
+              </label>
+              <select
+                id="absence-policy-period"
+                value={policyPeriod}
+                onChange={(event) => setPolicyPeriod(event.target.value)}
+                className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+              >
+                {PERIOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="absence-policy-value" className="block text-sm font-medium text-gray-700">
+                Значение
+              </label>
+              <input
+                id="absence-policy-value"
+                type="number"
+                min={0}
+                step={1}
+                value={policyValue}
+                onChange={(event) => setPolicyValue(event.target.value)}
+                placeholder="0"
+                className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </div>
           </div>

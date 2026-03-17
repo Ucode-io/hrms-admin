@@ -31,6 +31,8 @@ import DepartmentsSettingsPage from "./modules/Settings/Departments";
 import LocationsSettingsPage from "./modules/Settings/Locations";
 import CompensationSettingsPage from "./modules/Settings/Compensation";
 import AbsencePoliciesSettingsPage from "./modules/Settings/AbsencePolicies";
+import HolidayPoliciesSettingsPage from "./modules/Settings/HolidayPolicies";
+import HolidayPolicyDetailPage from "./modules/Settings/HolidayPolicies/Detail";
 import DocumentsSettingsPage from "./modules/Settings/Documents";
 import DocumentTemplateDetailPage from "./modules/Settings/Documents/TemplateDetail";
 import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
@@ -125,6 +127,8 @@ function App() {
               <Route path="/settings/departments" element={<DepartmentsSettingsPage />} />
               <Route path="/settings/compensation" element={<CompensationSettingsPage />} />
               <Route path="/settings/absence-policies" element={<AbsencePoliciesSettingsPage />} />
+              <Route path="/settings/holiday-policies" element={<HolidayPoliciesSettingsPage />} />
+              <Route path="/settings/holiday-policies/:id" element={<HolidayPolicyDetailPage />} />
               <Route path="/settings/documents" element={<DocumentsSettingsPage />} />
               <Route path="/settings/documents/templates/:id" element={<DocumentTemplateDetailPage />} />
               <Route path="/settings/work-schedules" element={<WorkSchedulesSettingsPage />} />

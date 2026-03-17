@@ -32,6 +32,10 @@ import {
   useLocationsQuery,
   useUpdateLocation,
 } from "../../../api/services/location.service";
+import {
+  type HolidayPolicy,
+  useHolidayPoliciesQuery,
+} from "../../../api/services/holidayPolicy.service";
 
 const PAGE_SIZE = 20;
 
@@ -104,6 +108,20 @@ const resolveCountryTitle = (
   return "—";
 };
 
+const resolveHolidayPolicyTitle = (
+  location: Location,
+  holidayPoliciesById: Map<string, HolidayPolicy>
+): string => {
+  const direct = location.holiday_policies_id_data?.title;
+  if (direct) return direct;
+
+  if (location.holiday_policies_id) {
+    return holidayPoliciesById.get(location.holiday_policies_id)?.title || "—";
+  }
+
+  return "—";
+};
+
 export default function LocationsSettingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
@@ -117,6 +135,7 @@ export default function LocationsSettingsPage() {
   const [locationTitle, setLocationTitle] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
   const [countryId, setCountryId] = useState("");
+  const [holidayPolicyId, setHolidayPolicyId] = useState("");
   const [timezone, setTimezone] = useState("");
 
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
@@ -142,21 +161,32 @@ export default function LocationsSettingsPage() {
     [currentPage, debouncedSearch]
   );
 
-  const { data, isLoading, isFetching } = useLocationsQuery({ params: queryParams });
+  const { data, isLoading } = useLocationsQuery({ params: queryParams });
   const { data: countriesData } = useCountriesQuery();
+  const { data: holidayPoliciesData } = useHolidayPoliciesQuery({
+    params: { limit: 1000, offset: 0 },
+  });
 
   const createMutation = useCreateLocation();
   const updateMutation = useUpdateLocation();
   const deleteMutation = useDeleteLocation();
 
-  const locations = data?.response || [];
+  const locations = useMemo(() => data?.response || [], [data?.response]);
   const totalCount = data?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const countries = countriesData?.response || [];
+  const countries = useMemo(() => countriesData?.response || [], [countriesData?.response]);
+  const holidayPolicies = useMemo(
+    () => holidayPoliciesData?.response || [],
+    [holidayPoliciesData?.response]
+  );
 
   const countriesById = useMemo(
     () => new Map(countries.map((country) => [country.guid, country])),
     [countries]
+  );
+  const holidayPoliciesById = useMemo(
+    () => new Map(holidayPolicies.map((item) => [item.guid, item])),
+    [holidayPolicies]
   );
 
   useEffect(() => {
@@ -193,11 +223,29 @@ export default function LocationsSettingsPage() {
     );
   }, [timezone]);
 
+  const holidayPolicyOptions = useMemo<Option[]>(
+    () => holidayPolicies.map((item) => ({ value: item.guid, label: String(item.title || "—") })),
+    [holidayPolicies]
+  );
+
+  const selectedHolidayPolicyOption = useMemo<Option | null>(() => {
+    if (!holidayPolicyId) return null;
+
+    const fromList = holidayPolicyOptions.find((option) => option.value === holidayPolicyId);
+    if (fromList) return fromList;
+
+    return {
+      value: holidayPolicyId,
+      label: String(holidayPoliciesById.get(holidayPolicyId)?.title || holidayPolicyId),
+    };
+  }, [holidayPolicyId, holidayPolicyOptions, holidayPoliciesById]);
+
   const openCreateModal = () => {
     setEditingLocation(null);
     setLocationTitle("");
     setLocationAddress("");
     setCountryId("");
+    setHolidayPolicyId("");
     setTimezone(TIMEZONE_OPTIONS[0]?.value || "GMT+05:00");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
@@ -208,6 +256,7 @@ export default function LocationsSettingsPage() {
     setLocationTitle(String(location.title || ""));
     setLocationAddress(String(location.address || ""));
     setCountryId(location.countries_id || "");
+    setHolidayPolicyId(location.holiday_policies_id || "");
     setTimezone(location.timezone?.[0] || TIMEZONE_OPTIONS[0]?.value || "GMT+05:00");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
@@ -219,6 +268,7 @@ export default function LocationsSettingsPage() {
     setLocationTitle("");
     setLocationAddress("");
     setCountryId("");
+    setHolidayPolicyId("");
     setTimezone("");
   };
 
@@ -245,6 +295,7 @@ export default function LocationsSettingsPage() {
       title,
       address,
       countries_id: countryId,
+      holiday_policies_id: holidayPolicyId || null,
       timezone: [timezone],
     };
 
@@ -364,6 +415,9 @@ export default function LocationsSettingsPage() {
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                     Часовой пояс
                   </TableCell>
+                  <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                    Политика праздников
+                  </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
                     Действия
                   </TableCell>
@@ -386,6 +440,9 @@ export default function LocationsSettingsPage() {
                       <TableCell className="px-4 py-4">
                         <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
                       </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
+                      </TableCell>
                       <TableCell className="px-4 py-4 text-right">
                         <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-200" />
                       </TableCell>
@@ -393,7 +450,7 @@ export default function LocationsSettingsPage() {
                   ))
                 ) : locations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                    <TableCell colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
                       Локации не найдены
                     </TableCell>
                   </TableRow>
@@ -411,6 +468,9 @@ export default function LocationsSettingsPage() {
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-700">
                         {location.timezone?.[0] || "—"}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-sm text-gray-700">
+                        {resolveHolidayPolicyTitle(location, holidayPoliciesById)}
                       </TableCell>
                       <TableCell className="px-4 py-3">
                         <div className="relative flex items-center justify-end">
@@ -545,6 +605,25 @@ export default function LocationsSettingsPage() {
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="location-timezone-select"
+              noOptionsMessage={() => "Ничего не найдено"}
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Политика праздников
+            </label>
+            <Select
+              options={holidayPolicyOptions}
+              value={selectedHolidayPolicyOption}
+              onChange={(option) => setHolidayPolicyId(option?.value || "")}
+              placeholder="Выберите политику праздников"
+              isSearchable
+              isClearable
+              styles={getSearchSelectStyles()}
+              menuPortalTarget={menuPortalTarget || undefined}
+              menuPosition="fixed"
+              classNamePrefix="location-holiday-policy-select"
               noOptionsMessage={() => "Ничего не найдено"}
             />
           </div>

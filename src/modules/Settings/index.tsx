@@ -15,7 +15,6 @@ import {
   CreditCard,
   FileCheck,
   FileOutput,
-  FileText,
   FolderOpen,
   Funnel,
   Globe,
@@ -35,7 +34,6 @@ import {
   Tags,
   UserRoundCheck,
   UserX,
-  VenusAndMars,
   WalletCards,
   Webhook,
 } from "lucide-react";
@@ -118,7 +116,14 @@ const settingsSections: SettingsSection[] = [
           subtitle: "Структура компании",
           keywords: ["иерархия", "департаменты"],
         },
-        // { id: "holiday-policies", title: "Политики праздников", icon: CalendarCheck, subtitle: "Праздничные правила" },
+        {
+          id: "holiday-policies",
+          title: "Политики праздников",
+          icon: CalendarCheck,
+          subtitle: "Праздничные правила",
+          path: "/settings/holiday-policies",
+          keywords: ["праздники", "календарь"],
+        },
         // { id: "job-catalog", title: "Каталог должностей", icon: ListOrdered, subtitle: "Позиции и роли" },
       ],
       [

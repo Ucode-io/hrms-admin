@@ -7,6 +7,7 @@ export interface Position {
   guid: string;
   title: string;
   companies_id: string;
+  positions_id?: string | null;
   created_at: string;
   updated_at: string;
   employees_count?: number;
@@ -36,7 +37,7 @@ const positionService = {
     };
   },
 
-  create: (data: { title: string; companies_id?: string }) =>
+  create: (data: { title: string; positions_id?: string | null; companies_id?: string }) =>
     httpRequest.post("/v2/items/positions", {
       data: {
         companies_id: COMPANY_ID,
@@ -63,7 +64,7 @@ export const usePositionsQuery = ({
   querySettings = {},
 }: {
   params?: PositionListParams;
-  querySettings?: any;
+  querySettings?: Record<string, unknown>;
 }) => {
   return useQuery({
     queryKey: ["POSITIONS", params],
@@ -76,7 +77,7 @@ export const useCreatePosition = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { title: string; companies_id?: string }) =>
+    mutationFn: (data: { title: string; positions_id?: string | null; companies_id?: string }) =>
       positionService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries(["POSITIONS"]);

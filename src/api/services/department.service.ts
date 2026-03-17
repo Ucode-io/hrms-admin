@@ -8,6 +8,8 @@ export interface Department {
   title: string;
   companies_id: string;
   departments_id: string | null;
+  user_base_id?: string | null;
+  user_base_id_data?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   employees_count?: number;
@@ -41,7 +43,7 @@ const departmentService = {
     };
   },
 
-  create: (data: { title: string; departments_id?: string | null; companies_id?: string }) =>
+  create: (data: { title: string; departments_id?: string | null; user_base_id?: string | null; companies_id?: string }) =>
     httpRequest.post("/v2/items/departments", {
       data: {
         companies_id: COMPANY_ID,
@@ -70,7 +72,7 @@ export const useDepartmentsSettingsQuery = ({
   querySettings = {},
 }: {
   params?: DepartmentListParams;
-  querySettings?: any;
+  querySettings?: Record<string, unknown>;
 }) => {
   return useQuery({
     queryKey: ["DEPARTMENTS_SETTINGS", params],
@@ -83,7 +85,7 @@ export const useCreateDepartment = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { title: string; departments_id?: string | null; companies_id?: string }) =>
+    mutationFn: (data: { title: string; departments_id?: string | null; user_base_id?: string | null; companies_id?: string }) =>
       departmentService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries(["DEPARTMENTS_SETTINGS"]);

@@ -18,6 +18,12 @@ export interface Location {
   companies_id: string;
   countries_id: string | null;
   countries_id_data?: Country | null;
+  holiday_policies_id?: string | null;
+  holiday_policies_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: unknown;
+  } | null;
   timezone?: string[];
   created_at: string;
   updated_at: string;
@@ -71,6 +77,7 @@ const locationService = {
     title: string;
     address: string;
     countries_id: string | null;
+    holiday_policies_id?: string | null;
     timezone: string[];
     companies_id?: string;
   }) =>
@@ -102,7 +109,7 @@ export const useLocationsQuery = ({
   querySettings = {},
 }: {
   params?: LocationListParams;
-  querySettings?: any;
+  querySettings?: Record<string, unknown>;
 }) => {
   return useQuery({
     queryKey: ["LOCATIONS", params],
@@ -114,7 +121,7 @@ export const useLocationsQuery = ({
 export const useCountriesQuery = ({
   querySettings = {},
 }: {
-  querySettings?: any;
+  querySettings?: Record<string, unknown>;
 } = {}) => {
   return useQuery({
     queryKey: ["COUNTRIES"],
@@ -131,6 +138,7 @@ export const useCreateLocation = () => {
       title: string;
       address: string;
       countries_id: string | null;
+      holiday_policies_id?: string | null;
       timezone: string[];
       companies_id?: string;
     }) => locationService.create(data),
