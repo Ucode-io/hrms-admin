@@ -157,7 +157,10 @@ const AppSidebar: React.FC = () => {
   };
 
   const renderNavItem = (nav: NavItem, index: number, _groupKey: string) => {
-    const isNavEnabled = nav.name === "Главная страница" || nav.name === "Сотрудники";
+    const isNavEnabled =
+      nav.name === "Главная страница" ||
+      nav.name === "Сотрудники" ||
+      nav.name === "Календарь";
 
     if (nav.subItems) {
       if (!isNavEnabled) {

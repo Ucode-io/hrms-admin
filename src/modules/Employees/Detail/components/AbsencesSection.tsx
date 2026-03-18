@@ -1,7 +1,5 @@
 import { type ChangeEvent, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import {
   CalendarDays,
   ChevronLeft,
@@ -9,15 +7,13 @@ import {
   Download,
   MoreHorizontal,
   Paperclip,
-  Upload,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Modal } from "../../../../components/ui/modal";
+import AbsenceRequestModal from "../../../../components/absences/AbsenceRequestModal";
 import {
   type Absence,
   type AbsenceRequestStatus,
-  useAbsencesQuery,
+  useEmployeeAbsencesQuery,
   useCreateAbsence,
   useUpdateAbsence,
 } from "../../../../api/services/absenceRequest.service";
@@ -116,12 +112,6 @@ const STATUS_BADGE_CLASSNAME: Record<AbsenceRequestStatus, string> = {
   approved: "bg-emerald-100 text-emerald-700",
   rejected: "bg-rose-100 text-rose-700",
 };
-
-const INPUT_CLASSNAME =
-  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
-
-const DATEPICKER_CLASSNAME =
-  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
 
 const resolveNumericValue = (value: unknown, fallback: number): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -389,12 +379,8 @@ export default function AbsencesSection({
     },
   });
 
-  const { data: requestsData, isLoading: isRequestsLoading } = useAbsencesQuery({
-    data: {
-      user_base_id: employeeGuid,
-      limit: 1000,
-      offset: 0,
-    },
+  const { data: requestsData, isLoading: isRequestsLoading } = useEmployeeAbsencesQuery({
+    userBaseId: employeeGuid,
     querySettings: {
       enabled: Boolean(employeeGuid),
     },
@@ -1017,204 +1003,41 @@ export default function AbsencesSection({
         </div>
       </div>
 
-      <Modal
+      <AbsenceRequestModal
         isOpen={isCreateModalOpen}
         onClose={closeCreateModal}
-        showCloseButton={false}
-        className="mx-4 w-full max-w-[980px] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-xl"
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <h3 className="m-0 text-[18px] font-semibold text-slate-900">Запрос на отсутствие</h3>
-          <button
-            type="button"
-            onClick={closeCreateModal}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-            aria-label="Закрыть"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 divide-y divide-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0">
-          <div className="space-y-4 px-6 py-5">
-            <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-700">Тип отсутствия</label>
-              <select
-                value={modalPolicyId}
-                onChange={(event) => setModalPolicyId(event.target.value)}
-                className={INPUT_CLASSNAME}
-              >
-                <option value="">Выберите тип</option>
-                {policies.map((policy) => (
-                  <option key={`modal-policy-${policy.guid}`} value={policy.guid}>
-                    {String(policy.title || "Без названия")}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-700">Дата начала</label>
-                <DatePicker
-                  selected={parseIsoDate(modalDateFrom)}
-                  onChange={(date) => handleDateFromChange(date ? toIsoDate(date) : "")}
-                  dateFormat="dd.MM.yyyy"
-                  placeholderText="дд.мм.гггг"
-                  showYearDropdown
-                  showMonthDropdown
-                  dropdownMode="select"
-                  className={DATEPICKER_CLASSNAME}
-                  wrapperClassName="w-full"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-medium text-slate-700">Дата окончания</label>
-                <DatePicker
-                  selected={parseIsoDate(modalDateTo)}
-                  onChange={(date) => setModalDateTo(date ? toIsoDate(date) : "")}
-                  minDate={parseIsoDate(modalDateFrom) || undefined}
-                  dateFormat="dd.MM.yyyy"
-                  placeholderText="дд.мм.гггг"
-                  showYearDropdown
-                  showMonthDropdown
-                  dropdownMode="select"
-                  className={DATEPICKER_CLASSNAME}
-                  wrapperClassName="w-full"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-700">Заметка</label>
-              <textarea
-                value={modalNote}
-                onChange={(event) => setModalNote(event.target.value)}
-                placeholder="Укажите причину отсутствия"
-                className="h-24 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
-              />
-            </div>
-
-            <div>
-              <div className="mb-1 flex items-center justify-between">
-                <label className="block text-[12px] font-medium text-slate-700">Вложения</label>
-                <span className="text-[11px] text-slate-400">до {MAX_ATTACHMENTS} файлов, до 50MB</span>
-              </div>
-
-              <label
-                htmlFor={attachmentInputId}
-                className={`flex h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center transition ${isUploadingAttachments ? "cursor-default opacity-70" : "cursor-pointer hover:border-slate-400 hover:bg-slate-100"}`}
-              >
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-500">
-                  <Upload className="h-4 w-4" style={{ color: brandColor }} />
-                </span>
-                <span className="mt-2 text-[12px] font-semibold text-slate-700">
-                  {isUploadingAttachments ? "Загрузка..." : "Нажмите для добавления файлов"}
-                </span>
-              </label>
-              <input
-                id={attachmentInputId}
-                type="file"
-                multiple
-                className="hidden"
-                accept=".pdf,.docx,.doc,.xlsx,.xls,.jpeg,.jpg,.png,.sig,.p7s"
-                disabled={isUploadingAttachments}
-                onChange={(event) => void handleAttachmentFiles(event)}
-              />
-
-              {modalAttachments.length > 0 ? (
-                <div className="mt-2 space-y-1.5">
-                  {modalAttachments.map((attachment) => (
-                    <div
-                      key={attachment.url}
-                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-2"
-                    >
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="truncate pr-3 text-[12px] text-slate-700 hover:underline"
-                      >
-                        {attachment.name}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => removeAttachment(attachment.url)}
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                        aria-label="Удалить файл"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex flex-col px-6 py-5">
-            <h4 className="m-0 text-[14px] font-semibold text-slate-900">Разбивка</h4>
-
-            <div className="mt-3 max-h-[320px] overflow-auto rounded-xl border border-slate-200">
-              {modalBreakdown.length === 0 ? (
-                <div className="px-4 py-6 text-[12px] text-slate-400">Выберите корректный диапазон дат.</div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {modalBreakdown.map((item) => (
-                    <div key={item.iso} className="flex items-center gap-2 px-3 py-2">
-                      <div
-                        className={`inline-flex min-w-[48px] flex-col items-center rounded-md px-1.5 py-1 text-[11px] font-semibold ${
-                          item.isWeekend ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        <span>{item.day}</span>
-                        <span className="text-[10px] font-medium">{item.month}</span>
-                      </div>
-                      <span className="min-w-[18px] text-[12px] font-medium text-slate-700">{item.weekday}</span>
-                      <span className="h-px flex-1 bg-slate-200" />
-                      <span className="inline-flex min-w-[48px] items-center justify-center rounded-md border border-slate-200 bg-white px-2 py-1 text-[12px] font-medium text-slate-700">
-                        1.0
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] text-slate-700">
-              <div className="flex items-center justify-between py-0.5">
-                <span>Доступно</span>
-                <strong>{modalAvailable.toFixed(1)} д.</strong>
-              </div>
-              <div className="flex items-center justify-between py-0.5">
-                <span>Запрошено</span>
-                <strong>{modalRequestedDays.toFixed(1)} д.</strong>
-              </div>
-              <div className="mt-1 flex items-center justify-between border-t border-slate-200 pt-1.5">
-                <span>Остаток (прогноз)</span>
-                <strong>{modalForecast.toFixed(1)} д.</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end border-t border-slate-200 px-6 py-3.5">
-          <button
-            type="button"
-            onClick={() => void submitRequest()}
-            disabled={
-              createRequestMutation.isLoading ||
-              isUploadingAttachments ||
-              !modalPolicyId ||
-              modalRequestedDays <= 0
-            }
-            className="rounded-lg border-none px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60"
-            style={{ backgroundColor: brandColor }}
-          >
-            {createRequestMutation.isLoading ? "Отправка..." : "Запрос"}
-          </button>
-        </div>
-      </Modal>
+        policies={policies.map((policy) => ({
+          guid: policy.guid,
+          title: String(policy.title || "Без названия"),
+        }))}
+        policyId={modalPolicyId}
+        onPolicyIdChange={setModalPolicyId}
+        dateFrom={modalDateFrom}
+        onDateFromChange={handleDateFromChange}
+        dateTo={modalDateTo}
+        onDateToChange={setModalDateTo}
+        note={modalNote}
+        onNoteChange={setModalNote}
+        attachmentInputId={attachmentInputId}
+        attachments={modalAttachments}
+        onAttachmentFiles={(event) => void handleAttachmentFiles(event)}
+        onRemoveAttachment={removeAttachment}
+        isUploadingAttachments={isUploadingAttachments}
+        maxAttachments={MAX_ATTACHMENTS}
+        breakdown={modalBreakdown}
+        availableDays={modalAvailable}
+        requestedDays={modalRequestedDays}
+        forecastDays={modalForecast}
+        brandColor={brandColor}
+        isSubmitting={createRequestMutation.isLoading}
+        submitDisabled={
+          createRequestMutation.isLoading ||
+          isUploadingAttachments ||
+          !modalPolicyId ||
+          modalRequestedDays <= 0
+        }
+        onSubmit={() => void submitRequest()}
+      />
     </>
   );
 }

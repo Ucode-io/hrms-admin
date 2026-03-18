@@ -48,6 +48,7 @@ import SettingsPage from "./modules/Settings";
 import EmployeesList from "./modules/Employees/List";
 import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
+import CalendarModule from "./modules/Calendar";
 import SuppliersList from "./modules/Suppliers/List";
 import SupplierForm from "./modules/Suppliers/Form";
 import OrganizationClientsList from "./modules/Clients/List";
@@ -148,6 +149,7 @@ function App() {
               <Route path="/employees/new" element={<EmployeeForm />} />
               <Route path="/employees/:id" element={<EmployeeDetail />} />
               <Route path="/employees/:id/edit" element={<EmployeeForm />} />
+              <Route path="/calendar" element={<CalendarModule />} />
 
               <Route path="/organization/suppliers" element={<SuppliersList />} />
               <Route path="/organization/suppliers/new" element={<SupplierForm />} />
