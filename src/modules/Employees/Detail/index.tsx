@@ -14,10 +14,15 @@ import { observer } from "mobx-react-lite";
 import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
 import { useEmployeeQuery } from "../../../api/services/employee.service";
+import { useEmployeeWorksQuery } from "../../../api/services/employeeWork.service";
 import EducationSection from "./components/EducationSection";
+import AbsencesSection from "./components/AbsencesSection";
+import EmployeeDocumentsSection from "./components/DocumentsSection";
 import InterestsSection from "./components/InterestsSection";
 import LicenseCertificatesSection from "./components/LicenseCertificatesSection";
 import SkillsSection from "./components/SkillsSection";
+import WorkSection from "./components/WorkSection";
+import CompensationSection from "./components/CompensationSection";
 
 const TABS = [
   "Личное",
@@ -84,6 +89,11 @@ function EmployeeDetail() {
   const employeeCover = companyStore.company?.employee_cover;
 
   const { data: emp, isLoading } = useEmployeeQuery(id || "");
+  const { data: employeeWorksData } = useEmployeeWorksQuery({
+    userBaseId: emp?.guid || "",
+    limit: 100,
+    offset: 0,
+  });
   const managerGuid =
     typeof emp?.departments_id_data?.user_base_id === "string"
       ? emp.departments_id_data.user_base_id
@@ -108,6 +118,37 @@ function EmployeeDetail() {
   const divisionTitle = emp.divisions_id_data?.title || "";
   const employmentTypeTitle = emp.employment_types_id_data?.title || "";
   const experienceLevelTitle = emp.experience_levels_id_data?.title || "";
+  const currentWork =
+    Array.isArray(employeeWorksData?.response) && employeeWorksData.response.length > 0
+      ? employeeWorksData.response[0]
+      : null;
+  const workDateFrom =
+    (currentWork && typeof currentWork.date_from === "string" && currentWork.date_from) ||
+    emp.date_hire;
+  const workEmploymentTypeTitle =
+    (typeof currentWork?.employment_types_id_data?.title === "string" &&
+      currentWork.employment_types_id_data.title) ||
+    employmentTypeTitle;
+  const workPositionTitle =
+    (typeof currentWork?.positions_id_data?.title === "string" &&
+      currentWork.positions_id_data.title) ||
+    positionTitle;
+  const workExperienceLevelTitle =
+    (typeof currentWork?.experience_levels_id_data?.title === "string" &&
+      currentWork.experience_levels_id_data.title) ||
+    experienceLevelTitle;
+  const workDepartmentTitle =
+    (typeof currentWork?.departments_id_data?.title === "string" &&
+      currentWork.departments_id_data.title) ||
+    departmentTitle;
+  const workDivisionTitle =
+    (typeof currentWork?.divisions_id_data?.title === "string" &&
+      currentWork.divisions_id_data.title) ||
+    divisionTitle;
+  const workLocationTitle =
+    (typeof currentWork?.locations_id_data?.title === "string" &&
+      currentWork.locations_id_data.title) ||
+    locationTitle;
   const managerFullName = manager
     ? [manager.second_name, manager.first_name].filter(Boolean).join(" ")
     : "";
@@ -172,16 +213,16 @@ function EmployeeDetail() {
                 {fullName}
               </h1>
               <div className="flex items-center gap-4 mt-1.5 text-[13px] text-slate-500 flex-wrap">
-                {positionTitle && (
+                {workPositionTitle && (
                   <span className="flex items-center gap-1">
                     <Briefcase className="w-3.5 h-3.5" />
-                    {positionTitle}
+                    {workPositionTitle}
                   </span>
                 )}
-                {locationTitle && (
+                {workLocationTitle && (
                   <span className="flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5" />
-                    {locationTitle}
+                    {workLocationTitle}
                   </span>
                 )}
               </div>
@@ -285,14 +326,14 @@ function EmployeeDetail() {
                 <SummaryItem label="Мобильный телефон" value={emp.phone || ""} linkType="phone" />
                 <SummaryItem label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
                 <SummaryItem label="Телеграм" value={emp.telegram || ""} />
-                <SummaryItem label="Дата начала" value={formatDate(emp.date_hire)} />
-                <SummaryItem label="Тип работы" value={employmentTypeTitle} />
-                <SummaryItem label="Должность" value={positionTitle} />
-                <SummaryItem label="Уровень" value={experienceLevelTitle} />
-                <SummaryItem label="Департамент" value={departmentTitle} />
-                <SummaryItem label="Подразделение" value={divisionTitle} />
-                <SummaryItem label="Локация" value={locationTitle} />
-                <SummaryItem label="Срок работы" value={calcTenure(emp.date_hire)} />
+                <SummaryItem label="Дата начала" value={formatDate(workDateFrom)} />
+                <SummaryItem label="Тип работы" value={workEmploymentTypeTitle} />
+                <SummaryItem label="Должность" value={workPositionTitle} />
+                <SummaryItem label="Уровень" value={workExperienceLevelTitle} />
+                <SummaryItem label="Департамент" value={workDepartmentTitle} />
+                <SummaryItem label="Подразделение" value={workDivisionTitle} />
+                <SummaryItem label="Локация" value={workLocationTitle} />
+                <SummaryItem label="Срок работы" value={calcTenure(workDateFrom)} />
               </div>
             </div>
 
@@ -373,6 +414,17 @@ function EmployeeDetail() {
             </div>
           </div>
         </div>
+      ) : activeTab === "Документы" ? (
+        <EmployeeDocumentsSection
+          employeeGuid={emp.guid}
+          brandColor={brandColor}
+        />
+      ) : activeTab === "Работа" ? (
+        <WorkSection employeeGuid={emp.guid} brandColor={brandColor} />
+      ) : activeTab === "Компенсация" ? (
+        <CompensationSection employeeGuid={emp.guid} brandColor={brandColor} />
+      ) : activeTab === "Отсутствия" ? (
+        <AbsencesSection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : (
         /* Under development placeholder for other tabs */
         <div className="flex flex-col items-center justify-center py-20 px-5 rounded-2xl border border-slate-200 bg-white">

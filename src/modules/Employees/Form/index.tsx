@@ -9,6 +9,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import SearchableSelect from "../../../components/ui/searchable-select";
 import companyStore from "../../../store/company.store";
 import {
+  type Employee,
   useEmployeeQuery,
   useCreateEmployee,
   useUpdateEmployee,
@@ -22,6 +23,7 @@ import { useExperienceLevelsQuery } from "../../../api/services/experienceLevel.
 import { useLocationsQuery } from "../../../api/services/location.service";
 import { useDepartmentsSettingsQuery } from "../../../api/services/department.service";
 import { usePositionsQuery } from "../../../api/services/position.service";
+import { useCreateEmployeeWork } from "../../../api/services/employeeWork.service";
 import type { EmployeeFormValues, SelectOption } from "./types";
 import { employeeFormDefaults } from "./types";
 
@@ -91,14 +93,15 @@ function EmployeeForm() {
   const experienceLevels = experienceLevelsData?.response ?? [];
   const locations = locationsData?.response ?? [];
 
-  const departmentOptions: SelectOption[] = departments.map((d: any) => ({ value: d.guid, label: d.title }));
-  const positionOptions: SelectOption[] = positions.map((p: any) => ({ value: p.guid, label: String(p.title) }));
-  const employmentTypeOptions: SelectOption[] = employmentTypes.map((e: any) => ({ value: e.guid, label: e.title }));
-  const divisionOptions: SelectOption[] = divisions.map((d: any) => ({ value: d.guid, label: d.title }));
-  const experienceLevelOptions: SelectOption[] = experienceLevels.map((e: any) => ({ value: e.guid, label: e.title }));
-  const locationOptions: SelectOption[] = locations.map((l: any) => ({ value: l.guid, label: l.title }));
+  const departmentOptions: SelectOption[] = departments.map((d) => ({ value: d.guid, label: d.title }));
+  const positionOptions: SelectOption[] = positions.map((p) => ({ value: p.guid, label: String(p.title) }));
+  const employmentTypeOptions: SelectOption[] = employmentTypes.map((e) => ({ value: e.guid, label: e.title }));
+  const divisionOptions: SelectOption[] = divisions.map((d) => ({ value: d.guid, label: d.title }));
+  const experienceLevelOptions: SelectOption[] = experienceLevels.map((e) => ({ value: e.guid, label: e.title }));
+  const locationOptions: SelectOption[] = locations.map((l) => ({ value: l.guid, label: l.title }));
 
   const createMutation = useCreateEmployee();
+  const createEmployeeWorkMutation = useCreateEmployeeWork();
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
 
@@ -124,6 +127,7 @@ function EmployeeForm() {
         experience_levels_id: employee.experience_levels_id || "",
         divisions_id: employee.divisions_id || "",
         locations_id: employee.locations_id || "",
+        salary: "",
       });
     }
   }, [employee, isEdit, reset]);
@@ -168,8 +172,44 @@ function EmployeeForm() {
     return hasPlus ? `+${digits}` : digits;
   };
 
+  const normalizeSalaryForBackend = (value: string | null | undefined) => {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+    const parsed = Number(raw.replace(/\s+/g, ""));
+    if (!Number.isFinite(parsed)) return null;
+    return parsed;
+  };
+
+  const extractGuidFromCreate = (result: unknown): string => {
+    const getRecord = (value: unknown): Record<string, unknown> | null => {
+      if (!value || typeof value !== "object") return null;
+      return value as Record<string, unknown>;
+    };
+
+    const getGuid = (value: unknown): string => {
+      return typeof value === "string" ? value : "";
+    };
+
+    const root = getRecord(result);
+    const response = getRecord(root?.response);
+    const data = getRecord(root?.data);
+    const dataData = getRecord(data?.data);
+    const dataDataResponse = getRecord(dataData?.response);
+    const dataResponse = getRecord(data?.response);
+
+    return (
+      getGuid(response?.guid) ||
+      getGuid(root?.guid) ||
+      getGuid(dataDataResponse?.guid) ||
+      getGuid(dataResponse?.guid) ||
+      getGuid(dataData?.guid) ||
+      getGuid(data?.guid) ||
+      ""
+    );
+  };
+
   const onSubmit = async (data: EmployeeFormValues) => {
-    const payload: Record<string, any> = {
+    const payload: Partial<Employee> = {
       second_name: data.second_name,
       first_name: data.first_name,
       middle_name: data.middle_name,
@@ -193,11 +233,27 @@ function EmployeeForm() {
 
     try {
       if (isEdit) {
-        await updateMutation.mutateAsync({ ...payload, guid: id } as any);
+        await updateMutation.mutateAsync({ ...payload, guid: id || "" });
       } else {
         payload.client_type_id = "1c435896-2f12-4b61-a684-62ad1d2307d1";
         payload.role_id = import.meta.env.VITE_EMPLOYEE_ROLE_ID;
-        await createMutation.mutateAsync(payload);
+        const createResult = await createMutation.mutateAsync(payload);
+        const createdEmployeeGuid = extractGuidFromCreate(createResult);
+
+        if (createdEmployeeGuid) {
+          await createEmployeeWorkMutation.mutateAsync({
+            user_base_id: createdEmployeeGuid,
+            employment_types_id: data.employment_types_id || null,
+            departments_id: data.departments_id || null,
+            divisions_id: data.divisions_id || null,
+            locations_id: data.locations_id || null,
+            positions_id: data.positions_id || null,
+            experience_levels_id: data.experience_levels_id || null,
+            salary: normalizeSalaryForBackend(data.salary),
+            date_from: toISODate(data.date_hire) || toISODate(new Date()),
+            date_to: null,
+          });
+        }
       }
       navigate("/employees");
     } catch (err) {
@@ -273,7 +329,14 @@ function EmployeeForm() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: "20px", alignItems: "start" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isEdit ? "1fr" : "1fr 400px",
+            gap: "20px",
+            alignItems: "start",
+          }}
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             {/* ─── Left: Личное ─── */}
             <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
@@ -464,101 +527,114 @@ function EmployeeForm() {
             </div>
           </div>
 
-          {/* ─── Right: Рабочие данные ─── */}
-          <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
-            <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
-              Рабочие данные
+          {!isEdit && (
+            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                Рабочие данные
+              </div>
+
+              <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+                <div>
+                  <label style={labelStyle}>Дата начала</label>
+                  <Controller
+                    control={control}
+                    name="date_hire"
+                    render={({ field }) => (
+                      <DatePicker
+                        selected={field.value}
+                        onChange={field.onChange}
+                        dateFormat="dd.MM.yyyy"
+                        placeholderText="дд.мм.гггг"
+                        showYearDropdown
+                        showMonthDropdown
+                        dropdownMode="select"
+                        className="employee-form-datepicker"
+                        wrapperClassName="employee-form-datepicker-wrapper"
+                      />
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Тип работы</label>
+                  <Controller
+                    control={control}
+                    name="employment_types_id"
+                    render={({ field }) => (
+                      <SearchableSelect options={employmentTypeOptions} value={field.value} onChange={field.onChange} placeholder="Выберите тип" brandColor={brandColor} />
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Должность</label>
+                  <Controller
+                    control={control}
+                    name="positions_id"
+                    render={({ field }) => (
+                      <SearchableSelect options={positionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите должность" brandColor={brandColor} />
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Уровень</label>
+                  <Controller
+                    control={control}
+                    name="experience_levels_id"
+                    render={({ field }) => (
+                      <SearchableSelect options={experienceLevelOptions} value={field.value} onChange={field.onChange} placeholder="Выберите уровень" brandColor={brandColor} />
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Оклад</label>
+                  <input
+                    {...register("salary")}
+                    type="number"
+                    min={0}
+                    placeholder="Например: 15000000"
+                    style={inputStyle}
+                    {...focusHandlers}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Департамент</label>
+                  <Controller
+                    control={control}
+                    name="departments_id"
+                    render={({ field }) => (
+                      <SearchableSelect options={departmentOptions} value={field.value} onChange={field.onChange} placeholder="Выберите департамент" brandColor={brandColor} />
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Подразделение</label>
+                  <Controller
+                    control={control}
+                    name="divisions_id"
+                    render={({ field }) => (
+                      <SearchableSelect options={divisionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите подразделение" brandColor={brandColor} />
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Локация</label>
+                  <Controller
+                    control={control}
+                    name="locations_id"
+                    render={({ field }) => (
+                      <SearchableSelect options={locationOptions} value={field.value} onChange={field.onChange} placeholder="Выберите локацию" brandColor={brandColor} />
+                    )}
+                  />
+                </div>
+              </div>
             </div>
-
-            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
-              <div>
-                <label style={labelStyle}>Дата начала</label>
-                <Controller
-                  control={control}
-                  name="date_hire"
-                  render={({ field }) => (
-                    <DatePicker
-                      selected={field.value}
-                      onChange={field.onChange}
-                      dateFormat="dd.MM.yyyy"
-                      placeholderText="дд.мм.гггг"
-                      showYearDropdown
-                      showMonthDropdown
-                      dropdownMode="select"
-                      className="employee-form-datepicker"
-                      wrapperClassName="employee-form-datepicker-wrapper"
-                    />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Тип работы</label>
-                <Controller
-                  control={control}
-                  name="employment_types_id"
-                  render={({ field }) => (
-                    <SearchableSelect options={employmentTypeOptions} value={field.value} onChange={field.onChange} placeholder="Выберите тип" brandColor={brandColor} />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Должность</label>
-                <Controller
-                  control={control}
-                  name="positions_id"
-                  render={({ field }) => (
-                    <SearchableSelect options={positionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите должность" brandColor={brandColor} />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Уровень</label>
-                <Controller
-                  control={control}
-                  name="experience_levels_id"
-                  render={({ field }) => (
-                    <SearchableSelect options={experienceLevelOptions} value={field.value} onChange={field.onChange} placeholder="Выберите уровень" brandColor={brandColor} />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Департамент</label>
-                <Controller
-                  control={control}
-                  name="departments_id"
-                  render={({ field }) => (
-                    <SearchableSelect options={departmentOptions} value={field.value} onChange={field.onChange} placeholder="Выберите департамент" brandColor={brandColor} />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Подразделение</label>
-                <Controller
-                  control={control}
-                  name="divisions_id"
-                  render={({ field }) => (
-                    <SearchableSelect options={divisionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите подразделение" brandColor={brandColor} />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Локация</label>
-                <Controller
-                  control={control}
-                  name="locations_id"
-                  render={({ field }) => (
-                    <SearchableSelect options={locationOptions} value={field.value} onChange={field.onChange} placeholder="Выберите локацию" brandColor={brandColor} />
-                  )}
-                />
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingBottom: "40px" }}>
