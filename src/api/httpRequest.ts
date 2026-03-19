@@ -34,7 +34,15 @@ httpRequest.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 httpRequest.interceptors.response.use(
   (response) => response?.data?.data?.data ?? response?.data?.data ?? response?.data,
-  (error: AxiosError) => Promise.reject(error)
+  (error: AxiosError) => {
+    const status = error.response?.status;
+
+    if (status === 401 || status === 403) {
+      authStore.logout();
+    }
+
+    return Promise.reject(error);
+  }
 );
 
 export default httpRequest;
