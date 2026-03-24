@@ -27,6 +27,14 @@ export interface EmployeeCompensation {
   date: string | null;
   amount: number | string | null;
   description: string | null;
+  companies_id?: string;
+  compensation_types_id?: string | null;
+  compensation_types_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: unknown;
+  } | null;
+  operation_type?: string[] | string | null;
   created_at?: string;
   updated_at?: string;
   [key: string]: unknown;
@@ -58,6 +66,7 @@ export const useEmployeeCompensationsQuery = ({
       const res = await instance.get(`/v2/items/${SLUG}`, {
         params: {
           "project-id": PROJECT_ID,
+          with_relations: true,
           data: JSON.stringify(dataObj),
         },
       });

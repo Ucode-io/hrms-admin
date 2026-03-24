@@ -48,6 +48,19 @@ function EmployeesList() {
   const getLocation = (emp: Employee) =>
     emp.locations_id_data?.title || "";
 
+  const isDismissed = (emp: Employee) => emp.status?.includes("dismissed");
+
+  const formatDate = (value: string | null | undefined) => {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
   return (
     <>
       <PageMeta title="Сотрудники | HRMS" description="Список сотрудников" />
@@ -394,6 +407,7 @@ function EmployeesList() {
                 ) : (
                   employees.map((emp) => {
                     const name = getDisplayName(emp);
+                    const dismissed = isDismissed(emp);
                     return (
                       <tr
                         key={emp.guid}
@@ -412,13 +426,37 @@ function EmployeesList() {
                         <td
                           style={{
                             padding: "10px 16px",
-                            fontWeight: 600,
                             color: "#1e293b",
                             fontSize: "14px",
-                            whiteSpace: "nowrap",
                           }}
                         >
-                          {name}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{name}</span>
+                              {dismissed ? (
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    padding: "2px 8px",
+                                    borderRadius: "999px",
+                                    border: "1px solid #fecaca",
+                                    backgroundColor: "#fef2f2",
+                                    color: "#b91c1c",
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Уволен
+                                </span>
+                              ) : null}
+                            </div>
+                            {dismissed && emp.dismissal_date ? (
+                              <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+                                Дата увольнения: {formatDate(emp.dismissal_date)}
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
                           {getPosition(emp) || "—"}
@@ -567,6 +605,15 @@ function EmployeeCard({
   const positionLabel = [position, department, location ? `в ${location}` : ""]
     .filter(Boolean)
     .join(" · ");
+  const isDismissed = employee.status?.includes("dismissed");
+  const dismissalDateLabel =
+    employee.dismissal_date && !Number.isNaN(new Date(employee.dismissal_date).getTime())
+      ? new Date(employee.dismissal_date).toLocaleDateString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })
+      : employee.dismissal_date || "";
 
   return (
     <div
@@ -592,18 +639,38 @@ function EmployeeCard({
       <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
         <Avatar name={name} photo={employee.photo} size={48} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontWeight: 700,
-              fontSize: "15px",
-              color: "#1e293b",
-              lineHeight: 1.3,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {name}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: "15px",
+                color: "#1e293b",
+                lineHeight: 1.3,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
+              }}
+            >
+              {name}
+            </div>
+            {isDismissed ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "2px 8px",
+                  borderRadius: "999px",
+                  border: "1px solid #fecaca",
+                  backgroundColor: "#fef2f2",
+                  color: "#b91c1c",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                }}
+              >
+                Уволен
+              </span>
+            ) : null}
           </div>
           <div
             style={{
@@ -618,6 +685,18 @@ function EmployeeCard({
           >
             {positionLabel || "—"}
           </div>
+          {isDismissed && dismissalDateLabel ? (
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#94a3b8",
+                marginTop: "4px",
+                lineHeight: 1.4,
+              }}
+            >
+              Дата увольнения: {dismissalDateLabel}
+            </div>
+          ) : null}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreHorizontal, Search, X } from "lucide-react";
+import { MoreHorizontal, Search, TrendingDown, TrendingUp, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -23,6 +23,26 @@ import {
 
 const PAGE_SIZE = 20;
 
+type OperationType = "income" | "deduction";
+
+const OPERATION_LABELS: Record<OperationType, string> = {
+  income: "Начисление",
+  deduction: "Удержание",
+};
+
+const OPERATION_TAG_STYLES: Record<OperationType, string> = {
+  income: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  deduction: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const resolveOperationType = (value: unknown): OperationType => {
+  if (Array.isArray(value)) {
+    return value[0] === "deduction" || value[0] === "outcome" ? "deduction" : "income";
+  }
+
+  return value === "deduction" || value === "outcome" ? "deduction" : "income";
+};
+
 type CompensationDirectoryTabProps = {
   slug: string;
   emptyText: string;
@@ -43,8 +63,10 @@ export default function CompensationDirectoryTab({
   const [editingItem, setEditingItem] = useState<SettingsDirectoryItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<SettingsDirectoryItem | null>(null);
   const [itemTitle, setItemTitle] = useState("");
+  const [itemOperationType, setItemOperationType] = useState<OperationType>("income");
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const isCompensationTypes = slug === "compensation_types";
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -88,6 +110,7 @@ export default function CompensationDirectoryTab({
     if (createRequestId <= 0) return;
     setEditingItem(null);
     setItemTitle("");
+    setItemOperationType("income");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   }, [createRequestId]);
@@ -95,6 +118,7 @@ export default function CompensationDirectoryTab({
   const openEditModal = (item: SettingsDirectoryItem) => {
     setEditingItem(item);
     setItemTitle(String(item.title || ""));
+    setItemOperationType(resolveOperationType(item.operation_type));
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -103,6 +127,7 @@ export default function CompensationDirectoryTab({
     setIsUpsertModalOpen(false);
     setEditingItem(null);
     setItemTitle("");
+    setItemOperationType("income");
   };
 
   const handleSubmit = async () => {
@@ -114,17 +139,22 @@ export default function CompensationDirectoryTab({
     }
 
     try {
+      const payload: { title: string; operation_type?: OperationType[] } = { title };
+      if (isCompensationTypes) {
+        payload.operation_type = [itemOperationType];
+      }
+
       if (editingItem) {
         await updateMutation.mutateAsync({
           guid: editingItem.guid,
           data: {
             ...editingItem,
-            title,
+            ...payload,
           },
         });
         toast.success("Запись успешно обновлена.");
       } else {
-        await createMutation.mutateAsync({ title });
+        await createMutation.mutateAsync(payload);
         toast.success("Запись успешно создана.");
       }
 
@@ -193,6 +223,11 @@ export default function CompensationDirectoryTab({
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                     Название
                   </TableCell>
+                  {isCompensationTypes ? (
+                    <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                      Тип операции
+                    </TableCell>
+                  ) : null}
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
                     Действия
                   </TableCell>
@@ -206,6 +241,11 @@ export default function CompensationDirectoryTab({
                       <TableCell className="px-4 py-4">
                         <div className="h-4 w-60 animate-pulse rounded bg-gray-200" />
                       </TableCell>
+                      {isCompensationTypes ? (
+                        <TableCell className="px-4 py-4">
+                          <div className="h-4 w-28 animate-pulse rounded bg-gray-200" />
+                        </TableCell>
+                      ) : null}
                       <TableCell className="px-4 py-4 text-right">
                         <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-200" />
                       </TableCell>
@@ -213,7 +253,7 @@ export default function CompensationDirectoryTab({
                   ))
                 ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={2} className="px-4 py-10 text-center text-sm text-gray-500">
+                    <TableCell colSpan={isCompensationTypes ? 3 : 2} className="px-4 py-10 text-center text-sm text-gray-500">
                       {emptyText}
                     </TableCell>
                   </TableRow>
@@ -223,6 +263,15 @@ export default function CompensationDirectoryTab({
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
                         {String(item.title || "Без названия")}
                       </TableCell>
+                      {isCompensationTypes ? (
+                        <TableCell className="px-4 py-3 text-sm text-gray-800">
+                          <span
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${OPERATION_TAG_STYLES[resolveOperationType(item.operation_type)]}`}
+                          >
+                            {OPERATION_LABELS[resolveOperationType(item.operation_type)]}
+                          </span>
+                        </TableCell>
+                      ) : null}
                       <TableCell className="px-4 py-3">
                         <div className="relative flex items-center justify-end">
                           <button
@@ -308,6 +357,71 @@ export default function CompensationDirectoryTab({
             autoFocus
             className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
+
+          {isCompensationTypes ? (
+            <div className="pt-1">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Тип операции
+              </label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setItemOperationType("income")}
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                    itemOperationType === "income"
+                      ? "border-emerald-300 bg-emerald-50 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/50"
+                  }`}
+                >
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                      itemOperationType === "income"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                  </span>
+                  <span>
+                    <span className="block text-[13px] font-semibold text-slate-900">
+                      Начисление
+                    </span>
+                    <span className="mt-0.5 block text-[12px] text-slate-500">
+                      income
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setItemOperationType("deduction")}
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                    itemOperationType === "deduction"
+                      ? "border-rose-300 bg-rose-50 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-rose-200 hover:bg-rose-50/50"
+                  }`}
+                >
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                      itemOperationType === "deduction"
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    <TrendingDown className="h-4 w-4" />
+                  </span>
+                  <span>
+                    <span className="block text-[13px] font-semibold text-slate-900">
+                      Удержание
+                    </span>
+                    <span className="mt-0.5 block text-[12px] text-slate-500">
+                      deduction
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-4 py-3">

@@ -1,9 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Building2,
   BriefcaseBusiness,
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  ClipboardList,
+  GitBranch,
+  MapPin,
   Pencil,
   Wallet,
 } from "lucide-react";
@@ -11,18 +15,19 @@ import { toast } from "sonner";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Modal } from "../../../../components/ui/modal";
-import { useEmploymentTypesQuery } from "../../../../api/services/employmentType.service";
-import { useExperienceLevelsQuery } from "../../../../api/services/experienceLevel.service";
-import { useDivisionsQuery } from "../../../../api/services/division.service";
-import { useLocationsQuery } from "../../../../api/services/location.service";
+import RemoteSingleSelect, {
+  type RemoteSelectOption,
+} from "../../../../components/autocomplete/RemoteSingleSelect";
+import httpRequest from "../../../../api/httpRequest";
 import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
-import { usePositionsQuery } from "../../../../api/services/position.service";
+import { useDepartmentExperienceLevelsSummaryQuery } from "../../../../api/services/departmentExperienceLevel.service";
 import {
   type EmployeeWork,
   useCreateEmployeeWork,
   useEmployeeWorksQuery,
   useUpdateEmployeeWork,
 } from "../../../../api/services/employeeWork.service";
+import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
 
 type WorkSectionProps = {
   employeeGuid: string;
@@ -37,6 +42,7 @@ type WorkRecord = {
   locationTitle: string;
   positionTitle: string;
   experienceLevelTitle: string;
+  reasonTitle: string;
   salary: number | null;
   dateFrom: string;
   dateTo: string;
@@ -49,12 +55,59 @@ type WorkFormState = {
   locationId: string;
   positionsId: string;
   experienceLevelId: string;
+  employeeWorkReasonId: string;
   salary: string;
   dateFrom: string;
 };
 
+type WorkReasonItem = {
+  guid: string;
+  title?: string;
+  [key: string]: unknown;
+};
+
+const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
+
 const INPUT_CLASSNAME =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
+
+const toRemoteOptions = (items: Array<{ guid: string; title?: string }>): RemoteSelectOption[] => {
+  return items.map((item) => ({
+    value: item.guid,
+    label: item.title || "Без названия",
+  }));
+};
+
+const loadRemoteOptionsBySlug = async ({
+  slug,
+  search,
+  limit,
+  offset,
+}: {
+  slug: string;
+  search: string;
+  limit: number;
+  offset: number;
+}) => {
+  const res = await httpRequest.get(`/v2/items/${slug}`, {
+    params: {
+      data: encodeJsonToUrlParam({
+        limit,
+        offset,
+        ...(search ? { search } : {}),
+      }),
+    },
+  });
+
+  return {
+    count: Number(res?.count || 0),
+    options: toRemoteOptions(
+      Array.isArray(res?.response)
+        ? (res.response as Array<{ guid: string; title?: string }>)
+        : []
+    ),
+  };
+};
 
 const toIsoDate = (value: Date): string => {
   const year = value.getFullYear();
@@ -124,6 +177,10 @@ const normalizeRecord = (row: EmployeeWork): WorkRecord => {
     experienceLevelTitle:
       (typeof row.experience_levels_id_data?.title === "string" && row.experience_levels_id_data.title) ||
       "—",
+    reasonTitle:
+      (typeof row.employee_work_reason_id_data?.title === "string" &&
+        row.employee_work_reason_id_data.title) ||
+      "—",
     salary: parseSalary(row.salary),
     dateFrom: typeof row.date_from === "string" ? row.date_from : "",
     dateTo: typeof row.date_to === "string" ? row.date_to : "",
@@ -134,18 +191,40 @@ function Metric({
   icon,
   label,
   value,
+  highlight = false,
+  brandColor,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  highlight?: boolean;
+  brandColor?: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-        <span className="text-slate-400">{icon}</span>
+    <div
+      className={`rounded-lg border px-3 py-2 ${highlight ? "shadow-sm" : "bg-white"}`}
+      style={
+        highlight
+          ? {
+              borderColor: `${brandColor || "#0f172a"}33`,
+              backgroundColor: `${brandColor || "#0f172a"}0D`,
+            }
+          : undefined
+      }
+    >
+      <div
+        className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide"
+        style={{ color: highlight ? brandColor || "#0f172a" : "#94a3b8" }}
+      >
+        <span style={{ color: highlight ? brandColor || "#0f172a" : "#94a3b8" }}>{icon}</span>
         {label}
       </div>
-      <p className="m-0 mt-1 text-[13px] font-semibold text-slate-900">{value}</p>
+      <p
+        className="m-0 mt-1 text-[13px] font-semibold"
+        style={{ color: highlight ? brandColor || "#0f172a" : "#0f172a" }}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -214,24 +293,31 @@ function WorkCard({
         />
       </div>
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <Metric
+          icon={<ClipboardList className="h-3.5 w-3.5" />}
+          label="Причина"
+          value={record.reasonTitle}
+          highlight
+          brandColor={brandColor}
+        />
         <Metric
           icon={<BriefcaseBusiness className="h-3.5 w-3.5" />}
           label="Тип работы"
           value={record.employmentTypeTitle}
         />
         <Metric
-          icon={<BriefcaseBusiness className="h-3.5 w-3.5" />}
+          icon={<Building2 className="h-3.5 w-3.5" />}
           label="Департамент"
           value={record.departmentTitle}
         />
         <Metric
-          icon={<BriefcaseBusiness className="h-3.5 w-3.5" />}
+          icon={<GitBranch className="h-3.5 w-3.5" />}
           label="Подразделение"
           value={record.divisionTitle}
         />
         <Metric
-          icon={<BriefcaseBusiness className="h-3.5 w-3.5" />}
+          icon={<MapPin className="h-3.5 w-3.5" />}
           label="Локация"
           value={record.locationTitle}
         />
@@ -250,6 +336,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     locationId: "",
     positionsId: "",
     experienceLevelId: "",
+    employeeWorkReasonId: "",
     salary: "",
     dateFrom: todayIso,
   });
@@ -259,22 +346,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     limit: 100,
     offset: 0,
   });
-  const { data: positionsData } = usePositionsQuery({
-    params: { limit: 200, offset: 0 },
-  });
-  const { data: employmentTypesData } = useEmploymentTypesQuery({
-    params: { limit: 200, offset: 0 },
-  });
-  const { data: experienceLevelsData } = useExperienceLevelsQuery({
-    params: { limit: 200, offset: 0 },
-  });
   const { data: departmentsData } = useDepartmentsSettingsQuery({
-    params: { limit: 200, offset: 0 },
-  });
-  const { data: divisionsData } = useDivisionsQuery({
-    params: { limit: 200, offset: 0 },
-  });
-  const { data: locationsData } = useLocationsQuery({
     params: { limit: 200, offset: 0 },
   });
 
@@ -290,29 +362,109 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
   const currentRecord = currentRaw ? normalizeRecord(currentRaw) : null;
   const historyRecords = sourceRecords.slice(1).map(normalizeRecord);
 
-  const positionsOptions = useMemo(() => {
-    return Array.isArray(positionsData?.response) ? positionsData.response : [];
-  }, [positionsData?.response]);
-
-  const employmentTypeOptions = useMemo(() => {
-    return Array.isArray(employmentTypesData?.response) ? employmentTypesData.response : [];
-  }, [employmentTypesData?.response]);
-
-  const experienceLevelOptions = useMemo(() => {
-    return Array.isArray(experienceLevelsData?.response) ? experienceLevelsData.response : [];
-  }, [experienceLevelsData?.response]);
-
   const departmentOptions = useMemo(() => {
     return Array.isArray(departmentsData?.response) ? departmentsData.response : [];
   }, [departmentsData?.response]);
+  const departmentIds = useMemo(() => {
+    return departmentOptions.map((department) => department.guid);
+  }, [departmentOptions]);
+  const { data: departmentExperienceLevelsSummary } = useDepartmentExperienceLevelsSummaryQuery({
+    departmentIds,
+  });
+  const allowedExperienceLevelIds = useMemo(() => {
+    if (!form.departmentId) return null;
 
-  const divisionOptions = useMemo(() => {
-    return Array.isArray(divisionsData?.response) ? divisionsData.response : [];
-  }, [divisionsData?.response]);
+    const ids = new Set<string>();
+    for (const row of departmentExperienceLevelsSummary?.response || []) {
+      if (row.departments_id === form.departmentId && row.experience_levels_id) {
+        ids.add(row.experience_levels_id);
+      }
+    }
+    return ids;
+  }, [departmentExperienceLevelsSummary?.response, form.departmentId]);
+  const departmentSelectOptions = useMemo<RemoteSelectOption[]>(() => {
+    return departmentOptions.map((item) => ({
+      value: item.guid,
+      label: item.title,
+    }));
+  }, [departmentOptions]);
 
-  const locationOptions = useMemo(() => {
-    return Array.isArray(locationsData?.response) ? locationsData.response : [];
-  }, [locationsData?.response]);
+  useEffect(() => {
+    if (!form.experienceLevelId) {
+      return;
+    }
+
+    if (allowedExperienceLevelIds && !allowedExperienceLevelIds.has(form.experienceLevelId)) {
+      setForm((prev) => ({ ...prev, experienceLevelId: "" }));
+    }
+  }, [allowedExperienceLevelIds, form.experienceLevelId]);
+
+  const menuPortalTarget = typeof document !== "undefined" ? document.body : undefined;
+
+  const currentEmploymentTypeFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!form.employmentTypeId) return null;
+    const label =
+      currentRaw && typeof currentRaw.employment_types_id_data?.title === "string"
+        ? currentRaw.employment_types_id_data.title
+        : "";
+    return label ? { value: form.employmentTypeId, label } : null;
+  }, [currentRaw, form.employmentTypeId]);
+
+  const currentDepartmentFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!form.departmentId) return null;
+    const fromOptions = departmentSelectOptions.find((option) => option.value === form.departmentId);
+    if (fromOptions) return fromOptions;
+    const label =
+      currentRaw && typeof currentRaw.departments_id_data?.title === "string"
+        ? currentRaw.departments_id_data.title
+        : "";
+    return label ? { value: form.departmentId, label } : null;
+  }, [currentRaw, departmentSelectOptions, form.departmentId]);
+
+  const currentExperienceLevelFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!form.experienceLevelId) return null;
+    const label =
+      currentRaw && typeof currentRaw.experience_levels_id_data?.title === "string"
+        ? currentRaw.experience_levels_id_data.title
+        : "";
+    return label ? { value: form.experienceLevelId, label } : null;
+  }, [currentRaw, form.experienceLevelId]);
+
+  const currentDivisionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!form.divisionId) return null;
+    const label =
+      currentRaw && typeof currentRaw.divisions_id_data?.title === "string"
+        ? currentRaw.divisions_id_data.title
+        : "";
+    return label ? { value: form.divisionId, label } : null;
+  }, [currentRaw, form.divisionId]);
+
+  const currentLocationFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!form.locationId) return null;
+    const label =
+      currentRaw && typeof currentRaw.locations_id_data?.title === "string"
+        ? currentRaw.locations_id_data.title
+        : "";
+    return label ? { value: form.locationId, label } : null;
+  }, [currentRaw, form.locationId]);
+
+  const currentPositionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!form.positionsId) return null;
+    const label =
+      currentRaw && typeof currentRaw.positions_id_data?.title === "string"
+        ? currentRaw.positions_id_data.title
+        : "";
+    return label ? { value: form.positionsId, label } : null;
+  }, [currentRaw, form.positionsId]);
+
+  const currentWorkReasonFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!form.employeeWorkReasonId) return null;
+    const label =
+      currentRaw && typeof currentRaw.employee_work_reason_id_data?.title === "string"
+        ? currentRaw.employee_work_reason_id_data.title
+        : "";
+    return label ? { value: form.employeeWorkReasonId, label } : null;
+  }, [currentRaw, form.employeeWorkReasonId]);
 
   const openEditModal = () => {
     const positionId =
@@ -331,6 +483,10 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
       currentRaw && typeof currentRaw.divisions_id === "string" ? currentRaw.divisions_id : "";
     const locationId =
       currentRaw && typeof currentRaw.locations_id === "string" ? currentRaw.locations_id : "";
+    const employeeWorkReasonId =
+      currentRaw && typeof currentRaw.employee_work_reason_id === "string"
+        ? currentRaw.employee_work_reason_id
+        : "";
     const salaryValue =
       currentRaw?.salary === null || currentRaw?.salary === undefined
         ? ""
@@ -347,6 +503,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
       locationId,
       positionsId: positionId,
       experienceLevelId,
+      employeeWorkReasonId,
       salary: salaryValue,
       dateFrom,
     });
@@ -403,6 +560,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
           locations_id: form.locationId || null,
           positions_id: form.positionsId || null,
           experience_levels_id: form.experienceLevelId || null,
+          employee_work_reason_id: form.employeeWorkReasonId || null,
           salary: salaryValue,
           date_from: form.dateFrom,
           date_to: null,
@@ -511,42 +669,82 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Тип работы
               </label>
-              <select
-                className={INPUT_CLASSNAME}
+              <RemoteSingleSelect
                 value={form.employmentTypeId}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, employmentTypeId: event.target.value }))
+                loadOptions={({ search, limit, offset }) =>
+                  loadRemoteOptionsBySlug({
+                    slug: "employment_types",
+                    search,
+                    limit,
+                    offset,
+                  })
                 }
+                fallbackOption={currentEmploymentTypeFallbackOption}
+                onChange={(value) =>
+                  setForm((prev) => ({ ...prev, employmentTypeId: value }))
+                }
+                placeholder="Выберите тип"
                 disabled={isSaving}
-              >
-                <option value="">Выберите тип</option>
-                {employmentTypeOptions.map((item) => (
-                  <option key={item.guid} value={item.guid}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="work-employment-type-select"
+              />
             </div>
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Департамент
               </label>
-              <select
-                className={INPUT_CLASSNAME}
+              <RemoteSingleSelect
                 value={form.departmentId}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, departmentId: event.target.value }))
+                loadOptions={({ search, limit, offset }) =>
+                  loadRemoteOptionsBySlug({
+                    slug: "departments",
+                    search,
+                    limit,
+                    offset,
+                  })
+                }
+                fallbackOption={currentDepartmentFallbackOption}
+                onChange={(value) => setForm((prev) => ({ ...prev, departmentId: value }))}
+                placeholder="Выберите департамент"
+                disabled={isSaving}
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="work-department-select"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                Уровень
+              </label>
+              <RemoteSingleSelect
+                value={form.experienceLevelId}
+                loadOptions={async ({ search, limit, offset }) => {
+                  const res = await loadRemoteOptionsBySlug({
+                    slug: "experience_levels",
+                    search,
+                    limit,
+                    offset,
+                  });
+                  return {
+                    count: res.count,
+                    options: res.options.filter(
+                      (item) =>
+                        !allowedExperienceLevelIds || allowedExperienceLevelIds.has(item.value)
+                    ),
+                  };
+                }}
+                fallbackOption={currentExperienceLevelFallbackOption}
+                onChange={(value) =>
+                  setForm((prev) => ({ ...prev, experienceLevelId: value }))
+                }
+                placeholder={
+                  form.departmentId ? "Выберите уровень" : "Сначала выберите департамент"
                 }
                 disabled={isSaving}
-              >
-                <option value="">Выберите департамент</option>
-                {departmentOptions.map((item) => (
-                  <option key={item.guid} value={item.guid}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="work-experience-level-select"
+              />
             </div>
           </div>
 
@@ -555,42 +753,46 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Подразделение
               </label>
-              <select
-                className={INPUT_CLASSNAME}
+              <RemoteSingleSelect
                 value={form.divisionId}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, divisionId: event.target.value }))
+                loadOptions={({ search, limit, offset }) =>
+                  loadRemoteOptionsBySlug({
+                    slug: "divisions",
+                    search,
+                    limit,
+                    offset,
+                  })
                 }
+                fallbackOption={currentDivisionFallbackOption}
+                onChange={(value) => setForm((prev) => ({ ...prev, divisionId: value }))}
+                placeholder="Выберите подразделение"
                 disabled={isSaving}
-              >
-                <option value="">Выберите подразделение</option>
-                {divisionOptions.map((item) => (
-                  <option key={item.guid} value={item.guid}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="work-division-select"
+              />
             </div>
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Локация
               </label>
-              <select
-                className={INPUT_CLASSNAME}
+              <RemoteSingleSelect
                 value={form.locationId}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, locationId: event.target.value }))
+                loadOptions={({ search, limit, offset }) =>
+                  loadRemoteOptionsBySlug({
+                    slug: "locations",
+                    search,
+                    limit,
+                    offset,
+                  })
                 }
+                fallbackOption={currentLocationFallbackOption}
+                onChange={(value) => setForm((prev) => ({ ...prev, locationId: value }))}
+                placeholder="Выберите локацию"
                 disabled={isSaving}
-              >
-                <option value="">Выберите локацию</option>
-                {locationOptions.map((item) => (
-                  <option key={item.guid} value={item.guid}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="work-location-select"
+              />
             </div>
           </div>
 
@@ -598,42 +800,48 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
             <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
               Должность
             </label>
-            <select
-              className={INPUT_CLASSNAME}
+            <RemoteSingleSelect
               value={form.positionsId}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, positionsId: event.target.value }))
+              loadOptions={({ search, limit, offset }) =>
+                loadRemoteOptionsBySlug({
+                  slug: "positions",
+                  search,
+                  limit,
+                  offset,
+                })
               }
+              fallbackOption={currentPositionFallbackOption}
+              onChange={(value) => setForm((prev) => ({ ...prev, positionsId: value }))}
+              placeholder="Выберите должность"
               disabled={isSaving}
-            >
-              <option value="">Выберите должность</option>
-              {positionsOptions.map((item) => (
-                <option key={item.guid} value={item.guid}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
+              menuPortalTarget={menuPortalTarget}
+              classNamePrefix="work-position-select"
+            />
           </div>
 
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Уровень
+              Причина изменения
             </label>
-            <select
-              className={INPUT_CLASSNAME}
-              value={form.experienceLevelId}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, experienceLevelId: event.target.value }))
+            <RemoteSingleSelect
+              value={form.employeeWorkReasonId}
+              loadOptions={({ search, limit, offset }) =>
+                loadRemoteOptionsBySlug({
+                  slug: EMPLOYEE_WORK_REASON_SLUG,
+                  search,
+                  limit,
+                  offset,
+                })
               }
+              fallbackOption={currentWorkReasonFallbackOption}
+              onChange={(value) =>
+                setForm((prev) => ({ ...prev, employeeWorkReasonId: value }))
+              }
+              placeholder="Выберите причину"
               disabled={isSaving}
-            >
-              <option value="">Выберите уровень</option>
-              {experienceLevelOptions.map((item) => (
-                <option key={item.guid} value={item.guid}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
+              menuPortalTarget={menuPortalTarget}
+              classNamePrefix="work-reason-select"
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

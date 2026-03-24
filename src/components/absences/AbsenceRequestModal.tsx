@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Upload, X } from "lucide-react";
+import Select from "react-select";
 import type { StylesConfig } from "react-select";
 import Button from "../ui/button/Button";
 import { Modal } from "../ui/modal";
@@ -14,9 +15,18 @@ const INPUT_CLASSNAME =
 const DATEPICKER_CLASSNAME =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
 
+const DEFAULT_POLICY_ICON = "mdi:airplane";
+
 type EmployeeSelectOption = {
   value: string;
   label: string;
+};
+
+type PolicySelectOption = {
+  value: string;
+  label: string;
+  icon?: string;
+  color?: string;
 };
 
 const getEmployeeSelectStyles = (): StylesConfig<EmployeeSelectOption, false> => ({
@@ -77,6 +87,65 @@ const getEmployeeSelectStyles = (): StylesConfig<EmployeeSelectOption, false> =>
   }),
 });
 
+const getPolicySelectStyles = (): StylesConfig<PolicySelectOption, false> => ({
+  control: (base, state) => ({
+    ...base,
+    minHeight: "40px",
+    borderColor: state.isFocused ? "var(--color-brand-500)" : "#e2e8f0",
+    borderRadius: "0.5rem",
+    boxShadow: state.isFocused
+      ? "0 0 0 3px rgba(var(--company-color-rgb, 70, 95, 255), 0.12)"
+      : "none",
+    "&:hover": {
+      borderColor: state.isFocused ? "var(--color-brand-500)" : "#cbd5e1",
+    },
+  }),
+  valueContainer: (base) => ({
+    ...base,
+    padding: "0 12px",
+    fontSize: "13px",
+  }),
+  input: (base) => ({
+    ...base,
+    margin: 0,
+    padding: 0,
+    fontSize: "13px",
+  }),
+  indicatorsContainer: (base) => ({
+    ...base,
+    height: "38px",
+  }),
+  singleValue: (base) => ({
+    ...base,
+    fontSize: "13px",
+    color: "#1e293b",
+  }),
+  placeholder: (base) => ({
+    ...base,
+    fontSize: "13px",
+    color: "#94a3b8",
+  }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: "13px",
+    cursor: "pointer",
+    backgroundColor: state.isSelected ? "rgba(70, 95, 255, 0.08)" : state.isFocused ? "#f8fafc" : "white",
+    color: "#0f172a",
+    padding: "8px 10px",
+  }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 100100,
+    borderRadius: "0.5rem",
+    border: "1px solid #e2e8f0",
+    overflow: "hidden",
+  }),
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: 100100,
+  }),
+});
+
 const parseIsoDate = (value: string): Date | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split("-").map(Number);
@@ -95,9 +164,16 @@ const toIsoDate = (value: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+const resolveHexColor = (value: string | undefined, fallback: string): string => {
+  if (!value) return fallback;
+  return /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
+};
+
 export type AbsenceRequestPolicyOption = {
   guid: string;
   title: string;
+  icon?: string;
+  color?: string;
 };
 
 export type AbsenceRequestAttachmentItem = {
@@ -183,6 +259,14 @@ export default function AbsenceRequestModal({
   submitLoadingLabel = "Отправка...",
   employeeField,
 }: AbsenceRequestModalProps) {
+  const policyOptions: PolicySelectOption[] = policies.map((policy) => ({
+    value: policy.guid,
+    label: policy.title,
+    icon: policy.icon,
+    color: policy.color,
+  }));
+  const selectedPolicy = policyOptions.find((option) => option.value === policyId) || null;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -221,18 +305,30 @@ export default function AbsenceRequestModal({
 
           <div>
             <label className="mb-1 block text-[12px] font-medium text-slate-700">Тип отсутствия</label>
-            <select
-              value={policyId}
-              onChange={(event) => onPolicyIdChange(event.target.value)}
-              className={INPUT_CLASSNAME}
-            >
-              <option value="">Выберите тип</option>
-              {policies.map((policy) => (
-                <option key={`modal-policy-${policy.guid}`} value={policy.guid}>
-                  {policy.title}
-                </option>
-              ))}
-            </select>
+            <Select<PolicySelectOption, false>
+              options={policyOptions}
+              value={selectedPolicy}
+              onChange={(option) => onPolicyIdChange(option?.value || "")}
+              placeholder="Выберите тип"
+              isSearchable
+              menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+              styles={getPolicySelectStyles()}
+              formatOptionLabel={(option) => {
+                const iconValue = option.icon || DEFAULT_POLICY_ICON;
+                const iconColor = resolveHexColor(option.color, "#64748b");
+
+                return (
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100">
+                      <Icon icon={iconValue} width={16} height={16} color={iconColor} />
+                    </span>
+                    <span className="text-[13px] font-medium text-slate-900">
+                      {option.label}
+                    </span>
+                  </div>
+                );
+              }}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

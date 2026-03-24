@@ -13,7 +13,6 @@ import {
 import Select, { type StylesConfig } from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
-import ExperienceLevelsInfiniteMultiSelect from "../../../components/autocomplete/ExperienceLevelsInfiniteMultiSelect";
 import {
   Table,
   TableBody,
@@ -32,9 +31,6 @@ import {
   usePositionsQuery,
   useUpdatePosition,
 } from "../../../api/services/position.service";
-import positionExperienceLevelService, {
-  useSyncPositionExperienceLevels,
-} from "../../../api/services/positionExperienceLevel.service";
 
 type Option = {
   value: string;
@@ -98,89 +94,6 @@ const getParentSelectStyles = (): StylesConfig<Option, false> => ({
   placeholder: (base) => ({ ...base, fontSize: "14px", color: "#9ca3af" }),
 });
 
-const getExperienceLevelsSelectStyles = (): StylesConfig<Option, true> => ({
-  control: (base, state) => ({
-    ...base,
-    minHeight: "36px",
-    borderColor: state.isFocused ? "var(--color-brand-500)" : "#d1d5db",
-    borderRadius: "0.5rem",
-    boxShadow: state.isFocused ? "0 0 0 3px rgba(var(--company-color-rgb, 70, 95, 255), 0.12)" : "none",
-    "&:hover": {
-      borderColor: state.isFocused ? "var(--color-brand-500)" : "#9ca3af",
-    },
-  }),
-  valueContainer: (base) => ({ ...base, padding: "2px 10px", gap: "4px", fontSize: "14px" }),
-  input: (base) => ({ ...base, margin: 0, padding: 0, fontSize: "14px" }),
-  option: (base, state) => ({
-    ...base,
-    fontSize: "14px",
-    cursor: "pointer",
-    backgroundColor: state.isSelected ? "var(--color-brand-500)" : state.isFocused ? "#f3f4f6" : "white",
-    color: state.isSelected ? "white" : "#111827",
-    padding: "8px 10px",
-  }),
-  menu: (base) => ({
-    ...base,
-    zIndex: 100000,
-    borderRadius: "0.5rem",
-    border: "1px solid #e5e7eb",
-  }),
-  menuPortal: (base) => ({
-    ...base,
-    zIndex: 100000,
-  }),
-  multiValue: (base) => ({
-    ...base,
-    borderRadius: "0.5rem",
-    backgroundColor: "#eef2ff",
-  }),
-  multiValueLabel: (base) => ({
-    ...base,
-    fontSize: "12px",
-    color: "#3730a3",
-  }),
-  multiValueRemove: (base) => ({
-    ...base,
-    color: "#3730a3",
-    ":hover": {
-      backgroundColor: "#dbe4ff",
-      color: "#1e1b4b",
-    },
-  }),
-  placeholder: (base) => ({ ...base, fontSize: "14px", color: "#9ca3af" }),
-});
-
-const resolveCreatedOrUpdatedGuid = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-
-  const data = payload as Record<string, unknown>;
-  if (typeof data.guid === "string" && data.guid) {
-    return data.guid;
-  }
-
-  const response = data.response;
-  if (response && typeof response === "object") {
-    const responseObj = response as Record<string, unknown>;
-    if (typeof responseObj.guid === "string" && responseObj.guid) {
-      return responseObj.guid;
-    }
-  }
-
-  if (Array.isArray(response)) {
-    const first = response[0];
-    if (first && typeof first === "object") {
-      const firstObj = first as Record<string, unknown>;
-      if (typeof firstObj.guid === "string" && firstObj.guid) {
-        return firstObj.guid;
-      }
-    }
-  }
-
-  return null;
-};
-
 export default function PositionsSettingsPage() {
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -191,9 +104,6 @@ export default function PositionsSettingsPage() {
   const [positionToDelete, setPositionToDelete] = useState<Position | null>(null);
   const [positionTitle, setPositionTitle] = useState("");
   const [parentPositionId, setParentPositionId] = useState("");
-  const [experienceLevelIds, setExperienceLevelIds] = useState<string[]>([]);
-  const [experienceLevelFallbackOptions, setExperienceLevelFallbackOptions] = useState<Option[]>([]);
-  const [isLoadingExperienceLevels, setIsLoadingExperienceLevels] = useState(false);
 
   const [expandedGuids, setExpandedGuids] = useState<string[]>([]);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
@@ -217,7 +127,6 @@ export default function PositionsSettingsPage() {
   const createMutation = useCreatePosition();
   const updateMutation = useUpdatePosition();
   const deleteMutation = useDeletePosition();
-  const syncExperienceLevelsMutation = useSyncPositionExperienceLevels();
 
   const positions = useMemo(() => data?.response || [], [data?.response]);
 
@@ -412,54 +321,10 @@ export default function PositionsSettingsPage() {
     [parentOptions, parentPositionId]
   );
 
-  const loadExperienceLevelsForPosition = async (positionGuid: string) => {
-    setIsLoadingExperienceLevels(true);
-
-    try {
-      const relations = await positionExperienceLevelService.getListByPosition(positionGuid);
-      const nextIds: string[] = [];
-      const fallback: Option[] = [];
-      const seenFallback = new Set<string>();
-
-      for (const relation of relations.response) {
-        if (!relation.experience_levels_id) continue;
-        nextIds.push(relation.experience_levels_id);
-
-        const titleFromRelation =
-          relation.experience_levels_id_data &&
-          typeof relation.experience_levels_id_data === "object" &&
-          typeof relation.experience_levels_id_data.title === "string"
-            ? relation.experience_levels_id_data.title
-            : relation.experience_levels_id;
-
-        if (!seenFallback.has(relation.experience_levels_id)) {
-          fallback.push({
-            value: relation.experience_levels_id,
-            label: titleFromRelation,
-          });
-          seenFallback.add(relation.experience_levels_id);
-        }
-      }
-
-      setExperienceLevelIds(Array.from(new Set(nextIds)));
-      setExperienceLevelFallbackOptions(fallback);
-    } catch (error) {
-      console.error("Failed to load position experience levels:", error);
-      toast.error("Не удалось загрузить уровни опыта для должности.");
-      setExperienceLevelIds([]);
-      setExperienceLevelFallbackOptions([]);
-    } finally {
-      setIsLoadingExperienceLevels(false);
-    }
-  };
-
   const openCreateModal = () => {
     setEditingPosition(null);
     setPositionTitle("");
     setParentPositionId("");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
-    setIsLoadingExperienceLevels(false);
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -468,11 +333,8 @@ export default function PositionsSettingsPage() {
     setEditingPosition(position);
     setPositionTitle(String(position.title || ""));
     setParentPositionId(resolveParentPositionId(position) || "");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
-    void loadExperienceLevelsForPosition(position.guid);
   };
 
   const closeUpsertModal = () => {
@@ -480,9 +342,6 @@ export default function PositionsSettingsPage() {
     setEditingPosition(null);
     setPositionTitle("");
     setParentPositionId("");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
-    setIsLoadingExperienceLevels(false);
   };
 
   const handleSubmit = async () => {
@@ -499,33 +358,19 @@ export default function PositionsSettingsPage() {
     };
 
     try {
-      let savedPositionGuid: string | null = editingPosition?.guid || null;
-
       if (editingPosition) {
-        const updateResult = await updateMutation.mutateAsync({
+        await updateMutation.mutateAsync({
           guid: editingPosition.guid,
           data: {
             ...editingPosition,
             ...payload,
           },
         });
-        savedPositionGuid = resolveCreatedOrUpdatedGuid(updateResult) || editingPosition.guid;
         toast.success("Должность успешно обновлена.");
       } else {
-        const createResult = await createMutation.mutateAsync(payload);
-        savedPositionGuid = resolveCreatedOrUpdatedGuid(createResult);
+        await createMutation.mutateAsync(payload);
         toast.success("Должность успешно создана.");
       }
-
-      if (!savedPositionGuid) {
-        toast.error("Должность сохранена, но не удалось определить GUID для связи с уровнями опыта.");
-        return;
-      }
-
-      await syncExperienceLevelsMutation.mutateAsync({
-        positionGuid: savedPositionGuid,
-        experienceLevelIds,
-      });
 
       closeUpsertModal();
     } catch (error) {
@@ -558,11 +403,7 @@ export default function PositionsSettingsPage() {
     }
   };
 
-  const isSaving =
-    createMutation.isLoading ||
-    updateMutation.isLoading ||
-    syncExperienceLevelsMutation.isLoading ||
-    isLoadingExperienceLevels;
+  const isSaving = createMutation.isLoading || updateMutation.isLoading;
 
   const toggleActionsMenu = (guid: string) => {
     setOpenActionsFor((prev) => (prev === guid ? null : guid));
@@ -795,21 +636,6 @@ export default function PositionsSettingsPage() {
               menuPosition="fixed"
               classNamePrefix="position-parent-select"
               noOptionsMessage={() => "Ничего не найдено"}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Уровни опыта
-            </label>
-            <ExperienceLevelsInfiniteMultiSelect
-              value={experienceLevelIds}
-              onChange={setExperienceLevelIds}
-              fallbackOptions={experienceLevelFallbackOptions}
-              placeholder="Выберите уровни опыта"
-              styles={getExperienceLevelsSelectStyles()}
-              menuPortalTarget={menuPortalTarget || undefined}
-              classNamePrefix="position-experience-levels-select"
             />
           </div>
         </div>

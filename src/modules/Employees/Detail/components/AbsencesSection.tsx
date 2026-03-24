@@ -1009,6 +1009,8 @@ export default function AbsencesSection({
         policies={policies.map((policy) => ({
           guid: policy.guid,
           title: String(policy.title || "Без названия"),
+          icon: typeof policy.icon === "string" ? policy.icon : undefined,
+          color: typeof policy.color === "string" ? policy.color : undefined,
         }))}
         policyId={modalPolicyId}
         onPolicyIdChange={setModalPolicyId}

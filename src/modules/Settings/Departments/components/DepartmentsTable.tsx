@@ -11,7 +11,6 @@ import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
 import type { Department } from "../../../../api/services/department.service";
 import type { FlattenedTreeRow } from "../types";
-import { resolveEmployeesCount } from "../utils";
 
 interface DepartmentsTableProps {
   isLoading: boolean;
@@ -53,8 +52,8 @@ export default function DepartmentsTable({
             <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
               Руководитель
             </TableCell>
-            <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-              Сотрудники
+            <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+              Уровни опыта
             </TableCell>
             <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
               Действия
@@ -72,8 +71,8 @@ export default function DepartmentsTable({
                 <TableCell className="px-4 py-4">
                   <div className="h-4 w-52 animate-pulse rounded bg-gray-200" />
                 </TableCell>
-                <TableCell className="px-4 py-4 text-right">
-                  <div className="ml-auto h-4 w-8 animate-pulse rounded bg-gray-200" />
+                <TableCell className="px-4 py-4">
+                  <div className="h-6 w-44 animate-pulse rounded bg-gray-200" />
                 </TableCell>
                 <TableCell className="px-4 py-4 text-right">
                   <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-200" />
@@ -90,6 +89,7 @@ export default function DepartmentsTable({
             flattenedRows.map((row) => {
               const { department, level, hasChildren } = row;
               const isExpanded = expandedGuids.includes(department.guid);
+              const experienceLevels = department.experience_level_titles || [];
 
               return (
                 <TableRow key={department.guid} className="hover:bg-gray-50 transition-colors">
@@ -123,8 +123,21 @@ export default function DepartmentsTable({
                     {getLeaderName(department)}
                   </TableCell>
 
-                  <TableCell className="px-4 py-3 text-right text-sm text-gray-700">
-                    {resolveEmployeesCount(department)}
+                  <TableCell className="px-4 py-3 text-sm text-gray-700">
+                    {experienceLevels.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {experienceLevels.map((levelTitle) => (
+                          <span
+                            key={`${department.guid}-${levelTitle}`}
+                            className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"
+                          >
+                            {levelTitle}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </TableCell>
 
                   <TableCell className="px-4 py-3">

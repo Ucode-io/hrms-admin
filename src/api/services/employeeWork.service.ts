@@ -60,6 +60,12 @@ export interface EmployeeWork {
     title?: string;
     [key: string]: unknown;
   } | null;
+  employee_work_reason_id?: string | null;
+  employee_work_reason_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: unknown;
+  } | null;
   salary?: number | string | null;
   date_from?: string | null;
   date_to?: string | null;

@@ -39,6 +39,7 @@ import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
 import ProbationPoliciesSettingsPage from "./modules/Settings/ProbationPolicies";
 import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
 import DismissalTypesSettingsPage from "./modules/Settings/DismissalTypes";
+import EmployeeWorkChangeReasonsSettingsPage from "./modules/Settings/EmployeeWorkChangeReasons";
 import PropertyCategoriesSettingsPage from "./modules/Settings/PropertyCategories";
 import TariffsList from "./modules/Settings/Tariffs/List";
 import TariffForm from "./modules/Settings/Tariffs/Form";
@@ -136,6 +137,7 @@ function App() {
               <Route path="/settings/probation-policies" element={<ProbationPoliciesSettingsPage />} />
               <Route path="/settings/dismissal-reasons" element={<DismissalReasonsSettingsPage />} />
               <Route path="/settings/dismissal-types" element={<DismissalTypesSettingsPage />} />
+              <Route path="/settings/employee-work-reasons" element={<EmployeeWorkChangeReasonsSettingsPage />} />
               <Route path="/settings/property-categories" element={<PropertyCategoriesSettingsPage />} />
               <Route path="/settings/tariffs" element={<TariffsList />} />
               <Route path="/settings/tariffs/new" element={<TariffForm />} />

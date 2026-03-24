@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Pencil, Trash2, User, ChevronLeft } from "lucide-react";
 import DatePicker from "react-datepicker";
@@ -22,10 +22,14 @@ import { useDivisionsQuery } from "../../../api/services/division.service";
 import { useExperienceLevelsQuery } from "../../../api/services/experienceLevel.service";
 import { useLocationsQuery } from "../../../api/services/location.service";
 import { useDepartmentsSettingsQuery } from "../../../api/services/department.service";
+import { useDepartmentExperienceLevelsSummaryQuery } from "../../../api/services/departmentExperienceLevel.service";
 import { usePositionsQuery } from "../../../api/services/position.service";
 import { useCreateEmployeeWork } from "../../../api/services/employeeWork.service";
+import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 import type { EmployeeFormValues, SelectOption } from "./types";
 import { employeeFormDefaults } from "./types";
+
+const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
 
 /* ── Constants ── */
 const GENDER_OPTIONS: SelectOption[] = [
@@ -76,6 +80,8 @@ function EmployeeForm() {
   } = useForm<EmployeeFormValues>({ defaultValues: employeeFormDefaults });
 
   const photo = watch("photo");
+  const selectedDepartmentId = watch("departments_id");
+  const selectedExperienceLevelId = watch("experience_levels_id");
 
   /* ── API queries ── */
   const { data: employee, isLoading } = useEmployeeQuery(id || "");
@@ -85,6 +91,10 @@ function EmployeeForm() {
   const { data: divisionsData } = useDivisionsQuery({ params: { limit: 200 } });
   const { data: experienceLevelsData } = useExperienceLevelsQuery({ params: { limit: 200 } });
   const { data: locationsData } = useLocationsQuery({ params: { limit: 200 } });
+  const { data: employeeWorkReasonsData } = useSettingsDirectoryQuery({
+    slug: EMPLOYEE_WORK_REASON_SLUG,
+    params: { limit: 200, offset: 0 },
+  });
 
   const departments = departmentsData?.response ?? [];
   const positions = positionsData?.response ?? [];
@@ -92,13 +102,49 @@ function EmployeeForm() {
   const divisions = divisionsData?.response ?? [];
   const experienceLevels = experienceLevelsData?.response ?? [];
   const locations = locationsData?.response ?? [];
+  const employeeWorkReasons = employeeWorkReasonsData?.response ?? [];
+  const departmentIds = useMemo(
+    () => departments.map((department) => department.guid),
+    [departments]
+  );
+  const { data: departmentExperienceLevelsSummary } = useDepartmentExperienceLevelsSummaryQuery({
+    departmentIds,
+  });
 
   const departmentOptions: SelectOption[] = departments.map((d) => ({ value: d.guid, label: d.title }));
   const positionOptions: SelectOption[] = positions.map((p) => ({ value: p.guid, label: String(p.title) }));
   const employmentTypeOptions: SelectOption[] = employmentTypes.map((e) => ({ value: e.guid, label: e.title }));
   const divisionOptions: SelectOption[] = divisions.map((d) => ({ value: d.guid, label: d.title }));
-  const experienceLevelOptions: SelectOption[] = experienceLevels.map((e) => ({ value: e.guid, label: e.title }));
+  const allowedExperienceLevelIds = useMemo(() => {
+    if (!selectedDepartmentId) return null;
+
+    const ids = new Set<string>();
+    for (const row of departmentExperienceLevelsSummary?.response || []) {
+      if (row.departments_id === selectedDepartmentId && row.experience_levels_id) {
+        ids.add(row.experience_levels_id);
+      }
+    }
+    return ids;
+  }, [departmentExperienceLevelsSummary?.response, selectedDepartmentId]);
+
+  const experienceLevelOptions: SelectOption[] = experienceLevels
+    .filter((level) => !allowedExperienceLevelIds || allowedExperienceLevelIds.has(level.guid))
+    .map((e) => ({ value: e.guid, label: e.title }));
   const locationOptions: SelectOption[] = locations.map((l) => ({ value: l.guid, label: l.title }));
+  const employeeWorkReasonOptions: SelectOption[] = employeeWorkReasons.map((item) => ({
+    value: item.guid,
+    label: String(item.title || "Без названия"),
+  }));
+
+  useEffect(() => {
+    if (!selectedExperienceLevelId) {
+      return;
+    }
+
+    if (allowedExperienceLevelIds && !allowedExperienceLevelIds.has(selectedExperienceLevelId)) {
+      setValue("experience_levels_id", "");
+    }
+  }, [allowedExperienceLevelIds, selectedExperienceLevelId, setValue]);
 
   const createMutation = useCreateEmployee();
   const createEmployeeWorkMutation = useCreateEmployeeWork();
@@ -127,6 +173,7 @@ function EmployeeForm() {
         experience_levels_id: employee.experience_levels_id || "",
         divisions_id: employee.divisions_id || "",
         locations_id: employee.locations_id || "",
+        employee_work_reason_id: "",
         salary: "",
       });
     }
@@ -249,6 +296,7 @@ function EmployeeForm() {
             locations_id: data.locations_id || null,
             positions_id: data.positions_id || null,
             experience_levels_id: data.experience_levels_id || null,
+            employee_work_reason_id: data.employee_work_reason_id || null,
             salary: normalizeSalaryForBackend(data.salary),
             date_from: toISODate(data.date_hire) || toISODate(new Date()),
             date_to: null,
@@ -578,12 +626,18 @@ function EmployeeForm() {
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Уровень</label>
+                  <label style={labelStyle}>Причина изменения</label>
                   <Controller
                     control={control}
-                    name="experience_levels_id"
+                    name="employee_work_reason_id"
                     render={({ field }) => (
-                      <SearchableSelect options={experienceLevelOptions} value={field.value} onChange={field.onChange} placeholder="Выберите уровень" brandColor={brandColor} />
+                      <SearchableSelect
+                        options={employeeWorkReasonOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Выберите причину"
+                        brandColor={brandColor}
+                      />
                     )}
                   />
                 </div>
@@ -607,6 +661,27 @@ function EmployeeForm() {
                     name="departments_id"
                     render={({ field }) => (
                       <SearchableSelect options={departmentOptions} value={field.value} onChange={field.onChange} placeholder="Выберите департамент" brandColor={brandColor} />
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Уровень</label>
+                  <Controller
+                    control={control}
+                    name="experience_levels_id"
+                    render={({ field }) => (
+                      <SearchableSelect
+                        options={experienceLevelOptions}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder={
+                          selectedDepartmentId
+                            ? "Выберите уровень"
+                            : "Сначала выберите департамент"
+                        }
+                        brandColor={brandColor}
+                      />
                     )}
                   />
                 </div>

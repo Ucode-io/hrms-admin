@@ -28,6 +28,7 @@ export interface Employee {
   middle_name: string;       // Отчество
   birth_date: string | null;
   date_hire: string | null;
+  dismissal_date?: string | null;
   phone: string;
   gender: string[];          // ["male_slug"] | ["female_slug"]
   email: string | null;

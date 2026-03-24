@@ -5,7 +5,7 @@ export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 
 export interface SettingsDirectoryItem {
   guid: string;
-  title: string;
+  title?: string;
   description?: string;
   file?: string;
   companies_id: string;
@@ -44,7 +44,7 @@ const settingsDirectoryService = {
 
   create: (
     slug: string,
-    data: { title: string; companies_id?: string; [key: string]: unknown }
+    data: { title?: string; companies_id?: string; [key: string]: unknown }
   ) =>
     httpRequest.post(`/v2/items/${slug}`, {
       data: {
@@ -68,7 +68,12 @@ const settingsDirectoryService = {
   },
 
   update: (slug: string, guid: string, data: Partial<SettingsDirectoryItem>) =>
-    httpRequest.put(`/v2/items/${slug}/${guid}`, { data }),
+    httpRequest.put(`/v2/items/${slug}/${guid}`, {
+      data: {
+        ...data,
+        guid,
+      },
+    }),
 
   delete: async (slug: string, guid: string) => {
     try {
@@ -101,7 +106,7 @@ export const useCreateSettingsDirectoryItem = (slug: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { title: string; companies_id?: string; [key: string]: unknown }) =>
+    mutationFn: (data: { title?: string; companies_id?: string; [key: string]: unknown }) =>
       settingsDirectoryService.create(slug, data),
     onSuccess: () => {
       queryClient.invalidateQueries(["SETTINGS_DIRECTORY", slug]);

@@ -21,6 +21,7 @@ export interface EmployeeFormValues {
   experience_levels_id: string;
   divisions_id: string;
   locations_id: string;
+  employee_work_reason_id: string;
   salary: string;
 }
 
@@ -43,5 +44,6 @@ export const employeeFormDefaults: EmployeeFormValues = {
   experience_levels_id: "",
   divisions_id: "",
   locations_id: "",
+  employee_work_reason_id: "",
   salary: "",
 };

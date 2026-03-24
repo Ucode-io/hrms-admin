@@ -1,22 +1,32 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Pencil,
   Phone,
   MapPin,
   Briefcase,
   Users,
   Building2,
+  UserX,
 } from "lucide-react";
 import { observer } from "mobx-react-lite";
+import { toast } from "sonner";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
-import { useEmployeeQuery } from "../../../api/services/employee.service";
+import { useEmployeeQuery, useUpdateEmployee } from "../../../api/services/employee.service";
 import { useEmployeeWorksQuery } from "../../../api/services/employeeWork.service";
+import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
+import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
+import { Modal } from "../../../components/ui/modal";
 import EducationSection from "./components/EducationSection";
 import AbsencesSection from "./components/AbsencesSection";
+import AttendanceSection from "./components/AttendanceSection";
+import SportAttendanceSection from "./components/SportAttendanceSection";
 import EmployeeDocumentsSection from "./components/DocumentsSection";
 import InterestsSection from "./components/InterestsSection";
 import LicenseCertificatesSection from "./components/LicenseCertificatesSection";
@@ -24,16 +34,17 @@ import SkillsSection from "./components/SkillsSection";
 import WorkSection from "./components/WorkSection";
 import CompensationSection from "./components/CompensationSection";
 
-const TABS = [
+const PRIMARY_TABS = [
   "Личное",
   "Работа",
   "Компенсация",
   "Отсутствия",
   "Документы",
-  "Больше",
 ] as const;
 
-type Tab = (typeof TABS)[number];
+const MORE_TABS = ["Посещаемость", "Посещение спорта"] as const;
+
+type Tab = (typeof PRIMARY_TABS)[number] | (typeof MORE_TABS)[number];
 
 /* ── helpers ── */
 const GENDER_MAP: Record<string, string> = {
@@ -78,6 +89,22 @@ function calcTenure(dateStr: string | null | undefined): string {
   }
 }
 
+function toIsoDate(value: Date | null): string | null {
+  if (!value) return null;
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
 /* ────────────────────────────────────────────────
  *  Main component
  * ──────────────────────────────────────────────── */
@@ -85,6 +112,12 @@ function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("Личное");
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [isDismissModalOpen, setIsDismissModalOpen] = useState(false);
+  const [dismissalDate, setDismissalDate] = useState<Date | null>(new Date());
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const actionButtonRef = useRef<HTMLButtonElement | null>(null);
   const brandColor = companyStore.mainColor;
   const employeeCover = companyStore.company?.employee_cover;
 
@@ -99,6 +132,7 @@ function EmployeeDetail() {
       ? emp.departments_id_data.user_base_id
       : "";
   const { data: manager, isLoading: isManagerLoading } = useEmployeeQuery(managerGuid);
+  const updateEmployeeMutation = useUpdateEmployee();
 
   if (isLoading || !emp) {
     return (
@@ -153,7 +187,36 @@ function EmployeeDetail() {
     ? [manager.second_name, manager.first_name].filter(Boolean).join(" ")
     : "";
   const genderLabel = emp.gender?.[0] ? GENDER_MAP[emp.gender[0]] || emp.gender[0] : "";
-  const statusLabel = emp.status?.includes("active") ? "Активный" : emp.status?.[0] || "";
+  const isDismissed = emp.status?.includes("dismissed");
+  const statusLabel = isDismissed
+    ? "Уволен"
+    : emp.status?.includes("active")
+      ? "Активный"
+      : emp.status?.[0] || "";
+  const isMoreTabActive = MORE_TABS.includes(activeTab as (typeof MORE_TABS)[number]);
+  const dismissalDateLabel = formatDate(emp.dismissal_date);
+
+  const handleDismissEmployee = async () => {
+    const nextDismissalDate = toIsoDate(dismissalDate);
+    if (!nextDismissalDate) {
+      toast.error("Укажите дату увольнения.");
+      return;
+    }
+
+    try {
+      await updateEmployeeMutation.mutateAsync({
+        guid: emp.guid,
+        status: ["dismissed"],
+        dismissal_date: nextDismissalDate,
+      });
+      setIsDismissModalOpen(false);
+      setIsActionMenuOpen(false);
+      toast.success("Сотрудник уволен.");
+    } catch (error) {
+      console.error("Dismiss employee error:", error);
+      toast.error("Не удалось уволить сотрудника.");
+    }
+  };
 
   return (
     <>
@@ -209,9 +272,16 @@ function EmployeeDetail() {
           {/* Name + meta */}
           <div className="pt-14 flex items-start justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-[22px] font-bold text-slate-900 m-0 leading-snug">
-                {fullName}
-              </h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-[22px] font-bold text-slate-900 m-0 leading-snug">
+                  {fullName}
+                </h1>
+                {isDismissed ? (
+                  <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
+                    Уволен
+                  </span>
+                ) : null}
+              </div>
               <div className="flex items-center gap-4 mt-1.5 text-[13px] text-slate-500 flex-wrap">
                 {workPositionTitle && (
                   <span className="flex items-center gap-1">
@@ -249,16 +319,65 @@ function EmployeeDetail() {
                 <Pencil className="w-3.5 h-3.5" />
                 Редактировать
               </button>
+              <div className="relative">
+                <button
+                  ref={actionButtonRef}
+                  type="button"
+                  onClick={() => setIsActionMenuOpen((prev) => !prev)}
+                  className="dropdown-toggle flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-[13px] font-semibold cursor-pointer transition-colors hover:bg-slate-50"
+                >
+                  Действие
+                  <ChevronDown
+                    className="h-3.5 w-3.5"
+                    style={{
+                      transform: isActionMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s ease",
+                    }}
+                  />
+                </button>
+
+                <Dropdown
+                  isOpen={isActionMenuOpen}
+                  onClose={() => setIsActionMenuOpen(false)}
+                  className="w-56 p-1"
+                  usePortal
+                  anchorEl={actionButtonRef.current}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isDismissed) return;
+                      setIsActionMenuOpen(false);
+                      setDismissalDate(parseIsoDate(emp.dismissal_date) || new Date());
+                      setIsDismissModalOpen(true);
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                      isDismissed
+                        ? "cursor-not-allowed text-slate-400"
+                        : "text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    }`}
+                    disabled={isDismissed}
+                  >
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                      <UserX className="h-4 w-4" />
+                    </span>
+                    <span className="block font-medium">Уволить сотрудника</span>
+                  </button>
+                </Dropdown>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-0 border-t border-slate-100 pl-7 overflow-x-auto">
-          {TABS.map((tab) => (
+          {PRIMARY_TABS.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab);
+                setIsMoreMenuOpen(false);
+              }}
               className="px-5 py-3.5 text-[13px] font-medium bg-transparent border-none cursor-pointer transition-colors whitespace-nowrap"
               style={{
                 color: activeTab === tab ? brandColor : "#64748b",
@@ -268,6 +387,49 @@ function EmployeeDetail() {
               {tab}
             </button>
           ))}
+
+          <div className="relative">
+            <button
+              ref={moreButtonRef}
+              type="button"
+              onClick={() => setIsMoreMenuOpen((prev) => !prev)}
+              className="dropdown-toggle flex items-center gap-1 px-5 py-3.5 text-[13px] font-medium bg-transparent border-none cursor-pointer transition-colors whitespace-nowrap"
+              style={{
+                color: isMoreTabActive ? brandColor : "#64748b",
+                borderBottom: isMoreTabActive ? `2px solid ${brandColor}` : "2px solid transparent",
+              }}
+            >
+              Больше
+              <ChevronDown
+                className="h-3.5 w-3.5"
+                style={{
+                  transform: isMoreMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease",
+                }}
+              />
+            </button>
+
+            <Dropdown
+              isOpen={isMoreMenuOpen}
+              onClose={() => setIsMoreMenuOpen(false)}
+              className="w-52 p-1"
+              usePortal
+              anchorEl={moreButtonRef.current}
+            >
+              {MORE_TABS.map((tab) => (
+                <DropdownItem
+                  key={tab}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setIsMoreMenuOpen(false);
+                  }}
+                  className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                >
+                  {tab}
+                </DropdownItem>
+              ))}
+            </Dropdown>
+          </div>
         </div>
       </div>
 
@@ -286,6 +448,9 @@ function EmployeeDetail() {
               <InfoRow label="Дата рождения" value={formatDate(emp.birth_date)} />
               <InfoRow label="Пол" value={genderLabel} />
               <InfoRow label="Статус" value={statusLabel} isStatus />
+              {isDismissed ? (
+                <InfoRow label="Дата увольнения" value={dismissalDateLabel} />
+              ) : null}
             </InfoSection>
 
             {/* Контакты */}
@@ -425,6 +590,10 @@ function EmployeeDetail() {
         <CompensationSection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : activeTab === "Отсутствия" ? (
         <AbsencesSection employeeGuid={emp.guid} brandColor={brandColor} />
+      ) : activeTab === "Посещаемость" ? (
+        <AttendanceSection employeeGuid={emp.guid} brandColor={brandColor} />
+      ) : activeTab === "Посещение спорта" ? (
+        <SportAttendanceSection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : (
         /* Under development placeholder for other tabs */
         <div className="flex flex-col items-center justify-center py-20 px-5 rounded-2xl border border-slate-200 bg-white">
@@ -454,6 +623,57 @@ function EmployeeDetail() {
           </p>
         </div>
       )}
+
+      <Modal
+        isOpen={isDismissModalOpen}
+        onClose={() => !updateEmployeeMutation.isLoading && setIsDismissModalOpen(false)}
+        className="max-w-md w-full p-6"
+        showCloseButton={false}
+      >
+        <h4 className="m-0 text-[18px] font-bold text-slate-900">
+          Уволить сотрудника?
+        </h4>
+        <p className="mb-6 mt-2 text-[13px] text-slate-500">
+          После подтверждения статус сотрудника изменится на `dismissed`.
+        </p>
+        <div className="mb-6">
+          <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+            Дата увольнения
+          </label>
+          <DatePicker
+            selected={dismissalDate}
+            onChange={(date) => setDismissalDate(date)}
+            dateFormat="dd.MM.yyyy"
+            placeholderText="дд.мм.гггг"
+            showMonthDropdown
+            showYearDropdown
+            dropdownMode="select"
+            wrapperClassName="w-full"
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsDismissModalOpen(false);
+              setDismissalDate(parseIsoDate(emp.dismissal_date) || new Date());
+            }}
+            disabled={updateEmployeeMutation.isLoading}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Отмена
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDismissEmployee()}
+            disabled={updateEmployeeMutation.isLoading}
+            className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {updateEmployeeMutation.isLoading ? "Увольнение..." : "Уволить"}
+          </button>
+        </div>
+      </Modal>
 
     </>
   );
@@ -542,7 +762,16 @@ function InfoRow({
         {...(href ? { href, className: "text-[13px] flex-1 break-words hover:underline" } : { className: "text-[13px] flex-1 break-words" })}
         style={{
           fontWeight: value ? 500 : 400,
-          color: isLinked && value ? brandColor : isStatus && value === "Активный" ? "#16a34a" : value ? "#1e293b" : "#cbd5e1",
+          color:
+            isLinked && value
+              ? brandColor
+              : isStatus && value === "Активный"
+                ? "#16a34a"
+                : isStatus && value === "Уволен"
+                  ? "#dc2626"
+                  : value
+                    ? "#1e293b"
+                    : "#cbd5e1",
         }}
       >
         {value || "—"}
