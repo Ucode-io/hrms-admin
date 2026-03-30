@@ -33,6 +33,7 @@ import LicenseCertificatesSection from "./components/LicenseCertificatesSection"
 import SkillsSection from "./components/SkillsSection";
 import WorkSection from "./components/WorkSection";
 import CompensationSection from "./components/CompensationSection";
+import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 
 const PRIMARY_TABS = [
   "Личное",
@@ -43,6 +44,10 @@ const PRIMARY_TABS = [
 ] as const;
 
 const MORE_TABS = ["Посещаемость", "Посещение спорта"] as const;
+const DISMISSAL_TYPES_SLUG = "dismissal_types";
+const DISMISSAL_REASONS_SLUG = "dismissal_reasons";
+const DISMISSIAL_TYPES_SLUG = "dismissial_types";
+const DISMISSIAL_REASONS_SLUG = "dismissial_reasons";
 
 type Tab = (typeof PRIMARY_TABS)[number] | (typeof MORE_TABS)[number];
 
@@ -105,6 +110,38 @@ function parseIsoDate(value: string | null | undefined): Date | null {
   return parsed;
 }
 
+function normalizeRelationId(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function getDismissalTypeFieldKey(employee: Record<string, unknown>): "dismissial_types_id" | "dismissal_types_id" {
+  if ("dismissial_types_id" in employee) {
+    return "dismissial_types_id";
+  }
+  return "dismissal_types_id";
+}
+
+function getDismissalReasonFieldKey(employee: Record<string, unknown>): "dismissial_reasons_id" | "dismissal_reasons_id" {
+  if ("dismissial_reasons_id" in employee) {
+    return "dismissial_reasons_id";
+  }
+  return "dismissal_reasons_id";
+}
+
+function getEmployeeDismissalTypeId(employee: Record<string, unknown>): string {
+  return (
+    normalizeRelationId(employee.dismissial_types_id) ||
+    normalizeRelationId(employee.dismissal_types_id)
+  );
+}
+
+function getEmployeeDismissalReasonId(employee: Record<string, unknown>): string {
+  return (
+    normalizeRelationId(employee.dismissial_reasons_id) ||
+    normalizeRelationId(employee.dismissal_reasons_id)
+  );
+}
+
 /* ────────────────────────────────────────────────
  *  Main component
  * ──────────────────────────────────────────────── */
@@ -116,6 +153,8 @@ function EmployeeDetail() {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isDismissModalOpen, setIsDismissModalOpen] = useState(false);
   const [dismissalDate, setDismissalDate] = useState<Date | null>(new Date());
+  const [dismissalTypeId, setDismissalTypeId] = useState<string>("");
+  const [dismissalReasonId, setDismissalReasonId] = useState<string>("");
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
   const actionButtonRef = useRef<HTMLButtonElement | null>(null);
   const brandColor = companyStore.mainColor;
@@ -132,6 +171,22 @@ function EmployeeDetail() {
       ? emp.departments_id_data.user_base_id
       : "";
   const { data: manager, isLoading: isManagerLoading } = useEmployeeQuery(managerGuid);
+  const { data: dismissialTypesData } = useSettingsDirectoryQuery({
+    slug: DISMISSIAL_TYPES_SLUG,
+    params: { limit: 200, offset: 0 },
+  });
+  const { data: dismissalTypesData } = useSettingsDirectoryQuery({
+    slug: DISMISSAL_TYPES_SLUG,
+    params: { limit: 200, offset: 0 },
+  });
+  const { data: dismissialReasonsData } = useSettingsDirectoryQuery({
+    slug: DISMISSIAL_REASONS_SLUG,
+    params: { limit: 200, offset: 0 },
+  });
+  const { data: dismissalReasonsData } = useSettingsDirectoryQuery({
+    slug: DISMISSAL_REASONS_SLUG,
+    params: { limit: 200, offset: 0 },
+  });
   const updateEmployeeMutation = useUpdateEmployee();
 
   if (isLoading || !emp) {
@@ -195,6 +250,30 @@ function EmployeeDetail() {
       : emp.status?.[0] || "";
   const isMoreTabActive = MORE_TABS.includes(activeTab as (typeof MORE_TABS)[number]);
   const dismissalDateLabel = formatDate(emp.dismissal_date);
+  const dismissalTypeLabel =
+    (typeof emp.dismissial_types_id_data?.title === "string" && emp.dismissial_types_id_data.title) ||
+    (typeof emp.dismissal_types_id_data?.title === "string" && emp.dismissal_types_id_data.title) ||
+    "—";
+  const dismissalReasonLabel =
+    (typeof emp.dismissial_reasons_id_data?.title === "string" && emp.dismissial_reasons_id_data.title) ||
+    (typeof emp.dismissal_reasons_id_data?.title === "string" && emp.dismissal_reasons_id_data.title) ||
+    "—";
+  const dismissalTypeOptions = (
+    dismissialTypesData?.response?.length
+      ? dismissialTypesData.response
+      : dismissalTypesData?.response || []
+  ).map((item) => ({
+    value: item.guid,
+    label: String(item.title || "Без названия"),
+  }));
+  const dismissalReasonOptions = (
+    dismissialReasonsData?.response?.length
+      ? dismissialReasonsData.response
+      : dismissalReasonsData?.response || []
+  ).map((item) => ({
+    value: item.guid,
+    label: String(item.title || "Без названия"),
+  }));
 
   const handleDismissEmployee = async () => {
     const nextDismissalDate = toIsoDate(dismissalDate);
@@ -202,12 +281,25 @@ function EmployeeDetail() {
       toast.error("Укажите дату увольнения.");
       return;
     }
+    if (!dismissalTypeId) {
+      toast.error("Выберите тип увольнения.");
+      return;
+    }
+    if (!dismissalReasonId) {
+      toast.error("Выберите причину увольнения.");
+      return;
+    }
+
+    const dismissalTypeFieldKey = getDismissalTypeFieldKey(emp as Record<string, unknown>);
+    const dismissalReasonFieldKey = getDismissalReasonFieldKey(emp as Record<string, unknown>);
 
     try {
       await updateEmployeeMutation.mutateAsync({
         guid: emp.guid,
         status: ["dismissed"],
         dismissal_date: nextDismissalDate,
+        [dismissalTypeFieldKey]: dismissalTypeId,
+        [dismissalReasonFieldKey]: dismissalReasonId,
       });
       setIsDismissModalOpen(false);
       setIsActionMenuOpen(false);
@@ -349,6 +441,8 @@ function EmployeeDetail() {
                       if (isDismissed) return;
                       setIsActionMenuOpen(false);
                       setDismissalDate(parseIsoDate(emp.dismissal_date) || new Date());
+                      setDismissalTypeId(getEmployeeDismissalTypeId(emp as Record<string, unknown>));
+                      setDismissalReasonId(getEmployeeDismissalReasonId(emp as Record<string, unknown>));
                       setIsDismissModalOpen(true);
                     }}
                     className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
@@ -449,7 +543,11 @@ function EmployeeDetail() {
               <InfoRow label="Пол" value={genderLabel} />
               <InfoRow label="Статус" value={statusLabel} isStatus />
               {isDismissed ? (
-                <InfoRow label="Дата увольнения" value={dismissalDateLabel} />
+                <>
+                  <InfoRow label="Дата увольнения" value={dismissalDateLabel} />
+                  <InfoRow label="Тип увольнения" value={dismissalTypeLabel} />
+                  <InfoRow label="Причина увольнения" value={dismissalReasonLabel} />
+                </>
               ) : null}
             </InfoSection>
 
@@ -626,7 +724,13 @@ function EmployeeDetail() {
 
       <Modal
         isOpen={isDismissModalOpen}
-        onClose={() => !updateEmployeeMutation.isLoading && setIsDismissModalOpen(false)}
+        onClose={() => {
+          if (updateEmployeeMutation.isLoading) return;
+          setIsDismissModalOpen(false);
+          setDismissalDate(parseIsoDate(emp.dismissal_date) || new Date());
+          setDismissalTypeId(getEmployeeDismissalTypeId(emp as Record<string, unknown>));
+          setDismissalReasonId(getEmployeeDismissalReasonId(emp as Record<string, unknown>));
+        }}
         className="max-w-md w-full p-6"
         showCloseButton={false}
       >
@@ -652,12 +756,48 @@ function EmployeeDetail() {
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
           />
         </div>
+        <div className="mb-4">
+          <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+            Тип увольнения
+          </label>
+          <select
+            value={dismissalTypeId}
+            onChange={(event) => setDismissalTypeId(event.target.value)}
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
+          >
+            <option value="">Выберите тип увольнения</option>
+            {dismissalTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="mb-6">
+          <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+            Причина увольнения
+          </label>
+          <select
+            value={dismissalReasonId}
+            onChange={(event) => setDismissalReasonId(event.target.value)}
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
+          >
+            <option value="">Выберите причину увольнения</option>
+            {dismissalReasonOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={() => {
               setIsDismissModalOpen(false);
               setDismissalDate(parseIsoDate(emp.dismissal_date) || new Date());
+              setDismissalTypeId(getEmployeeDismissalTypeId(emp as Record<string, unknown>));
+              setDismissalReasonId(getEmployeeDismissalReasonId(emp as Record<string, unknown>));
             }}
             disabled={updateEmployeeMutation.isLoading}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"

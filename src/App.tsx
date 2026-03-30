@@ -50,6 +50,15 @@ import EmployeesList from "./modules/Employees/List";
 import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
 import CalendarModule from "./modules/Calendar";
+import ReportsHomePage from "./modules/Reports";
+import AgeDistributionPage from "./modules/Reports/AgeDistribution";
+import GenderDistributionPage from "./modules/Reports/GenderDistribution";
+import StaffCountPage from "./modules/Reports/StaffCount";
+import StaffTurnoverPage from "./modules/Reports/StaffTurnover";
+import TenurePage from "./modules/Reports/Tenure";
+import AbsenceBalancePage from "./modules/Reports/AbsenceBalance";
+import AttendancePage from "./modules/Reports/Attendance";
+import SportAttendancePage from "./modules/Reports/SportAttendance";
 import SuppliersList from "./modules/Suppliers/List";
 import SupplierForm from "./modules/Suppliers/Form";
 import OrganizationClientsList from "./modules/Clients/List";
@@ -152,6 +161,15 @@ function App() {
               <Route path="/employees/:id" element={<EmployeeDetail />} />
               <Route path="/employees/:id/edit" element={<EmployeeForm />} />
               <Route path="/calendar" element={<CalendarModule />} />
+              <Route path="/reports" element={<ReportsHomePage />} />
+              <Route path="/reports/age-distribution" element={<AgeDistributionPage />} />
+              <Route path="/reports/gender-distribution" element={<GenderDistributionPage />} />
+              <Route path="/reports/staff-count" element={<StaffCountPage />} />
+              <Route path="/reports/staff-turnover" element={<StaffTurnoverPage />} />
+              <Route path="/reports/tenure" element={<TenurePage />} />
+              <Route path="/reports/absence-balance" element={<AbsenceBalancePage />} />
+              <Route path="/reports/attendance" element={<AttendancePage />} />
+              <Route path="/reports/sport-attendance" element={<SportAttendancePage />} />
 
               <Route path="/organization/suppliers" element={<SuppliersList />} />
               <Route path="/organization/suppliers/new" element={<SupplierForm />} />

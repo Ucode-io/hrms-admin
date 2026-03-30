@@ -24,6 +24,7 @@ type AttendanceItem = {
   guid: string;
   action_type?: AttendanceActionType[] | AttendanceActionType | null;
   time?: string | null;
+  delay_time?: string | null;
   created_at?: string;
   companies_id?: string;
   companies_id_data?: {
@@ -37,12 +38,14 @@ type AttendanceRecord = {
   guid: string;
   actionType: AttendanceActionType;
   time: string;
+  delayTime: string;
 };
 
 type AttendanceDraft = {
   actionType: AttendanceActionType;
   date: Date | null;
   time: string;
+  delayTime: string;
 };
 
 const ATTENDANCE_SLUG = "attendance";
@@ -61,6 +64,7 @@ const EMPTY_DRAFT: AttendanceDraft = {
   actionType: "check_in",
   date: null,
   time: "",
+  delayTime: "00:10",
 };
 
 const resolveActionType = (value: AttendanceItem["action_type"]): AttendanceActionType => {
@@ -141,6 +145,19 @@ const toApiDateTime = (date: Date, time: string): string => {
   return composed.toISOString();
 };
 
+const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+const normalizeDelayTime = (value: string | null | undefined): string => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (DELAY_TIME_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return "00:10";
+};
+
 export default function AttendanceSection({
   employeeGuid,
   brandColor,
@@ -176,11 +193,13 @@ export default function AttendanceSection({
     const rows = ((data?.response || []) as AttendanceItem[]).map((item) => {
       const actionType = resolveActionType(item.action_type);
       const time = typeof item.time === "string" ? item.time : "";
+      const delayTime = normalizeDelayTime(item.delay_time);
 
       return {
         guid: item.guid,
         actionType,
         time,
+        delayTime,
       };
     });
 
@@ -209,6 +228,7 @@ export default function AttendanceSection({
       actionType: record.actionType,
       date: toDateValue(record.time),
       time: toTimeValue(record.time),
+      delayTime: normalizeDelayTime(record.delayTime),
     });
     setError("");
     setIsModalOpen(true);
@@ -230,6 +250,9 @@ export default function AttendanceSection({
       user_base_id: employeeGuid,
       companies_id: companyStore.company?.guid || COMPANY_ID,
       time: toApiDateTime(draft.date, draft.time),
+      ...(draft.actionType === "check_in"
+        ? { delay_time: normalizeDelayTime(draft.delayTime) }
+        : {}),
     };
 
     try {
@@ -310,6 +333,7 @@ export default function AttendanceSection({
                   <tr className="border-b border-slate-200">
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Дата</th>
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Время</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">Опоздание</th>
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Тип действия</th>
                     <th className="py-2 text-right text-[12px] font-semibold text-slate-500">
                       Действия
@@ -324,6 +348,9 @@ export default function AttendanceSection({
                       </td>
                       <td className="py-3 text-[13px] font-semibold text-slate-900">
                         {formatTimeLabel(record.time)}
+                      </td>
+                      <td className="py-3 text-[13px] text-slate-700">
+                        {record.actionType === "check_in" ? record.delayTime : "—"}
                       </td>
                       <td className="py-3 text-[13px] text-slate-700">
                         <span
@@ -384,6 +411,7 @@ export default function AttendanceSection({
                   setDraft((prev) => ({
                     ...prev,
                     actionType: "check_in",
+                    delayTime: normalizeDelayTime(prev.delayTime),
                   }))
                 }
                 className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
@@ -487,6 +515,26 @@ export default function AttendanceSection({
               />
             </div>
           </div>
+
+          {draft.actionType === "check_in" ? (
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                Время опоздания
+              </label>
+              <input
+                type="time"
+                step={60}
+                value={draft.delayTime}
+                onChange={(event) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    delayTime: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300 sm:max-w-[220px]"
+              />
+            </div>
+          ) : null}
 
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-600">

@@ -88,6 +88,31 @@ export interface Employee {
     [key: string]: any;
   } | null;
 
+  dismissal_types_id?: string | null;
+  dismissial_types_id?: string | null;
+  dismissal_types_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: any;
+  } | null;
+  dismissial_types_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: any;
+  } | null;
+  dismissal_reasons_id?: string | null;
+  dismissial_reasons_id?: string | null;
+  dismissal_reasons_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: any;
+  } | null;
+  dismissial_reasons_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: any;
+  } | null;
+
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

@@ -15,7 +15,7 @@ import {
   Monitor,
   BookOpen,
   Zap,
-  Phone,
+  BarChart3,
   Settings,
 } from "lucide-react";
 import { useSidebar } from "../context/SidebarContext";
@@ -101,7 +101,7 @@ const moduleNavItems: NavItem[] = [
     path: "/workflow",
   },
   {
-    icon: <Phone size={20} />,
+    icon: <BarChart3 size={20} />,
     name: "Отчеты",
     path: "/reports",
   },
@@ -160,7 +160,8 @@ const AppSidebar: React.FC = () => {
     const isNavEnabled =
       nav.name === "Главная страница" ||
       nav.name === "Сотрудники" ||
-      nav.name === "Календарь";
+      nav.name === "Календарь" ||
+      nav.name === "Отчеты";
 
     if (nav.subItems) {
       if (!isNavEnabled) {
@@ -195,7 +196,9 @@ const AppSidebar: React.FC = () => {
               ${!sidebarOpen ? "justify-center" : ""}
             `}
           >
-            <span className={`shrink-0 ${hasActiveSub ? "text-brand-500" : "text-gray-500"}`}>
+            <span
+              className={`shrink-0 ${hasActiveSub ? "text-brand-500" : "text-gray-500"}`}
+            >
               {nav.icon}
             </span>
             {sidebarOpen && (
@@ -203,8 +206,9 @@ const AppSidebar: React.FC = () => {
                 <span className="flex-1 text-left">{nav.name}</span>
                 <ChevronDown
                   size={16}
-                  className={`text-gray-400 transition-transform duration-200 ${openSubmenu === index ? "rotate-180" : ""
-                    }`}
+                  className={`text-gray-400 transition-transform duration-200 ${
+                    openSubmenu === index ? "rotate-180" : ""
+                  }`}
                 />
               </>
             )}
@@ -219,9 +223,7 @@ const AppSidebar: React.FC = () => {
               className="overflow-hidden transition-all duration-300"
               style={{
                 height:
-                  openSubmenu === index
-                    ? `${subMenuHeight[`${index}`]}px`
-                    : "0px",
+                  openSubmenu === index ? `${subMenuHeight[`${index}`]}px` : "0px",
               }}
             >
               <ul className="mt-1 ml-9 space-y-0.5">
@@ -229,10 +231,11 @@ const AppSidebar: React.FC = () => {
                   <li key={sub.name}>
                     <Link
                       to={sub.path}
-                      className={`block rounded-xl px-3 py-2 text-sm transition-colors ${isActive(sub.path)
-                        ? "text-brand-500 font-medium bg-brand-50"
-                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                        }`}
+                      className={`block rounded-xl px-3 py-2 text-sm transition-colors ${
+                        isActive(sub.path)
+                          ? "text-brand-500 font-medium bg-brand-50"
+                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                      }`}
                     >
                       {sub.name}
                     </Link>
@@ -252,14 +255,17 @@ const AppSidebar: React.FC = () => {
           <Link
             to={nav.path}
             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors
-              ${isActive(nav.path)
-                ? "bg-brand-50 text-brand-500"
-                : "text-gray-700 hover:bg-gray-100"
+              ${
+                isActive(nav.path)
+                  ? "bg-brand-50 text-brand-500"
+                  : "text-gray-700 hover:bg-gray-100"
               }
               ${!sidebarOpen ? "justify-center" : ""}
             `}
           >
-            <span className={`shrink-0 ${isActive(nav.path) ? "text-brand-500" : "text-gray-500"}`}>
+            <span
+              className={`shrink-0 ${isActive(nav.path) ? "text-brand-500" : "text-gray-500"}`}
+            >
               {nav.icon}
             </span>
             {sidebarOpen && <span className="flex-1">{nav.name}</span>}
@@ -304,8 +310,9 @@ const AppSidebar: React.FC = () => {
 
       {/* Logo */}
       <div
-        className={`flex items-center px-5 py-5 ${!sidebarOpen ? "justify-center" : "justify-start"
-          }`}
+        className={`flex items-center px-5 py-5 ${
+          !sidebarOpen ? "justify-center" : "justify-start"
+        }`}
       >
         <Link to="/">
           {sidebarOpen ? (
@@ -365,14 +372,17 @@ const AppSidebar: React.FC = () => {
         <Link
           to="/settings"
           className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors
-            ${isActive("/settings")
-              ? "bg-brand-50 text-brand-500"
-              : "text-gray-700 hover:bg-gray-100"
+            ${
+              isActive("/settings")
+                ? "bg-brand-50 text-brand-500"
+                : "text-gray-700 hover:bg-gray-100"
             }
             ${!sidebarOpen ? "justify-center" : ""}
           `}
         >
-          <span className={`shrink-0 ${isActive("/settings") ? "text-brand-500" : "text-gray-500"}`}>
+          <span
+            className={`shrink-0 ${isActive("/settings") ? "text-brand-500" : "text-gray-500"}`}
+          >
             <Settings size={20} />
           </span>
           {sidebarOpen && <span>Настройки</span>}

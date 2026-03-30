@@ -328,3 +328,60 @@ type ListResponse<T> = {
 6. Корректно ли удаление/обновление нескольких записей через `ids`?
 
 Если сомневаетесь: сначала делайте безопасный вариант (batched + fallback), потом оптимизируйте.
+
+## 9) File Upload API
+
+Для загрузки файлов на CDN используйте `/v1/files/folder_upload`. Удобнее всего использовать готовый hook `useUploadFile()` из `src/api/services/file-upload.service.ts`.
+
+### Базовые параметры
+1. **URL**: `https://api.admin.u-code.io/v1/files/folder_upload`
+2. **Method**: `POST`
+3. **Headers**:
+   - `Authorization: Bearer <token>`
+   - `environment-id`: (берется из константы)
+   - `Resource-Id`: (берется из константы)
+   - `Content-Type`: `multipart/form-data` (браузер ставит сам)
+4. **Params**:
+   - `folder_name` (по умолчанию `"Media"`)
+   - `format` (опционально)
+5. **Body**: `FormData` с полем `file`
+
+### Пример использования через Hook (React)
+
+```ts
+import { useUploadFile } from "src/api/services/file-upload.service";
+
+export const MyComponent = () => {
+  const uploadMutation = useUploadFile({ folder: "Users" });
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Возвращает полную публичную ссылку: https://cdn.u-code.io/<link>
+      const cdnUrl = await uploadMutation.mutateAsync(file);
+      console.log("File uploaded:", cdnUrl);
+    } catch (error) {
+      console.error("Upload error:", error);
+    }
+  };
+
+  return <input type="file" onChange={handleFileChange} />;
+};
+```
+
+### Формат ответа сервера (внутри хука)
+
+Сервер возвращает JSON с полем `link`, которое хук автоматически склеивает с константой `https://cdn.u-code.io`.
+
+```json
+{
+  "status": "OK",
+  "data": {
+    "data": {
+      "link": "some-random-id/filename.jpg"
+    }
+  }
+}
+```
