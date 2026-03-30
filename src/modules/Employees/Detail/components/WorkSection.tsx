@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2,
   BriefcaseBusiness,
-  CalendarDays,
   ChevronDown,
   ChevronUp,
-  ClipboardList,
-  GitBranch,
-  MapPin,
-  Pencil,
+  MoreHorizontal,
+  Plus,
+  SquarePen,
+  Trash2,
   Wallet,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Modal } from "../../../../components/ui/modal";
+import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
+import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
 import RemoteSingleSelect, {
   type RemoteSelectOption,
 } from "../../../../components/autocomplete/RemoteSingleSelect";
@@ -24,6 +25,7 @@ import { useDepartmentExperienceLevelsSummaryQuery } from "../../../../api/servi
 import {
   type EmployeeWork,
   useCreateEmployeeWork,
+  useDeleteEmployeeWork,
   useEmployeeWorksQuery,
   useUpdateEmployeeWork,
 } from "../../../../api/services/employeeWork.service";
@@ -58,18 +60,28 @@ type WorkFormState = {
   employeeWorkReasonId: string;
   salary: string;
   dateFrom: string;
+  dateTo: string;
 };
 
-type WorkReasonItem = {
-  guid: string;
-  title?: string;
-  [key: string]: unknown;
-};
+type WorkModalMode = "create" | "edit";
 
 const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
 
 const INPUT_CLASSNAME =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
+
+const createEmptyFormState = (): WorkFormState => ({
+  employmentTypeId: "",
+  departmentId: "",
+  divisionId: "",
+  locationId: "",
+  positionsId: "",
+  experienceLevelId: "",
+  employeeWorkReasonId: "",
+  salary: "",
+  dateFrom: "",
+  dateTo: "",
+});
 
 const toRemoteOptions = (items: Array<{ guid: string; title?: string }>): RemoteSelectOption[] => {
   return items.map((item) => ({
@@ -131,6 +143,12 @@ const parseIsoDate = (value: string): Date | null => {
   return parsed;
 };
 
+const getTimeValue = (value: string): number => {
+  if (!value) return 0;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 const todayIso = toIsoDate(new Date());
 
 const formatDate = (value: string): string => {
@@ -141,6 +159,47 @@ const formatDate = (value: string): string => {
   const month = String(parsed.getMonth() + 1).padStart(2, "0");
   const year = parsed.getFullYear();
   return `${day}.${month}.${year}`;
+};
+
+const formatTimelineDate = (dateFrom: string, dateTo: string): string => {
+  if (!dateFrom) return "Дата не указана";
+  if (!dateTo) return formatDate(dateFrom);
+  return `${formatDate(dateFrom)} - ${formatDate(dateTo)}`;
+};
+
+const formatMonthYear = (value: string): string => {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", {
+    month: "short",
+    year: "numeric",
+  })
+    .format(parsed)
+    .replace(".", "")
+    .replace(/\sг$/u, "")
+    .replace(/^\p{L}/u, (char) => char.toUpperCase());
+};
+
+const getDurationLabel = (dateFrom: string, dateTo: string): string => {
+  const start = parseIsoDate(dateFrom);
+  const end = dateTo ? parseIsoDate(dateTo) : new Date();
+  if (!start || !end) return "";
+
+  let months =
+    (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+
+  if (end.getDate() < start.getDate()) {
+    months -= 1;
+  }
+
+  const safeMonths = Math.max(months, 0);
+  const years = Math.floor(safeMonths / 12);
+  const restMonths = safeMonths % 12;
+
+  if (years > 0 && restMonths > 0) return `${years} г. ${restMonths} мес.`;
+  if (years > 0) return `${years} г.`;
+  return `${Math.max(restMonths, 1)} мес.`;
 };
 
 const parseSalary = (value: unknown): number | null => {
@@ -155,6 +214,26 @@ const parseSalary = (value: unknown): number | null => {
 const formatSalary = (value: number | null): string => {
   if (value === null) return "—";
   return `${new Intl.NumberFormat("ru-RU").format(value)} сум`;
+};
+
+const readString = (value: unknown): string => (typeof value === "string" ? value : "");
+
+const buildFallbackOption = (value: string, label: string): RemoteSelectOption | null => {
+  if (!value || !label) return null;
+  return { value, label };
+};
+
+const compareEmployeeWorks = (left: EmployeeWork, right: EmployeeWork): number => {
+  const leftIsCurrent = !readString(left.date_to);
+  const rightIsCurrent = !readString(right.date_to);
+
+  if (leftIsCurrent && !rightIsCurrent) return -1;
+  if (!leftIsCurrent && rightIsCurrent) return 1;
+
+  const byStartDate = getTimeValue(readString(right.date_from)) - getTimeValue(readString(left.date_from));
+  if (byStartDate !== 0) return byStartDate;
+
+  return getTimeValue(readString(right.created_at)) - getTimeValue(readString(left.created_at));
 };
 
 const normalizeRecord = (row: EmployeeWork): WorkRecord => {
@@ -175,171 +254,211 @@ const normalizeRecord = (row: EmployeeWork): WorkRecord => {
       (typeof row.positions_id_data?.title === "string" && row.positions_id_data.title) ||
       "Без должности",
     experienceLevelTitle:
-      (typeof row.experience_levels_id_data?.title === "string" && row.experience_levels_id_data.title) ||
+      (typeof row.experience_levels_id_data?.title === "string" &&
+        row.experience_levels_id_data.title) ||
       "—",
     reasonTitle:
       (typeof row.employee_work_reason_id_data?.title === "string" &&
         row.employee_work_reason_id_data.title) ||
       "—",
     salary: parseSalary(row.salary),
-    dateFrom: typeof row.date_from === "string" ? row.date_from : "",
-    dateTo: typeof row.date_to === "string" ? row.date_to : "",
+    dateFrom: readString(row.date_from),
+    dateTo: readString(row.date_to),
   };
 };
 
-function Metric({
-  icon,
-  label,
-  value,
-  highlight = false,
+const buildFormState = (record: EmployeeWork | null, mode: WorkModalMode): WorkFormState => ({
+  employmentTypeId: readString(record?.employment_types_id),
+  departmentId: readString(record?.departments_id),
+  divisionId: readString(record?.divisions_id),
+  locationId: readString(record?.locations_id),
+  positionsId: readString(record?.positions_id),
+  experienceLevelId: readString(record?.experience_levels_id),
+  employeeWorkReasonId: readString(record?.employee_work_reason_id),
+  salary:
+    record?.salary === null || record?.salary === undefined ? "" : String(record.salary),
+  dateFrom:
+    mode === "create"
+      ? todayIso
+      : readString(record?.date_from) || todayIso,
+  dateTo: mode === "edit" ? readString(record?.date_to) : "",
+});
+
+const getWorkCountLabel = (count: number): string => {
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+    return "записей";
+  }
+
+  if (lastDigit === 1) return "запись";
+  if (lastDigit >= 2 && lastDigit <= 4) return "записи";
+  return "записей";
+};
+
+function TimelineTag({
+  children,
+  tone = "neutral",
   brandColor,
 }: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  highlight?: boolean;
+  children: ReactNode;
+  tone?: "neutral" | "brand" | "success";
   brandColor?: string;
 }) {
+  const styles =
+    tone === "success"
+      ? {
+          backgroundColor: "#dcfce7",
+          color: "#166534",
+        }
+      : tone === "brand"
+        ? {
+            backgroundColor: `${brandColor || "#0f172a"}14`,
+            color: brandColor || "#0f172a",
+          }
+        : {
+            backgroundColor: "#f1f5f9",
+            color: "#475569",
+          };
+
   return (
-    <div
-      className={`rounded-lg border px-3 py-2 ${highlight ? "shadow-sm" : "bg-white"}`}
-      style={
-        highlight
-          ? {
-              borderColor: `${brandColor || "#0f172a"}33`,
-              backgroundColor: `${brandColor || "#0f172a"}0D`,
-            }
-          : undefined
-      }
-    >
-      <div
-        className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide"
-        style={{ color: highlight ? brandColor || "#0f172a" : "#94a3b8" }}
-      >
-        <span style={{ color: highlight ? brandColor || "#0f172a" : "#94a3b8" }}>{icon}</span>
-        {label}
-      </div>
-      <p
-        className="m-0 mt-1 text-[13px] font-semibold"
-        style={{ color: highlight ? brandColor || "#0f172a" : "#0f172a" }}
-      >
-        {value}
-      </p>
-    </div>
+    <span className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold" style={styles}>
+      {children}
+    </span>
   );
 }
 
-function WorkCard({
+function WorkTimelineCard({
   record,
   brandColor,
-  isCurrent = false,
+  isCurrent,
+  onToggleActions,
+  actionButtonRef,
 }: {
   record: WorkRecord;
   brandColor: string;
-  isCurrent?: boolean;
+  isCurrent: boolean;
+  onToggleActions: () => void;
+  actionButtonRef: (element: HTMLButtonElement | null) => void;
 }) {
+  const primaryMeta = [record.departmentTitle, record.divisionTitle, record.locationTitle].filter(
+    (item) => item && item !== "—"
+  );
+  const secondaryMeta = [record.experienceLevelTitle].filter((item) => item && item !== "—");
+  const salaryValue = formatSalary(record.salary);
+  const durationLabel = getDurationLabel(record.dateFrom, record.dateTo);
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-            style={{
-              backgroundColor: `${brandColor}14`,
-              color: brandColor,
-            }}
-          >
-            <BriefcaseBusiness className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="m-0 truncate text-[15px] font-bold leading-[1.35] text-slate-900">
-              {record.positionTitle}
-            </p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <span
-                className="inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-semibold"
-                style={{
-                  backgroundColor: `${brandColor}12`,
-                  color: brandColor,
-                }}
-              >
-                Уровень: {record.experienceLevelTitle}
-              </span>
-              {isCurrent ? (
-                <span className="inline-flex items-center rounded-md bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                  Актуально
-                </span>
+    <div
+      className="rounded-[20px] border p-5 shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition hover:border-slate-300 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] sm:p-6"
+      style={
+        isCurrent
+          ? {
+              borderColor: `${brandColor}22`,
+              background: `linear-gradient(135deg, ${brandColor}08 0%, #ffffff 35%)`,
+            }
+          : {
+              borderColor: "#e2e8f0",
+              backgroundColor: "#ffffff",
+            }
+      }
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+          style={{
+            background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
+            color: "#ffffff",
+          }}
+        >
+          <BriefcaseBusiness className="h-6 w-6" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="m-0 text-[16px] font-bold leading-6 text-slate-900 sm:text-[18px]">
+                  {record.positionTitle}
+                </h4>
+                {isCurrent ? (
+                  <TimelineTag tone="success">
+                    Текущая должность
+                  </TimelineTag>
+                ) : null}
+                {record.employmentTypeTitle !== "—" ? (
+                  <TimelineTag tone="brand" brandColor={brandColor}>
+                    {record.employmentTypeTitle}
+                  </TimelineTag>
+                ) : null}
+              </div>
+              <p className="m-0 mt-1 text-[14px] leading-6 text-slate-500">
+                {primaryMeta.length > 0 ? primaryMeta.join(" • ") : "Структура не указана"}
+              </p>
+              {secondaryMeta.length > 0 ? (
+                <p className="m-0 mt-1 text-[13px] leading-5 text-slate-400">
+                  {secondaryMeta.join(" • ")}
+                </p>
               ) : null}
+            </div>
+
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={onToggleActions}
+                className="dropdown-toggle inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                aria-label="Открыть действия"
+                ref={actionButtonRef}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 text-[15px] text-slate-500">
+                  <span className="font-medium">{formatMonthYear(record.dateFrom)}</span>
+                  <span className="text-slate-300">-</span>
+                  <span className="font-medium">
+                    {record.dateTo ? formatMonthYear(record.dateTo) : "Настоящее время"}
+                  </span>
+                  {durationLabel ? (
+                    <span className="ml-1 text-[13px] text-slate-400">({durationLabel})</span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <div className="flex items-center gap-2 sm:justify-end">
+                  <Wallet className="h-4 w-4 text-slate-400" />
+                  <p className="m-0 text-[18px] font-bold text-slate-900 sm:text-[20px]">
+                    {salaryValue}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Metric
-          icon={<Wallet className="h-3.5 w-3.5" />}
-          label="Оклад"
-          value={formatSalary(record.salary)}
-        />
-        <Metric
-          icon={<CalendarDays className="h-3.5 w-3.5" />}
-          label="Начало"
-          value={formatDate(record.dateFrom)}
-        />
-        <Metric
-          icon={<CalendarDays className="h-3.5 w-3.5" />}
-          label="Окончание"
-          value={record.dateTo ? formatDate(record.dateTo) : "По настоящее время"}
-        />
-      </div>
-
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <Metric
-          icon={<ClipboardList className="h-3.5 w-3.5" />}
-          label="Причина"
-          value={record.reasonTitle}
-          highlight
-          brandColor={brandColor}
-        />
-        <Metric
-          icon={<BriefcaseBusiness className="h-3.5 w-3.5" />}
-          label="Тип работы"
-          value={record.employmentTypeTitle}
-        />
-        <Metric
-          icon={<Building2 className="h-3.5 w-3.5" />}
-          label="Департамент"
-          value={record.departmentTitle}
-        />
-        <Metric
-          icon={<GitBranch className="h-3.5 w-3.5" />}
-          label="Подразделение"
-          value={record.divisionTitle}
-        />
-        <Metric
-          icon={<MapPin className="h-3.5 w-3.5" />}
-          label="Локация"
-          value={record.locationTitle}
-        />
       </div>
     </div>
   );
 }
 
 export default function WorkSection({ employeeGuid, brandColor }: WorkSectionProps) {
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [form, setForm] = useState<WorkFormState>({
-    employmentTypeId: "",
-    departmentId: "",
-    divisionId: "",
-    locationId: "",
-    positionsId: "",
-    experienceLevelId: "",
-    employeeWorkReasonId: "",
-    salary: "",
-    dateFrom: todayIso,
-  });
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [modalMode, setModalMode] = useState<WorkModalMode>("create");
+  const [editingRecordGuid, setEditingRecordGuid] = useState<string | null>(null);
+  const [recordToDeleteGuid, setRecordToDeleteGuid] = useState<string | null>(null);
+  const [modalSourceGuid, setModalSourceGuid] = useState<string | null>(null);
+  const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
+  const [form, setForm] = useState<WorkFormState>(createEmptyFormState());
+
+  const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const { data, isLoading } = useEmployeeWorksQuery({
     userBaseId: employeeGuid,
@@ -352,25 +471,79 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
 
   const createEmployeeWork = useCreateEmployeeWork();
   const updateEmployeeWork = useUpdateEmployeeWork();
+  const deleteEmployeeWork = useDeleteEmployeeWork();
+
   const isSaving = createEmployeeWork.isLoading || updateEmployeeWork.isLoading;
+  const isDeleting = deleteEmployeeWork.isLoading;
 
   const sourceRecords = useMemo(() => {
     return Array.isArray(data?.response) ? (data.response as EmployeeWork[]) : [];
   }, [data?.response]);
 
-  const currentRaw = sourceRecords[0] || null;
-  const currentRecord = currentRaw ? normalizeRecord(currentRaw) : null;
-  const historyRecords = sourceRecords.slice(1).map(normalizeRecord);
+  const sortedRecords = useMemo(() => {
+    return [...sourceRecords].sort(compareEmployeeWorks);
+  }, [sourceRecords]);
+
+  const recordByGuid = useMemo(() => {
+    return new Map(sortedRecords.map((record) => [record.guid, record]));
+  }, [sortedRecords]);
+
+  const currentRaw = useMemo(() => {
+    return sortedRecords.find((record) => !readString(record.date_to)) || sortedRecords[0] || null;
+  }, [sortedRecords]);
+
+  const currentGuid = currentRaw?.guid || null;
+
+  const timelineRecords = useMemo(() => {
+    return sortedRecords.map((rawRecord) => ({
+      raw: rawRecord,
+      record: normalizeRecord(rawRecord),
+      isCurrent: rawRecord.guid === currentGuid,
+    }));
+  }, [currentGuid, sortedRecords]);
+
+  const currentTimelineRecord = useMemo(() => {
+    return timelineRecords.find((item) => item.isCurrent) || timelineRecords[0] || null;
+  }, [timelineRecords]);
+
+  const historyTimelineRecords = useMemo(() => {
+    if (!currentTimelineRecord) return [];
+    return timelineRecords.filter((item) => item.record.guid !== currentTimelineRecord.record.guid);
+  }, [currentTimelineRecord, timelineRecords]);
+
+  const visibleTimelineRecords = useMemo(() => {
+    if (!currentTimelineRecord) return [];
+    if (!isHistoryExpanded) return [currentTimelineRecord];
+    return [currentTimelineRecord, ...historyTimelineRecords];
+  }, [currentTimelineRecord, historyTimelineRecords, isHistoryExpanded]);
+
+  const editingRaw = useMemo(() => {
+    if (!editingRecordGuid) return null;
+    return recordByGuid.get(editingRecordGuid) || null;
+  }, [editingRecordGuid, recordByGuid]);
+
+  const modalSourceRecord = useMemo(() => {
+    if (!modalSourceGuid) return null;
+    return recordByGuid.get(modalSourceGuid) || null;
+  }, [modalSourceGuid, recordByGuid]);
+
+  const deletingTimelineRecord = useMemo(() => {
+    if (!recordToDeleteGuid) return null;
+    return timelineRecords.find((item) => item.record.guid === recordToDeleteGuid) || null;
+  }, [recordToDeleteGuid, timelineRecords]);
 
   const departmentOptions = useMemo(() => {
     return Array.isArray(departmentsData?.response) ? departmentsData.response : [];
   }, [departmentsData?.response]);
+
   const departmentIds = useMemo(() => {
     return departmentOptions.map((department) => department.guid);
   }, [departmentOptions]);
+
   const { data: departmentExperienceLevelsSummary } = useDepartmentExperienceLevelsSummaryQuery({
     departmentIds,
   });
+
   const allowedExperienceLevelIds = useMemo(() => {
     if (!form.departmentId) return null;
 
@@ -382,6 +555,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     }
     return ids;
   }, [departmentExperienceLevelsSummary?.response, form.departmentId]);
+
   const departmentSelectOptions = useMemo<RemoteSelectOption[]>(() => {
     return departmentOptions.map((item) => ({
       value: item.guid,
@@ -399,120 +573,129 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     }
   }, [allowedExperienceLevelIds, form.experienceLevelId]);
 
+  useEffect(() => {
+    if (historyTimelineRecords.length === 0 && isHistoryExpanded) {
+      setIsHistoryExpanded(false);
+    }
+  }, [historyTimelineRecords.length, isHistoryExpanded]);
+
   const menuPortalTarget = typeof document !== "undefined" ? document.body : undefined;
 
-  const currentEmploymentTypeFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    if (!form.employmentTypeId) return null;
-    const label =
-      currentRaw && typeof currentRaw.employment_types_id_data?.title === "string"
-        ? currentRaw.employment_types_id_data.title
-        : "";
-    return label ? { value: form.employmentTypeId, label } : null;
-  }, [currentRaw, form.employmentTypeId]);
+  const employmentTypeFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    return buildFallbackOption(
+      form.employmentTypeId,
+      typeof modalSourceRecord?.employment_types_id_data?.title === "string"
+        ? modalSourceRecord.employment_types_id_data.title
+        : ""
+    );
+  }, [form.employmentTypeId, modalSourceRecord]);
 
-  const currentDepartmentFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+  const departmentFallbackOption = useMemo<RemoteSelectOption | null>(() => {
     if (!form.departmentId) return null;
-    const fromOptions = departmentSelectOptions.find((option) => option.value === form.departmentId);
-    if (fromOptions) return fromOptions;
-    const label =
-      currentRaw && typeof currentRaw.departments_id_data?.title === "string"
-        ? currentRaw.departments_id_data.title
-        : "";
-    return label ? { value: form.departmentId, label } : null;
-  }, [currentRaw, departmentSelectOptions, form.departmentId]);
 
-  const currentExperienceLevelFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    if (!form.experienceLevelId) return null;
-    const label =
-      currentRaw && typeof currentRaw.experience_levels_id_data?.title === "string"
-        ? currentRaw.experience_levels_id_data.title
-        : "";
-    return label ? { value: form.experienceLevelId, label } : null;
-  }, [currentRaw, form.experienceLevelId]);
+    const existingOption = departmentSelectOptions.find((option) => option.value === form.departmentId);
+    if (existingOption) return existingOption;
 
-  const currentDivisionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    if (!form.divisionId) return null;
-    const label =
-      currentRaw && typeof currentRaw.divisions_id_data?.title === "string"
-        ? currentRaw.divisions_id_data.title
-        : "";
-    return label ? { value: form.divisionId, label } : null;
-  }, [currentRaw, form.divisionId]);
+    return buildFallbackOption(
+      form.departmentId,
+      typeof modalSourceRecord?.departments_id_data?.title === "string"
+        ? modalSourceRecord.departments_id_data.title
+        : ""
+    );
+  }, [departmentSelectOptions, form.departmentId, modalSourceRecord]);
 
-  const currentLocationFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    if (!form.locationId) return null;
-    const label =
-      currentRaw && typeof currentRaw.locations_id_data?.title === "string"
-        ? currentRaw.locations_id_data.title
-        : "";
-    return label ? { value: form.locationId, label } : null;
-  }, [currentRaw, form.locationId]);
+  const experienceLevelFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    return buildFallbackOption(
+      form.experienceLevelId,
+      typeof modalSourceRecord?.experience_levels_id_data?.title === "string"
+        ? modalSourceRecord.experience_levels_id_data.title
+        : ""
+    );
+  }, [form.experienceLevelId, modalSourceRecord]);
 
-  const currentPositionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    if (!form.positionsId) return null;
-    const label =
-      currentRaw && typeof currentRaw.positions_id_data?.title === "string"
-        ? currentRaw.positions_id_data.title
-        : "";
-    return label ? { value: form.positionsId, label } : null;
-  }, [currentRaw, form.positionsId]);
+  const divisionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    return buildFallbackOption(
+      form.divisionId,
+      typeof modalSourceRecord?.divisions_id_data?.title === "string"
+        ? modalSourceRecord.divisions_id_data.title
+        : ""
+    );
+  }, [form.divisionId, modalSourceRecord]);
 
-  const currentWorkReasonFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    if (!form.employeeWorkReasonId) return null;
-    const label =
-      currentRaw && typeof currentRaw.employee_work_reason_id_data?.title === "string"
-        ? currentRaw.employee_work_reason_id_data.title
-        : "";
-    return label ? { value: form.employeeWorkReasonId, label } : null;
-  }, [currentRaw, form.employeeWorkReasonId]);
+  const locationFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    return buildFallbackOption(
+      form.locationId,
+      typeof modalSourceRecord?.locations_id_data?.title === "string"
+        ? modalSourceRecord.locations_id_data.title
+        : ""
+    );
+  }, [form.locationId, modalSourceRecord]);
 
-  const openEditModal = () => {
-    const positionId =
-      currentRaw && typeof currentRaw.positions_id === "string" ? currentRaw.positions_id : "";
-    const experienceLevelId =
-      currentRaw && typeof currentRaw.experience_levels_id === "string"
-        ? currentRaw.experience_levels_id
-        : "";
-    const employmentTypeId =
-      currentRaw && typeof currentRaw.employment_types_id === "string"
-        ? currentRaw.employment_types_id
-        : "";
-    const departmentId =
-      currentRaw && typeof currentRaw.departments_id === "string" ? currentRaw.departments_id : "";
-    const divisionId =
-      currentRaw && typeof currentRaw.divisions_id === "string" ? currentRaw.divisions_id : "";
-    const locationId =
-      currentRaw && typeof currentRaw.locations_id === "string" ? currentRaw.locations_id : "";
-    const employeeWorkReasonId =
-      currentRaw && typeof currentRaw.employee_work_reason_id === "string"
-        ? currentRaw.employee_work_reason_id
-        : "";
-    const salaryValue =
-      currentRaw?.salary === null || currentRaw?.salary === undefined
-        ? ""
-        : String(currentRaw.salary);
-    const dateFrom =
-      currentRaw && typeof currentRaw.date_from === "string" && currentRaw.date_from
-        ? currentRaw.date_from
-        : todayIso;
+  const positionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    return buildFallbackOption(
+      form.positionsId,
+      typeof modalSourceRecord?.positions_id_data?.title === "string"
+        ? modalSourceRecord.positions_id_data.title
+        : ""
+    );
+  }, [form.positionsId, modalSourceRecord]);
 
-    setForm({
-      employmentTypeId,
-      departmentId,
-      divisionId,
-      locationId,
-      positionsId: positionId,
-      experienceLevelId,
-      employeeWorkReasonId,
-      salary: salaryValue,
-      dateFrom,
-    });
+  const workReasonFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    return buildFallbackOption(
+      form.employeeWorkReasonId,
+      typeof modalSourceRecord?.employee_work_reason_id_data?.title === "string"
+        ? modalSourceRecord.employee_work_reason_id_data.title
+        : ""
+    );
+  }, [form.employeeWorkReasonId, modalSourceRecord]);
+
+  const resetEditModal = () => {
+    setIsEditModalOpen(false);
+    setModalMode("create");
+    setEditingRecordGuid(null);
+    setModalSourceGuid(null);
+    setForm(createEmptyFormState());
+  };
+
+  const openCreateModal = () => {
+    setModalMode("create");
+    setEditingRecordGuid(null);
+    setModalSourceGuid(currentRaw?.guid || null);
+    setForm(buildFormState(currentRaw, "create"));
+    setIsEditModalOpen(true);
+  };
+
+  const openEditModal = (guid: string) => {
+    const selectedRecord = recordByGuid.get(guid);
+    if (!selectedRecord) return;
+
+    setModalMode("edit");
+    setEditingRecordGuid(guid);
+    setModalSourceGuid(guid);
+    setForm(buildFormState(selectedRecord, "edit"));
+    setOpenActionsFor(null);
     setIsEditModalOpen(true);
   };
 
   const closeEditModal = () => {
     if (isSaving) return;
-    setIsEditModalOpen(false);
+    resetEditModal();
+  };
+
+  const toggleActionsMenu = (guid: string) => {
+    setOpenActionsFor((prev) => (prev === guid ? null : guid));
+  };
+
+  const openDeleteModal = (guid: string) => {
+    setRecordToDeleteGuid(guid);
+    setOpenActionsFor(null);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (isDeleting) return;
+    setIsDeleteModalOpen(false);
+    setRecordToDeleteGuid(null);
   };
 
   const handleSave = async () => {
@@ -523,6 +706,17 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
 
     if (!form.dateFrom) {
       toast.error("Укажите дату начала");
+      return;
+    }
+
+    if (modalMode === "edit" && form.dateTo && form.dateTo < form.dateFrom) {
+      toast.error("Дата окончания не может быть раньше даты начала");
+      return;
+    }
+
+    const currentStartDate = readString(currentRaw?.date_from);
+    if (modalMode === "create" && currentStartDate && form.dateFrom < currentStartDate) {
+      toast.error("Дата начала новой должности не может быть раньше текущей записи");
       return;
     }
 
@@ -537,11 +731,39 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
       salaryValue = parsedSalary;
     }
 
-    const previousGuid = currentRaw?.guid || "";
-    const previousDateTo =
-      currentRaw && typeof currentRaw.date_to === "string" ? currentRaw.date_to : null;
+    const payload = {
+      employment_types_id: form.employmentTypeId || null,
+      departments_id: form.departmentId || null,
+      divisions_id: form.divisionId || null,
+      locations_id: form.locationId || null,
+      positions_id: form.positionsId || null,
+      experience_levels_id: form.experienceLevelId || null,
+      employee_work_reason_id: form.employeeWorkReasonId || null,
+      salary: salaryValue,
+      date_from: form.dateFrom,
+      date_to: modalMode === "edit" ? form.dateTo || null : null,
+    };
 
     try {
+      if (modalMode === "edit") {
+        if (!editingRaw) {
+          toast.error("Не удалось найти запись для редактирования");
+          return;
+        }
+
+        await updateEmployeeWork.mutateAsync({
+          guid: editingRaw.guid,
+          data: payload,
+        });
+
+        toast.success("Запись о работе обновлена");
+        resetEditModal();
+        return;
+      }
+
+      const previousGuid = currentRaw?.guid || "";
+      const previousDateTo = currentRaw ? readString(currentRaw.date_to) || null : null;
+
       if (previousGuid) {
         await updateEmployeeWork.mutateAsync({
           guid: previousGuid,
@@ -554,15 +776,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
       try {
         await createEmployeeWork.mutateAsync({
           user_base_id: employeeGuid,
-          employment_types_id: form.employmentTypeId || null,
-          departments_id: form.departmentId || null,
-          divisions_id: form.divisionId || null,
-          locations_id: form.locationId || null,
-          positions_id: form.positionsId || null,
-          experience_levels_id: form.experienceLevelId || null,
-          employee_work_reason_id: form.employeeWorkReasonId || null,
-          salary: salaryValue,
-          date_from: form.dateFrom,
+          ...payload,
           date_to: null,
         });
       } catch (createError) {
@@ -581,72 +795,204 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
         throw createError;
       }
 
-      toast.success("Запись о работе обновлена");
-      setIsEditModalOpen(false);
+      toast.success("Новая должность добавлена");
+      resetEditModal();
     } catch {
-      toast.error("Не удалось сохранить изменения");
+      toast.error(
+        modalMode === "edit"
+          ? "Не удалось сохранить изменения"
+          : "Не удалось добавить должность"
+      );
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingTimelineRecord) return;
+
+    const deleteIndex = timelineRecords.findIndex(
+      (item) => item.record.guid === deletingTimelineRecord.record.guid
+    );
+    const previousRecord = deleteIndex >= 0 ? timelineRecords[deleteIndex + 1] || null : null;
+
+    try {
+      await deleteEmployeeWork.mutateAsync(deletingTimelineRecord.record.guid);
+
+      if (deletingTimelineRecord.isCurrent && previousRecord) {
+        try {
+          await updateEmployeeWork.mutateAsync({
+            guid: previousRecord.raw.guid,
+            data: {
+              date_to: null,
+            },
+          });
+        } catch {
+          toast.error("Запись удалена, но предыдущую должность не удалось сделать текущей");
+          closeDeleteModal();
+          return;
+        }
+      }
+
+      toast.success("Запись о работе удалена");
+      closeDeleteModal();
+    } catch {
+      toast.error("Не удалось удалить запись");
     }
   };
 
   return (
     <>
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-4.5">
-          <div className="flex items-center gap-2">
-            <span style={{ color: brandColor }}>
-              <BriefcaseBusiness className="h-4 w-4" />
-            </span>
-            <h3 className="m-0 text-[15px] font-bold text-slate-900">Работа</h3>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span style={{ color: brandColor }}>
+                <BriefcaseBusiness className="h-4 w-4" />
+              </span>
+              <h3 className="m-0 text-[15px] font-bold text-slate-900">Работа</h3>
+            </div>
+            <p className="m-0 mt-1 text-[13px] text-slate-500">
+              {timelineRecords.length > 0
+                ? `${timelineRecords.length} ${getWorkCountLabel(timelineRecords.length)} в истории работы`
+                : "Добавьте первую должность, чтобы собрать карьерный timeline сотрудника"}
+            </p>
           </div>
+
           <button
             type="button"
-            onClick={openEditModal}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={openCreateModal}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ backgroundColor: brandColor }}
             disabled={isSaving}
           >
-            <Pencil className="h-3.5 w-3.5" />
-            {currentRecord ? "Изменить" : "Добавить"}
+            <Plus className="h-4 w-4" />
+            Добавить должность
           </button>
         </div>
 
-        <div className="px-6 py-5">
+        <div className="px-5 py-5 sm:px-6">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-10">
               <div
                 className="h-7 w-7 animate-spin rounded-full border-2 border-slate-200"
                 style={{ borderTopColor: brandColor }}
               />
             </div>
-          ) : !currentRecord ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-center text-[13px] text-slate-500">
-              Записей о работе пока нет
+          ) : timelineRecords.length === 0 ? (
+            <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/70 px-6 py-10 text-center">
+              <div
+                className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl"
+                style={{
+                  backgroundColor: `${brandColor}14`,
+                  color: brandColor,
+                }}
+              >
+                <BriefcaseBusiness className="h-5 w-5" />
+              </div>
+              <p className="m-0 mt-4 text-[15px] font-semibold text-slate-900">
+                История работы пока пуста
+              </p>
+              <p className="m-0 mt-1 text-[13px] text-slate-500">
+                Добавьте первую должность, и здесь появится удобный timeline по всем изменениям.
+              </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              <WorkCard record={currentRecord} brandColor={brandColor} isCurrent />
+            <div className="relative">
+              {visibleTimelineRecords.length > 1 ? (
+                <div
+                  className="absolute left-4 top-4 bottom-4 w-px rounded-full"
+                  style={{
+                    background: `linear-gradient(180deg, ${brandColor} 0%, #e2e8f0 100%)`,
+                  }}
+                />
+              ) : null}
 
-              {historyRecords.length > 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60">
+              <div className="space-y-4">
+                {visibleTimelineRecords.map((item) => (
+                  <div key={item.record.guid} className="relative pl-12">
+                    <div
+                      className="absolute left-[9px] top-8 h-[14px] w-[14px] rounded-full border-[3px] border-white"
+                      style={{
+                        backgroundColor: item.isCurrent ? brandColor : "#ffffff",
+                        boxShadow: item.isCurrent
+                          ? `0 0 0 6px ${brandColor}1A`
+                          : "0 0 0 1px #cbd5e1",
+                      }}
+                    />
+
+                    <div className="relative">
+                      <div className="mb-2 ml-1 flex flex-wrap items-center gap-2 text-[13px]">
+                        <span className="font-medium text-slate-400">
+                          {formatTimelineDate(item.record.dateFrom, item.record.dateTo)}
+                        </span>
+                        {item.record.reasonTitle !== "—" ? (
+                          <span
+                            className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                            style={{
+                              backgroundColor: `${brandColor}14`,
+                              color: brandColor,
+                            }}
+                          >
+                            {item.record.reasonTitle}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="absolute right-0 top-0 z-10">
+                        <Dropdown
+                          isOpen={openActionsFor === item.record.guid}
+                          onClose={() => setOpenActionsFor(null)}
+                          className="w-40 p-1"
+                          usePortal
+                          anchorEl={actionButtonRefs.current[item.record.guid]}
+                        >
+                          <DropdownItem
+                            onClick={() => openEditModal(item.record.guid)}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                          >
+                            <SquarePen className="h-4 w-4" />
+                            Edit
+                          </DropdownItem>
+                          <DropdownItem
+                            onClick={() => openDeleteModal(item.record.guid)}
+                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownItem>
+                        </Dropdown>
+                      </div>
+
+                      <WorkTimelineCard
+                        record={item.record}
+                        brandColor={brandColor}
+                        isCurrent={item.isCurrent}
+                        onToggleActions={() => toggleActionsMenu(item.record.guid)}
+                        actionButtonRef={(element) => {
+                          actionButtonRefs.current[item.record.guid] = element;
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {historyTimelineRecords.length > 0 ? (
+                <div className="mt-4 flex justify-start">
                   <button
                     type="button"
-                    onClick={() => setIsHistoryOpen((prev) => !prev)}
-                    className="flex w-full items-center justify-between border-none bg-transparent px-4 py-3 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-slate-100/70"
+                    onClick={() => {
+                      setIsHistoryExpanded((prev) => !prev);
+                      setOpenActionsFor(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50"
                   >
-                    <span>{isHistoryOpen ? "Скрыть историю" : "Посмотреть историю"}</span>
-                    {isHistoryOpen ? (
-                      <ChevronUp className="h-4 w-4 text-slate-500" />
+                    {isHistoryExpanded ? "Скрыть историю" : `Показать историю (${historyTimelineRecords.length})`}
+                    {isHistoryExpanded ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <ChevronDown className="h-3.5 w-3.5" />
                     )}
                   </button>
-
-                  {isHistoryOpen ? (
-                    <div className="space-y-2 border-t border-slate-200 px-4 py-3">
-                      {historyRecords.map((record) => (
-                        <WorkCard key={record.guid} record={record} brandColor={brandColor} />
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -657,10 +1003,17 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
       <Modal
         isOpen={isEditModalOpen}
         onClose={closeEditModal}
-        className="relative z-[120000] max-w-[620px] w-full p-0 overflow-visible"
+        className="relative z-[120000] w-full max-w-[700px] overflow-visible p-0"
       >
         <div className="border-b border-slate-200 px-6 py-5">
-          <h4 className="m-0 text-[24px] font-bold text-slate-900">Изменить работу</h4>
+          <h4 className="m-0 text-[24px] font-bold text-slate-900">
+            {modalMode === "create" ? "Добавить должность" : "Редактировать должность"}
+          </h4>
+          <p className="m-0 mt-1 text-[13px] text-slate-500">
+            {modalMode === "create"
+              ? "Новая запись станет текущей, а предыдущая должность завершится выбранной датой."
+              : "Обновите данные по выбранной записи в истории работы."}
+          </p>
         </div>
 
         <div className="space-y-4 px-6 py-5">
@@ -679,7 +1032,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                     offset,
                   })
                 }
-                fallbackOption={currentEmploymentTypeFallbackOption}
+                fallbackOption={employmentTypeFallbackOption}
                 onChange={(value) =>
                   setForm((prev) => ({ ...prev, employmentTypeId: value }))
                 }
@@ -704,7 +1057,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                     offset,
                   })
                 }
-                fallbackOption={currentDepartmentFallbackOption}
+                fallbackOption={departmentFallbackOption}
                 onChange={(value) => setForm((prev) => ({ ...prev, departmentId: value }))}
                 placeholder="Выберите департамент"
                 disabled={isSaving}
@@ -726,6 +1079,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                     limit,
                     offset,
                   });
+
                   return {
                     count: res.count,
                     options: res.options.filter(
@@ -734,7 +1088,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                     ),
                   };
                 }}
-                fallbackOption={currentExperienceLevelFallbackOption}
+                fallbackOption={experienceLevelFallbackOption}
                 onChange={(value) =>
                   setForm((prev) => ({ ...prev, experienceLevelId: value }))
                 }
@@ -746,9 +1100,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                 classNamePrefix="work-experience-level-select"
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Подразделение
@@ -763,7 +1115,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                     offset,
                   })
                 }
-                fallbackOption={currentDivisionFallbackOption}
+                fallbackOption={divisionFallbackOption}
                 onChange={(value) => setForm((prev) => ({ ...prev, divisionId: value }))}
                 placeholder="Выберите подразделение"
                 disabled={isSaving}
@@ -786,7 +1138,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                     offset,
                   })
                 }
-                fallbackOption={currentLocationFallbackOption}
+                fallbackOption={locationFallbackOption}
                 onChange={(value) => setForm((prev) => ({ ...prev, locationId: value }))}
                 placeholder="Выберите локацию"
                 disabled={isSaving}
@@ -794,29 +1146,29 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                 classNamePrefix="work-location-select"
               />
             </div>
-          </div>
 
-          <div>
-            <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Должность
-            </label>
-            <RemoteSingleSelect
-              value={form.positionsId}
-              loadOptions={({ search, limit, offset }) =>
-                loadRemoteOptionsBySlug({
-                  slug: "positions",
-                  search,
-                  limit,
-                  offset,
-                })
-              }
-              fallbackOption={currentPositionFallbackOption}
-              onChange={(value) => setForm((prev) => ({ ...prev, positionsId: value }))}
-              placeholder="Выберите должность"
-              disabled={isSaving}
-              menuPortalTarget={menuPortalTarget}
-              classNamePrefix="work-position-select"
-            />
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                Должность
+              </label>
+              <RemoteSingleSelect
+                value={form.positionsId}
+                loadOptions={({ search, limit, offset }) =>
+                  loadRemoteOptionsBySlug({
+                    slug: "positions",
+                    search,
+                    limit,
+                    offset,
+                  })
+                }
+                fallbackOption={positionFallbackOption}
+                onChange={(value) => setForm((prev) => ({ ...prev, positionsId: value }))}
+                placeholder="Выберите должность"
+                disabled={isSaving}
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="work-position-select"
+              />
+            </div>
           </div>
 
           <div>
@@ -833,7 +1185,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                   offset,
                 })
               }
-              fallbackOption={currentWorkReasonFallbackOption}
+              fallbackOption={workReasonFallbackOption}
               onChange={(value) =>
                 setForm((prev) => ({ ...prev, employeeWorkReasonId: value }))
               }
@@ -844,7 +1196,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className={`grid grid-cols-1 gap-4 ${modalMode === "edit" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Оклад
@@ -888,6 +1240,35 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
                 disabled={isSaving}
               />
             </div>
+
+            {modalMode === "edit" ? (
+              <div>
+                <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                  Дата окончания
+                </label>
+                <DatePicker
+                  selected={parseIsoDate(form.dateTo)}
+                  onChange={(date) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      dateTo: date ? toIsoDate(date) : "",
+                    }))
+                  }
+                  isClearable
+                  dateFormat="dd.MM.yyyy"
+                  placeholderText="Оставьте пустым для текущей"
+                  showMonthDropdown
+                  showYearDropdown
+                  dropdownMode="select"
+                  popperClassName="work-date-picker-popper"
+                  calendarClassName="work-date-picker-calendar"
+                  wrapperClassName="work-date-picker-wrapper"
+                  showPopperArrow={false}
+                  className={INPUT_CLASSNAME}
+                  disabled={isSaving}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -907,8 +1288,63 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
             className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ backgroundColor: brandColor }}
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving
+              ? modalMode === "create"
+                ? "Добавление..."
+                : "Сохранение..."
+              : modalMode === "create"
+                ? "Добавить"
+                : "Сохранить"}
           </button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={closeDeleteModal}
+        showCloseButton={false}
+        className="mx-4 w-full max-w-[360px] overflow-hidden rounded-2xl border border-gray-200 p-0 shadow-xl"
+      >
+        <div className="border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-gray-900">Удалить запись</h3>
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              aria-label="Закрыть"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-3 px-4 py-4 text-center">
+          <p className="text-sm text-gray-500">Это действие нельзя отменить.</p>
+          <p className="text-sm text-gray-700">
+            {deletingTimelineRecord
+              ? `Удалить запись "${deletingTimelineRecord.record.positionTitle}" из истории работы?`
+              : "Вы уверены, что хотите удалить эту запись?"}
+          </p>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              disabled={isDeleting}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="w-full rounded-lg bg-error-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-error-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isDeleting ? "Удаление..." : "Удалить"}
+            </button>
+          </div>
         </div>
       </Modal>
     </>

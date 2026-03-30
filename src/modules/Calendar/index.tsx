@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type ReactNode, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { ChevronLeft, ChevronRight, Clock3, Plus, Search } from "lucide-react";
 import { useQueryClient } from "react-query";
@@ -470,7 +470,8 @@ const buildTimelineCells = ({
 
 export default function CalendarModule() {
   const queryClient = useQueryClient();
-  const [currentPage, setCurrentPage] = useState(1);
+  const [employeesPage, setEmployeesPage] = useState(1);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -492,11 +493,16 @@ export default function CalendarModule() {
   const createBalanceTransactionMutation = useCreateAbsenceBalanceTransaction();
   const uploadFileMutation = useUploadFile({ folder: "Media" });
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
+  const isNextPageRequestedRef = useRef(false);
+  const lastKnownTotalCountRef = useRef(0);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearch(searchValue.trim());
-      setCurrentPage(1);
+      setEmployeesPage(1);
+      setEmployees([]);
+      isNextPageRequestedRef.current = false;
+      lastKnownTotalCountRef.current = 0;
     }, 350);
 
     return () => {
@@ -508,17 +514,38 @@ export default function CalendarModule() {
   const monthStartIso = monthDays[0]?.dateKey || "";
   const monthEndIso = monthDays[monthDays.length - 1]?.dateKey || "";
 
-  const { data: employeesData, isLoading: isEmployeesLoading } = useEmployeesQuery({
+  const {
+    data: employeesData,
+    isLoading: isEmployeesLoading,
+    isFetching: isEmployeesFetching,
+  } = useEmployeesQuery({
     limit: PAGE_SIZE,
-    offset: (currentPage - 1) * PAGE_SIZE,
+    offset: (employeesPage - 1) * PAGE_SIZE,
     search: debouncedSearch || undefined,
   });
 
-  const employees = useMemo(() => {
+  const employeesChunk = useMemo(() => {
     return ((employeesData?.response || []) as Employee[]).filter(
       (employee) => typeof employee.guid === "string" && Boolean(employee.guid)
     );
   }, [employeesData?.response]);
+
+  useEffect(() => {
+    if (!employeesData) return;
+
+    setEmployees((prev) => {
+      if (employeesPage === 1) return employeesChunk;
+
+      const existingIds = new Set(prev.map((item) => item.guid));
+      const merged = [...prev];
+      for (const employee of employeesChunk) {
+        if (existingIds.has(employee.guid)) continue;
+        merged.push(employee);
+        existingIds.add(employee.guid);
+      }
+      return merged;
+    });
+  }, [employeesData, employeesChunk, employeesPage]);
 
   const employeeIds = useMemo(() => employees.map((employee) => employee.guid), [employees]);
 
@@ -583,6 +610,7 @@ export default function CalendarModule() {
     },
     querySettings: {
       enabled: employeeIds.length > 0 && Boolean(monthStartIso) && Boolean(monthEndIso),
+      keepPreviousData: true,
     },
   });
 
@@ -593,20 +621,34 @@ export default function CalendarModule() {
       .filter((absence): absence is NormalizedAbsence => Boolean(absence));
   }, [absencesData?.response, policiesById]);
 
-  const lastKnownTotalCountRef = useRef(0);
   if (typeof employeesData?.count === "number" && Number.isFinite(employeesData.count)) {
     lastKnownTotalCountRef.current = employeesData.count;
   }
 
   const totalCount = employeesData?.count ?? lastKnownTotalCountRef.current;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const hasMoreEmployees = employees.length < totalCount;
+  const isInitialEmployeesLoading = isEmployeesLoading && employees.length === 0;
+  const isLoadingMoreEmployees = isEmployeesLoading && employees.length > 0;
+  const isInitialLoading = (isInitialEmployeesLoading || isAbsencesLoading) && employees.length === 0;
 
   useEffect(() => {
-    if (isEmployeesLoading) return;
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
+    if (!isEmployeesFetching) {
+      isNextPageRequestedRef.current = false;
     }
-  }, [currentPage, isEmployeesLoading, totalPages]);
+  }, [isEmployeesFetching]);
+
+  const handleEmployeesScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (isInitialEmployeesLoading) return;
+    if (!hasMoreEmployees) return;
+    if (isNextPageRequestedRef.current) return;
+
+    const container = event.currentTarget;
+    const reachedBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 120;
+    if (!reachedBottom) return;
+
+    isNextPageRequestedRef.current = true;
+    setEmployeesPage((prev) => prev + 1);
+  };
 
   const visibleEmployeeIds = useMemo(() => {
     return new Set(employees.map((employee) => employee.guid));
@@ -637,7 +679,7 @@ export default function CalendarModule() {
   }, [monthEndIso, monthStartIso, normalizedAbsences, visibleEmployeeIds]);
 
   const monthLabel = useMemo(() => formatMonthLabel(currentMonth), [currentMonth]);
-  const isLoading = isEmployeesLoading || isAbsencesLoading;
+  const isLoading = isInitialLoading;
   const companyMainColor = "var(--color-brand-500)";
   const isReviewing = updateAbsenceMutation.isLoading || createBalanceTransactionMutation.isLoading;
   const createBreakdown = useMemo(() => getDateBreakdown(createDateFrom, createDateTo), [createDateFrom, createDateTo]);
@@ -928,14 +970,16 @@ export default function CalendarModule() {
 
           <div className="px-4 py-3 text-sm text-gray-500">
             {totalCount > 0
-              ? `Отображение ${(currentPage - 1) * PAGE_SIZE + 1} - ${Math.min(
-                  currentPage * PAGE_SIZE,
-                  totalCount
-                )} из ${totalCount}`
-              : "Сотрудники не найдены"}
+              ? `Отображено ${Math.min(employees.length, totalCount)} из ${totalCount}`
+              : isInitialEmployeesLoading
+                ? "Загружаем сотрудников..."
+                : "Сотрудники не найдены"}
           </div>
 
-          <div className="min-h-0 flex-1 max-w-full overflow-auto border-t border-gray-100">
+          <div
+            className="min-h-0 flex-1 max-w-full overflow-auto border-t border-gray-100"
+            onScroll={handleEmployeesScroll}
+          >
             <table
               className="border-separate border-spacing-0"
               style={{ minWidth: 280 + monthDays.length * 44 }}
@@ -1038,34 +1082,30 @@ export default function CalendarModule() {
                       );
                     })
                   : null}
+
+                {!isLoading && isLoadingMoreEmployees ? (
+                  <tr>
+                    <td
+                      colSpan={monthDays.length + 1}
+                      className="px-4 py-5 text-center text-sm text-gray-500"
+                    >
+                      Загружаем ещё сотрудников...
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Предыдущая страница"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            <span className="min-w-[72px] text-center text-sm font-medium text-gray-700">
-              {currentPage} / {totalPages}
+          <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-sm">
+            <span className="text-gray-500">
+              {totalCount > 0 && !hasMoreEmployees
+                ? "Все сотрудники загружены"
+                : totalCount === 0
+                  ? "Сотрудники не найдены"
+                  : ""}
             </span>
-
-            <button
-              type="button"
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Следующая страница"
-            >
-              <ChevronRight size={16} />
-            </button>
+            {isLoadingMoreEmployees ? <span className="text-gray-500">Загрузка...</span> : null}
           </div>
         </div>
       </div>

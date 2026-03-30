@@ -23,7 +23,13 @@ instance.interceptors.request.use((config) => {
 
 export interface EmployeeCompensation {
   guid: string;
-  user_base_id: string;
+  user_base_id?: string | null;
+  user_base_id_data?: {
+    guid?: string;
+    first_name?: string;
+    second_name?: string;
+    [key: string]: unknown;
+  } | null;
   date: string | null;
   amount: number | string | null;
   description: string | null;
@@ -49,18 +55,20 @@ export const useEmployeeCompensationsQuery = ({
   userBaseId,
   limit = 100,
   offset = 0,
+  enabled = true,
 }: {
-  userBaseId: string;
+  userBaseId?: string;
   limit?: number;
   offset?: number;
+  enabled?: boolean;
 }) => {
   return useQuery(
-    ["employee-compensations", userBaseId, limit, offset],
+    ["employee-compensations", userBaseId || "all", limit, offset],
     async (): Promise<EmployeeCompensationListResponse> => {
       const dataObj: Record<string, unknown> = {
         limit,
         offset,
-        user_base_id: userBaseId,
+        ...(userBaseId ? { user_base_id: userBaseId } : {}),
       };
 
       const res = await instance.get(`/v2/items/${SLUG}`, {
@@ -79,7 +87,52 @@ export const useEmployeeCompensationsQuery = ({
           : [],
       };
     },
-    { enabled: !!userBaseId }
+    { enabled: enabled && (userBaseId ? Boolean(userBaseId) : true) }
+  );
+};
+
+export const useEmployeeSalaryCompensationsQuery = ({
+  limit = 100,
+  offset = 0,
+  search,
+  enabled = true,
+}: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  enabled?: boolean;
+}) => {
+  return useQuery(
+    ["employee-compensations", "salary", limit, offset, search || ""],
+    async (): Promise<EmployeeCompensationListResponse> => {
+      const dataObj: Record<string, unknown> = {
+        limit,
+        offset,
+      };
+      if (search && search.trim()) {
+        dataObj.search = search.trim();
+      }
+
+      const res = await instance.get(`/v2/items/${SLUG}`, {
+        params: {
+          "project-id": PROJECT_ID,
+          with_relations: true,
+          data: JSON.stringify(dataObj),
+        },
+      });
+
+      const payload = res.data?.data?.data;
+      return {
+        count: Number(payload?.count ?? 0),
+        response: Array.isArray(payload?.response)
+          ? (payload.response as EmployeeCompensation[])
+          : [],
+      };
+    },
+    {
+      enabled,
+      keepPreviousData: true,
+    }
   );
 };
 

@@ -150,6 +150,23 @@ const employeeWorkService = {
       return res.data?.data?.data;
     }
   },
+
+  delete: async (guid: string) => {
+    try {
+      return await instance.delete(`/v2/items/${SLUG}`, {
+        data: { ids: [guid] },
+        params: {
+          "project-id": PROJECT_ID,
+        },
+      });
+    } catch {
+      return instance.delete(`/v2/items/${SLUG}/${guid}`, {
+        params: {
+          "project-id": PROJECT_ID,
+        },
+      });
+    }
+  },
 };
 
 export const useEmployeeWorksQuery = ({
@@ -190,6 +207,17 @@ export const useUpdateEmployeeWork = () => {
       guid: string;
       data: Partial<EmployeeWork>;
     }) => employeeWorkService.update(guid, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(["employee-works"]);
+    },
+  });
+};
+
+export const useDeleteEmployeeWork = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (guid: string) => employeeWorkService.delete(guid),
     onSuccess: () => {
       queryClient.invalidateQueries(["employee-works"]);
     },

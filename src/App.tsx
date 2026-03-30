@@ -10,6 +10,7 @@ import MerchantTransactionsList from "./modules/MerchantTransactions/List";
 import MerchantTransactionFormPage from "./modules/MerchantTransactions/Form";
 import DebtsList from "./modules/Debts/List";
 import PaymentsList from "./modules/Payments/List";
+import FinanceSalaryPage from "./modules/Finance/Salary";
 import ClientsList from "./modules/Client/List";
 import ClientDetail from "./modules/Client/Detail";
 import ClientFormPage from "./modules/Client/Form";
@@ -50,6 +51,7 @@ import EmployeesList from "./modules/Employees/List";
 import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
 import CalendarModule from "./modules/Calendar";
+import TimeAttendancePage from "./modules/Time/Attendance";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
 import GenderDistributionPage from "./modules/Reports/GenderDistribution";
@@ -110,6 +112,7 @@ function App() {
               <Route path="/finance/merchant-reconciliation/:id/edit" element={<MerchantTransactionFormPage />} />
               <Route path="/finance/debts" element={<DebtsList />} />
               <Route path="/finance/payments" element={<PaymentsList />} />
+              <Route path="/finance/salary" element={<FinanceSalaryPage />} />
               <Route path="/merchants/partnership-requests" element={<UnderDevelopment />} />
 
               <Route path="/clients" element={<ClientsList />} />
@@ -161,6 +164,7 @@ function App() {
               <Route path="/employees/:id" element={<EmployeeDetail />} />
               <Route path="/employees/:id/edit" element={<EmployeeForm />} />
               <Route path="/calendar" element={<CalendarModule />} />
+              <Route path="/time/attendance" element={<TimeAttendancePage />} />
               <Route path="/reports" element={<ReportsHomePage />} />
               <Route path="/reports/age-distribution" element={<AgeDistributionPage />} />
               <Route path="/reports/gender-distribution" element={<GenderDistributionPage />} />

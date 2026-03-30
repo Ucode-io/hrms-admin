@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import {
+  Bell,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Home,
-  User,
   Users,
   Calendar,
   Search as SearchIcon,
-  Send,
   CheckSquare,
   FileText,
-  Monitor,
-  BookOpen,
-  Zap,
   BarChart3,
   Settings,
+  Wallet,
 } from "lucide-react";
 import { useSidebar } from "../context/SidebarContext";
 import companyStore from "../store/company.store";
@@ -38,74 +35,67 @@ const mainNavItems: NavItem[] = [
     path: "/dashboard",
   },
   {
-    icon: <User size={20} />,
-    name: "Мои активности",
-    path: "/my-activities",
-  },
-  {
-    icon: <CheckSquare size={20} />,
-    name: "Уведомления",
+    icon: <Bell size={20} />,
+    name: "Уведомление",
     path: "/notifications",
-    badge: 39,
   },
 ];
 
 // Group 2: Modules
 const moduleNavItems: NavItem[] = [
   {
-    icon: <Users size={20} />,
-    name: "Сотрудники",
-    path: "/employees",
-  },
-  {
-    icon: <Calendar size={20} />,
-    name: "Календарь",
-    path: "/calendar",
-  },
-  {
-    icon: <SearchIcon size={20} />,
-    name: "Рекрутинг",
+    icon: <CheckSquare size={20} />,
+    name: "Задачи",
     subItems: [
-      { name: "Вакансии", path: "/recruiting/vacancies" },
-      { name: "Кандидаты", path: "/recruiting/candidates" },
+      { name: "Задачи", path: "/tasks" },
+      { name: "Привички", path: "/habits" },
     ],
   },
   {
-    icon: <Send size={20} />,
-    name: "Запросы",
-    path: "/requests",
+    icon: <Users size={20} />,
+    name: "Люди",
+    subItems: [
+      { name: "Сотрудники", path: "/employees" },
+      { name: "Рекртутинг", path: "/recruiting/vacancies" },
+      { name: "Орг стуруктура", path: "/organization/suppliers" },
+    ],
   },
   {
-    icon: <CheckSquare size={20} />,
-    name: "Задачи",
-    path: "/tasks",
+    icon: <Calendar size={20} />,
+    name: "Время",
+    subItems: [
+      { name: "Посешаемость", path: "/time/attendance" },
+      { name: "Отсутствие", path: "/calendar" },
+    ],
   },
   {
-    icon: <FileText size={20} />,
-    name: "Документы",
-    path: "/documents",
-  },
-  {
-    icon: <Monitor size={20} />,
-    name: "Имущество",
-    path: "/assets",
-  },
-  {
-    icon: <BookOpen size={20} />,
-    name: "База знаний",
-    path: "/knowledge-base",
-  },
-  {
-    icon: <Zap size={20} />,
-    name: "Воркфлоу",
-    path: "/workflow",
+    icon: <Wallet size={20} />,
+    name: "Финансы",
+    subItems: [{ name: "Зарплата", path: "/finance/salary" }],
   },
   {
     icon: <BarChart3 size={20} />,
     name: "Отчеты",
     path: "/reports",
   },
+  {
+    icon: <FileText size={20} />,
+    name: "Документы",
+    path: "/settings/documents",
+  },
 ];
+
+const ENABLED_PATHS = new Set([
+  "/dashboard",
+  "/employees",
+  "/reports",
+  "/time/attendance",
+  "/reports/attendance",
+  "/reports/absence-balance",
+  "/calendar",
+  "/finance/salary",
+  "/settings/compensation",
+]);
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
@@ -156,48 +146,33 @@ const AppSidebar: React.FC = () => {
     setOpenSubmenu((prev) => (prev === index ? null : index));
   };
 
-  const renderNavItem = (nav: NavItem, index: number, _groupKey: string) => {
-    const isNavEnabled =
-      nav.name === "Главная страница" ||
-      nav.name === "Сотрудники" ||
-      nav.name === "Календарь" ||
-      nav.name === "Отчеты";
+  const isPathEnabled = useCallback((path?: string) => {
+    if (!path) return false;
+    return ENABLED_PATHS.has(path);
+  }, []);
 
+  const renderNavItem = (nav: NavItem, index: number) => {
     if (nav.subItems) {
-      if (!isNavEnabled) {
-        return (
-          <li key={nav.name}>
-            <div
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-400
-                ${!sidebarOpen ? "justify-center" : ""}`}
-            >
-              <span className="shrink-0 text-gray-300">{nav.icon}</span>
-              {sidebarOpen && (
-                <>
-                  <span className="flex-1 text-left">{nav.name}</span>
-                  <ChevronDown size={16} className="text-gray-300" />
-                </>
-              )}
-            </div>
-          </li>
-        );
-      }
-
       const hasActiveSub = nav.subItems.some((sub) => isActive(sub.path));
+      const hasEnabledSub = nav.subItems.some((sub) => isPathEnabled(sub.path));
       return (
         <li key={nav.name}>
           <button
             onClick={() => handleSubmenuToggle(index)}
             className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer
               ${hasActiveSub
-                ? "bg-brand-50 text-brand-500"
-                : "text-gray-700 hover:bg-gray-100"
+                ? "text-brand-600"
+                : hasEnabledSub
+                  ? "text-gray-700 hover:bg-gray-100"
+                  : "text-gray-400"
               }
               ${!sidebarOpen ? "justify-center" : ""}
             `}
           >
             <span
-              className={`shrink-0 ${hasActiveSub ? "text-brand-500" : "text-gray-500"}`}
+              className={`shrink-0 ${
+                hasActiveSub ? "text-brand-600" : hasEnabledSub ? "text-gray-500" : "text-gray-300"
+              }`}
             >
               {nav.icon}
             </span>
@@ -206,7 +181,9 @@ const AppSidebar: React.FC = () => {
                 <span className="flex-1 text-left">{nav.name}</span>
                 <ChevronDown
                   size={16}
-                  className={`text-gray-400 transition-transform duration-200 ${
+                  className={`transition-transform duration-200 ${
+                    hasActiveSub ? "text-brand-600" : "text-gray-400"
+                  } ${
                     openSubmenu === index ? "rotate-180" : ""
                   }`}
                 />
@@ -227,20 +204,29 @@ const AppSidebar: React.FC = () => {
               }}
             >
               <ul className="mt-1 ml-9 space-y-0.5">
-                {nav.subItems.map((sub) => (
-                  <li key={sub.name}>
-                    <Link
-                      to={sub.path}
-                      className={`block rounded-xl px-3 py-2 text-sm transition-colors ${
-                        isActive(sub.path)
-                          ? "text-brand-500 font-medium bg-brand-50"
-                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {sub.name}
-                    </Link>
-                  </li>
-                ))}
+                {nav.subItems.map((sub) => {
+                  const isSubEnabled = isPathEnabled(sub.path);
+                  return (
+                    <li key={sub.name}>
+                      {isSubEnabled ? (
+                        <Link
+                          to={sub.path}
+                          className={`block rounded-xl px-3 py-2 text-sm transition-colors ${
+                            isActive(sub.path)
+                              ? "text-brand-500 font-medium bg-brand-50"
+                              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          {sub.name}
+                        </Link>
+                      ) : (
+                        <div className="block rounded-xl px-3 py-2 text-sm text-gray-400">
+                          {sub.name}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -249,6 +235,7 @@ const AppSidebar: React.FC = () => {
     }
 
     // Direct link item
+    const isNavEnabled = isPathEnabled(nav.path);
     return (
       <li key={nav.name}>
         {nav.path && isNavEnabled ? (
@@ -354,7 +341,7 @@ const AppSidebar: React.FC = () => {
       <nav className="flex-1 overflow-y-auto px-3 py-1 no-scrollbar">
         {/* Group 1: Main */}
         <ul className="flex flex-col gap-0.5">
-          {mainNavItems.map((nav, index) => renderNavItem(nav, index, "main"))}
+          {mainNavItems.map((nav, index) => renderNavItem(nav, index))}
         </ul>
 
         {/* Separator */}
@@ -362,7 +349,7 @@ const AppSidebar: React.FC = () => {
 
         {/* Group 2: Modules */}
         <ul className="flex flex-col gap-0.5">
-          {moduleNavItems.map((nav, index) => renderNavItem(nav, index, "modules"))}
+          {moduleNavItems.map((nav, index) => renderNavItem(nav, index))}
         </ul>
       </nav>
 
