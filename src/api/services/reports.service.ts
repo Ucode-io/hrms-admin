@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useQuery } from "react-query";
+import authStore from "../../store/auth.store";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
 const REPORTS_FUNCTION_PATH =
@@ -671,6 +672,14 @@ const reportsRequest = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+reportsRequest.interceptors.request.use((config) => {
+  const token = authStore.token ?? localStorage.getItem("auth_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 const isRecord = (value: unknown): value is JsonRecord =>
