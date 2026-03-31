@@ -1,6 +1,5 @@
 import axios from "axios";
 import { useQuery } from "react-query";
-import authStore from "../../store/auth.store";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
 const REPORTS_FUNCTION_PATH =
@@ -21,6 +20,8 @@ const GET_ATTENDANCE_METHOD = "get_attendance";
 const GET_ATTENDANCE_TABLE_METHOD = "get_attendance_table";
 const GET_SPORT_ATTENDANCE_METHOD = "get_sport_attendance";
 const GET_SPORT_ATTENDANCE_TABLE_METHOD = "get_sport_attendance_table";
+const GET_PAYROLL_METHOD = "get_payroll";
+const GET_PAYROLL_TABLE_METHOD = "get_payroll_table";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -581,6 +582,85 @@ export type SportAttendanceTableInvokeResponse = {
   result: SportAttendanceTableResult;
 };
 
+export type PayrollFilterOption = {
+  value: string | number;
+  label: string;
+};
+
+export type PayrollFiltersResult = {
+  years?: PayrollFilterOption[];
+  months?: PayrollFilterOption[];
+  employees?: PayrollFilterOption[];
+  departments?: PayrollFilterOption[];
+  defaults?: {
+    years?: number[];
+    months?: number[];
+  };
+};
+
+export type PayrollInvokeResponse = {
+  method: typeof GET_PAYROLL_METHOD;
+  result: {
+    filters?: PayrollFiltersResult;
+    filters_applied?: JsonRecord;
+  };
+};
+
+export type PayrollPeriod = {
+  key: string;
+  year: number;
+  month: number;
+  label: string;
+};
+
+export type PayrollPeriodMetrics = {
+  salary: number | null;
+  bonus: number | null;
+  work_days: number | null;
+  actual_work_days: number | null;
+  total: number | null;
+};
+
+export type PayrollTableItem = {
+  guid: string;
+  first_name: string;
+  second_name: string;
+  full_name: string;
+  department: string;
+  periods: Record<string, PayrollPeriodMetrics>;
+};
+
+export type PayrollTableTotal = PayrollPeriodMetrics & {
+  key: string;
+  year: number;
+  month: number;
+  label: string;
+};
+
+export type PayrollTablePagination = {
+  page: number;
+  limit: number;
+  total_count: number;
+  total_pages: number;
+  from: number;
+  to: number;
+  has_previous_page: boolean;
+  has_next_page: boolean;
+};
+
+export type PayrollTableResult = {
+  periods: PayrollPeriod[];
+  items: PayrollTableItem[];
+  totals: PayrollTableTotal[];
+  pagination: PayrollTablePagination;
+  filters_applied?: JsonRecord;
+};
+
+export type PayrollTableInvokeResponse = {
+  method: typeof GET_PAYROLL_TABLE_METHOD;
+  result: PayrollTableResult;
+};
+
 type AgeDistributionWrappedResponse = {
   data?: AgeDistributionInvokeResponse;
 };
@@ -591,14 +671,6 @@ const reportsRequest = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-});
-
-reportsRequest.interceptors.request.use((config) => {
-  const token = authStore.token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
 });
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -714,6 +786,20 @@ const isSportAttendanceTableInvokeResponse = (
 ): value is SportAttendanceTableInvokeResponse => {
   if (!isRecord(value)) return false;
   return value.method === GET_SPORT_ATTENDANCE_TABLE_METHOD && isRecord(value.result);
+};
+
+const isPayrollInvokeResponse = (
+  value: unknown
+): value is PayrollInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_PAYROLL_METHOD && isRecord(value.result);
+};
+
+const isPayrollTableInvokeResponse = (
+  value: unknown
+): value is PayrollTableInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_PAYROLL_TABLE_METHOD && isRecord(value.result);
 };
 
 const normalizeAgeDistributionResponse = (
@@ -1309,6 +1395,80 @@ const normalizeSportAttendanceTableResponse = (
   throw new Error("Unexpected response format for get_sport_attendance_table");
 };
 
+const normalizePayrollResponse = (
+  raw: unknown
+): PayrollInvokeResponse => {
+  if (isPayrollInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isPayrollInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isPayrollInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_payroll");
+};
+
+const normalizePayrollTableResponse = (
+  raw: unknown
+): PayrollTableInvokeResponse => {
+  if (isPayrollTableInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isPayrollTableInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isPayrollTableInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_payroll_table");
+};
+
 const reportsService = {
   getAgeDistribution: async (
     requestData: JsonRecord = {}
@@ -1589,6 +1749,40 @@ const reportsService = {
 
     return normalizeSportAttendanceTableResponse(response.data);
   },
+  getPayroll: async (
+    requestData: JsonRecord = {}
+  ): Promise<PayrollInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_PAYROLL_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizePayrollResponse(response.data);
+  },
+  getPayrollTable: async (
+    requestData: JsonRecord = {},
+    pagination: { page?: number; limit?: number } = {}
+  ): Promise<PayrollTableInvokeResponse> => {
+    const page = Number.isFinite(Number(pagination.page)) ? Number(pagination.page) : 1;
+    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 20;
+
+    const payloadData = {
+      ...requestData,
+      page,
+      limit,
+    };
+
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_PAYROLL_TABLE_METHOD,
+        data: payloadData,
+      },
+    });
+
+    return normalizePayrollTableResponse(response.data);
+  },
 };
 
 export const useAgeDistributionReportQuery = (
@@ -1802,6 +1996,33 @@ export const useSportAttendanceTableQuery = ({
   return useQuery({
     queryKey: ["REPORTS", "SPORT_ATTENDANCE_TABLE", requestData, page, limit],
     queryFn: () => reportsService.getSportAttendanceTable(requestData, { page, limit }),
+    keepPreviousData: true,
+    staleTime: 30_000,
+  });
+};
+
+export const usePayrollReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "PAYROLL", requestData],
+    queryFn: () => reportsService.getPayroll(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const usePayrollTableQuery = ({
+  requestData = {},
+  page = 1,
+  limit = 20,
+}: {
+  requestData?: JsonRecord;
+  page?: number;
+  limit?: number;
+} = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "PAYROLL_TABLE", requestData, page, limit],
+    queryFn: () => reportsService.getPayrollTable(requestData, { page, limit }),
     keepPreviousData: true,
     staleTime: 30_000,
   });

@@ -61,6 +61,7 @@ import TenurePage from "./modules/Reports/Tenure";
 import AbsenceBalancePage from "./modules/Reports/AbsenceBalance";
 import AttendancePage from "./modules/Reports/Attendance";
 import SportAttendancePage from "./modules/Reports/SportAttendance";
+import PayrollPage from "./modules/Reports/Payroll";
 import SuppliersList from "./modules/Suppliers/List";
 import SupplierForm from "./modules/Suppliers/Form";
 import OrganizationClientsList from "./modules/Clients/List";
@@ -174,6 +175,7 @@ function App() {
               <Route path="/reports/absence-balance" element={<AbsenceBalancePage />} />
               <Route path="/reports/attendance" element={<AttendancePage />} />
               <Route path="/reports/sport-attendance" element={<SportAttendancePage />} />
+              <Route path="/reports/payroll" element={<PayrollPage />} />
 
               <Route path="/organization/suppliers" element={<SuppliersList />} />
               <Route path="/organization/suppliers/new" element={<SupplierForm />} />
