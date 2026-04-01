@@ -159,6 +159,21 @@ function ReportsHomePage() {
               Зарплата, бонусы, рабочие и фактические дни в разрезе сотрудников и периодов.
             </p>
           </Link>
+
+          <Link
+            to="/reports/bonus-deductions"
+            className="group rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-sm"
+          >
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
+              <HandCoins size={20} />
+            </div>
+            <h2 className="mt-3 text-lg font-semibold text-gray-900 group-hover:text-brand-500">
+              Ведомость бонусов и удержаний
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Детальная ведомость за месяц: оклад, начисления по типам, удержания и сумма к выплате.
+            </p>
+          </Link>
         </section>
       </div>
     </>

@@ -287,20 +287,6 @@ function PayrollPage() {
     setIsAdvancedFiltersOpen(false);
   };
 
-  const periodGroups = useMemo(() => {
-    const grouped = new Map();
-    for (const period of periods) {
-      const yearList = grouped.get(period.year) || [];
-      yearList.push(period);
-      grouped.set(period.year, yearList);
-    }
-
-    return Array.from(grouped.entries()).map(([year, yearPeriods]) => ({
-      year,
-      periods: yearPeriods,
-    }));
-  }, [periods]);
-
   if (isPayrollLoading) {
     return (
       <>
@@ -336,218 +322,202 @@ function PayrollPage() {
     <>
       <PageMeta title="Payroll | HRMS" description="Отчет по зарплатам и бонусам" />
 
-      <div className="flex h-[calc(100dvh-96px)] min-h-0 flex-col md:h-[calc(100dvh-112px)]">
-        <section className="flex h-full min-h-0 flex-col rounded-2xl border border-gray-200 bg-white shadow-theme-xs">
-          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
-            <div>
+      <div className="-mx-4 -mt-4 -mb-4 flex h-[calc(100dvh-64px)] min-h-0 flex-col md:-mx-6 md:-mt-6 md:-mb-6 md:h-[calc(100dvh-64px)]">
+        <section className="flex h-full min-h-0 flex-col bg-white">
+          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-3 py-2 md:px-4 md:py-2.5">
+            <div className="space-y-0.5">
               <Link
                 to="/reports"
-                className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
+                className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition hover:text-gray-700"
               >
                 <ArrowLeft size={14} />
                 Назад
               </Link>
-              <h1 className="text-2xl font-semibold text-gray-900">Payroll</h1>
-              <p className="text-xs text-gray-500">Отчет по зарплатам, бонусам и рабочим дням сотрудников</p>
+              <h1 className="text-xl font-semibold leading-tight text-gray-900">Payroll</h1>
+              <p className="text-[11px] leading-tight text-gray-500">
+                Отчет по зарплатам, бонусам и рабочим дням сотрудников
+              </p>
             </div>
 
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
             >
-              <MoreHorizontal size={18} />
+              <MoreHorizontal size={16} />
             </button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col bg-gray-50/40 pb-0 pt-1">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden">
-              <div className="border-b border-gray-100 px-4 py-2">
-                <div className="flex flex-wrap items-end gap-2">
-                  <label className="relative min-w-[220px] flex-1">
-                    <Search
-                      size={16}
-                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                      type="text"
-                      value={searchInput}
-                      onChange={(event) => setSearchInput(event.target.value)}
-                      placeholder="Поиск..."
-                      className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
-                    />
-                  </label>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="border-b border-gray-100 px-3 py-1.5 md:px-4 md:py-2">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="relative min-w-[220px] flex-1">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Поиск..."
+                    className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
+                  />
+                </label>
 
-                  <div className="min-w-[110px]">
-                    <p className="mb-1 text-xs font-medium text-gray-600">Год</p>
-                    <Select
-                      options={PAYROLL_YEAR_OPTIONS}
-                      value={
-                        PAYROLL_YEAR_OPTIONS.find((item) => item.value === selectedYear) ||
-                        PAYROLL_YEAR_OPTIONS[0]
-                      }
-                      onChange={(value) => {
-                        const nextValue =
-                          value && typeof value === "object" && "value" in value
-                            ? String(value.value)
-                            : "all";
-                        setSelectedYear(nextValue);
-                      }}
-                      isClearable={false}
-                      menuPosition="fixed"
-                      menuPortalTarget={selectPortalTarget}
-                      styles={selectStyles}
-                    />
-                  </div>
+                <div className="min-w-[104px]">
+                  <p className="sr-only">Год</p>
+                  <Select
+                    options={PAYROLL_YEAR_OPTIONS}
+                    value={
+                      PAYROLL_YEAR_OPTIONS.find((item) => item.value === selectedYear) ||
+                      PAYROLL_YEAR_OPTIONS[0]
+                    }
+                    onChange={(value) => {
+                      const nextValue =
+                        value && typeof value === "object" && "value" in value
+                          ? String(value.value)
+                          : "all";
+                      setSelectedYear(nextValue);
+                    }}
+                    isClearable={false}
+                    menuPosition="fixed"
+                    menuPortalTarget={selectPortalTarget}
+                    styles={selectStyles}
+                  />
+                </div>
 
-                  <div className="min-w-[110px]">
-                    <p className="mb-1 text-xs font-medium text-gray-600">Месяц</p>
-                    <Select
-                      options={PAYROLL_MONTH_COUNT_OPTIONS}
-                      value={
-                        PAYROLL_MONTH_COUNT_OPTIONS.find((item) => item.value === selectedMonthCount) ||
-                        PAYROLL_MONTH_COUNT_OPTIONS[2]
-                      }
-                      onChange={(value) => {
-                        const nextValue =
-                          value && typeof value === "object" && "value" in value
-                            ? String(value.value)
-                            : "3";
-                        setSelectedMonthCount(nextValue);
-                      }}
-                      isClearable={false}
-                      menuPosition="fixed"
-                      menuPortalTarget={selectPortalTarget}
-                      styles={selectStyles}
-                    />
-                  </div>
+                <div className="min-w-[104px]">
+                  <p className="sr-only">Месяц</p>
+                  <Select
+                    options={PAYROLL_MONTH_COUNT_OPTIONS}
+                    value={
+                      PAYROLL_MONTH_COUNT_OPTIONS.find((item) => item.value === selectedMonthCount) ||
+                      PAYROLL_MONTH_COUNT_OPTIONS[2]
+                    }
+                    onChange={(value) => {
+                      const nextValue =
+                        value && typeof value === "object" && "value" in value
+                          ? String(value.value)
+                          : "3";
+                      setSelectedMonthCount(nextValue);
+                    }}
+                    isClearable={false}
+                    menuPosition="fixed"
+                    menuPortalTarget={selectPortalTarget}
+                    styles={selectStyles}
+                  />
+                </div>
 
-                  <div className="relative min-w-[150px]" ref={advancedFiltersRef}>
-                    <button
-                      type="button"
-                      onClick={() => setIsAdvancedFiltersOpen((prev) => !prev)}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                    >
-                      <SlidersHorizontal size={16} />
-                      <span>Фильтры</span>
-                      {activeAdvancedFilterCount > 0 ? (
-                        <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-brand-50 px-1.5 text-xs font-semibold text-brand-600">
-                          {activeAdvancedFilterCount}
-                        </span>
-                      ) : null}
-                    </button>
+                <div className="relative min-w-[150px]" ref={advancedFiltersRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdvancedFiltersOpen((prev) => !prev)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    <SlidersHorizontal size={16} />
+                    <span>Фильтры</span>
+                    {activeAdvancedFilterCount > 0 ? (
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-brand-50 px-1.5 text-xs font-semibold text-brand-600">
+                        {activeAdvancedFilterCount}
+                      </span>
+                    ) : null}
+                  </button>
 
-                    {isAdvancedFiltersOpen ? (
-                      <div className="absolute right-0 top-12 z-[60] w-[340px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <p className="text-xs font-medium text-gray-600">Сотрудник</p>
-                            <Select
-                              isMulti
-                              options={employeeOptions}
-                              value={collectSelectedOptions(employeeOptions, selectedEmployeeIds)}
-                              onChange={(value) => {
-                                const values = Array.isArray(value) ? value : [];
-                                setSelectedEmployeeIds(values.map((item) => String(item.value)));
-                              }}
-                              placeholder={`${employeeOptions.length} вариантов`}
-                              closeMenuOnSelect={false}
-                              menuPosition="fixed"
-                              menuPortalTarget={selectPortalTarget}
-                              styles={selectStyles}
-                            />
-                          </div>
+                  {isAdvancedFiltersOpen ? (
+                    <div className="absolute right-0 top-12 z-[60] w-[340px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-600">Сотрудник</p>
+                          <Select
+                            isMulti
+                            options={employeeOptions}
+                            value={collectSelectedOptions(employeeOptions, selectedEmployeeIds)}
+                            onChange={(value) => {
+                              const values = Array.isArray(value) ? value : [];
+                              setSelectedEmployeeIds(values.map((item) => String(item.value)));
+                            }}
+                            placeholder={`${employeeOptions.length} вариантов`}
+                            closeMenuOnSelect={false}
+                            menuPosition="fixed"
+                            menuPortalTarget={selectPortalTarget}
+                            styles={selectStyles}
+                          />
+                        </div>
 
-                          <div className="space-y-1">
-                            <p className="text-xs font-medium text-gray-600">Департамент</p>
-                            <Select
-                              isMulti
-                              options={departmentOptions}
-                              value={collectSelectedOptions(departmentOptions, selectedDepartmentIds)}
-                              onChange={(value) => {
-                                const values = Array.isArray(value) ? value : [];
-                                setSelectedDepartmentIds(values.map((item) => String(item.value)));
-                              }}
-                              placeholder={`${departmentOptions.length} вариантов`}
-                              closeMenuOnSelect={false}
-                              menuPosition="fixed"
-                              menuPortalTarget={selectPortalTarget}
-                              styles={selectStyles}
-                            />
-                          </div>
-
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-600">Департамент</p>
+                          <Select
+                            isMulti
+                            options={departmentOptions}
+                            value={collectSelectedOptions(departmentOptions, selectedDepartmentIds)}
+                            onChange={(value) => {
+                              const values = Array.isArray(value) ? value : [];
+                              setSelectedDepartmentIds(values.map((item) => String(item.value)));
+                            }}
+                            placeholder={`${departmentOptions.length} вариантов`}
+                            closeMenuOnSelect={false}
+                            menuPosition="fixed"
+                            menuPortalTarget={selectPortalTarget}
+                            styles={selectStyles}
+                          />
                         </div>
                       </div>
-                    ) : null}
-                  </div>
-
-                  {hasActiveFilters ? (
-                    <button
-                      type="button"
-                      onClick={resetFilters}
-                      className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                    >
-                      Сбросить фильтры
-                    </button>
+                    </div>
                   ) : null}
                 </div>
 
+                {hasActiveFilters ? (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Сбросить фильтры
+                  </button>
+                ) : null}
               </div>
 
-              <div
-                className="relative min-h-0 flex-1 overflow-auto border-x border-b border-gray-200"
-                style={{ scrollbarGutter: "stable" }}
-              >
-                <table className="min-w-max border-separate border-spacing-0">
-                  <thead>
-                    <tr className="h-11 bg-[#f8fbff]">
+            </div>
+
+            <div className="relative min-h-0 flex-1 overflow-auto" style={{ scrollbarGutter: "stable" }}>
+              <table className="min-w-max border-separate border-spacing-0">
+                <thead>
+                  <tr className="h-10 bg-[#f8fbff]">
                       <th
-                        rowSpan={3}
+                        rowSpan={2}
                         className="sticky left-0 top-0 z-40 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
                       >
                         Имя
                       </th>
                       <th
-                        rowSpan={3}
+                        rowSpan={2}
                         className="sticky left-[180px] top-0 z-40 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
                       >
                         Фамилия
                       </th>
                       <th
-                        rowSpan={3}
+                        rowSpan={2}
                         className="sticky left-[360px] top-0 z-40 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
                       >
                         Департамент
                       </th>
 
-                      {periodGroups.map((group) => (
+                      {periods.map((period) => (
                         <th
-                          key={`year-${group.year}`}
-                          colSpan={group.periods.length * 5}
+                          key={`month-${period.key}`}
+                          colSpan={5}
                           className="sticky top-0 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
                         >
-                          {group.year}
+                          {`${getMonthLabel(period)} ${period?.year ?? ""}`.trim()}
                         </th>
                       ))}
                     </tr>
-                    <tr className="h-11 bg-[#f8fbff]">
-                      {periodGroups.flatMap((group) =>
-                        group.periods.map((period) => (
-                          <th
-                            key={`month-${period.key}`}
-                            colSpan={5}
-                            className="sticky top-[44px] z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
-                          >
-                            {getMonthLabel(period)}
-                          </th>
-                        ))
-                      )}
-                    </tr>
-                    <tr className="h-11 bg-[#f8fbff]">
+                    <tr className="h-10 bg-[#f8fbff]">
                       {periods.flatMap((period) =>
                         ["Зарплата", "Бонус", "Рабочие дни", "Факт. дни", "Итого"].map((metric) => (
                           <th
                             key={`${period.key}-${metric}`}
-                            className="sticky top-[88px] z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
+                            className="sticky top-10 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
                           >
                             {metric}
                           </th>
@@ -572,7 +542,9 @@ function PayrollPage() {
                             Array.from({ length: 5 }).map((__, metricIndex) => (
                               <td
                                 key={`payroll-skeleton-${rowIndex}-${period.key}-${metricIndex}`}
-                                className="border-b border-r border-gray-100 px-3 py-2"
+                                className={`border-b border-r border-gray-100 px-3 py-2 ${
+                                  metricIndex === 4 ? "bg-[#f8fbff]" : ""
+                                }`}
                               >
                                 <div className="h-4 w-14 rounded bg-gray-200" />
                               </td>
@@ -650,7 +622,7 @@ function PayrollPage() {
                             </td>,
                             <td
                               key={`${item.guid}-${period.key}-total`}
-                              className="border-b border-r border-gray-100 px-3 py-2 text-center text-sm font-semibold text-gray-800"
+                              className="border-b border-r border-gray-100 bg-[#f8fbff] px-3 py-2 text-center text-sm font-semibold text-gray-800"
                             >
                               {renderMoneyValue(metrics.total)}
                             </td>,
@@ -661,7 +633,7 @@ function PayrollPage() {
                   </tbody>
 
                   {!isTableLoading && !isTableError && items.length > 0 && periods.length > 0 ? (
-                    <tfoot className="relative sticky bottom-[14px] z-30 after:pointer-events-none after:absolute after:-bottom-[14px] after:left-px after:right-px after:h-[14px] after:bg-[#f8fbff] after:content-['']">
+                    <tfoot className="relative sticky bottom-2 z-30 after:pointer-events-none after:absolute after:-bottom-2 after:left-px after:right-px after:h-2 after:bg-[#f8fbff] after:content-['']">
                       <tr className="bg-[#f8fbff] shadow-[0_-1px_0_0_#e5edf7]">
                         <td
                           colSpan={3}
@@ -724,7 +696,6 @@ function PayrollPage() {
                     </div>
                   </div>
                 ) : null}
-              </div>
             </div>
           </div>
         </section>

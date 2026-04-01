@@ -23,6 +23,8 @@ const GET_SPORT_ATTENDANCE_METHOD = "get_sport_attendance";
 const GET_SPORT_ATTENDANCE_TABLE_METHOD = "get_sport_attendance_table";
 const GET_PAYROLL_METHOD = "get_payroll";
 const GET_PAYROLL_TABLE_METHOD = "get_payroll_table";
+const GET_BONUS_DEDUCTIONS_METHOD = "get_bonus_deductions";
+const GET_BONUS_DEDUCTIONS_TABLE_METHOD = "get_bonus_deductions_table";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -662,6 +664,91 @@ export type PayrollTableInvokeResponse = {
   result: PayrollTableResult;
 };
 
+export type BonusDeductionsFilterOption = {
+  value: string | number;
+  label: string;
+};
+
+export type BonusDeductionsFiltersResult = {
+  years?: BonusDeductionsFilterOption[];
+  months?: BonusDeductionsFilterOption[];
+  employees?: BonusDeductionsFilterOption[];
+  departments?: BonusDeductionsFilterOption[];
+  defaults?: {
+    year?: number;
+    month?: number;
+  };
+};
+
+export type BonusDeductionsInvokeResponse = {
+  method: typeof GET_BONUS_DEDUCTIONS_METHOD;
+  result: {
+    filters?: BonusDeductionsFiltersResult;
+    filters_applied?: JsonRecord;
+  };
+};
+
+export type BonusDeductionsMetricType = {
+  key: string;
+  label: string;
+};
+
+export type BonusDeductionsPeriod = {
+  key: string;
+  year: number;
+  month: number;
+  label: string;
+};
+
+export type BonusDeductionsTableItem = {
+  guid: string;
+  first_name: string;
+  second_name: string;
+  full_name: string;
+  department: string;
+  base_salary: number | null;
+  accruals: Record<string, number | null>;
+  deductions: Record<string, number | null>;
+  total_accrued: number | null;
+  total_deducted: number | null;
+  net_payable: number | null;
+};
+
+export type BonusDeductionsTableTotals = {
+  base_salary: number | null;
+  accruals: Record<string, number | null>;
+  deductions: Record<string, number | null>;
+  total_accrued: number | null;
+  total_deducted: number | null;
+  net_payable: number | null;
+};
+
+export type BonusDeductionsTablePagination = {
+  page: number;
+  limit: number;
+  total_count: number;
+  total_pages: number;
+  from: number;
+  to: number;
+  has_previous_page: boolean;
+  has_next_page: boolean;
+};
+
+export type BonusDeductionsTableResult = {
+  period?: BonusDeductionsPeriod;
+  accrual_types?: BonusDeductionsMetricType[];
+  deduction_types?: BonusDeductionsMetricType[];
+  items: BonusDeductionsTableItem[];
+  totals?: BonusDeductionsTableTotals;
+  pagination: BonusDeductionsTablePagination;
+  filters_applied?: JsonRecord;
+};
+
+export type BonusDeductionsTableInvokeResponse = {
+  method: typeof GET_BONUS_DEDUCTIONS_TABLE_METHOD;
+  result: BonusDeductionsTableResult;
+};
+
 type AgeDistributionWrappedResponse = {
   data?: AgeDistributionInvokeResponse;
 };
@@ -809,6 +896,20 @@ const isPayrollTableInvokeResponse = (
 ): value is PayrollTableInvokeResponse => {
   if (!isRecord(value)) return false;
   return value.method === GET_PAYROLL_TABLE_METHOD && isRecord(value.result);
+};
+
+const isBonusDeductionsInvokeResponse = (
+  value: unknown
+): value is BonusDeductionsInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_BONUS_DEDUCTIONS_METHOD && isRecord(value.result);
+};
+
+const isBonusDeductionsTableInvokeResponse = (
+  value: unknown
+): value is BonusDeductionsTableInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_BONUS_DEDUCTIONS_TABLE_METHOD && isRecord(value.result);
 };
 
 const normalizeAgeDistributionResponse = (
@@ -1478,6 +1579,80 @@ const normalizePayrollTableResponse = (
   throw new Error("Unexpected response format for get_payroll_table");
 };
 
+const normalizeBonusDeductionsResponse = (
+  raw: unknown
+): BonusDeductionsInvokeResponse => {
+  if (isBonusDeductionsInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isBonusDeductionsInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isBonusDeductionsInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_bonus_deductions");
+};
+
+const normalizeBonusDeductionsTableResponse = (
+  raw: unknown
+): BonusDeductionsTableInvokeResponse => {
+  if (isBonusDeductionsTableInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isBonusDeductionsTableInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isBonusDeductionsTableInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_bonus_deductions_table");
+};
+
 const reportsService = {
   getAgeDistribution: async (
     requestData: JsonRecord = {}
@@ -1792,6 +1967,40 @@ const reportsService = {
 
     return normalizePayrollTableResponse(response.data);
   },
+  getBonusDeductions: async (
+    requestData: JsonRecord = {}
+  ): Promise<BonusDeductionsInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_BONUS_DEDUCTIONS_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeBonusDeductionsResponse(response.data);
+  },
+  getBonusDeductionsTable: async (
+    requestData: JsonRecord = {},
+    pagination: { page?: number; limit?: number } = {}
+  ): Promise<BonusDeductionsTableInvokeResponse> => {
+    const page = Number.isFinite(Number(pagination.page)) ? Number(pagination.page) : 1;
+    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 20;
+
+    const payloadData = {
+      ...requestData,
+      page,
+      limit,
+    };
+
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_BONUS_DEDUCTIONS_TABLE_METHOD,
+        data: payloadData,
+      },
+    });
+
+    return normalizeBonusDeductionsTableResponse(response.data);
+  },
 };
 
 export const useAgeDistributionReportQuery = (
@@ -2032,6 +2241,33 @@ export const usePayrollTableQuery = ({
   return useQuery({
     queryKey: ["REPORTS", "PAYROLL_TABLE", requestData, page, limit],
     queryFn: () => reportsService.getPayrollTable(requestData, { page, limit }),
+    keepPreviousData: true,
+    staleTime: 30_000,
+  });
+};
+
+export const useBonusDeductionsReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "BONUS_DEDUCTIONS", requestData],
+    queryFn: () => reportsService.getBonusDeductions(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const useBonusDeductionsTableQuery = ({
+  requestData = {},
+  page = 1,
+  limit = 20,
+}: {
+  requestData?: JsonRecord;
+  page?: number;
+  limit?: number;
+} = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "BONUS_DEDUCTIONS_TABLE", requestData, page, limit],
+    queryFn: () => reportsService.getBonusDeductionsTable(requestData, { page, limit }),
     keepPreviousData: true,
     staleTime: 30_000,
   });
