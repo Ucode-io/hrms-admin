@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useQuery } from "react-query";
 import authStore from "../../store/auth.store";
+import { handleUnauthorizedError } from "../unauthorizedHandler";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
 const REPORTS_FUNCTION_PATH =
@@ -768,6 +769,14 @@ reportsRequest.interceptors.request.use((config) => {
   }
   return config;
 });
+
+reportsRequest.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    handleUnauthorizedError(error);
+    return Promise.reject(error);
+  }
+);
 
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null;

@@ -12,7 +12,7 @@ interface UserData {
   client_type_id?: string;
   user_id_auth?: string;
   avatar?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 class Store {
@@ -52,6 +52,7 @@ class Store {
     this.isAuth = false;
     this.token = null;
     this.user = null;
+    localStorage.removeItem("auth_token");
   }
 }
 

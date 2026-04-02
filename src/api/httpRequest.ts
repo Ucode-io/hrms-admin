@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import authStore from "../store/auth.store";
+import { handleUnauthorizedError } from "./unauthorizedHandler";
 
 const API_BASE_URL = "https://api.admin.u-code.io/";
 const DEFAULT_PROJECT_ID = "9a462573-ce11-4288-928a-a6ba754b6998";
@@ -35,11 +36,7 @@ httpRequest.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 httpRequest.interceptors.response.use(
   (response) => response?.data?.data?.data ?? response?.data?.data ?? response?.data,
   (error: AxiosError) => {
-    const status = error.response?.status;
-
-    if (status === 401 || status === 403) {
-      authStore.logout();
-    }
+    handleUnauthorizedError(error);
 
     return Promise.reject(error);
   }
