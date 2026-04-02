@@ -168,6 +168,29 @@ const renderMoneyValue = (value) => {
   return formatCompactMoney(value);
 };
 
+const renderNegativeMoneyValue = (value) => {
+  if (value == null) {
+    return "-";
+  }
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "-";
+  }
+
+  const absoluteValue = Math.abs(numericValue);
+  if (absoluteValue === 0) {
+    return "0";
+  }
+
+  return `-${formatCompactMoney(absoluteValue)}`;
+};
+
+const getEmployeeFullName = (firstName, secondName) => {
+  const fullName = [firstName, secondName].filter((value) => typeof value === "string" && value.trim()).join(" ");
+  return fullName || "—";
+};
+
 function BonusDeductionsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -277,7 +300,7 @@ function BonusDeductionsPage() {
   const accrualColumnCount = Math.max(1, accrualTypes.length);
   const deductionColumnCount = Math.max(1, deductionTypes.length);
   const metricsColumnCount = accrualColumnCount + deductionColumnCount + 3;
-  const totalColumns = 4 + metricsColumnCount;
+  const totalColumns = 3 + metricsColumnCount;
 
   if (isReportLoading) {
     return (
@@ -473,25 +496,19 @@ function BonusDeductionsPage() {
                   <tr className="h-10 bg-[#f8fbff]">
                     <th
                       rowSpan={2}
-                      className="sticky left-0 top-0 z-40 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
+                      className="sticky left-0 top-0 z-40 w-[240px] min-w-[240px] max-w-[240px] whitespace-nowrap border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
                     >
-                      Имя
+                      Имя и фамилия
                     </th>
                     <th
                       rowSpan={2}
-                      className="sticky left-[180px] top-0 z-40 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
-                    >
-                      Фамилия
-                    </th>
-                    <th
-                      rowSpan={2}
-                      className="sticky left-[360px] top-0 z-40 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
+                      className="sticky left-[240px] top-0 z-40 w-[130px] min-w-[130px] max-w-[130px] whitespace-nowrap border-b border-r border-gray-200 bg-[#f8fbff] px-2 py-2 text-left text-xs font-semibold text-gray-700"
                     >
                       Департамент
                     </th>
                     <th
                       rowSpan={2}
-                      className="sticky top-0 z-30 w-[160px] min-w-[160px] max-w-[160px] border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
+                      className="sticky left-[370px] top-0 z-40 w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap border-b border-r border-gray-200 bg-[#f8fbff] px-2 py-2 text-center text-xs font-semibold text-gray-700"
                     >
                       Оклад
                     </th>
@@ -500,7 +517,7 @@ function BonusDeductionsPage() {
                       colSpan={accrualColumnCount}
                       className="sticky top-0 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
                     >
-                      Начисления (бонусы)
+                      Начисления
                     </th>
                     <th
                       colSpan={deductionColumnCount}
@@ -566,16 +583,13 @@ function BonusDeductionsPage() {
                   {isTableLoading ? (
                     Array.from({ length: 8 }).map((_, rowIndex) => (
                       <tr key={`bonus-deductions-skeleton-${rowIndex}`} className="animate-pulse">
-                        <td className="sticky left-0 z-10 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-100 bg-white px-3 py-2">
+                        <td className="sticky left-0 z-10 w-[240px] min-w-[240px] max-w-[240px] border-b border-r border-gray-100 bg-white px-3 py-2">
                           <div className="h-4 w-20 rounded bg-gray-200" />
                         </td>
-                        <td className="sticky left-[180px] z-10 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-100 bg-white px-3 py-2">
-                          <div className="h-4 w-20 rounded bg-gray-200" />
-                        </td>
-                        <td className="sticky left-[360px] z-10 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-100 bg-white px-3 py-2">
+                        <td className="sticky left-[240px] z-10 w-[130px] min-w-[130px] max-w-[130px] border-b border-r border-gray-100 bg-white px-2 py-2">
                           <div className="h-4 w-24 rounded bg-gray-200" />
                         </td>
-                        <td className="w-[160px] min-w-[160px] max-w-[160px] border-b border-r border-gray-100 bg-white px-3 py-2">
+                        <td className="sticky left-[370px] z-10 w-[110px] min-w-[110px] max-w-[110px] border-b border-r border-gray-100 bg-white px-2 py-2">
                           <div className="h-4 w-20 rounded bg-gray-200" />
                         </td>
 
@@ -614,18 +628,15 @@ function BonusDeductionsPage() {
                   ) : (
                     items.map((item) => (
                       <tr key={item.guid} className="hover:bg-gray-50">
-                        <td className="sticky left-0 z-10 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-100 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+                        <td className="sticky left-0 z-10 w-[240px] min-w-[240px] max-w-[240px] whitespace-nowrap border-b border-r border-gray-100 bg-white px-3 py-2 text-sm font-semibold text-gray-800">
                           <Link to={`/employees/${item.guid}`} className="transition hover:text-brand-500">
-                            {item.first_name}
+                            {getEmployeeFullName(item.first_name, item.second_name)}
                           </Link>
                         </td>
-                        <td className="sticky left-[180px] z-10 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-100 bg-white px-3 py-2 text-sm text-gray-700">
-                          {item.second_name || "—"}
-                        </td>
-                        <td className="sticky left-[360px] z-10 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-gray-100 bg-white px-3 py-2 text-sm text-gray-700">
+                        <td className="sticky left-[240px] z-10 w-[130px] min-w-[130px] max-w-[130px] whitespace-nowrap border-b border-r border-gray-100 bg-white px-2 py-2 text-sm text-gray-700">
                           {item.department}
                         </td>
-                        <td className="w-[160px] min-w-[160px] max-w-[160px] border-b border-r border-gray-100 bg-white px-3 py-2 text-center text-sm text-gray-700">
+                        <td className="sticky left-[370px] z-10 w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap border-b border-r border-gray-100 bg-white px-2 py-2 text-center text-sm text-gray-700">
                           {renderMoneyValue(item.base_salary)}
                         </td>
 
@@ -650,7 +661,7 @@ function BonusDeductionsPage() {
                               key={`${item.guid}-deduction-${type.key}`}
                               className="border-b border-r border-gray-100 px-3 py-2 text-center text-sm text-gray-700"
                             >
-                              {renderMoneyValue(item.deductions?.[type.key])}
+                              {renderNegativeMoneyValue(item.deductions?.[type.key])}
                             </td>
                           ))
                         ) : (
@@ -663,7 +674,7 @@ function BonusDeductionsPage() {
                           {renderMoneyValue(item.total_accrued)}
                         </td>
                         <td className="border-b border-r border-gray-100 bg-[#f8fbff] px-3 py-2 text-center text-sm font-semibold text-rose-700">
-                          {renderMoneyValue(item.total_deducted)}
+                          {renderNegativeMoneyValue(item.total_deducted)}
                         </td>
                         <td className="border-b border-r border-gray-100 bg-[#f8fbff] px-3 py-2 text-center text-sm font-semibold text-gray-800">
                           {renderMoneyValue(item.net_payable)}
@@ -677,12 +688,12 @@ function BonusDeductionsPage() {
                   <tfoot className="relative sticky bottom-2 z-30 after:pointer-events-none after:absolute after:-bottom-2 after:left-px after:right-px after:h-2 after:bg-[#f8fbff] after:content-['']">
                     <tr className="bg-[#f8fbff] shadow-[0_-1px_0_0_#e5edf7]">
                       <td
-                        colSpan={3}
+                        colSpan={2}
                         className="sticky left-0 z-30 border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-right text-sm font-semibold text-gray-900"
                       >
                         Итого (сумма)
                       </td>
-                      <td className="border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-sm font-semibold text-gray-900">
+                      <td className="sticky left-[370px] z-30 border-r border-gray-200 bg-[#f8fbff] px-2 py-2 text-center text-sm font-semibold text-gray-900">
                         {renderMoneyValue(totals.base_salary)}
                       </td>
 
@@ -707,7 +718,7 @@ function BonusDeductionsPage() {
                             key={`totals-deduction-${type.key}`}
                             className="border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-sm font-semibold text-gray-900"
                           >
-                            {renderMoneyValue(totals.deductions?.[type.key])}
+                            {renderNegativeMoneyValue(totals.deductions?.[type.key])}
                           </td>
                         ))
                       ) : (
@@ -720,7 +731,7 @@ function BonusDeductionsPage() {
                         {renderMoneyValue(totals.total_accrued)}
                       </td>
                       <td className="border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-sm font-semibold text-rose-700">
-                        {renderMoneyValue(totals.total_deducted)}
+                        {renderNegativeMoneyValue(totals.total_deducted)}
                       </td>
                       <td className="border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-sm font-semibold text-gray-900">
                         {renderMoneyValue(totals.net_payable)}

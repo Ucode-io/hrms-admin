@@ -1,16 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { Link, useLocation } from "react-router";
 import {
   Bell,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Home,
   Users,
   Calendar,
-  Search as SearchIcon,
   CheckSquare,
-  FileText,
   BarChart3,
   Settings,
   Wallet,
@@ -22,67 +19,55 @@ import { observer } from "mobx-react-lite";
 type NavItem = {
   name: string;
   icon: React.ReactNode;
-  path?: string;
+  path: string;
   badge?: number;
-  subItems?: { name: string; path: string }[];
 };
 
-// Group 1: Main navigation
+type ModuleSection = {
+  title: string;
+  items: { name: string; path: string; icon: React.ReactNode }[];
+};
+
 const mainNavItems: NavItem[] = [
-  {
-    icon: <Home size={20} />,
-    name: "Главная страница",
-    path: "/dashboard",
-  },
-  {
-    icon: <Bell size={20} />,
-    name: "Уведомление",
-    path: "/notifications",
-  },
+  { icon: <Home size={20} />, name: "Главная страница", path: "/dashboard" },
+  { icon: <Bell size={20} />, name: "Уведомление", path: "/notifications" },
 ];
 
-// Group 2: Modules
-const moduleNavItems: NavItem[] = [
+const moduleSections: ModuleSection[] = [
   {
-    icon: <CheckSquare size={20} />,
-    name: "Задачи",
-    subItems: [
-      { name: "Задачи", path: "/tasks" },
-      { name: "Привички", path: "/habits" },
+    title: "Задачи",
+    items: [
+      { name: "Задачи", path: "/tasks", icon: <CheckSquare size={18} /> },
+      { name: "Привички", path: "/habits", icon: <CheckSquare size={18} /> },
     ],
   },
   {
-    icon: <Users size={20} />,
-    name: "Люди",
-    subItems: [
-      { name: "Сотрудники", path: "/employees" },
-      { name: "Рекртутинг", path: "/recruiting/vacancies" },
-      { name: "Орг стуруктура", path: "/organization/suppliers" },
+    title: "Люди",
+    items: [
+      { name: "Сотрудники", path: "/employees", icon: <Users size={18} /> },
+      // { name: "Рекртутинг", path: "/recruiting/vacancies", icon: <Users size={18} /> },
+      { name: "Орг стуруктура", path: "/organization/suppliers", icon: <Users size={18} /> },
     ],
   },
   {
-    icon: <Calendar size={20} />,
-    name: "Время",
-    subItems: [
-      { name: "Посешаемость", path: "/time/attendance" },
-      { name: "Отсутствие", path: "/calendar" },
+    title: "Время",
+    items: [
+      { name: "Посешаемость", path: "/time/attendance", icon: <Calendar size={18} /> },
+      { name: "Отсутствие", path: "/calendar", icon: <Calendar size={18} /> },
     ],
   },
   {
-    icon: <Wallet size={20} />,
-    name: "Финансы",
-    subItems: [{ name: "Зарплата", path: "/finance/salary" }],
+    title: "Финансы",
+    items: [{ name: "Зарплата", path: "/finance/salary", icon: <Wallet size={18} /> }],
   },
   {
-    icon: <BarChart3 size={20} />,
-    name: "Отчеты",
-    path: "/reports",
+    title: "Отчеты",
+    items: [{ name: "Отчеты", path: "/reports", icon: <BarChart3 size={18} /> }],
   },
-  {
-    icon: <FileText size={20} />,
-    name: "Документы",
-    path: "/settings/documents",
-  },
+  // {
+  //   title: "Документы",
+  //   items: [{ name: "Документы", path: "/settings/documents", icon: <FileText size={18} /> }],
+  // },
 ];
 
 const ENABLED_PATHS = new Set([
@@ -101,12 +86,6 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
 
-  const [openSubmenu, setOpenSubmenu] = useState<number | null>(null);
-  const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
-  );
-  const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
   const sidebarOpen = isExpanded || isMobileOpen;
 
   const isActive = useCallback(
@@ -120,124 +99,15 @@ const AppSidebar: React.FC = () => {
     [location.pathname]
   );
 
-  // Auto-open active submenu
-  useEffect(() => {
-    moduleNavItems.forEach((nav, index) => {
-      if (nav.subItems?.some((sub) => isActive(sub.path))) {
-        setOpenSubmenu(index);
-      }
-    });
-  }, [location, isActive]);
-
-  // Measure submenu heights
-  useEffect(() => {
-    if (openSubmenu !== null) {
-      const key = `${openSubmenu}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prev) => ({
-          ...prev,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
-      }
-    }
-  }, [openSubmenu]);
-
-  const handleSubmenuToggle = (index: number) => {
-    setOpenSubmenu((prev) => (prev === index ? null : index));
-  };
-
   const isPathEnabled = useCallback((path?: string) => {
     if (!path) return false;
     return ENABLED_PATHS.has(path);
   }, []);
 
-  const renderNavItem = (nav: NavItem, index: number) => {
-    if (nav.subItems) {
-      const hasActiveSub = nav.subItems.some((sub) => isActive(sub.path));
-      const hasEnabledSub = nav.subItems.some((sub) => isPathEnabled(sub.path));
-      return (
-        <li key={nav.name}>
-          <button
-            onClick={() => handleSubmenuToggle(index)}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer
-              ${hasActiveSub
-                ? "text-brand-600"
-                : hasEnabledSub
-                  ? "text-gray-700 hover:bg-gray-100"
-                  : "text-gray-400"
-              }
-              ${!sidebarOpen ? "justify-center" : ""}
-            `}
-          >
-            <span
-              className={`shrink-0 ${
-                hasActiveSub ? "text-brand-600" : hasEnabledSub ? "text-gray-500" : "text-gray-300"
-              }`}
-            >
-              {nav.icon}
-            </span>
-            {sidebarOpen && (
-              <>
-                <span className="flex-1 text-left">{nav.name}</span>
-                <ChevronDown
-                  size={16}
-                  className={`transition-transform duration-200 ${
-                    hasActiveSub ? "text-brand-600" : "text-gray-400"
-                  } ${
-                    openSubmenu === index ? "rotate-180" : ""
-                  }`}
-                />
-              </>
-            )}
-          </button>
-
-          {/* Submenu */}
-          {nav.subItems && sidebarOpen && (
-            <div
-              ref={(el) => {
-                subMenuRefs.current[`${index}`] = el;
-              }}
-              className="overflow-hidden transition-all duration-300"
-              style={{
-                height:
-                  openSubmenu === index ? `${subMenuHeight[`${index}`]}px` : "0px",
-              }}
-            >
-              <ul className="mt-1 ml-9 space-y-0.5">
-                {nav.subItems.map((sub) => {
-                  const isSubEnabled = isPathEnabled(sub.path);
-                  return (
-                    <li key={sub.name}>
-                      {isSubEnabled ? (
-                        <Link
-                          to={sub.path}
-                          className={`block rounded-xl px-3 py-2 text-sm transition-colors ${
-                            isActive(sub.path)
-                              ? "text-brand-500 font-medium bg-brand-50"
-                              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          {sub.name}
-                        </Link>
-                      ) : (
-                        <div className="block rounded-xl px-3 py-2 text-sm text-gray-400">
-                          {sub.name}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </li>
-      );
-    }
-
-    // Direct link item
+  const renderNavItem = (nav: NavItem) => {
     const isNavEnabled = isPathEnabled(nav.path);
     return (
-      <li key={nav.name}>
+      <li key={nav.path}>
         {nav.path && isNavEnabled ? (
           <Link
             to={nav.path}
@@ -280,6 +150,41 @@ const AppSidebar: React.FC = () => {
     );
   };
 
+  const renderSectionItem = (item: { name: string; path: string; icon: React.ReactNode }) => {
+    const isItemEnabled = isPathEnabled(item.path);
+    if (isItemEnabled) {
+      return (
+        <Link
+          to={item.path}
+          className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
+            isActive(item.path)
+              ? "bg-brand-50 font-medium text-brand-500"
+              : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+          }`}
+        >
+          <span className={`shrink-0 ${isActive(item.path) ? "text-brand-500" : "text-gray-400"}`}>{item.icon}</span>
+          <span>{item.name}</span>
+        </Link>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-gray-400">
+        <span className="shrink-0 text-gray-300">{item.icon}</span>
+        <span>{item.name}</span>
+      </div>
+    );
+  };
+
+  const collapsedNavItems: NavItem[] = [
+    ...mainNavItems,
+    ...moduleSections.map((section) => ({
+      name: section.title,
+      path: section.items[0].path,
+      icon: section.items[0].icon,
+    })),
+  ];
+
   return (
     <aside
       className={`fixed mt-16 flex flex-col lg:mt-0 top-0 left-0 h-screen transition-all duration-300 ease-in-out z-50 bg-white border-r border-gray-200
@@ -318,39 +223,37 @@ const AppSidebar: React.FC = () => {
         </Link>
       </div>
 
-      {/* Search Bar */}
-      {sidebarOpen && (
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-              <SearchIcon size={18} />
-            </span>
-            <input
-              type="text"
-              placeholder="Поиск..."
-              className="w-full h-10 rounded-xl border border-gray-200 bg-gray-50 pl-10 pr-16 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/10 transition-colors"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-400">
-              ⌘ + K
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Nav Items */}
       <nav className="flex-1 overflow-y-auto px-3 py-1 no-scrollbar">
-        {/* Group 1: Main */}
-        <ul className="flex flex-col gap-0.5">
-          {mainNavItems.map((nav, index) => renderNavItem(nav, index))}
-        </ul>
+        {sidebarOpen ? (
+          <div className="space-y-3">
+            <div>
+              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Основное</p>
+              <ul className="flex flex-col gap-0.5">
+                {mainNavItems.map((nav) => renderNavItem(nav))}
+              </ul>
+            </div>
 
-        {/* Separator */}
-        <div className="mx-1 my-3 border-t border-gray-100" />
+            <div className="mx-1 border-t border-gray-100" />
 
-        {/* Group 2: Modules */}
-        <ul className="flex flex-col gap-0.5">
-          {moduleNavItems.map((nav, index) => renderNavItem(nav, index))}
-        </ul>
+            {moduleSections.map((section) => (
+              <div key={section.title}>
+                <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  {section.title}
+                </div>
+                <ul className="flex flex-col gap-0.5">
+                  {section.items.map((item) => (
+                    <li key={item.path}>{renderSectionItem(item)}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-0.5">
+            {collapsedNavItems.map((nav) => renderNavItem(nav))}
+          </ul>
+        )}
       </nav>
 
       {/* Bottom Section */}
