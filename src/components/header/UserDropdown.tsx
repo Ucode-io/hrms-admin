@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { UserRound } from "lucide-react";
 import { observer } from "mobx-react-lite";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
@@ -22,7 +23,16 @@ function UserDropdown() {
       : user?.first_name || user?.login || "User";
   const userName = user?.first_name || user?.login || "User";
   const userPhone = user?.phone || user?.work_phone || "";
-  const userAvatar = user?.photo || user?.avatar || "/images/user/owner.jpg";
+  const userAvatar =
+    (typeof user?.photo === "string" && user.photo.trim()) ||
+    (typeof user?.avatar === "string" && user.avatar.trim()) ||
+    "";
+  const [isAvatarBroken, setIsAvatarBroken] = useState(false);
+  const hasAvatar = Boolean(userAvatar) && !isAvatarBroken;
+
+  useEffect(() => {
+    setIsAvatarBroken(false);
+  }, [userAvatar]);
 
   return (
     <div className="relative">
@@ -31,7 +41,13 @@ function UserDropdown() {
         className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <img src={userAvatar} alt="User" />
+          {hasAvatar ? (
+            <img src={userAvatar} alt="User" onError={() => setIsAvatarBroken(true)} className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center bg-brand-50 text-brand-500">
+              <UserRound size={20} />
+            </span>
+          )}
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">{userName}</span>

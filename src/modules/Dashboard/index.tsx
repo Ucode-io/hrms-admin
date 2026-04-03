@@ -10,6 +10,7 @@ import {
   MapPin,
   Plus,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { Icon } from "@iconify/react";
 import DOMPurify from "dompurify";
@@ -194,9 +195,11 @@ function DashboardPage() {
   const employmentTypeId = typeof user?.employment_types_id === "string" ? user.employment_types_id : "";
   const displayName = user?.first_name || user?.login || "Сотрудник";
   const avatar =
-    (typeof user?.photo === "string" && user.photo) ||
-    (typeof user?.avatar === "string" && user.avatar) ||
-    "/images/user/owner.jpg";
+    (typeof user?.photo === "string" && user.photo.trim()) ||
+    (typeof user?.avatar === "string" && user.avatar.trim()) ||
+    "";
+  const [isAvatarBroken, setIsAvatarBroken] = useState(false);
+  const hasAvatar = Boolean(avatar) && !isAvatarBroken;
 
   const { data: departmentData } = useSettingsDirectoryItemQuery({
     slug: "departments",
@@ -292,6 +295,10 @@ function DashboardPage() {
     }
   }, [vacationSlideIndex, vacationSummaries.length]);
 
+  useEffect(() => {
+    setIsAvatarBroken(false);
+  }, [avatar]);
+
   const activeVacation = vacationSummaries[vacationSlideIndex] || null;
   const activeVacationIcon = activeVacation?.icon || "mdi:airplane";
   const activeVacationColor = resolveHexColor(activeVacation?.color, "#10B981");
@@ -312,15 +319,6 @@ function DashboardPage() {
       { value: employmentTypeTitle || "—", icon: Briefcase },
     ],
     [departmentTitle, locationTitle, employmentTypeTitle]
-  );
-  const todayLabel = useMemo(
-    () =>
-      new Date().toLocaleDateString("ru-RU", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }),
-    []
   );
 
   const requestPolicyOptions = useMemo<AbsenceRequestPolicyOption[]>(
@@ -768,25 +766,25 @@ function DashboardPage() {
             <div className="absolute -bottom-20 right-0 h-44 w-44 rounded-full bg-cyan-100/80 blur-2xl" />
 
             <div className="relative space-y-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3.5 sm:gap-4">
+              <div className="flex items-center gap-3.5 sm:gap-4">
+                {hasAvatar ? (
                   <img
                     src={avatar}
                     alt="user"
+                    onError={() => setIsAvatarBroken(true)}
                     className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-sm sm:h-14 sm:w-14"
                   />
-                  <div className="space-y-1">
-                    <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
-                      Добрый день, {String(displayName).toUpperCase()}{" "}
-                      <Sparkles className="mb-1 inline-flex text-amber-400" size={20} />
-                    </h1>
-                    <p className="text-sm font-medium text-slate-500">Хорошего и продуктивного дня</p>
-                  </div>
-                </div>
-
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/80 bg-white/70 px-3.5 py-1.5 text-xs font-semibold text-slate-600 backdrop-blur-sm">
-                  <CalendarDays size={14} className="text-brand-500" />
-                  {todayLabel}
+                ) : (
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-brand-50 text-brand-500 shadow-sm sm:h-14 sm:w-14">
+                    <UserRound size={22} />
+                  </span>
+                )}
+                <div className="space-y-1">
+                  <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+                    Добрый день, {String(displayName).toUpperCase()}{" "}
+                    <Sparkles className="mb-1 inline-flex text-amber-400" size={20} />
+                  </h1>
+                  <p className="text-sm font-medium text-slate-500">Хорошего и продуктивного дня</p>
                 </div>
               </div>
 
