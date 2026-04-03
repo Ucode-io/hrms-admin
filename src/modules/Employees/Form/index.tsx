@@ -256,6 +256,8 @@ function EmployeeForm() {
   };
 
   const onSubmit = async (data: EmployeeFormValues) => {
+    const normalizedEmail = data.email.trim();
+
     const payload: Partial<Employee> = {
       second_name: data.second_name,
       first_name: data.first_name,
@@ -270,7 +272,8 @@ function EmployeeForm() {
       date_hire: toISODate(data.date_hire),
       status: ["active"],
       photo: data.photo || null,
-      email: data.email || null,
+      email: normalizedEmail || null,
+      login: normalizedEmail || null,
       personal_email: data.personal_email || null,
       employment_types_id: data.employment_types_id || null,
       experience_levels_id: data.experience_levels_id || null,
@@ -464,14 +467,6 @@ function EmployeeForm() {
                     <input {...register("middle_name")} type="text" placeholder="Введите отчество" style={inputStyle} {...focusHandlers} />
                   </div>
                   <div>
-                    <label style={labelStyle}>Эл. почта</label>
-                    <input {...register("email")} type="email" placeholder="example@company.uz" style={inputStyle} {...focusHandlers} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Личная эл. почта</label>
-                    <input {...register("personal_email")} type="email" placeholder="example@mail.com" style={inputStyle} {...focusHandlers} />
-                  </div>
-                  <div>
                     <label style={labelStyle}>Дата рождения</label>
                     <Controller
                       control={control}
@@ -520,6 +515,22 @@ function EmployeeForm() {
 
               <div style={{ padding: "24px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }}>
+                  <div>
+                    <label style={labelStyle}>Эл. почта *</label>
+                    <input
+                      {...register("email", { required: true })}
+                      type="email"
+                      placeholder="example@company.uz"
+                      style={inputStyle}
+                      {...focusHandlers}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Личная эл. почта</label>
+                    <input {...register("personal_email")} type="email" placeholder="example@mail.com" style={inputStyle} {...focusHandlers} />
+                  </div>
+
                   <div>
                     <label style={labelStyle}>Мобильный телефон</label>
                     <Controller

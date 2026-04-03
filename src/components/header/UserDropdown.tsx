@@ -15,13 +15,14 @@ function UserDropdown() {
     setIsOpen(false);
   }
 
-  const user = authStore.user;
-  const userName = user?.login || user?.first_name || "User";
-  const userFullName = user?.first_name && user?.second_name
-    ? `${user.first_name} ${user.second_name}`
-    : user?.login || "User";
-  const userPhone = user?.phone || "";
-  const userAvatar = user?.avatar || "/images/user/owner.jpg";
+  const user = authStore.user_data || authStore.user;
+  const userFullName =
+    user?.first_name && user?.second_name
+      ? `${user.first_name} ${user.second_name}`
+      : user?.first_name || user?.login || "User";
+  const userName = user?.first_name || user?.login || "User";
+  const userPhone = user?.phone || user?.work_phone || "";
+  const userAvatar = user?.photo || user?.avatar || "/images/user/owner.jpg";
 
   return (
     <div className="relative">

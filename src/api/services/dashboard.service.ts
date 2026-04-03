@@ -1,174 +1,394 @@
-import axios from "axios";
 import { useQuery } from "react-query";
+import httpRequest from "../httpRequest";
 
-const SALES_BY_PARTNER_URL =
-  "https://metabase.u-code.io/api/public/card/33bcef43-4c68-453d-937c-111bc085de57/query/json";
-const SALES_BY_CATEGORY_URL =
-  "https://metabase.u-code.io/api/public/card/50f962bb-4167-4f44-b5c4-05a1dd0f672b/query/json";
-const CONTRACT_STATUS_URL =
-  "https://metabase.u-code.io/api/public/card/69bd83c3-c985-48a3-b7e2-96b042a93a91/query/json";
+type DashboardAgendaParams = {
+  userBaseId: string;
+  dateFrom: string;
+  dateTo: string;
+};
 
-interface PartnerSalesRaw {
-  Партнеры: string | null;
-  "Общая сумма продаж": number | null;
+type DashboardVacationParams = {
+  userBaseId: string;
+};
+
+type AggregationResponseRow = Record<string, unknown>;
+
+interface DashboardHolidayAggregationRow extends AggregationResponseRow {
+  holiday_guid?: string;
+  holiday_title?: string;
+  holiday_date?: string;
+  holiday_policy_guid?: string;
+  holiday_policy_title?: string;
+  is_working_holiday?: boolean;
+  is_weekend_transfer?: boolean;
+  is_workday_transfer?: boolean;
 }
 
-interface CategorySalesRaw {
-  Категория: string | null;
-  "Общая сумма": number | null;
+interface DashboardAbsencePolicyRow extends AggregationResponseRow {
+  guid?: string;
+  title?: string;
+  value?: number | string;
+  type?: string[] | string;
+  period?: string[] | string;
+  icon?: string;
+  color?: string;
 }
 
-interface ContractStatusRaw {
-  "Статус контракта": string | null;
-  count: number | null;
+interface DashboardBalanceTransactionRow extends AggregationResponseRow {
+  absence_policies_id?: string;
+  amount?: number | string;
+  tx_date?: string | null;
+  tx_created_at?: string;
 }
 
-export interface PartnerSalesItem {
-  name: string;
-  total: number;
+export interface DashboardHolidayEvent {
+  guid: string;
+  title: string;
+  date: string;
+  holidayPolicyGuid: string;
+  holidayPolicyTitle: string;
+  isWorkingHoliday: boolean;
+  isWeekendTransfer: boolean;
+  isWorkdayTransfer: boolean;
 }
 
-export interface CategorySalesItem {
-  name: string;
-  total: number;
+export interface DashboardVacationPolicySummary {
+  policyGuid: string;
+  policyTitle: string;
+  totalDays: number;
+  usedDays: number;
+  availableDays: number;
+  icon: string;
+  color: string;
 }
 
-export interface ContractStatusItem {
-  name: string;
-  count: number;
-}
+const escapeSqlValue = (value: string): string => value.replace(/'/g, "''");
 
-export interface DashboardChartsData {
-  partnerSales: PartnerSalesItem[];
-  categorySales: CategorySalesItem[];
-  contractStatuses: ContractStatusItem[];
-}
+const extractRows = <T>(res: unknown): T[] => {
+  if (Array.isArray(res)) return res as T[];
 
-const PARTNER_SALES_MOCK: PartnerSalesRaw[] = [
-  { Партнеры: "test2", "Общая сумма продаж": 2.91e8 },
-  { Партнеры: "Texnomart", "Общая сумма продаж": 7.6052008e7 },
-  { Партнеры: "test 1", "Общая сумма продаж": 3.0e7 },
-  { Партнеры: "AYVA", "Общая сумма продаж": 1.0831008e7 },
-  { Партнеры: "MCoDevs", "Общая сумма продаж": 2504000.0 },
-  { Партнеры: "salom", "Общая сумма продаж": 1000000.0 },
-  { Партнеры: "Udevs", "Общая сумма продаж": 2000.0 },
-  { Партнеры: "Something", "Общая сумма продаж": null },
-  { Партнеры: "test", "Общая сумма продаж": null },
-  { Партнеры: "Texnoshopbest", "Общая сумма продаж": null },
-  { Партнеры: "dsfsd23434", "Общая сумма продаж": null },
-  { Партнеры: "AbrorBank", "Общая сумма продаж": null },
-  { Партнеры: "Diyorbek Abdullayev", "Общая сумма продаж": null },
-];
+  const obj = (res && typeof res === "object") ? (res as Record<string, unknown>) : {};
+  const directRows = Array.isArray(obj.response)
+    ? obj.response
+    : Array.isArray(obj.data)
+      ? obj.data
+      : [];
 
-const CATEGORY_SALES_MOCK: CategorySalesRaw[] = [
-  { Категория: "Телефоны", "Общая сумма": 5.822e8 },
-  { Категория: "AirPods", "Общая сумма": null },
-  { Категория: "SmartWatch", "Общая сумма": null },
-  { Категория: "Миксер", "Общая сумма": null },
-  { Категория: "Холодильник", "Общая сумма": null },
-  { Категория: "Моюшие средства", "Общая сумма": null },
-  { Категория: "Термез", "Общая сумма": null },
-  { Категория: "Пылесос", "Общая сумма": null },
-  { Категория: "Телевизор", "Общая сумма": null },
-  { Категория: "Планшет", "Общая сумма": null },
-  { Категория: "Микроволновка", "Общая сумма": null },
-  { Категория: "Стиральная машина", "Общая сумма": null },
-];
+  return Array.isArray(directRows) ? (directRows as T[]) : [];
+};
 
-const CONTRACT_STATUS_MOCK: ContractStatusRaw[] = [
-  { "Статус контракта": "Новый", count: 70 },
-  { "Статус контракта": "Отменён", count: 3 },
-  { "Статус контракта": "В ожидании", count: 2 },
-  { "Статус контракта": "Принят", count: 4 },
-];
+const extractDatePart = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  const matched = trimmed.match(/\d{4}-\d{2}-\d{2}/);
+  return matched ? matched[0] : "";
+};
 
-const toSafeNumber = (value: number | null | undefined): number => {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return 0;
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+};
+
+const parseStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+      .filter(Boolean);
   }
 
-  return value;
+  if (typeof value !== "string") return [];
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+        .filter(Boolean);
+    }
+  } catch {
+    // noop
+  }
+
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed
+      .slice(1, -1)
+      .split(",")
+      .map((item) => item.replace(/["']/g, "").trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [trimmed.replace(/["']/g, "").toLowerCase()];
 };
 
-const mapPartnerSales = (data: PartnerSalesRaw[]): PartnerSalesItem[] =>
-  data.map((item) => ({
-    name: item.Партнеры ?? "Без названия",
-    total: toSafeNumber(item["Общая сумма продаж"]),
-  }));
+const toIsoDate = (value: Date): string => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-const mapCategorySales = (data: CategorySalesRaw[]): CategorySalesItem[] =>
-  data.map((item) => ({
-    name: item.Категория ?? "Без категории",
-    total: toSafeNumber(item["Общая сумма"]),
-  }));
+const getWeekStartMonday = (value: Date): Date => {
+  const base = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const dayOfWeek = base.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  base.setDate(base.getDate() + diff);
+  return base;
+};
 
-const mapContractStatuses = (data: ContractStatusRaw[]): ContractStatusItem[] =>
-  data.map((item) => ({
-    name: item["Статус контракта"] ?? "Без статуса",
-    count: toSafeNumber(item.count),
-  }));
+const getPeriodRangeBySlug = (periodSlug: string, now: Date): { from: string; to: string } => {
+  const normalized = periodSlug.toLowerCase();
+
+  if (normalized === "week") {
+    const fromDate = getWeekStartMonday(now);
+    const toDate = new Date(fromDate);
+    toDate.setDate(fromDate.getDate() + 6);
+    return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
+  }
+
+  if (normalized === "month") {
+    const fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
+  }
+
+  const fromDate = new Date(now.getFullYear(), 0, 1);
+  const toDate = new Date(now.getFullYear(), 11, 31);
+  return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
+};
+
+const getPrimaryPeriodSlug = (value: unknown): "week" | "month" | "year" => {
+  const list = parseStringList(value);
+  const first = list[0] || "";
+  if (first === "week" || first === "month" || first === "year") {
+    return first;
+  }
+  return "year";
+};
+
+const extractSourceDate = (row: DashboardBalanceTransactionRow): string => {
+  const candidates = [row.tx_date, row.tx_created_at];
+  for (const candidate of candidates) {
+    const extracted = extractDatePart(candidate);
+    if (extracted) return extracted;
+  }
+  return "";
+};
 
 const dashboardService = {
-  getPartnerSales: async (): Promise<PartnerSalesItem[]> => {
-    try {
-      const { data } = await axios.get<PartnerSalesRaw[]>(SALES_BY_PARTNER_URL);
-      if (!Array.isArray(data)) {
-        return mapPartnerSales(PARTNER_SALES_MOCK);
-      }
+  getAgendaHolidays: async ({
+    userBaseId,
+    dateFrom,
+    dateTo,
+  }: DashboardAgendaParams): Promise<DashboardHolidayEvent[]> => {
+    const normalizedUserBaseId = userBaseId.trim();
+    const normalizedDateFrom = dateFrom.trim();
+    const normalizedDateTo = dateTo.trim();
 
-      return mapPartnerSales(data);
-    } catch {
-      return mapPartnerSales(PARTNER_SALES_MOCK);
+    if (!normalizedUserBaseId || !normalizedDateFrom || !normalizedDateTo) {
+      return [];
     }
+
+    const where = [
+      `ub.guid = '${escapeSqlValue(normalizedUserBaseId)}'`,
+      `hpd.date >= '${escapeSqlValue(normalizedDateFrom)}'`,
+      `hpd.date <= '${escapeSqlValue(normalizedDateTo)}'`,
+    ].join(" AND ");
+
+    const res = await httpRequest.post("/v2/items/holiday_policy_days/aggregation", {
+      data: {
+        operation: "SELECT",
+        table:
+          "holiday_policy_days hpd LEFT JOIN holiday_policies hp ON hp.guid = hpd.holiday_policies_id LEFT JOIN locations l ON l.holiday_policies_id = hp.guid LEFT JOIN user_base ub ON ub.locations_id = l.guid",
+        columns: [
+          "hpd.guid AS holiday_guid",
+          "hpd.title AS holiday_title",
+          "hpd.date AS holiday_date",
+          "hpd.is_working_holiday AS is_working_holiday",
+          "hpd.is_weekend_transfer AS is_weekend_transfer",
+          "hpd.is_workday_transfer AS is_workday_transfer",
+          "hp.guid AS holiday_policy_guid",
+          "hp.title AS holiday_policy_title",
+        ],
+        where,
+        order_by: ["hpd.date ASC", "hpd.created_at ASC"],
+        limit: 500,
+        offset: 0,
+      },
+      is_cached: true,
+    });
+
+    const rows = extractRows<DashboardHolidayAggregationRow>(res);
+    const unique = new Map<string, DashboardHolidayEvent>();
+
+    for (const row of rows) {
+      const date = extractDatePart(row.holiday_date);
+      const title = typeof row.holiday_title === "string" ? row.holiday_title.trim() : "";
+      const guid = typeof row.holiday_guid === "string" ? row.holiday_guid : "";
+
+      if (!date || !title) continue;
+
+      const key = guid || `${date}-${title}`;
+      if (unique.has(key)) continue;
+
+      unique.set(key, {
+        guid: guid || key,
+        title,
+        date,
+        holidayPolicyGuid:
+          typeof row.holiday_policy_guid === "string" ? row.holiday_policy_guid : "",
+        holidayPolicyTitle:
+          typeof row.holiday_policy_title === "string" ? row.holiday_policy_title : "",
+        isWorkingHoliday: Boolean(row.is_working_holiday),
+        isWeekendTransfer: Boolean(row.is_weekend_transfer),
+        isWorkdayTransfer: Boolean(row.is_workday_transfer),
+      });
+    }
+
+    return Array.from(unique.values()).sort((a, b) => {
+      if (a.date === b.date) return a.title.localeCompare(b.title, "ru");
+      return a.date.localeCompare(b.date);
+    });
   },
 
-  getCategorySales: async (): Promise<CategorySalesItem[]> => {
-    try {
-      const { data } = await axios.get<CategorySalesRaw[]>(SALES_BY_CATEGORY_URL);
-      if (!Array.isArray(data)) {
-        return mapCategorySales(CATEGORY_SALES_MOCK);
-      }
+  getVacationSummaries: async ({
+    userBaseId,
+  }: DashboardVacationParams): Promise<DashboardVacationPolicySummary[]> => {
+    const normalizedUserBaseId = userBaseId.trim();
 
-      return mapCategorySales(data);
-    } catch {
-      return mapCategorySales(CATEGORY_SALES_MOCK);
+    if (!normalizedUserBaseId) {
+      return [];
     }
-  },
 
-  getContractStatuses: async (): Promise<ContractStatusItem[]> => {
-    try {
-      const { data } = await axios.get<ContractStatusRaw[]>(CONTRACT_STATUS_URL);
-      if (!Array.isArray(data)) {
-        return mapContractStatuses(CONTRACT_STATUS_MOCK);
-      }
+    const policiesResponse = await httpRequest.post("/v2/items/absence_policies/aggregation", {
+      data: {
+        operation: "SELECT",
+        table: "absence_policies",
+        columns: ["guid", "title", "value", "type", "period", "icon", "color"],
+        where: "deleted_at IS NULL",
+        order_by: ["title ASC", "created_at DESC"],
+        limit: 300,
+        offset: 0,
+      },
+      is_cached: true,
+    });
 
-      return mapContractStatuses(data);
-    } catch {
-      return mapContractStatuses(CONTRACT_STATUS_MOCK);
+    const policyRows = extractRows<DashboardAbsencePolicyRow>(policiesResponse);
+    const policies = policyRows
+      .map((item) => {
+        const guid = typeof item.guid === "string" ? item.guid : "";
+        const title = typeof item.title === "string" ? item.title : "";
+        const value = toNumber(item.value, 0);
+        const typeList = parseStringList(item.type);
+        const period = getPrimaryPeriodSlug(item.period);
+        const icon = typeof item.icon === "string" && item.icon ? item.icon : "mdi:airplane";
+        const color = typeof item.color === "string" && item.color ? item.color : "#4F46E5";
+        return {
+          guid,
+          title,
+          value,
+          typeList,
+          period,
+          icon,
+          color,
+        };
+      })
+      .filter((item) => Boolean(item.guid));
+
+    const limit = 500;
+    const maxRequests = 100;
+    let offset = 0;
+    const balanceRows: DashboardBalanceTransactionRow[] = [];
+
+    for (let requestIndex = 0; requestIndex < maxRequests; requestIndex += 1) {
+      const txResponse = await httpRequest.post("/v2/items/absence_balance_transactions/aggregation", {
+        data: {
+          operation: "SELECT",
+          table: "absence_balance_transactions",
+          columns: [
+            "absence_policies_id",
+            "amount",
+            "date AS tx_date",
+            "created_at AS tx_created_at",
+          ],
+          where: `user_base_id = '${escapeSqlValue(normalizedUserBaseId)}' AND deleted_at IS NULL`,
+          order_by: ["created_at DESC"],
+          limit,
+          offset,
+        },
+        is_cached: true,
+      });
+
+      const chunk = extractRows<DashboardBalanceTransactionRow>(txResponse);
+      if (chunk.length === 0) break;
+      balanceRows.push(...chunk);
+      offset += chunk.length;
+      if (chunk.length < limit) break;
     }
+
+    const now = new Date();
+
+    return policies.map((policy) => {
+      const periodRange = getPeriodRangeBySlug(policy.period, now);
+      const periodBalance = balanceRows.reduce((sum, row) => {
+        const policyId = typeof row.absence_policies_id === "string" ? row.absence_policies_id : "";
+        if (policyId !== policy.guid) return sum;
+
+        const sourceDate = extractSourceDate(row);
+        if (!sourceDate) return sum;
+        if (sourceDate < periodRange.from || sourceDate > periodRange.to) return sum;
+
+        return sum + toNumber(row.amount, 0);
+      }, 0);
+
+      const totalDays = Math.max(0, policy.value);
+      const availableDays = Math.max(0, totalDays + periodBalance);
+      const usedDays = Math.max(0, totalDays - availableDays);
+
+      return {
+        policyGuid: policy.guid,
+        policyTitle: policy.title || "Отсутствие",
+        totalDays,
+        usedDays,
+        availableDays,
+        icon: policy.icon,
+        color: policy.color,
+      };
+    });
   },
 };
 
-export const useDashboardChartsQuery = () =>
-  useQuery<DashboardChartsData>({
-    queryKey: ["DASHBOARD_CHARTS"],
-    queryFn: async () => {
-      const [partnerSales, categorySales, contractStatuses] = await Promise.all(
-        [
-          dashboardService.getPartnerSales(),
-          dashboardService.getCategorySales(),
-          dashboardService.getContractStatuses(),
-        ]
-      );
+export const useDashboardAgendaHolidaysQuery = ({
+  params,
+  querySettings = {},
+}: {
+  params: DashboardAgendaParams;
+  querySettings?: Record<string, unknown>;
+}) =>
+  useQuery({
+    queryKey: ["dashboard-agenda-holidays", params.userBaseId, params.dateFrom, params.dateTo],
+    queryFn: () => dashboardService.getAgendaHolidays(params),
+    enabled: Boolean(params.userBaseId && params.dateFrom && params.dateTo),
+    ...querySettings,
+  });
 
-      return {
-        partnerSales,
-        categorySales,
-        contractStatuses,
-      };
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+export const useDashboardVacationSummariesQuery = ({
+  params,
+  querySettings = {},
+}: {
+  params: DashboardVacationParams;
+  querySettings?: Record<string, unknown>;
+}) =>
+  useQuery({
+    queryKey: ["dashboard-vacation-summaries", params.userBaseId],
+    queryFn: () => dashboardService.getVacationSummaries(params),
+    enabled: Boolean(params.userBaseId),
+    ...querySettings,
   });
 
 export default dashboardService;

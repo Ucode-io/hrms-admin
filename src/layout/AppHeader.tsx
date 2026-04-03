@@ -3,7 +3,7 @@ import { useSidebar } from "../context/SidebarContext";
 import UserDropdown from "../components/header/UserDropdown";
 import companyStore from "../store/company.store";
 import { observer } from "mobx-react-lite";
-import { Plus, Menu, X } from "lucide-react";
+import { Bell, Menu, X } from "lucide-react";
 
 const AppHeader: React.FC = () => {
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
@@ -40,15 +40,12 @@ const AppHeader: React.FC = () => {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-3">
-        {/* Quick Add Button */}
-        <button className="hidden sm:flex items-center gap-2 h-10 rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
-          <Plus size={18} className="text-gray-500" />
-          <span>Быстрое добавление</span>
-        </button>
-
-        {/* Mobile Quick Add */}
-        <button className="flex sm:hidden items-center justify-center h-10 w-10 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors shadow-sm">
-          <Plus size={18} />
+        <button
+          type="button"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 shadow-sm"
+          aria-label="Уведомления"
+        >
+          <Bell size={18} />
         </button>
 
         {/* User Dropdown */}

@@ -1,16 +1,18 @@
 import { useCallback } from "react";
 import { Link, useLocation } from "react-router";
 import {
-  Bell,
+  BarChart3,
+  Building2,
+  CalendarCheck,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Home,
-  Users,
-  Calendar,
-  CheckSquare,
-  BarChart3,
+  ListOrdered,
   Settings,
-  Wallet,
+  UserRoundCheck,
+  WalletCards,
 } from "lucide-react";
 import { useSidebar } from "../context/SidebarContext";
 import companyStore from "../store/company.store";
@@ -30,35 +32,34 @@ type ModuleSection = {
 
 const mainNavItems: NavItem[] = [
   { icon: <Home size={20} />, name: "Главная страница", path: "/dashboard" },
-  { icon: <Bell size={20} />, name: "Уведомление", path: "/notifications" },
 ];
 
 const moduleSections: ModuleSection[] = [
   {
     title: "Задачи",
     items: [
-      { name: "Задачи", path: "/tasks", icon: <CheckSquare size={18} /> },
-      { name: "Привички", path: "/habits", icon: <CheckSquare size={18} /> },
+      { name: "Задачи", path: "/tasks", icon: <ClipboardList size={18} /> },
+      { name: "Привички", path: "/habits", icon: <ListOrdered size={18} /> },
     ],
   },
   {
     title: "Люди",
     items: [
-      { name: "Сотрудники", path: "/employees", icon: <Users size={18} /> },
+      { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
       // { name: "Рекртутинг", path: "/recruiting/vacancies", icon: <Users size={18} /> },
-      { name: "Орг стуруктура", path: "/organization/suppliers", icon: <Users size={18} /> },
+      { name: "Орг стуруктура", path: "/organization/suppliers", icon: <Building2 size={18} /> },
     ],
   },
   {
     title: "Время",
     items: [
-      { name: "Посешаемость", path: "/time/attendance", icon: <Calendar size={18} /> },
-      { name: "Отсутствие", path: "/calendar", icon: <Calendar size={18} /> },
+      { name: "Посешаемость", path: "/time/attendance", icon: <CalendarCheck size={18} /> },
+      { name: "Отсутствие", path: "/calendar", icon: <CalendarDays size={18} /> },
     ],
   },
   {
     title: "Финансы",
-    items: [{ name: "Зарплата", path: "/finance/salary", icon: <Wallet size={18} /> }],
+    items: [{ name: "Зарплата", path: "/finance/salary", icon: <WalletCards size={18} /> }],
   },
   {
     title: "Отчеты",
@@ -80,6 +81,7 @@ const ENABLED_PATHS = new Set([
   "/calendar",
   "/finance/salary",
   "/settings/compensation",
+  "/settings/news",
 ]);
 
 const AppSidebar: React.FC = () => {

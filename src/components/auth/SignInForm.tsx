@@ -36,9 +36,16 @@ const SignInForm = observer(function SignInForm() {
       } else {
         setError("Ошибка получения токена");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login error:", err);
-      setError(err.response?.data?.description || "Неверный логин или пароль");
+      const description =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { data?: { description?: string } } }).response?.data?.description === "string"
+          ? (err as { response?: { data?: { description?: string } } }).response?.data?.description
+          : null;
+      setError(description || "Неверный логин или пароль");
     }
   };
 

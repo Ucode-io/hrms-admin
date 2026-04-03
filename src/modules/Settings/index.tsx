@@ -72,9 +72,10 @@ const settingsSections: SettingsSection[] = [
       [
         {
           id: "notifications",
-          title: "Оповешение",
+          title: "Новости",
           icon: Bell,
-          subtitle: "Уведомления и каналы",
+          path: "/settings/news",
+          subtitle: "Лента новостей",
         },
         {
           id: "import",

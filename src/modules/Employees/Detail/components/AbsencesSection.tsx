@@ -37,6 +37,7 @@ type AbsencePolicyItem = SettingsDirectoryItem & {
   icon?: string;
   color?: string;
   value?: number | string;
+  period?: string[] | string;
 };
 
 type AttachmentItem = {
@@ -194,6 +195,72 @@ const resolveStringValue = (value: unknown): string => {
     return typeof first === "string" ? first : "";
   }
   return typeof value === "string" ? value : "";
+};
+
+const parseStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+      .filter(Boolean);
+  }
+
+  if (typeof value !== "string") return [];
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+        .filter(Boolean);
+    }
+  } catch {
+    // noop
+  }
+
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed
+      .slice(1, -1)
+      .split(",")
+      .map((item) => item.replace(/["']/g, "").trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [trimmed.replace(/["']/g, "").toLowerCase()];
+};
+
+const getPeriodSlug = (value: unknown): "week" | "month" | "year" => {
+  const first = parseStringList(value)[0] || "";
+  if (first === "week" || first === "month" || first === "year") return first;
+  return "year";
+};
+
+const getWeekStartMonday = (value: Date): Date => {
+  const base = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const dayOfWeek = base.getDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  base.setDate(base.getDate() + diff);
+  return base;
+};
+
+const getPeriodRangeBySlug = (period: "week" | "month" | "year", now: Date): { from: string; to: string } => {
+  if (period === "week") {
+    const fromDate = getWeekStartMonday(now);
+    const toDate = new Date(fromDate);
+    toDate.setDate(fromDate.getDate() + 6);
+    return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
+  }
+
+  if (period === "month") {
+    const fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
+  }
+
+  const fromDate = new Date(now.getFullYear(), 0, 1);
+  const toDate = new Date(now.getFullYear(), 11, 31);
+  return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
 };
 
 const getDateBreakdown = (from: string, to: string): DateBreakdownItem[] => {
@@ -427,14 +494,26 @@ export default function AbsencesSection({
 
   const balanceByPolicy = useMemo(() => {
     const map = new Map<string, number>();
+    const now = new Date();
 
-    for (const transaction of balanceTransactions) {
-      if (!transaction.policyId) continue;
-      map.set(transaction.policyId, (map.get(transaction.policyId) || 0) + transaction.amount);
+    for (const policy of policies) {
+      const period = getPeriodSlug(policy.period);
+      const range = getPeriodRangeBySlug(period, now);
+
+      const periodBalance = balanceTransactions.reduce((sum, transaction) => {
+        if (!transaction.policyId || transaction.policyId !== policy.guid) return sum;
+        const sourceDate = parseFlexibleDate(transaction.sourceDate);
+        if (!sourceDate) return sum;
+        const sourceDateIso = toIsoDate(sourceDate);
+        if (sourceDateIso < range.from || sourceDateIso > range.to) return sum;
+        return sum + transaction.amount;
+      }, 0);
+
+      map.set(policy.guid, periodBalance);
     }
 
     return map;
-  }, [balanceTransactions]);
+  }, [balanceTransactions, policies]);
 
   const filteredRequests = useMemo(() => {
     if (requestsFilter === "all") return allRequests;
@@ -504,7 +583,7 @@ export default function AbsencesSection({
     if (!selectedPolicy) return 0;
     const limit = resolveNumericValue(selectedPolicy.value, 0);
     const balance = balanceByPolicy.get(selectedPolicy.guid) || 0;
-    return limit + balance;
+    return Math.max(0, limit + balance);
   }, [balanceByPolicy, selectedPolicy]);
 
   const modalForecast = modalAvailable - modalRequestedDays;
@@ -701,7 +780,7 @@ export default function AbsencesSection({
             : policies.map((policy) => {
                 const policyLimit = resolveNumericValue(policy.value, 0);
                 const policyBalance = balanceByPolicy.get(policy.guid) || 0;
-                const available = policyLimit + policyBalance;
+                const available = Math.max(0, policyLimit + policyBalance);
                 const iconValue =
                   typeof policy.icon === "string" && policy.icon
                     ? policy.icon

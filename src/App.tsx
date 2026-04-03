@@ -3,6 +3,8 @@ import SignIn from "./pages/AuthPages/SignIn";
 import NotFound from "./pages/OtherPage/NotFound";
 import UnderDevelopment from "./pages/OtherPage/UnderDevelopment";
 import DashboardPage from "./modules/Dashboard";
+import NotificationsPage from "./modules/Notifications";
+import NewsFormPage from "./modules/Notifications/Form";
 import MerchantsList from "./modules/Merchant/List";
 import MerchantDetail from "./modules/Merchant/Detail";
 import MerchantFormPage from "./modules/Merchant/Form";
@@ -77,13 +79,47 @@ import authStore from "./store/auth.store";
 import companyStore from "./store/company.store";
 import CompanyThemeProvider from "./components/common/CompanyThemeProvider";
 import { observer } from "mobx-react-lite";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Toaster } from "sonner";
+import { getUserBaseById } from "./api/services/auth.service";
 
 function App() {
+  const lastSyncedUserKeyRef = useRef("");
+  const isAuth = authStore.isAuth;
+  const token = authStore.token;
+  const authUserGuid = authStore.user_data?.guid || authStore.user?.guid;
+
   useEffect(() => {
     companyStore.fetchCompany();
   }, []);
+
+  useEffect(() => {
+    if (!isAuth || !token || !authUserGuid) {
+      lastSyncedUserKeyRef.current = "";
+      return;
+    }
+
+    const syncKey = `${token}:${authUserGuid}`;
+    if (lastSyncedUserKeyRef.current === syncKey) return;
+    lastSyncedUserKeyRef.current = syncKey;
+
+    let isCancelled = false;
+
+    void (async () => {
+      try {
+        const freshUserData = await getUserBaseById(authUserGuid);
+        if (isCancelled || !freshUserData) return;
+        authStore.setUser(freshUserData);
+      } catch (error) {
+        console.error("Failed to refresh auth user data:", error);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isAuth, token, authUserGuid]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <CompanyThemeProvider />
@@ -100,10 +136,17 @@ function App() {
         <Routes>
           {/* Dashboard Layout */}
           {
-            authStore.isAuth ? <Route path="/" element={<AppLayout />}>
+            isAuth ? <Route path="/" element={<AppLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
 
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/settings/news" element={<NotificationsPage />} />
+              <Route path="/settings/news/new" element={<NewsFormPage />} />
+              <Route path="/settings/news/:id/edit" element={<NewsFormPage />} />
+              <Route path="/news" element={<Navigate to="/settings/news" replace />} />
+              <Route path="/news/new" element={<NewsFormPage />} />
+              <Route path="/news/:id/edit" element={<NewsFormPage />} />
+              <Route path="/notifications" element={<Navigate to="/settings/news" replace />} />
 
               <Route path="/merchants" element={<MerchantsList />} />
               <Route path="/merchants/new" element={<MerchantFormPage />} />

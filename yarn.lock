@@ -1534,6 +1534,11 @@
   dependencies:
     csstype "^3.2.2"
 
+"@types/trusted-types@^2.0.7":
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/@types/trusted-types/-/trusted-types-2.0.7.tgz#baccb07a970b91707df3a3e8ba6896c57ead2d11"
+  integrity sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==
+
 "@typescript-eslint/eslint-plugin@8.50.1":
   version "8.50.1"
   resolved "https://registry.yarnpkg.com/@typescript-eslint/eslint-plugin/-/eslint-plugin-8.50.1.tgz#b56e422fb82eb40fae04905f1444aef0298b634b"
@@ -2052,6 +2057,13 @@ dom-helpers@^5.0.1:
   dependencies:
     "@babel/runtime" "^7.8.7"
     csstype "^3.0.2"
+
+dompurify@^3.3.3:
+  version "3.3.3"
+  resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-3.3.3.tgz#680cae8af3e61320ddf3666a3bc843f7b291b2b6"
+  integrity sha512-Oj6pzI2+RqBfFG+qOaOLbFXLQ90ARpcGG6UePL82bJLtdsa6CYJD7nmiU8MW9nQNOtCHV3lZ/Bzq1X0QYbBZCA==
+  optionalDependencies:
+    "@types/trusted-types" "^2.0.7"
 
 dot-case@^3.0.4:
   version "3.0.4"
@@ -3177,6 +3189,11 @@ react-select@^5.10.2:
     prop-types "^15.6.0"
     react-transition-group "^4.3.0"
     use-isomorphic-layout-effect "^1.2.0"
+
+react-simple-wysiwyg@^3.4.1:
+  version "3.4.1"
+  resolved "https://registry.yarnpkg.com/react-simple-wysiwyg/-/react-simple-wysiwyg-3.4.1.tgz#e694285f39eda531746ba66244fb6541b7d3feb8"
+  integrity sha512-amppNS/WiUSURSFXg9evcRjRBwK6pf5LRWDACVZT/q4k2TginjNxegxM0T2s2LYulbRFS4eGwO7nv57OskckHw==
 
 react-transition-group@^4.3.0:
   version "4.4.5"

@@ -5,6 +5,9 @@ import {
   ChevronRight,
   ChevronDown,
   Pencil,
+  KeyRound,
+  Copy,
+  Check,
   Phone,
   MapPin,
   Briefcase,
@@ -23,6 +26,7 @@ import { useEmployeeWorksQuery } from "../../../api/services/employeeWork.servic
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
 import { Modal } from "../../../components/ui/modal";
+import Button from "../../../components/ui/button/Button";
 import EducationSection from "./components/EducationSection";
 import AbsencesSection from "./components/AbsencesSection";
 import AttendanceSection from "./components/AttendanceSection";
@@ -142,6 +146,46 @@ function getEmployeeDismissalReasonId(employee: Record<string, unknown>): string
   );
 }
 
+const PASSWORD_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const PASSWORD_LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
+const PASSWORD_DIGITS = "0123456789";
+const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+
+function getRandomInt(max: number): number {
+  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+    const array = new Uint32Array(1);
+    window.crypto.getRandomValues(array);
+    return array[0] % max;
+  }
+  return Math.floor(Math.random() * max);
+}
+
+function pickRandomChar(source: string): string {
+  return source.charAt(getRandomInt(source.length));
+}
+
+function generateStrongPassword(length = 12): string {
+  const finalLength = Math.max(8, length);
+  const allChars = PASSWORD_UPPERCASE + PASSWORD_LOWERCASE + PASSWORD_DIGITS + PASSWORD_SYMBOLS;
+  const chars: string[] = [
+    pickRandomChar(PASSWORD_UPPERCASE),
+    pickRandomChar(PASSWORD_LOWERCASE),
+    pickRandomChar(PASSWORD_DIGITS),
+    pickRandomChar(PASSWORD_SYMBOLS),
+  ];
+
+  while (chars.length < finalLength) {
+    chars.push(pickRandomChar(allChars));
+  }
+
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = getRandomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join("");
+}
+
 /* ────────────────────────────────────────────────
  *  Main component
  * ──────────────────────────────────────────────── */
@@ -152,6 +196,12 @@ function EmployeeDetail() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isDismissModalOpen, setIsDismissModalOpen] = useState(false);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [isPasswordResultModalOpen, setIsPasswordResultModalOpen] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [isPasswordCopied, setIsPasswordCopied] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
+  const [isGeneratingPassword, setIsGeneratingPassword] = useState(false);
   const [dismissalDate, setDismissalDate] = useState<Date | null>(new Date());
   const [dismissalTypeId, setDismissalTypeId] = useState<string>("");
   const [dismissalReasonId, setDismissalReasonId] = useState<string>("");
@@ -294,6 +344,7 @@ function EmployeeDetail() {
     const dismissalReasonFieldKey = getDismissalReasonFieldKey(emp as Record<string, unknown>);
 
     try {
+      setIsDismissing(true);
       await updateEmployeeMutation.mutateAsync({
         guid: emp.guid,
         status: ["dismissed"],
@@ -307,6 +358,54 @@ function EmployeeDetail() {
     } catch (error) {
       console.error("Dismiss employee error:", error);
       toast.error("Не удалось уволить сотрудника.");
+    } finally {
+      setIsDismissing(false);
+    }
+  };
+
+  const handleGeneratePassword = async () => {
+    try {
+      setIsGeneratingPassword(true);
+      const nextPassword = generateStrongPassword(12);
+
+      await updateEmployeeMutation.mutateAsync({
+        guid: emp.guid,
+        password: nextPassword,
+      });
+
+      setGeneratedPassword(nextPassword);
+      setIsPasswordCopied(false);
+      setIsResetPasswordModalOpen(false);
+      setIsPasswordResultModalOpen(true);
+    } catch (error) {
+      console.error("Generate password error:", error);
+      toast.error("Не удалось сгенерировать пароль.");
+    } finally {
+      setIsGeneratingPassword(false);
+    }
+  };
+
+  const handleCopyGeneratedPassword = async () => {
+    if (!generatedPassword) return;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(generatedPassword);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = generatedPassword;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setIsPasswordCopied(true);
+      setTimeout(() => setIsPasswordCopied(false), 1800);
+    } catch {
+      toast.error("Не удалось скопировать пароль.");
     }
   };
 
@@ -438,6 +537,20 @@ function EmployeeDetail() {
                   <button
                     type="button"
                     onClick={() => {
+                      setIsActionMenuOpen(false);
+                      setIsResetPasswordModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                      <KeyRound className="h-4 w-4" />
+                    </span>
+                    <span className="block font-medium">Сгенерировать пароль</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
                       if (isDismissed) return;
                       setIsActionMenuOpen(false);
                       setDismissalDate(parseIsoDate(emp.dismissal_date) || new Date());
@@ -537,8 +650,6 @@ function EmployeeDetail() {
               <InfoRow label="Фамилия" value={emp.second_name} />
               <InfoRow label="Имя" value={emp.first_name} />
               <InfoRow label="Отчество" value={emp.middle_name} />
-              <InfoRow label="Эл. почта" value={emp.email || ""} linkType="email" />
-              <InfoRow label="Личная эл. почта" value={emp.personal_email || ""} linkType="email" />
               <InfoRow label="Дата рождения" value={formatDate(emp.birth_date)} />
               <InfoRow label="Пол" value={genderLabel} />
               <InfoRow label="Статус" value={statusLabel} isStatus />
@@ -558,6 +669,8 @@ function EmployeeDetail() {
               brandColor={brandColor}
               showAction={false}
             >
+              <InfoRow label="Эл. почта" value={emp.email || ""} linkType="email" />
+              <InfoRow label="Личная эл. почта" value={emp.personal_email || ""} linkType="email" />
               <InfoRow label="Мобильный телефон" value={emp.phone} linkType="phone" />
               <InfoRow label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
               <InfoRow label="Телеграм" value={emp.telegram || ""} />
@@ -585,10 +698,6 @@ function EmployeeDetail() {
               </h3>
 
               <div className="flex flex-col gap-4">
-                <SummaryItem label="Почта" value={emp.email || ""} linkType="email" />
-                <SummaryItem label="Мобильный телефон" value={emp.phone || ""} linkType="phone" />
-                <SummaryItem label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
-                <SummaryItem label="Телеграм" value={emp.telegram || ""} />
                 <SummaryItem label="Дата начала" value={formatDate(workDateFrom)} />
                 <SummaryItem label="Тип работы" value={workEmploymentTypeTitle} />
                 <SummaryItem label="Должность" value={workPositionTitle} />
@@ -725,7 +834,7 @@ function EmployeeDetail() {
       <Modal
         isOpen={isDismissModalOpen}
         onClose={() => {
-          if (updateEmployeeMutation.isLoading) return;
+          if (isDismissing) return;
           setIsDismissModalOpen(false);
           setDismissalDate(parseIsoDate(emp.dismissal_date) || new Date());
           setDismissalTypeId(getEmployeeDismissalTypeId(emp as Record<string, unknown>));
@@ -799,7 +908,7 @@ function EmployeeDetail() {
               setDismissalTypeId(getEmployeeDismissalTypeId(emp as Record<string, unknown>));
               setDismissalReasonId(getEmployeeDismissalReasonId(emp as Record<string, unknown>));
             }}
-            disabled={updateEmployeeMutation.isLoading}
+            disabled={isDismissing}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Отмена
@@ -807,11 +916,96 @@ function EmployeeDetail() {
           <button
             type="button"
             onClick={() => void handleDismissEmployee()}
-            disabled={updateEmployeeMutation.isLoading}
+            disabled={isDismissing}
             className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {updateEmployeeMutation.isLoading ? "Увольнение..." : "Уволить"}
+            {isDismissing ? "Увольнение..." : "Уволить"}
           </button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isResetPasswordModalOpen}
+        onClose={() => {
+          if (isGeneratingPassword) return;
+          setIsResetPasswordModalOpen(false);
+        }}
+        className="max-w-md w-full p-6"
+        showCloseButton={false}
+      >
+        <h4 className="m-0 text-[18px] font-bold text-slate-900">
+          Сгенерировать новый пароль?
+        </h4>
+        <p className="mb-6 mt-2 text-[13px] text-slate-500">
+          Действующий пароль сотрудника будет сброшен. После подтверждения система создаст новый пароль и сохранит его в профиле.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="!h-9 !px-4 !py-2 text-[13px]"
+            onClick={() => setIsResetPasswordModalOpen(false)}
+            disabled={isGeneratingPassword}
+          >
+            Отмена
+          </Button>
+          <Button
+            size="sm"
+            className="!h-9 !px-4 !py-2 text-[13px]"
+            onClick={() => void handleGeneratePassword()}
+            disabled={isGeneratingPassword}
+          >
+            {isGeneratingPassword ? "Генерация..." : "Сгенерировать"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isPasswordResultModalOpen}
+        onClose={() => setIsPasswordResultModalOpen(false)}
+        className="max-w-md w-full p-6"
+        showCloseButton={false}
+      >
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
+            <Check className="h-7 w-7" />
+          </div>
+        </div>
+        <h4 className="m-0 text-[18px] font-bold text-slate-900">
+          Пароль успешно сгенерирован
+        </h4>
+        <p className="mb-5 mt-2 text-[13px] text-slate-500">
+          Новый пароль уже сохранен. Передайте его сотруднику безопасным способом.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+          <div className="text-[12px] font-medium text-slate-500">Новый пароль</div>
+          <div className="mt-1 break-all font-mono text-[22px] font-semibold leading-[1.35] text-slate-900">
+            {generatedPassword}
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="!h-9 !px-4 !py-2 text-[13px]"
+            onClick={() => void handleCopyGeneratedPassword()}
+            startIcon={
+              isPasswordCopied ? (
+                <Check className="h-4 w-4 text-emerald-600" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )
+            }
+          >
+            {isPasswordCopied ? "Скопировано" : "Копировать"}
+          </Button>
+          <Button
+            size="sm"
+            className="!h-9 !px-4 !py-2 text-[13px]"
+            onClick={() => setIsPasswordResultModalOpen(false)}
+          >
+            Закрыть
+          </Button>
         </div>
       </Modal>
 
