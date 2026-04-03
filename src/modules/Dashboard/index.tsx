@@ -8,12 +8,14 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPin,
+  Plus,
   Sparkles,
 } from "lucide-react";
 import { Icon } from "@iconify/react";
 import DOMPurify from "dompurify";
 import { observer } from "mobx-react-lite";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
 import Spinner from "../../components/ui/Spinner";
@@ -813,6 +815,13 @@ function DashboardPage() {
                 <h2 className="text-xl font-semibold text-gray-900">Лента новостей</h2>
                 <p className="text-xs text-gray-500">Корпоративные объявления и события</p>
               </div>
+              <Link
+                to="/settings/news"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
+              >
+                <Plus size={16} />
+                Создать объявление
+              </Link>
             </div>
 
             {isInitialFeedLoading ? (
