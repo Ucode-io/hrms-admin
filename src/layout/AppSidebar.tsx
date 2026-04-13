@@ -47,7 +47,7 @@ const moduleSections: ModuleSection[] = [
     items: [
       { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
       // { name: "Рекртутинг", path: "/recruiting/vacancies", icon: <Users size={18} /> },
-      { name: "Орг стуруктура", path: "/organization/suppliers", icon: <Building2 size={18} /> },
+      { name: "Орг структура", path: "/organization/structure", icon: <Building2 size={18} /> },
     ],
   },
   {
@@ -80,6 +80,7 @@ const ENABLED_PATHS = new Set([
   "/reports/absence-balance",
   "/calendar",
   "/finance/salary",
+  "/organization/structure",
   "/settings/compensation",
   "/settings/news",
 ]);

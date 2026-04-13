@@ -71,6 +71,7 @@ import OrganizationClientsList from "./modules/Clients/List";
 import OrganizationClientForm from "./modules/Clients/Form";
 import AgreementsList from "./modules/Agreements/List";
 import AgreementForm from "./modules/Agreements/Form";
+import OrganizationStructureModule from "./modules/Organization/Structure";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import { QueryClientProvider } from "react-query";
@@ -233,6 +234,7 @@ function App() {
               <Route path="/organization/agreements" element={<AgreementsList />} />
               <Route path="/organization/agreements/new" element={<AgreementForm />} />
               <Route path="/organization/agreements/:id" element={<AgreementForm />} />
+              <Route path="/organization/structure" element={<OrganizationStructureModule />} />
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
 

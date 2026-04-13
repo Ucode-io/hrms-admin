@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { ArrowLeft, Clock3, Search } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
 import PageMeta from "../../../components/common/PageMeta";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 
-type AttendanceActionType = "check_in" | "check_out";
-
 type AttendanceItem = {
   guid: string;
-  action_type?: AttendanceActionType[] | AttendanceActionType | null;
-  time?: string | null;
+  date?: string | null;
+  check_in_time?: string | null;
+  check_out_time?: string | null;
   delay_time?: string | null;
+  created_at?: string | null;
   user_base_id?: string | null;
   user_base_id_data?: {
     guid?: string;
@@ -25,9 +25,11 @@ type AttendanceItem = {
 
 type AttendanceRecord = {
   guid: string;
-  actionType: AttendanceActionType;
-  time: string;
+  date: string;
+  checkInTime: string;
+  checkOutTime: string;
   delayTime: string;
+  createdAt: string;
   employeeGuid: string;
   employeeName: string;
 };
@@ -35,31 +37,15 @@ type AttendanceRecord = {
 const ATTENDANCE_SLUG = "attendance";
 const PAGE_SIZE = 20;
 
-const ACTION_LABELS: Record<AttendanceActionType, string> = {
-  check_in: "Приход",
-  check_out: "Уход",
-};
-
-const ACTION_TAG_STYLES: Record<AttendanceActionType, string> = {
-  check_in: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  check_out: "border-amber-200 bg-amber-50 text-amber-700",
-};
-
+const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-const resolveActionType = (value: AttendanceItem["action_type"]): AttendanceActionType => {
-  if (Array.isArray(value)) {
-    return value[0] === "check_out" ? "check_out" : "check_in";
-  }
-
-  return value === "check_out" ? "check_out" : "check_in";
-};
 
 const normalizeDelayTime = (value: string | null | undefined): string => {
   if (typeof value === "string" && DELAY_TIME_PATTERN.test(value.trim())) {
     return value.trim();
   }
-  return "00:10";
+  return "";
 };
 
 const toTimestamp = (value: string | null | undefined): number => {
@@ -68,27 +54,147 @@ const toTimestamp = (value: string | null | undefined): number => {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
 
+const toIsoDate = (value: Date): string => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseIsoDate = (value: string): Date | null => {
+  if (!ISO_DATE_PATTERN.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  return parsed;
+};
+
+const toUtcDayRangeFilter = (isoDate: string): { $gte: string; $lte: string } => {
+  const baseDate = parseIsoDate(isoDate) || new Date();
+
+  const start = new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+  const end = new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate(),
+    23,
+    59,
+    59,
+    0
+  );
+
+  return {
+    $gte: start.toISOString(),
+    $lte: end.toISOString(),
+  };
+};
+
+const normalizeDateKey = (value: string | null | undefined, fallback: string | null | undefined): string => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (ISO_DATE_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return toIsoDate(parsed);
+    }
+  }
+
+  if (typeof fallback === "string" && fallback.trim()) {
+    const parsed = new Date(fallback);
+    if (!Number.isNaN(parsed.getTime())) {
+      return toIsoDate(parsed);
+    }
+  }
+
+  return "";
+};
+
+const normalizeTime = (value: string | null | undefined): string => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (TIME_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return "";
+};
+
+const toSortTimestamp = (item: AttendanceItem): number => {
+  const dateValue = typeof item.date === "string" ? item.date.trim() : "";
+  const timeValue = normalizeTime(item.check_in_time) || normalizeTime(item.check_out_time) || "00:00";
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
+  const [hours, minutes] = timeValue.split(":").map(Number);
+
+  if (dateMatch) {
+    const year = Number(dateMatch[1]);
+    const month = Number(dateMatch[2]);
+    const day = Number(dateMatch[3]);
+    return Date.UTC(
+      year,
+      month - 1,
+      day,
+      Number.isFinite(hours) ? hours : 0,
+      Number.isFinite(minutes) ? minutes : 0
+    );
+  }
+
+  return toTimestamp(item.created_at);
+};
+
 const formatDateLabel = (value: string): string => {
   if (!value) return "—";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (match) {
+    return `${match[3]}.${match[2]}.${match[1]}`;
+  }
+
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return parsed.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
 const formatTimeLabel = (value: string): string => {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
+  return normalizeTime(value) || "—";
+};
 
-  return parsed.toLocaleTimeString("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const hasDelayValue = (value: string): boolean => DELAY_TIME_PATTERN.test(value) && value !== "00:00";
+
+const getDelayTag = (
+  checkInTime: string,
+  delayTime: string
+): { label: string; className: string } => {
+  const hasCheckIn = Boolean(normalizeTime(checkInTime));
+  if (!hasCheckIn) {
+    return {
+      label: "—",
+      className: "border-slate-200 bg-slate-100 text-slate-500",
+    };
+  }
+
+  if (hasDelayValue(delayTime)) {
+    return {
+      label: delayTime,
+      className: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+
+  return {
+    label: "Без опоздания",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
 };
 
 const getEmployeeInfo = (item: AttendanceItem): { employeeGuid: string; employeeName: string } => {
@@ -114,8 +220,9 @@ const getEmployeeInfo = (item: AttendanceItem): { employeeGuid: string; employee
 };
 
 export default function TimeAttendancePage() {
-  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [dateFilter, setDateFilter] = useState(() => toIsoDate(new Date()));
+  const dateRangeFilter = useMemo(() => toUtcDayRangeFilter(dateFilter), [dateFilter]);
 
   const { data, isLoading, isError, refetch } = useSettingsDirectoryQuery({
     slug: ATTENDANCE_SLUG,
@@ -124,42 +231,71 @@ export default function TimeAttendancePage() {
       data: encodeJsonToUrlParam({
         limit: 500,
         offset: 0,
+        date: dateRangeFilter,
       }),
     },
   });
 
   const records = useMemo<AttendanceRecord[]>(() => {
     const rows = ((data?.response || []) as AttendanceItem[]).map((item) => {
-      const actionType = resolveActionType(item.action_type);
-      const time = typeof item.time === "string" ? item.time : "";
+      const date = normalizeDateKey(item.date, item.created_at);
+      const checkInTime = normalizeTime(item.check_in_time);
+      const checkOutTime = normalizeTime(item.check_out_time);
       const delayTime = normalizeDelayTime(item.delay_time);
       const employeeInfo = getEmployeeInfo(item);
 
       return {
         guid: item.guid,
-        actionType,
-        time,
+        date,
+        checkInTime,
+        checkOutTime,
         delayTime,
+        createdAt: typeof item.created_at === "string" ? item.created_at : "",
         employeeGuid: employeeInfo.employeeGuid,
         employeeName: employeeInfo.employeeName,
       };
     });
 
-    return rows.sort((left, right) => toTimestamp(right.time) - toTimestamp(left.time));
+    return rows.sort((left, right) => {
+      const rightItem: AttendanceItem = {
+        date: right.date,
+        check_in_time: right.checkInTime,
+        check_out_time: right.checkOutTime,
+        created_at: right.createdAt,
+      };
+      const leftItem: AttendanceItem = {
+        date: left.date,
+        check_in_time: left.checkInTime,
+        check_out_time: left.checkOutTime,
+        created_at: left.createdAt,
+      };
+
+      return toSortTimestamp(rightItem) - toSortTimestamp(leftItem);
+    });
   }, [data?.response]);
 
-  const filteredRecords = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return records;
-
-    return records.filter((item) => item.employeeName.toLowerCase().includes(query));
-  }, [records, search]);
+  const filteredRecords = useMemo(
+    () => records.filter((item) => item.date === dateFilter),
+    [records, dateFilter]
+  );
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [dateFilter]);
+
+  const dateFilterLabel = useMemo(() => {
+    return formatDateLabel(dateFilter);
+  }, [dateFilter]);
+
+  const shiftDateFilter = (days: number) => {
+    setDateFilter((prev) => {
+      const base = parseIsoDate(prev) || new Date();
+      base.setDate(base.getDate() + days);
+      return toIsoDate(base);
+    });
+  };
 
   useEffect(() => {
     if (page > totalPages) {
@@ -184,29 +320,37 @@ export default function TimeAttendancePage() {
               <ArrowLeft size={14} />
               Назад
             </Link>
-            <div className="flex items-center gap-2">
-              <Clock3 className="h-4 w-4 text-slate-500" />
-              <h1 className="m-0 text-[20px] font-semibold text-slate-900">Посещаемость</h1>
-            </div>
-            <p className="mt-1 text-[12px] text-slate-500">
-              Таблица событий прихода и ухода по всем сотрудникам
-            </p>
-          </div>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Clock3 className="h-4 w-4 text-slate-500" />
+                  <h1 className="m-0 text-[20px] font-semibold text-slate-900">Посещаемость</h1>
+                </div>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  Таблица событий прихода и ухода по всем сотрудникам
+                </p>
+              </div>
 
-          <div className="border-b border-slate-100 px-6 py-3">
-            <label className="relative block w-full md:max-w-sm">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Поиск по сотруднику..."
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-              />
-            </label>
+              <div className="inline-flex shrink-0 items-center rounded-lg border border-gray-200 bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => shiftDateFilter(-1)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
+                  aria-label="Предыдущий день"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="px-2 text-sm font-semibold text-gray-700">{dateFilterLabel}</span>
+                <button
+                  type="button"
+                  onClick={() => shiftDateFilter(1)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
+                  aria-label="Следующий день"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="px-6 py-5">
@@ -239,42 +383,46 @@ export default function TimeAttendancePage() {
                       <tr className="border-b border-slate-200">
                         <th className="py-2 text-[12px] font-semibold text-slate-500">Сотрудник</th>
                         <th className="py-2 text-[12px] font-semibold text-slate-500">Дата</th>
-                        <th className="py-2 text-[12px] font-semibold text-slate-500">Время</th>
+                        <th className="py-2 text-[12px] font-semibold text-slate-500">Приход</th>
+                        <th className="py-2 text-[12px] font-semibold text-slate-500">Уход</th>
                         <th className="py-2 text-[12px] font-semibold text-slate-500">Опоздание</th>
-                        <th className="py-2 text-[12px] font-semibold text-slate-500">Тип действия</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pageItems.map((record) => (
-                        <tr key={record.guid} className="border-b border-slate-100">
-                          <td className="py-3 text-[13px] text-slate-800">
-                            {record.employeeGuid ? (
-                              <Link
-                                to={`/employees/${record.employeeGuid}`}
-                                className="font-medium text-slate-800 transition hover:text-brand-500"
+                      {pageItems.map((record) => {
+                        const delayTag = getDelayTag(record.checkInTime, record.delayTime);
+
+                        return (
+                          <tr key={record.guid} className="border-b border-slate-100">
+                            <td className="py-3 text-[13px] text-slate-800">
+                              {record.employeeGuid ? (
+                                <Link
+                                  to={`/employees/${record.employeeGuid}`}
+                                  className="font-medium text-slate-800 transition hover:text-brand-500"
+                                >
+                                  {record.employeeName}
+                                </Link>
+                              ) : (
+                                <span>{record.employeeName}</span>
+                              )}
+                            </td>
+                            <td className="py-3 text-[13px] text-slate-800">{formatDateLabel(record.date)}</td>
+                            <td className="py-3 text-[13px] font-semibold text-slate-900">
+                              {formatTimeLabel(record.checkInTime)}
+                            </td>
+                            <td className="py-3 text-[13px] font-semibold text-slate-900">
+                              {formatTimeLabel(record.checkOutTime)}
+                            </td>
+                            <td className="py-3 text-[13px] text-slate-700">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${delayTag.className}`}
                               >
-                                {record.employeeName}
-                              </Link>
-                            ) : (
-                              <span>{record.employeeName}</span>
-                            )}
-                          </td>
-                          <td className="py-3 text-[13px] text-slate-800">{formatDateLabel(record.time)}</td>
-                          <td className="py-3 text-[13px] font-semibold text-slate-900">
-                            {formatTimeLabel(record.time)}
-                          </td>
-                          <td className="py-3 text-[13px] text-slate-700">
-                            {record.actionType === "check_in" ? record.delayTime : "—"}
-                          </td>
-                          <td className="py-3 text-[13px] text-slate-700">
-                            <span
-                              className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${ACTION_TAG_STYLES[record.actionType]}`}
-                            >
-                              {ACTION_LABELS[record.actionType]}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                                {delayTag.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

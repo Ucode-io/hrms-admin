@@ -26,6 +26,9 @@ const GET_PAYROLL_METHOD = "get_payroll";
 const GET_PAYROLL_TABLE_METHOD = "get_payroll_table";
 const GET_BONUS_DEDUCTIONS_METHOD = "get_bonus_deductions";
 const GET_BONUS_DEDUCTIONS_TABLE_METHOD = "get_bonus_deductions_table";
+const GET_ORG_STRUCTURE_METHOD = "get_org_structure";
+const GET_SALARY_EXCEL_TEMPLATE_METHOD = "get_salary_excel_template";
+const IMPORT_SALARY_EXCEL_METHOD = "import_salary_excel";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -750,6 +753,109 @@ export type BonusDeductionsTableInvokeResponse = {
   result: BonusDeductionsTableResult;
 };
 
+export type OrgStructureManagerInfo = {
+  guid: string | null;
+  full_name: string;
+  first_name: string | null;
+  second_name: string | null;
+  middle_name: string | null;
+  email: string | null;
+  phone: string | null;
+  photo: string | null;
+  initials: string;
+  position_title: string;
+};
+
+export type OrgStructureNode = {
+  id: string;
+  department_guid: string;
+  title: string;
+  parent_id: string | null;
+  hierarchy_level: number;
+  direct_employees_count: number;
+  total_employees_count: number;
+  children_count: number;
+  manager: OrgStructureManagerInfo;
+};
+
+export type OrgStructureEdge = {
+  source: string;
+  target: string;
+};
+
+export type OrgStructureDepartmentFilterItem = {
+  guid: string;
+  title: string;
+  hierarchy_level: number;
+  parent_id: string | null;
+};
+
+export type OrgStructureLevelFilterItem = {
+  value: number;
+  label: string;
+};
+
+export type OrgStructureResult = {
+  cards?: {
+    total_employees?: number;
+    departments_count?: number;
+    managers_count?: number;
+    hierarchy_levels?: number;
+  };
+  chart?: {
+    nodes?: OrgStructureNode[];
+    edges?: OrgStructureEdge[];
+    root_ids?: string[];
+  };
+  filters?: {
+    departments?: OrgStructureDepartmentFilterItem[];
+    levels?: OrgStructureLevelFilterItem[];
+  };
+  filters_applied?: JsonRecord;
+};
+
+export type OrgStructureInvokeResponse = {
+  method: typeof GET_ORG_STRUCTURE_METHOD;
+  result: OrgStructureResult;
+};
+
+export type SalaryExcelTemplateTypeItem = {
+  guid: string;
+  title: string;
+};
+
+export type SalaryExcelTemplateInvokeResponse = {
+  method: typeof GET_SALARY_EXCEL_TEMPLATE_METHOD;
+  result: {
+    month: string;
+    period_label: string;
+    file_name: string;
+    mime_type: string;
+    file_base64: string;
+    metadata?: {
+      employees_count?: number;
+      income_types?: SalaryExcelTemplateTypeItem[];
+      deduction_types?: SalaryExcelTemplateTypeItem[];
+    };
+  };
+};
+
+export type ImportSalaryExcelInvokeResponse = {
+  method: typeof IMPORT_SALARY_EXCEL_METHOD;
+  result: {
+    month: string;
+    parsed_rows_count: number;
+    valid_rows_count: number;
+    inserted_count: number;
+    skipped?: {
+      invalid_user?: number;
+      non_positive_amount?: number;
+      unknown_user?: number;
+      missing_type_columns?: number;
+    };
+  };
+};
+
 type AgeDistributionWrappedResponse = {
   data?: AgeDistributionInvokeResponse;
 };
@@ -919,6 +1025,27 @@ const isBonusDeductionsTableInvokeResponse = (
 ): value is BonusDeductionsTableInvokeResponse => {
   if (!isRecord(value)) return false;
   return value.method === GET_BONUS_DEDUCTIONS_TABLE_METHOD && isRecord(value.result);
+};
+
+const isOrgStructureInvokeResponse = (
+  value: unknown
+): value is OrgStructureInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_ORG_STRUCTURE_METHOD && isRecord(value.result);
+};
+
+const isSalaryExcelTemplateInvokeResponse = (
+  value: unknown
+): value is SalaryExcelTemplateInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_SALARY_EXCEL_TEMPLATE_METHOD && isRecord(value.result);
+};
+
+const isImportSalaryExcelInvokeResponse = (
+  value: unknown
+): value is ImportSalaryExcelInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === IMPORT_SALARY_EXCEL_METHOD && isRecord(value.result);
 };
 
 const normalizeAgeDistributionResponse = (
@@ -1662,6 +1789,117 @@ const normalizeBonusDeductionsTableResponse = (
   throw new Error("Unexpected response format for get_bonus_deductions_table");
 };
 
+const normalizeOrgStructureResponse = (
+  raw: unknown
+): OrgStructureInvokeResponse => {
+  if (isOrgStructureInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isOrgStructureInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isOrgStructureInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_org_structure");
+};
+
+const normalizeSalaryExcelTemplateResponse = (
+  raw: unknown
+): SalaryExcelTemplateInvokeResponse => {
+  if (isSalaryExcelTemplateInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isSalaryExcelTemplateInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isSalaryExcelTemplateInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_salary_excel_template");
+};
+
+const normalizeImportSalaryExcelResponse = (
+  raw: unknown
+): ImportSalaryExcelInvokeResponse => {
+  if (isImportSalaryExcelInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isImportSalaryExcelInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isImportSalaryExcelInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for import_salary_excel");
+};
+
 const reportsService = {
   getAgeDistribution: async (
     requestData: JsonRecord = {}
@@ -2010,6 +2248,42 @@ const reportsService = {
 
     return normalizeBonusDeductionsTableResponse(response.data);
   },
+  getOrgStructure: async (
+    requestData: JsonRecord = {}
+  ): Promise<OrgStructureInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_ORG_STRUCTURE_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeOrgStructureResponse(response.data);
+  },
+  getSalaryExcelTemplate: async (
+    requestData: JsonRecord = {}
+  ): Promise<SalaryExcelTemplateInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_SALARY_EXCEL_TEMPLATE_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeSalaryExcelTemplateResponse(response.data);
+  },
+  importSalaryExcel: async (
+    requestData: JsonRecord = {}
+  ): Promise<ImportSalaryExcelInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: IMPORT_SALARY_EXCEL_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeImportSalaryExcelResponse(response.data);
+  },
 };
 
 export const useAgeDistributionReportQuery = (
@@ -2279,6 +2553,16 @@ export const useBonusDeductionsTableQuery = ({
     queryFn: () => reportsService.getBonusDeductionsTable(requestData, { page, limit }),
     keepPreviousData: true,
     staleTime: 30_000,
+  });
+};
+
+export const useOrgStructureReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "ORG_STRUCTURE", requestData],
+    queryFn: () => reportsService.getOrgStructure(requestData),
+    staleTime: 60_000,
   });
 };
 

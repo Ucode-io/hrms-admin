@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { Clock3, LogIn, LogOut, Pencil, Plus, Trash2 } from "lucide-react";
+import { Clock3, Pencil, Plus, Trash2 } from "lucide-react";
 import { Modal } from "../../../../components/ui/modal";
 import companyStore from "../../../../store/company.store";
 import {
@@ -18,14 +18,13 @@ type AttendanceSectionProps = {
   brandColor: string;
 };
 
-type AttendanceActionType = "check_in" | "check_out";
-
 type AttendanceItem = {
   guid: string;
-  action_type?: AttendanceActionType[] | AttendanceActionType | null;
-  time?: string | null;
+  date?: string | null;
+  check_in_time?: string | null;
+  check_out_time?: string | null;
   delay_time?: string | null;
-  created_at?: string;
+  created_at?: string | null;
   companies_id?: string;
   companies_id_data?: {
     name?: string;
@@ -36,116 +35,35 @@ type AttendanceItem = {
 
 type AttendanceRecord = {
   guid: string;
-  actionType: AttendanceActionType;
-  time: string;
+  date: string;
+  checkInTime: string;
+  checkOutTime: string;
   delayTime: string;
+  createdAt: string;
 };
 
 type AttendanceDraft = {
-  actionType: AttendanceActionType;
   date: Date | null;
-  time: string;
+  checkInTime: string;
+  checkOutTime: string;
   delayTime: string;
 };
 
 const ATTENDANCE_SLUG = "attendance";
+const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-const ACTION_LABELS: Record<AttendanceActionType, string> = {
-  check_in: "Приход",
-  check_out: "Уход",
-};
-
-const ACTION_TAG_STYLES: Record<AttendanceActionType, string> = {
-  check_in: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  check_out: "border-amber-200 bg-amber-50 text-amber-700",
-};
-
-const EMPTY_DRAFT: AttendanceDraft = {
-  actionType: "check_in",
-  date: null,
-  time: "",
-  delayTime: "00:10",
-};
-
-const resolveActionType = (value: AttendanceItem["action_type"]): AttendanceActionType => {
-  if (Array.isArray(value)) {
-    return value[0] === "check_out" ? "check_out" : "check_in";
+const normalizeTimeValue = (value: string | null | undefined): string => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (TIME_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
   }
 
-  return value === "check_out" ? "check_out" : "check_in";
+  return "";
 };
-
-const toTimestamp = (value: string | null | undefined): number => {
-  if (!value) return 0;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-};
-
-const formatDateLabel = (value: string): string => {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-};
-
-const formatTimeLabel = (value: string): string => {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleTimeString("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-const getDefaultDraft = (): AttendanceDraft => {
-  const now = new Date();
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-
-  return {
-    ...EMPTY_DRAFT,
-    date: now,
-    time: `${hours}:${minutes}`,
-  };
-};
-
-const toDateValue = (value: string | null | undefined): Date | null => {
-  if (!value) return null;
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const toTimeValue = (value: string | null | undefined): string => {
-  if (!value) return "";
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-
-  const hours = String(parsed.getHours()).padStart(2, "0");
-  const minutes = String(parsed.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-};
-
-const toApiDateTime = (date: Date, time: string): string => {
-  const [hoursRaw, minutesRaw] = time.split(":");
-  const hours = Number(hoursRaw);
-  const minutes = Number(minutesRaw);
-
-  const composed = new Date(date);
-  composed.setHours(Number.isFinite(hours) ? hours : 0, Number.isFinite(minutes) ? minutes : 0, 0, 0);
-
-  return composed.toISOString();
-};
-
-const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const normalizeDelayTime = (value: string | null | undefined): string => {
   if (typeof value === "string") {
@@ -155,7 +73,125 @@ const normalizeDelayTime = (value: string | null | undefined): string => {
     }
   }
 
-  return "00:10";
+  return "";
+};
+
+const normalizeDelayTimeForPayload = (value: string | null | undefined): string => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (DELAY_TIME_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return "00:00";
+};
+
+const formatDateLabel = (value: string): string => {
+  if (!value) return "—";
+  const match = DATE_PATTERN.exec(value.trim());
+  if (match) {
+    return `${match[3]}.${match[2]}.${match[1]}`;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+const formatTimeLabel = (value: string): string => normalizeTimeValue(value) || "—";
+
+const hasDelayValue = (value: string): boolean => DELAY_TIME_PATTERN.test(value) && value !== "00:00";
+
+const getDelayTag = (
+  checkInTime: string,
+  delayTime: string
+): { label: string; className: string } => {
+  const hasCheckIn = Boolean(normalizeTimeValue(checkInTime));
+  if (!hasCheckIn) {
+    return {
+      label: "—",
+      className: "border-slate-200 bg-slate-100 text-slate-500",
+    };
+  }
+
+  if (hasDelayValue(delayTime)) {
+    return {
+      label: delayTime,
+      className: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+
+  return {
+    label: "Без опоздания",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
+};
+
+const toDateValue = (value: string | null | undefined): Date | null => {
+  if (!value) return null;
+
+  const match = DATE_PATTERN.exec(value.trim());
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    return new Date(year, month - 1, day);
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toApiDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const toTimestamp = (value: string | null | undefined): number => {
+  if (!value) return 0;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+};
+
+const toSortTimestamp = (record: AttendanceRecord): number => {
+  const dateMatch = DATE_PATTERN.exec(record.date.trim());
+  const time = normalizeTimeValue(record.checkInTime) || normalizeTimeValue(record.checkOutTime) || "00:00";
+  const [hours, minutes] = time.split(":").map(Number);
+
+  if (dateMatch) {
+    const year = Number(dateMatch[1]);
+    const month = Number(dateMatch[2]);
+    const day = Number(dateMatch[3]);
+
+    return Date.UTC(
+      year,
+      month - 1,
+      day,
+      Number.isFinite(hours) ? hours : 0,
+      Number.isFinite(minutes) ? minutes : 0
+    );
+  }
+
+  return toTimestamp(record.createdAt);
+};
+
+const getDefaultDraft = (): AttendanceDraft => {
+  const now = new Date();
+  const timeNow = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+  return {
+    date: now,
+    checkInTime: timeNow,
+    checkOutTime: "",
+    delayTime: "00:00",
+  };
 };
 
 export default function AttendanceSection({
@@ -190,20 +226,16 @@ export default function AttendanceSection({
     createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading;
 
   const records = useMemo<AttendanceRecord[]>(() => {
-    const rows = ((data?.response || []) as AttendanceItem[]).map((item) => {
-      const actionType = resolveActionType(item.action_type);
-      const time = typeof item.time === "string" ? item.time : "";
-      const delayTime = normalizeDelayTime(item.delay_time);
+    const rows = ((data?.response || []) as AttendanceItem[]).map((item) => ({
+      guid: item.guid,
+      date: typeof item.date === "string" ? item.date : "",
+      checkInTime: normalizeTimeValue(item.check_in_time),
+      checkOutTime: normalizeTimeValue(item.check_out_time),
+      delayTime: normalizeDelayTime(item.delay_time),
+      createdAt: typeof item.created_at === "string" ? item.created_at : "",
+    }));
 
-      return {
-        guid: item.guid,
-        actionType,
-        time,
-        delayTime,
-      };
-    });
-
-    return rows.sort((left, right) => toTimestamp(right.time) - toTimestamp(left.time));
+    return rows.sort((left, right) => toSortTimestamp(right) - toSortTimestamp(left));
   }, [data?.response]);
 
   const closeModal = () => {
@@ -225,9 +257,9 @@ export default function AttendanceSection({
   const openEdit = (record: AttendanceRecord) => {
     setEditingGuid(record.guid);
     setDraft({
-      actionType: record.actionType,
-      date: toDateValue(record.time),
-      time: toTimeValue(record.time),
+      date: toDateValue(record.date || record.createdAt),
+      checkInTime: normalizeTimeValue(record.checkInTime),
+      checkOutTime: normalizeTimeValue(record.checkOutTime),
       delayTime: normalizeDelayTime(record.delayTime),
     });
     setError("");
@@ -240,19 +272,21 @@ export default function AttendanceSection({
       return;
     }
 
-    if (!draft.time) {
-      setError("Укажите время.");
+    const checkInTime = normalizeTimeValue(draft.checkInTime);
+    const checkOutTime = normalizeTimeValue(draft.checkOutTime);
+
+    if (!checkInTime && !checkOutTime) {
+      setError("Укажите хотя бы одно время: приход или уход.");
       return;
     }
 
     const payload = {
-      action_type: [draft.actionType],
       user_base_id: employeeGuid,
       companies_id: companyStore.company?.guid || COMPANY_ID,
-      time: toApiDateTime(draft.date, draft.time),
-      ...(draft.actionType === "check_in"
-        ? { delay_time: normalizeDelayTime(draft.delayTime) }
-        : {}),
+      date: toApiDate(draft.date),
+      ...(checkInTime ? { check_in_time: checkInTime } : {}),
+      ...(checkOutTime ? { check_out_time: checkOutTime } : {}),
+      ...(checkInTime ? { delay_time: normalizeDelayTimeForPayload(draft.delayTime) } : {}),
     };
 
     try {
@@ -332,55 +366,59 @@ export default function AttendanceSection({
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Дата</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Время</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">Приход</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">Уход</th>
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Опоздание</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Тип действия</th>
                     <th className="py-2 text-right text-[12px] font-semibold text-slate-500">
                       Действия
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {records.map((record) => (
-                    <tr key={record.guid} className="border-b border-slate-100">
-                      <td className="py-3 text-[13px] text-slate-800">
-                        {formatDateLabel(record.time)}
-                      </td>
-                      <td className="py-3 text-[13px] font-semibold text-slate-900">
-                        {formatTimeLabel(record.time)}
-                      </td>
-                      <td className="py-3 text-[13px] text-slate-700">
-                        {record.actionType === "check_in" ? record.delayTime : "—"}
-                      </td>
-                      <td className="py-3 text-[13px] text-slate-700">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${ACTION_TAG_STYLES[record.actionType]}`}
-                        >
-                          {ACTION_LABELS[record.actionType]}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(record)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-                            title="Изменить"
+                  {records.map((record) => {
+                    const delayTag = getDelayTag(record.checkInTime, record.delayTime);
+
+                    return (
+                      <tr key={record.guid} className="border-b border-slate-100">
+                        <td className="py-3 text-[13px] text-slate-800">
+                          {formatDateLabel(record.date)}
+                        </td>
+                        <td className="py-3 text-[13px] font-semibold text-slate-900">
+                          {formatTimeLabel(record.checkInTime)}
+                        </td>
+                        <td className="py-3 text-[13px] font-semibold text-slate-900">
+                          {formatTimeLabel(record.checkOutTime)}
+                        </td>
+                        <td className="py-3 text-[13px] text-slate-700">
+                          <span
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${delayTag.className}`}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setToDelete(record)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50"
-                            title="Удалить"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {delayTag.label}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(record)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+                              title="Изменить"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setToDelete(record)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50"
+                              title="Удалить"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -400,80 +438,6 @@ export default function AttendanceSection({
         </div>
 
         <div className="space-y-4 px-6 py-5">
-          <div>
-            <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Тип действия
-            </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    actionType: "check_in",
-                    delayTime: normalizeDelayTime(prev.delayTime),
-                  }))
-                }
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
-                  draft.actionType === "check_in"
-                    ? "border-emerald-300 bg-emerald-50 shadow-sm"
-                    : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/50"
-                }`}
-              >
-                <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                    draft.actionType === "check_in"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  <LogIn className="h-4 w-4" />
-                </span>
-                <span>
-                  <span className="block text-[13px] font-semibold text-slate-900">
-                    Приход
-                  </span>
-                  <span className="mt-0.5 block text-[12px] text-slate-500">
-                    Отметка начала рабочего времени
-                  </span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    actionType: "check_out",
-                  }))
-                }
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
-                  draft.actionType === "check_out"
-                    ? "border-amber-300 bg-amber-50 shadow-sm"
-                    : "border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50/50"
-                }`}
-              >
-                <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                    draft.actionType === "check_out"
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  <LogOut className="h-4 w-4" />
-                </span>
-                <span>
-                  <span className="block text-[13px] font-semibold text-slate-900">
-                    Уход
-                  </span>
-                  <span className="mt-0.5 block text-[12px] text-slate-500">
-                    Отметка завершения рабочего времени
-                  </span>
-                </span>
-              </button>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
@@ -499,26 +463,6 @@ export default function AttendanceSection({
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Время
-              </label>
-              <input
-                type="time"
-                step={60}
-                value={draft.time}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    time: event.target.value,
-                  }))
-                }
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
-              />
-            </div>
-          </div>
-
-          {draft.actionType === "check_in" ? (
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Время опоздания
               </label>
               <input
@@ -531,10 +475,48 @@ export default function AttendanceSection({
                     delayTime: event.target.value,
                   }))
                 }
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300 sm:max-w-[220px]"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
             </div>
-          ) : null}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                Время прихода
+              </label>
+              <input
+                type="time"
+                step={60}
+                value={draft.checkInTime}
+                onChange={(event) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    checkInTime: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                Время ухода
+              </label>
+              <input
+                type="time"
+                step={60}
+                value={draft.checkOutTime}
+                onChange={(event) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    checkOutTime: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
+              />
+            </div>
+          </div>
 
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-600">

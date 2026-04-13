@@ -95,15 +95,19 @@ export const useEmployeeSalaryCompensationsQuery = ({
   limit = 100,
   offset = 0,
   search,
+  dateFrom,
+  dateTo,
   enabled = true,
 }: {
   limit?: number;
   offset?: number;
   search?: string;
+  dateFrom?: string;
+  dateTo?: string;
   enabled?: boolean;
 }) => {
   return useQuery(
-    ["employee-compensations", "salary", limit, offset, search || ""],
+    ["employee-compensations", "salary", limit, offset, search || "", dateFrom || "", dateTo || ""],
     async (): Promise<EmployeeCompensationListResponse> => {
       const dataObj: Record<string, unknown> = {
         limit,
@@ -111,6 +115,12 @@ export const useEmployeeSalaryCompensationsQuery = ({
       };
       if (search && search.trim()) {
         dataObj.search = search.trim();
+      }
+      if (dateFrom && dateTo) {
+        dataObj.date = {
+          $gte: dateFrom,
+          $lte: dateTo,
+        };
       }
 
       const res = await instance.get(`/v2/items/${SLUG}`, {
