@@ -24,6 +24,7 @@ type AttendanceItem = {
   check_in_time?: string | null;
   check_out_time?: string | null;
   delay_time?: string | null;
+  status?: string[] | string | null;
   created_at?: string | null;
   companies_id?: string;
   companies_id_data?: {
@@ -33,12 +34,15 @@ type AttendanceItem = {
   [key: string]: unknown;
 };
 
+type AttendanceStatus = "present" | "late" | "absent" | "unknown";
+
 type AttendanceRecord = {
   guid: string;
   date: string;
   checkInTime: string;
   checkOutTime: string;
   delayTime: string;
+  status: AttendanceStatus;
   createdAt: string;
 };
 
@@ -107,10 +111,51 @@ const formatTimeLabel = (value: string): string => normalizeTimeValue(value) || 
 
 const hasDelayValue = (value: string): boolean => DELAY_TIME_PATTERN.test(value) && value !== "00:00";
 
-const getDelayTag = (
+const normalizeAttendanceStatus = (value: unknown): AttendanceStatus => {
+  const normalized = Array.isArray(value)
+    ? String(value[0] || "").trim().toLowerCase()
+    : String(value || "").trim().toLowerCase();
+
+  if (normalized === "present") return "present";
+  if (normalized === "late") return "late";
+  if (normalized === "absent") return "absent";
+  return "unknown";
+};
+
+const resolveStatusFromTime = (
   checkInTime: string,
   delayTime: string
+): Exclude<AttendanceStatus, "unknown"> => {
+  if (!checkInTime) return "absent";
+  return hasDelayValue(delayTime) ? "late" : "present";
+};
+
+const getAttendanceTag = (
+  checkInTime: string,
+  delayTime: string,
+  status: AttendanceStatus
 ): { label: string; className: string } => {
+  if (status === "absent") {
+    return {
+      label: "Отсутствует",
+      className: "border-slate-200 bg-slate-100 text-slate-500",
+    };
+  }
+
+  if (status === "late") {
+    return {
+      label: hasDelayValue(delayTime) ? delayTime : "Опоздание",
+      className: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+
+  if (status === "present") {
+    return {
+      label: "Присутствует",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
+  }
+
   const hasCheckIn = Boolean(normalizeTimeValue(checkInTime));
   if (!hasCheckIn) {
     return {
@@ -232,6 +277,7 @@ export default function AttendanceSection({
       checkInTime: normalizeTimeValue(item.check_in_time),
       checkOutTime: normalizeTimeValue(item.check_out_time),
       delayTime: normalizeDelayTime(item.delay_time),
+      status: normalizeAttendanceStatus(item.status),
       createdAt: typeof item.created_at === "string" ? item.created_at : "",
     }));
 
@@ -287,6 +333,7 @@ export default function AttendanceSection({
       ...(checkInTime ? { check_in_time: checkInTime } : {}),
       ...(checkOutTime ? { check_out_time: checkOutTime } : {}),
       ...(checkInTime ? { delay_time: normalizeDelayTimeForPayload(draft.delayTime) } : {}),
+      status: [resolveStatusFromTime(checkInTime, draft.delayTime)],
     };
 
     try {
@@ -368,7 +415,7 @@ export default function AttendanceSection({
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Дата</th>
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Приход</th>
                     <th className="py-2 text-[12px] font-semibold text-slate-500">Уход</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Опоздание</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">Статус</th>
                     <th className="py-2 text-right text-[12px] font-semibold text-slate-500">
                       Действия
                     </th>
@@ -376,7 +423,11 @@ export default function AttendanceSection({
                 </thead>
                 <tbody>
                   {records.map((record) => {
-                    const delayTag = getDelayTag(record.checkInTime, record.delayTime);
+                    const attendanceTag = getAttendanceTag(
+                      record.checkInTime,
+                      record.delayTime,
+                      record.status
+                    );
 
                     return (
                       <tr key={record.guid} className="border-b border-slate-100">
@@ -391,9 +442,9 @@ export default function AttendanceSection({
                         </td>
                         <td className="py-3 text-[13px] text-slate-700">
                           <span
-                            className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${delayTag.className}`}
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${attendanceTag.className}`}
                           >
-                            {delayTag.label}
+                            {attendanceTag.label}
                           </span>
                         </td>
                         <td className="py-3">
