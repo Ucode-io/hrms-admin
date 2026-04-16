@@ -1,25 +1,95 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Search, LayoutGrid, List, Mail, Phone, Linkedin, ChevronLeft, ChevronRight, SlidersHorizontal, Plus } from "lucide-react";
+import { Building2, LayoutGrid, List, Mail, Phone, SlidersHorizontal, Plus } from "lucide-react";
+import Select from "react-select";
 import { observer } from "mobx-react-lite";
 import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
 import { useEmployeesQuery, type Employee } from "../../../api/services/employee.service";
+import EmployeesPaginationFooter from "./components/EmployeesPaginationFooter";
+import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
+import OrganizationStructureModule from "../../Organization/Structure";
 
 const PAGE_SIZE = 24;
+const FILTER_SELECT_MAX_WIDTH = 260;
 
-/* ────────────────────────────────────────────────
- *  Component
- * ──────────────────────────────────────────────── */
+type PaginationItem = number | string;
+type FilterOption = { value: string; label: string };
+
+const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 1);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 3);
+  }
+
+  const sortedPages = [...pages]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  const result: PaginationItem[] = [];
+
+  for (let i = 0; i < sortedPages.length; i += 1) {
+    const page = sortedPages[i];
+    const prevPage = sortedPages[i - 1];
+
+    if (prevPage && page - prevPage > 1) {
+      result.push(`ellipsis-${prevPage}-${page}`);
+    }
+
+    result.push(page);
+  }
+
+  return result;
+};
+
+const buildUniqueOptions = (
+  source: Employee[],
+  getValue: (employee: Employee) => string | null | undefined,
+  getLabel: (employee: Employee) => string | null | undefined
+): FilterOption[] => {
+  const map = new Map<string, string>();
+
+  for (const employee of source) {
+    const value = String(getValue(employee) || "").trim();
+    const label = String(getLabel(employee) || "").trim();
+    if (!value || !label) continue;
+    if (!map.has(value)) {
+      map.set(value, label);
+    }
+  }
+
+  return [...map.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((left, right) => left.label.localeCompare(right.label, "ru"));
+};
+
 function EmployeesList() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "org">("grid");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [positionFilter, setPositionFilter] = useState("");
   const navigate = useNavigate();
 
   const brandColor = companyStore.mainColor;
+  const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
 
-  /* ── API data ── */
   const { data: apiData, isLoading } = useEmployeesQuery({
     limit: PAGE_SIZE,
     offset: (currentPage - 1) * PAGE_SIZE,
@@ -32,10 +102,166 @@ function EmployeesList() {
   }, [apiData]);
 
   const totalCount = apiData?.count ?? employees.length;
-
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  /* ── helper: build display name ── */
+  const visibleFrom = totalCount > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
+  const visibleTo = totalCount > 0 ? Math.min(currentPage * PAGE_SIZE, totalCount) : 0;
+
+  const visibleRangeLabel = totalCount > 0
+    ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
+    : "Нет данных";
+  const isOrgView = viewMode === "org";
+
+  const departmentOptions = useMemo(
+    () =>
+      buildUniqueOptions(
+        employees,
+        (employee) => employee.departments_id,
+        (employee) => employee.departments_id_data?.title
+      ),
+    [employees]
+  );
+  const employmentTypeOptions = useMemo(
+    () =>
+      buildUniqueOptions(
+        employees,
+        (employee) => employee.employment_types_id,
+        (employee) => employee.employment_types_id_data?.title
+      ),
+    [employees]
+  );
+  const locationOptions = useMemo(
+    () =>
+      buildUniqueOptions(
+        employees,
+        (employee) => employee.locations_id,
+        (employee) => employee.locations_id_data?.title
+      ),
+    [employees]
+  );
+  const positionOptions = useMemo(
+    () =>
+      buildUniqueOptions(
+        employees,
+        (employee) => employee.positions_id,
+        (employee) => employee.positions_id_data?.title
+      ),
+    [employees]
+  );
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((employee) => {
+      if (departmentFilter && employee.departments_id !== departmentFilter) return false;
+      if (employmentTypeFilter && employee.employment_types_id !== employmentTypeFilter) return false;
+      if (locationFilter && employee.locations_id !== locationFilter) return false;
+      if (positionFilter && employee.positions_id !== positionFilter) return false;
+      return true;
+    });
+  }, [employees, departmentFilter, employmentTypeFilter, locationFilter, positionFilter]);
+
+  const activeFiltersCount = [
+    departmentFilter,
+    employmentTypeFilter,
+    locationFilter,
+    positionFilter,
+  ].filter(Boolean).length;
+  const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
+
+  const filterSelectStyles = useMemo(
+    () => ({
+      control: (base: any, state: any) => ({
+        ...base,
+        minHeight: 38,
+        borderRadius: 10,
+        backgroundColor: state.hasValue ? "#eff6ff" : "#fff",
+        borderColor: state.hasValue ? "#bfdbfe" : state.isFocused ? "#cbd5e1" : "#dbe2ea",
+        boxShadow: "none",
+        "&:hover": {
+          borderColor: state.hasValue ? "#93c5fd" : "#cbd5e1",
+        },
+      }),
+      valueContainer: (base: any) => ({
+        ...base,
+        padding: "0 10px",
+      }),
+      indicatorsContainer: (base: any, state: any) => ({
+        ...base,
+        color: state.hasValue ? "#2563eb" : "#64748b",
+      }),
+      dropdownIndicator: (base: any, state: any) => ({
+        ...base,
+        color: state.hasValue ? "#2563eb" : "#64748b",
+        padding: 6,
+        "&:hover": {
+          color: state.hasValue ? "#1d4ed8" : "#475569",
+        },
+      }),
+      clearIndicator: (base: any) => ({
+        ...base,
+        color: "#64748b",
+        padding: 6,
+        "&:hover": {
+          color: "#475569",
+        },
+      }),
+      indicatorSeparator: () => ({
+        display: "none",
+      }),
+      placeholder: (base: any) => ({
+        ...base,
+        color: "#94a3b8",
+        fontSize: 14,
+      }),
+      input: (base: any) => ({
+        ...base,
+        color: "#1e293b",
+        fontSize: 14,
+        margin: 0,
+        padding: 0,
+      }),
+      singleValue: (base: any, state: any) => ({
+        ...base,
+        color: state.hasValue ? "#2563eb" : "#334155",
+        fontSize: 14,
+        fontWeight: state.hasValue ? 600 : 500,
+      }),
+      menu: (base: any) => ({
+        ...base,
+        borderRadius: 10,
+        overflow: "hidden",
+        zIndex: 9999,
+      }),
+      menuPortal: (base: any) => ({
+        ...base,
+        zIndex: 9999,
+      }),
+      option: (base: any, state: any) => ({
+        ...base,
+        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        fontSize: 14,
+        padding: "8px 12px",
+      }),
+      noOptionsMessage: (base: any) => ({
+        ...base,
+        color: "#64748b",
+        fontSize: 13,
+      }),
+    }),
+    []
+  );
+
+  useEffect(() => {
+    if (isOrgView && isFiltersOpen) {
+      setIsFiltersOpen(false);
+    }
+  }, [isOrgView, isFiltersOpen]);
+
+  const paginationItems = useMemo(
+    () => buildPaginationItems(currentPage, totalPages),
+    [currentPage, totalPages]
+  );
+
   const getDisplayName = (emp: Employee) =>
     [emp.second_name, emp.first_name].filter(Boolean).join(" ") || "—";
 
@@ -65,432 +291,568 @@ function EmployeesList() {
     <>
       <PageMeta title="Сотрудники | HRMS" description="Список сотрудников" />
 
-      {/* ── Top Bar ── */}
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-        }}
+        className="-mx-3 md:-mx-4 -mt-3 md:-mt-4"
+        style={
+          isOrgView
+            ? {
+              height: "calc(100vh - 88px)",
+              maxHeight: "calc(100vh - 88px)",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+              overflow: "hidden",
+            }
+            : undefined
+        }
       >
-        {/* Search */}
-        <div style={{ position: "relative", flex: "1 1 400px", maxWidth: "700px" }}>
-          <Search
-            style={{
-              position: "absolute",
-              left: "14px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: "18px",
-              height: "18px",
-              color: "#94a3b8",
-              pointerEvents: "none",
-            }}
-          />
-          <input
-            id="employees-search"
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Поиск по имени, электронной почте или номеру телефона"
-            style={{
-              width: "100%",
-              paddingLeft: "42px",
-              paddingRight: "16px",
-              paddingTop: "10px",
-              paddingBottom: "10px",
-              fontSize: "14px",
-              border: "1px solid #e2e8f0",
-              borderRadius: "10px",
-              outline: "none",
-              color: "#1e293b",
-              backgroundColor: "#fff",
-              transition: "border-color 0.2s",
-            }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = brandColor)}
-            onBlur={(e) => (e.currentTarget.style.borderColor = "#e2e8f0")}
-          />
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto" }}>
-          {/* Filter button */}
-          <button
-            id="employees-filter-btn"
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 0,
+            marginBottom: isOrgView ? "8px" : "12px",
+            flexShrink: 0,
+            width: "100%",
+          }}
+        >
+          <div
+            className="px-4 lg:px-6 py-2"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "6px",
-              padding: "8px 16px",
-              fontSize: "14px",
-              fontWeight: 500,
-              color: "#1e293b",
+              justifyContent: "space-between",
+              gap: "10px",
+              flexWrap: "wrap",
               backgroundColor: "#fff",
               border: "1px solid #e2e8f0",
-              borderRadius: "10px",
-              cursor: "pointer",
-              transition: "background-color 0.2s",
+              borderTop: "none",
+              borderBottom: isFiltersOpen && !isOrgView ? "none" : "1px solid #e2e8f0",
+              borderRadius: "0",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
           >
-            <SlidersHorizontal style={{ width: "16px", height: "16px" }} />
-            Фильтр
-            <span style={{ fontSize: "11px", marginLeft: "2px" }}>▸</span>
-          </button>
-
-          {/* View toggle */}
           <div
             style={{
-              display: "flex",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "3px",
+              borderRadius: "12px",
               border: "1px solid #e2e8f0",
-              borderRadius: "10px",
-              overflow: "hidden",
+              backgroundColor: "#f8fafc",
+              height: "38px",
             }}
           >
-            <button
-              id="employees-view-grid"
-              onClick={() => setViewMode("grid")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "38px",
-                height: "38px",
-                backgroundColor: viewMode === "grid" ? brandColor : "#fff",
-                color: viewMode === "grid" ? "#fff" : "#64748b",
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-            >
-              <LayoutGrid style={{ width: "18px", height: "18px" }} />
-            </button>
             <button
               id="employees-view-list"
               onClick={() => setViewMode("list")}
               style={{
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "center",
-                width: "38px",
-                height: "38px",
-                backgroundColor: viewMode === "list" ? brandColor : "#fff",
-                color: viewMode === "list" ? "#fff" : "#64748b",
-                border: "none",
-                borderLeft: "1px solid #e2e8f0",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-            >
-              <List style={{ width: "18px", height: "18px" }} />
-            </button>
-          </div>
-
-          {/* Add button */}
-          <button
-            id="employees-add-btn"
-            onClick={() => navigate("/employees/new")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "8px 18px",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#fff",
-              backgroundColor: brandColor,
-              border: "none",
-              borderRadius: "10px",
-              cursor: "pointer",
-              transition: "opacity 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-          >
-            <Plus style={{ width: "16px", height: "16px" }} />
-            Добавить
-          </button>
-        </div>
-      </div>
-
-      {/* ── Info line ── */}
-      <div
-        style={{
-          fontSize: "13px",
-          color: "#64748b",
-          marginBottom: "16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <span>
-          {totalCount > 0
-            ? `Отображение ${(currentPage - 1) * PAGE_SIZE + 1} - ${Math.min(currentPage * PAGE_SIZE, totalCount)} из ${totalCount}`
-            : "Нет данных"}
-        </span>
-
-        {/* Pagination */}
-        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <button
-            id="employees-page-prev"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "32px",
-              height: "32px",
-              border: "1px solid #e2e8f0",
-              borderRadius: "8px",
-              backgroundColor: "#fff",
-              color: currentPage === 1 ? "#cbd5e1" : "#1e293b",
-              cursor: currentPage === 1 ? "default" : "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            <ChevronLeft style={{ width: "16px", height: "16px" }} />
-          </button>
-
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-            <button
-              key={page}
-              onClick={() => setCurrentPage(page)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minWidth: "32px",
-                height: "32px",
-                padding: "0 8px",
-                border: currentPage === page ? `1px solid ${brandColor}` : "1px solid #e2e8f0",
+                gap: "8px",
+                height: "30px",
+                padding: "0 12px",
+                border: viewMode === "list" ? "1px solid #dbeafe" : "1px solid transparent",
                 borderRadius: "8px",
-                backgroundColor: currentPage === page ? brandColor : "#fff",
-                color: currentPage === page ? "#fff" : "#1e293b",
-                fontWeight: currentPage === page ? 600 : 400,
+                backgroundColor: viewMode === "list" ? "#fff" : "transparent",
+                color: viewMode === "list" ? "#2563eb" : "#64748b",
+                fontWeight: 600,
                 fontSize: "13px",
                 cursor: "pointer",
-                transition: "all 0.15s",
+                transition: "all 0.2s",
+                boxShadow: viewMode === "list" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
               }}
             >
-              {page}
+              <List style={{ width: "17px", height: "17px" }} />
+              Таблица
             </button>
-          ))}
 
-          <button
-            id="employees-page-next"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
+            <button
+              id="employees-view-grid"
+              onClick={() => setViewMode("grid")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                height: "30px",
+                padding: "0 12px",
+                border: viewMode === "grid" ? "1px solid #dbeafe" : "1px solid transparent",
+                borderRadius: "8px",
+                backgroundColor: viewMode === "grid" ? "#fff" : "transparent",
+                color: viewMode === "grid" ? "#2563eb" : "#64748b",
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                boxShadow: viewMode === "grid" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+              }}
+            >
+              <LayoutGrid style={{ width: "17px", height: "17px" }} />
+              Сетка
+            </button>
+
+            <button
+              id="employees-view-org-structure"
+              onClick={() => setViewMode("org")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                height: "30px",
+                padding: "0 12px",
+                border: viewMode === "org" ? "1px solid #dbeafe" : "1px solid transparent",
+                borderRadius: "8px",
+                backgroundColor: viewMode === "org" ? "#fff" : "transparent",
+                color: viewMode === "org" ? "#2563eb" : "#64748b",
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                boxShadow: viewMode === "org" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+              }}
+            >
+              <Building2 style={{ width: "17px", height: "17px" }} />
+              Орг структура
+            </button>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexWrap: "nowrap", justifyContent: "flex-end" }}>
+            <ExpandableSearchInput
+              value={searchQuery}
+              onChange={(value) => {
+                setSearchQuery(value);
+                setCurrentPage(1);
+              }}
+              inputId="employees-search"
+              placeholder="Поиск по имени, электронной почте или номеру телефона"
+              expandedWidth={460}
+              collapsedSize={38}
+              brandColor={brandColor}
+            />
+
+            <button
+              id="employees-filter-btn"
+              type="button"
+              disabled={isOrgView}
+              onClick={() => {
+                if (isOrgView) return;
+                setIsFiltersOpen((open) => !open);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                fontSize: "14px",
+                fontWeight: 500,
+                color: isOrgView ? "#94a3b8" : isFilterButtonActive ? "#2563eb" : "#1e293b",
+                backgroundColor: isOrgView ? "#f8fafc" : isFilterButtonActive ? "#eff6ff" : "#fff",
+                border: isOrgView
+                  ? "1px solid #e2e8f0"
+                  : isFilterButtonActive
+                    ? "1px solid #bfdbfe"
+                    : "1px solid #e2e8f0",
+                borderRadius: "10px",
+                cursor: isOrgView ? "not-allowed" : "pointer",
+                transition: "background-color 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (isFilterButtonActive || isOrgView) return;
+                e.currentTarget.style.backgroundColor = "#f8fafc";
+              }}
+              onMouseLeave={(e) => {
+                if (isFilterButtonActive || isOrgView) return;
+                e.currentTarget.style.backgroundColor = "#fff";
+              }}
+            >
+              <SlidersHorizontal style={{ width: "16px", height: "16px" }} />
+              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+            </button>
+
+            <button
+              id="employees-add-btn"
+              onClick={() => navigate("/employees/new")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#fff",
+                backgroundColor: brandColor,
+                border: "none",
+                borderRadius: "10px",
+                cursor: "pointer",
+                transition: "opacity 0.15s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              <Plus style={{ width: "16px", height: "16px" }} />
+              Добавить
+            </button>
+          </div>
+          </div>
+
+          {isFiltersOpen && !isOrgView ? (
+            <div
+              className="px-4 lg:px-6 py-2"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+                justifyContent: "flex-start",
+                background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+                border: "1px solid #e2e8f0",
+                borderTop: "1px solid #dbe4ee",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+              }}
+            >
+              <div
+                style={{
+                  minWidth: "180px",
+                  width: "100%",
+                  maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                  flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+                }}
+              >
+                <Select
+                  inputId="employees-filter-department"
+                  value={departmentOptions.find((option) => option.value === departmentFilter) || null}
+                  onChange={(option: any) => {
+                    setDepartmentFilter(option?.value || "");
+                    setCurrentPage(1);
+                  }}
+                  options={departmentOptions}
+                  placeholder="Департамент"
+                  isSearchable
+                  isClearable
+                  styles={filterSelectStyles}
+                  menuPortalTarget={selectPortalTarget}
+                  menuPosition="fixed"
+                  noOptionsMessage={() => "Ничего не найдено"}
+                />
+              </div>
+
+              <div
+                style={{
+                  minWidth: "180px",
+                  width: "100%",
+                  maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                  flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+                }}
+              >
+                <Select
+                  inputId="employees-filter-employment-type"
+                  value={employmentTypeOptions.find((option) => option.value === employmentTypeFilter) || null}
+                  onChange={(option: any) => {
+                    setEmploymentTypeFilter(option?.value || "");
+                    setCurrentPage(1);
+                  }}
+                  options={employmentTypeOptions}
+                  placeholder="Тип работы"
+                  isSearchable
+                  isClearable
+                  styles={filterSelectStyles}
+                  menuPortalTarget={selectPortalTarget}
+                  menuPosition="fixed"
+                  noOptionsMessage={() => "Ничего не найдено"}
+                />
+              </div>
+
+              <div
+                style={{
+                  minWidth: "180px",
+                  width: "100%",
+                  maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                  flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+                }}
+              >
+                <Select
+                  inputId="employees-filter-location"
+                  value={locationOptions.find((option) => option.value === locationFilter) || null}
+                  onChange={(option: any) => {
+                    setLocationFilter(option?.value || "");
+                    setCurrentPage(1);
+                  }}
+                  options={locationOptions}
+                  placeholder="Локация"
+                  isSearchable
+                  isClearable
+                  styles={filterSelectStyles}
+                  menuPortalTarget={selectPortalTarget}
+                  menuPosition="fixed"
+                  noOptionsMessage={() => "Ничего не найдено"}
+                />
+              </div>
+
+              <div
+                style={{
+                  minWidth: "180px",
+                  width: "100%",
+                  maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                  flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+                }}
+              >
+                <Select
+                  inputId="employees-filter-position"
+                  value={positionOptions.find((option) => option.value === positionFilter) || null}
+                  onChange={(option: any) => {
+                    setPositionFilter(option?.value || "");
+                    setCurrentPage(1);
+                  }}
+                  options={positionOptions}
+                  placeholder="Должность"
+                  isSearchable
+                  isClearable
+                  styles={filterSelectStyles}
+                  menuPortalTarget={selectPortalTarget}
+                  menuPosition="fixed"
+                  noOptionsMessage={() => "Ничего не найдено"}
+                />
+              </div>
+
+              {activeFiltersCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDepartmentFilter("");
+                    setEmploymentTypeFilter("");
+                    setLocationFilter("");
+                    setPositionFilter("");
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "38px",
+                    padding: "0 12px",
+                    borderRadius: "10px",
+                    border: "1px solid #bfdbfe",
+                    backgroundColor: "#eff6ff",
+                    color: "#2563eb",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    marginLeft: "auto",
+                  }}
+                >
+                  Сбросить
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+        </div>
+
+        <div
+          style={
+            isOrgView
+              ? { flex: 1, minHeight: 0, overflow: "hidden", paddingBottom: 0 }
+              : { paddingBottom: "92px" }
+          }
+        >
+          {viewMode === "org" ? (
+            <OrganizationStructureModule embedded />
+          ) : isLoading ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
+              <div
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  border: "3px solid #e2e8f0",
+                  borderTopColor: brandColor,
+                  animation: "spin 0.8s linear infinite",
+                }}
+              />
+            </div>
+          ) : viewMode === "grid" ? (
+            <div style={{ padding: "0 12px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                  gap: "16px",
+                }}
+              >
+                {filteredEmployees.length === 0 ? (
+                  <div
+                    style={{
+                      gridColumn: "1 / -1",
+                      textAlign: "center",
+                      padding: "60px 0",
+                      color: "#94a3b8",
+                      fontSize: "15px",
+                    }}
+                  >
+                    Сотрудники не найдены
+                  </div>
+                ) : (
+                  filteredEmployees.map((emp) => (
+                    <EmployeeCard
+                      key={emp.guid}
+                      employee={emp}
+                      brandColor={brandColor}
+                      name={getDisplayName(emp)}
+                      position={getPosition(emp)}
+                      department={getDepartment(emp)}
+                      location={getLocation(emp)}
+                      onClick={() => navigate(`/employees/${emp.guid}`)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+          <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "32px",
-              height: "32px",
+              overflow: "hidden",
+              borderRadius: "12px",
               border: "1px solid #e2e8f0",
-              borderRadius: "8px",
               backgroundColor: "#fff",
-              color: currentPage === totalPages ? "#cbd5e1" : "#1e293b",
-              cursor: currentPage === totalPages ? "default" : "pointer",
-              transition: "all 0.15s",
             }}
           >
-            <ChevronRight style={{ width: "16px", height: "16px" }} />
-          </button>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#f8fafc" }}>
+                    {["", "Имя", "Должность", "Отдел", "Локация", "Email", "Телефон"].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          style={{
+                            padding: "10px 16px",
+                            textAlign: "left",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            color: "#64748b",
+                            borderBottom: "1px solid #e2e8f0",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        style={{
+                          textAlign: "center",
+                          padding: "40px",
+                          color: "#94a3b8",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Сотрудники не найдены
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredEmployees.map((emp) => {
+                      const name = getDisplayName(emp);
+                      const dismissed = isDismissed(emp);
+                      return (
+                        <tr
+                          key={emp.guid}
+                          onClick={() => navigate(`/employees/${emp.guid}`)}
+                          style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s", cursor: "pointer" }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.backgroundColor = "#f8fafc")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.backgroundColor = "transparent")
+                          }
+                        >
+                          <td style={{ padding: "10px 16px", width: "56px" }}>
+                            <Avatar name={name} photo={emp.photo} size={36} />
+                          </td>
+                          <td
+                            style={{
+                              padding: "10px 16px",
+                              color: "#1e293b",
+                              fontSize: "14px",
+                            }}
+                          >
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{name}</span>
+                                {dismissed ? (
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      padding: "2px 8px",
+                                      borderRadius: "999px",
+                                      border: "1px solid #fecaca",
+                                      backgroundColor: "#fef2f2",
+                                      color: "#b91c1c",
+                                      fontSize: "11px",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Уволен
+                                  </span>
+                                ) : null}
+                              </div>
+                              {dismissed && emp.dismissal_date ? (
+                                <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+                                  Дата увольнения: {formatDate(emp.dismissal_date)}
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
+                            {getPosition(emp) || "—"}
+                          </td>
+                          <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
+                            {getDepartment(emp) || "—"}
+                          </td>
+                          <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
+                            {getLocation(emp) || "—"}
+                          </td>
+                          <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
+                            {emp.email || "—"}
+                          </td>
+                          <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
+                            {emp.phone || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         </div>
       </div>
 
-      {/* ── Loading state ── */}
-      {isLoading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
-          <div
-            style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "50%",
-              border: "3px solid #e2e8f0",
-              borderTopColor: brandColor,
-              animation: "spin 0.8s linear infinite",
-            }}
-          />
-        </div>
-      ) : viewMode === "grid" ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            gap: "16px",
-          }}
-        >
-          {employees.length === 0 ? (
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                textAlign: "center",
-                padding: "60px 0",
-                color: "#94a3b8",
-                fontSize: "15px",
-              }}
-            >
-              Сотрудники не найдены
-            </div>
-          ) : (
-            employees.map((emp) => (
-              <EmployeeCard
-                key={emp.guid}
-                employee={emp}
-                brandColor={brandColor}
-                name={getDisplayName(emp)}
-                position={getPosition(emp)}
-                department={getDepartment(emp)}
-                location={getLocation(emp)}
-                onClick={() => navigate(`/employees/${emp.guid}`)}
-              />
-            ))
-          )}
-        </div>
-      ) : (
-        /* ── Table view ── */
-        <div
-          style={{
-            overflow: "hidden",
-            borderRadius: "12px",
-            border: "1px solid #e2e8f0",
-            backgroundColor: "#fff",
-          }}
-        >
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ backgroundColor: "#f8fafc" }}>
-                  {["", "Имя", "Должность", "Отдел", "Локация", "Email", "Телефон"].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: "10px 16px",
-                          textAlign: "left",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "#64748b",
-                          borderBottom: "1px solid #e2e8f0",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {employees.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      style={{
-                        textAlign: "center",
-                        padding: "40px",
-                        color: "#94a3b8",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Сотрудники не найдены
-                    </td>
-                  </tr>
-                ) : (
-                  employees.map((emp) => {
-                    const name = getDisplayName(emp);
-                    const dismissed = isDismissed(emp);
-                    return (
-                      <tr
-                        key={emp.guid}
-                        onClick={() => navigate(`/employees/${emp.guid}`)}
-                        style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s", cursor: "pointer" }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#f8fafc")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
-                      >
-                        <td style={{ padding: "10px 16px", width: "56px" }}>
-                          <Avatar name={name} photo={emp.photo} size={36} />
-                        </td>
-                        <td
-                          style={{
-                            padding: "10px 16px",
-                            color: "#1e293b",
-                            fontSize: "14px",
-                          }}
-                        >
-                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{name}</span>
-                              {dismissed ? (
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    padding: "2px 8px",
-                                    borderRadius: "999px",
-                                    border: "1px solid #fecaca",
-                                    backgroundColor: "#fef2f2",
-                                    color: "#b91c1c",
-                                    fontSize: "11px",
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  Уволен
-                                </span>
-                              ) : null}
-                            </div>
-                            {dismissed && emp.dismissal_date ? (
-                              <div style={{ fontSize: "12px", color: "#94a3b8" }}>
-                                Дата увольнения: {formatDate(emp.dismissal_date)}
-                              </div>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
-                          {getPosition(emp) || "—"}
-                        </td>
-                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
-                          {getDepartment(emp) || "—"}
-                        </td>
-                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
-                          {getLocation(emp) || "—"}
-                        </td>
-                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
-                          {emp.email || "—"}
-                        </td>
-                        <td style={{ padding: "10px 16px", fontSize: "13px", color: "#475569" }}>
-                          {emp.phone || "—"}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {viewMode !== "org" ? (
+        <EmployeesPaginationFooter
+          visibleRangeLabel={visibleRangeLabel}
+          paginationItems={paginationItems}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          brandColor={brandColor}
+          onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+          onPageChange={(page) => setCurrentPage(page)}
+        />
+      ) : null}
     </>
   );
 }
 
 export default observer(EmployeesList);
-
-/* ────────────────────────────────────────────────
- *  Sub-components
- * ──────────────────────────────────────────────── */
 
 function Avatar({
   name,
@@ -635,7 +997,6 @@ function EmployeeCard({
         cursor: "pointer",
       }}
     >
-      {/* Top section: avatar + info */}
       <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
         <Avatar name={name} photo={employee.photo} size={48} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -700,7 +1061,6 @@ function EmployeeCard({
         </div>
       </div>
 
-      {/* Contact icons */}
       <div
         style={{
           display: "flex",

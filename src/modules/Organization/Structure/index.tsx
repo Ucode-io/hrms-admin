@@ -417,7 +417,11 @@ const buildHierarchyLayout = (
   };
 };
 
-function OrganizationStructureModule() {
+interface OrganizationStructureModuleProps {
+  embedded?: boolean;
+}
+
+function OrganizationStructureModule({ embedded = false }: OrganizationStructureModuleProps) {
   const [searchInput, setSearchInput] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedHierarchyLevel, setSelectedHierarchyLevel] = useState("");
@@ -554,17 +558,21 @@ function OrganizationStructureModule() {
   const hierarchyLevels = Number(cards.hierarchy_levels || 0);
 
   const nodeTypes = useMemo(() => ({ orgNode: OrgNodeCard }), []);
-  const onNodeClick = useMemo<NodeMouseHandler<OrgNodeData>>(
-    () => (_event, node) => {
-      setSelectedNodeId(node.id);
-      setEmployeeSearch("");
+  const onNodeClick = useMemo<NodeMouseHandler<OrgNodeData> | undefined>(
+    () => {
+      if (embedded) return undefined;
+      return (_event, node) => {
+        setSelectedNodeId(node.id);
+        setEmployeeSearch("");
+      };
     },
-    []
+    [embedded]
   );
 
   const { data: employeesData, isLoading: isEmployeesLoading } = useEmployeesQuery({
     limit: 5000,
     offset: 0,
+    enabled: !embedded,
   });
 
   const allEmployees = useMemo<Employee[]>(
@@ -616,7 +624,66 @@ function OrganizationStructureModule() {
     setSelectedHierarchyLevel("");
   };
 
+  const graphContent = (
+    <div className={embedded ? "relative h-full" : "relative"}>
+      {isFetching ? (
+        <div className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white/95 px-3 py-2 text-xs font-medium text-gray-600 shadow-sm">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
+          Обновляем данные...
+        </div>
+      ) : null}
+
+      {layout.graphNodes.length === 0 ? (
+        <div className={embedded ? "flex h-full items-center justify-center text-sm text-gray-500" : "flex h-[440px] items-center justify-center text-sm text-gray-500"}>
+          Нет данных по выбранным фильтрам
+        </div>
+      ) : (
+        <div style={{ height: embedded ? "100%" : chartHeight }}>
+          <ReactFlow
+            nodes={layout.graphNodes}
+            edges={layout.graphEdges}
+            nodeTypes={nodeTypes}
+            onInit={setFlowInstance}
+            fitView
+            fitViewOptions={{ padding: 0.2, maxZoom: 1.1 }}
+            panOnScroll
+            zoomOnScroll
+            zoomOnPinch
+            zoomOnDoubleClick={false}
+            panOnDrag
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable
+            proOptions={{ hideAttribution: true }}
+            className="bg-slate-50/40"
+            onNodeClick={onNodeClick}
+          >
+            <Controls position="bottom-right" showInteractive={false} />
+            <MiniMap
+              position="bottom-left"
+              zoomable
+              pannable
+              style={{ width: 160, height: 100, borderRadius: 12, border: "1px solid #E2E8F0" }}
+              nodeStrokeColor="#CBD5E1"
+              nodeColor="#EFF6FF"
+              maskColor="rgba(148, 163, 184, 0.08)"
+            />
+            <Background color="#E2E8F0" gap={20} size={1} />
+          </ReactFlow>
+        </div>
+      )}
+    </div>
+  );
+
   if (isLoading) {
+    if (embedded) {
+      return (
+        <div className="flex h-full min-h-0 items-center justify-center rounded-2xl border border-gray-200 bg-white">
+          <Spinner />
+        </div>
+      );
+    }
+
     return (
       <>
         <PageMeta title="Орг структура | HRMS" description="Оргструктура компании" />
@@ -628,6 +695,23 @@ function OrganizationStructureModule() {
   }
 
   if (isError) {
+    if (embedded) {
+      return (
+        <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
+          <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
+          <button
+            type="button"
+            onClick={() => {
+              void refetch();
+            }}
+            className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
+          >
+            Повторить
+          </button>
+        </div>
+      );
+    }
+
     return (
       <>
         <PageMeta title="Орг структура | HRMS" description="Оргструктура компании" />
@@ -644,6 +728,14 @@ function OrganizationStructureModule() {
           </button>
         </div>
       </>
+    );
+  }
+
+  if (embedded) {
+    return (
+      <section className="h-full min-h-0 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        {graphContent}
+      </section>
     );
   }
 
@@ -761,54 +853,7 @@ function OrganizationStructureModule() {
             </article>
           </div>
 
-          <div className="relative">
-            {isFetching ? (
-              <div className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white/95 px-3 py-2 text-xs font-medium text-gray-600 shadow-sm">
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-                Обновляем данные...
-              </div>
-            ) : null}
-
-            {layout.graphNodes.length === 0 ? (
-              <div className="flex h-[440px] items-center justify-center text-sm text-gray-500">
-                Нет данных по выбранным фильтрам
-              </div>
-            ) : (
-              <div style={{ height: chartHeight }}>
-                <ReactFlow
-                  nodes={layout.graphNodes}
-                  edges={layout.graphEdges}
-                  nodeTypes={nodeTypes}
-                  onInit={setFlowInstance}
-                  fitView
-                  fitViewOptions={{ padding: 0.2, maxZoom: 1.1 }}
-                  panOnScroll
-                  zoomOnScroll
-                  zoomOnPinch
-                  zoomOnDoubleClick={false}
-                  panOnDrag
-                  nodesDraggable={false}
-                  nodesConnectable={false}
-                  elementsSelectable
-                  proOptions={{ hideAttribution: true }}
-                  className="bg-slate-50/40"
-                  onNodeClick={onNodeClick}
-                >
-                  <Controls position="bottom-right" showInteractive={false} />
-                  <MiniMap
-                    position="bottom-left"
-                    zoomable
-                    pannable
-                    style={{ width: 160, height: 100, borderRadius: 12, border: "1px solid #E2E8F0" }}
-                    nodeStrokeColor="#CBD5E1"
-                    nodeColor="#EFF6FF"
-                    maskColor="rgba(148, 163, 184, 0.08)"
-                  />
-                  <Background color="#E2E8F0" gap={20} size={1} />
-                </ReactFlow>
-              </div>
-            )}
-          </div>
+          {graphContent}
         </section>
       </div>
 

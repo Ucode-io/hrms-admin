@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import Select from "react-select";
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Download,
-  HandCoins,
+  MoreHorizontal,
   Pencil,
-  Search,
+  Plus,
+  SlidersHorizontal,
   Trash2,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
-import Pagination from "../../../components/pagination";
 import { Modal } from "../../../components/ui/modal";
 import reportsService from "../../../api/services/reports.service";
 import companyStore from "../../../store/company.store";
+import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
+import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
+import EmployeesPaginationFooter from "../../Employees/List/components/EmployeesPaginationFooter";
+import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
 import {
   useDeleteEmployeeCompensation,
   type EmployeeCompensation,
@@ -26,6 +30,8 @@ import {
 import { COMPANY_ID, useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 
 type OperationType = "income" | "deduction";
+type PaginationItem = number | string;
+type FilterOption = { value: string; label: string };
 
 type CompensationRecord = {
   guid: string;
@@ -189,6 +195,45 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 1);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 3);
+  }
+
+  const sortedPages = [...pages]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  const result: PaginationItem[] = [];
+
+  for (let index = 0; index < sortedPages.length; index += 1) {
+    const page = sortedPages[index];
+    const prevPage = sortedPages[index - 1];
+
+    if (prevPage && page - prevPage > 1) {
+      result.push(`ellipsis-${prevPage}-${page}`);
+    }
+
+    result.push(page);
+  }
+
+  return result;
+};
+
 const resolveEmployeeName = (item: EmployeeCompensation): { guid: string; name: string } => {
   const source = item as Record<string, unknown>;
   const relationCandidates = [
@@ -228,14 +273,21 @@ function FinanceSalaryPage() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [employeeFilter, setEmployeeFilter] = useState("");
+  const [operationFilter, setOperationFilter] = useState("");
+  const [compensationTypeFilter, setCompensationTypeFilter] = useState("");
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CompensationRecord | null>(null);
   const [recordToDelete, setRecordToDelete] = useState<CompensationRecord | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft>(getDefaultEditDraft());
   const [editError, setEditError] = useState("");
   const lastKnownTotalCountRef = useRef(0);
   const excelInputRef = useRef<HTMLInputElement | null>(null);
+  const templateMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
   const updateMutation = useUpdateEmployeeCompensation("all");
   const deleteMutation = useDeleteEmployeeCompensation("all");
 
@@ -330,6 +382,144 @@ function FinanceSalaryPage() {
       ),
     [compensationTypeOptions, editDraft.operationType]
   );
+  const operationFilterOptions: FilterOption[] = useMemo(
+    () => [
+      { value: "income", label: "Начисление" },
+      { value: "deduction", label: "Удержание" },
+    ],
+    []
+  );
+  const employeeFilterOptions = useMemo<FilterOption[]>(() => {
+    const map = new Map<string, string>();
+    for (const record of records) {
+      const value = (record.employeeGuid || "").trim();
+      const label = (record.employeeName || "").trim();
+      if (!value || !label) continue;
+      if (!map.has(value)) map.set(value, label);
+    }
+    return [...map.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+  }, [records]);
+  const compensationTypeFilterOptions = useMemo<FilterOption[]>(
+    () =>
+      compensationTypeOptions
+        .filter((item) => typeof item.guid === "string" && typeof item.title === "string")
+        .map((item) => ({
+          value: item.guid,
+          label: item.title || "Без названия",
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, "ru")),
+    [compensationTypeOptions]
+  );
+  const filteredRecords = useMemo(() => {
+    return records.filter((record) => {
+      if (employeeFilter && record.employeeGuid !== employeeFilter) return false;
+      if (operationFilter && record.operationType !== operationFilter) return false;
+      if (compensationTypeFilter && record.compensationTypeId !== compensationTypeFilter) return false;
+      return true;
+    });
+  }, [records, employeeFilter, operationFilter, compensationTypeFilter]);
+  const activeFiltersCount = [employeeFilter, operationFilter, compensationTypeFilter].filter(Boolean).length;
+  const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
+  const hasActiveFilters = activeFiltersCount > 0;
+  const filterSelectStyles = useMemo(
+    () => ({
+      control: (base: any, state: any) => ({
+        ...base,
+        minHeight: 40,
+        borderRadius: 12,
+        backgroundColor: state.hasValue ? "#eff6ff" : "#fff",
+        borderColor: state.hasValue ? "#bfdbfe" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
+        boxShadow: "none",
+        "&:hover": {
+          borderColor: state.hasValue ? "#93c5fd" : "#cbd5e1",
+        },
+      }),
+      valueContainer: (base: any) => ({
+        ...base,
+        padding: "0 10px",
+      }),
+      indicatorsContainer: (base: any, state: any) => ({
+        ...base,
+        color: state.hasValue ? "#2563eb" : "#64748b",
+      }),
+      dropdownIndicator: (base: any, state: any) => ({
+        ...base,
+        color: state.hasValue ? "#2563eb" : "#64748b",
+        padding: 6,
+        "&:hover": {
+          color: state.hasValue ? "#1d4ed8" : "#475569",
+        },
+      }),
+      clearIndicator: (base: any) => ({
+        ...base,
+        color: "#64748b",
+        padding: 6,
+        "&:hover": {
+          color: "#475569",
+        },
+      }),
+      indicatorSeparator: () => ({
+        display: "none",
+      }),
+      placeholder: (base: any) => ({
+        ...base,
+        color: "#94a3b8",
+        fontSize: 14,
+      }),
+      input: (base: any) => ({
+        ...base,
+        color: "#1e293b",
+        fontSize: 14,
+        margin: 0,
+        padding: 0,
+      }),
+      singleValue: (base: any, state: any) => ({
+        ...base,
+        color: state.hasValue ? "#2563eb" : "#334155",
+        fontSize: 14,
+        fontWeight: state.hasValue ? 600 : 500,
+      }),
+      menu: (base: any) => ({
+        ...base,
+        borderRadius: 10,
+        overflow: "hidden",
+        zIndex: 9999,
+      }),
+      menuPortal: (base: any) => ({
+        ...base,
+        zIndex: 9999,
+      }),
+      option: (base: any, state: any) => ({
+        ...base,
+        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        fontSize: 14,
+        padding: "8px 12px",
+      }),
+      noOptionsMessage: (base: any) => ({
+        ...base,
+        color: "#64748b",
+        fontSize: 13,
+      }),
+    }),
+    []
+  );
+  const paginationItems = useMemo(
+    () => buildPaginationItems(currentPage, totalPages),
+    [currentPage, totalPages]
+  );
+  const visibleFrom = totalCount > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
+  const visibleTo = totalCount > 0 ? Math.min(currentPage * PAGE_SIZE, totalCount) : 0;
+  const visibleRangeLabel =
+    hasActiveFilters
+      ? `Отфильтровано ${filteredRecords.length} из ${records.length} на странице`
+      : totalCount > 0
+        ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
+        : "Нет данных";
+  const showStickyPagination =
+    !isPageLoading && !isError && totalCount > 0 && (!hasActiveFilters || filteredRecords.length > 0);
 
   const closeEditModal = () => {
     if (isMutatingRecord) return;
@@ -509,103 +699,225 @@ function FinanceSalaryPage() {
     <>
       <PageMeta title="Зарплата сотрудников | HRMS" description="Список начислений и удержаний сотрудников" />
 
-      <div className="space-y-4">
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-6 py-4">
-            <Link
-              to="/dashboard"
-              className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-slate-700"
+      <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
+        <div
+          className="px-4 lg:px-6 py-2"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: "10px",
+            flexWrap: "wrap",
+            backgroundColor: "#fff",
+            border: "1px solid #e2e8f0",
+            borderTop: "none",
+          }}
+        >
+          <div className="flex items-center gap-2 ml-auto">
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "3px",
+                borderRadius: "12px",
+                border: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+                height: "38px",
+              }}
             >
-              <ArrowLeft size={14} />
-              Назад
-            </Link>
-
-            <div className="flex items-center gap-2">
-              <HandCoins className="h-4 w-4 text-slate-500" />
-              <h1 className="m-0 text-[20px] font-semibold text-slate-900">Зарплата сотрудников</h1>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+                }
+                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                aria-label="Предыдущий месяц"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
+                {monthLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+                }
+                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                aria-label="Следующий месяц"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
-            <p className="mt-1 text-[12px] text-slate-500">
-              Таблица начислений и удержаний по всем сотрудникам
-            </p>
+
+            <ExpandableSearchInput
+              value={searchValue}
+              onChange={setSearchValue}
+              inputId="salary-search"
+              placeholder="Поиск..."
+              expandedWidth={320}
+              collapsedSize={40}
+              brandColor={companyStore.mainColor}
+            />
+
+            <button
+              type="button"
+              onClick={() => setIsFiltersOpen((open) => !open)}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition ${
+                isFilterButtonActive
+                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <SlidersHorizontal size={16} />
+              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {}}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-semibold text-white transition hover:bg-brand-600"
+            >
+              <Plus size={16} />
+              Добавить
+            </button>
+
+            <button
+              ref={templateMenuAnchorRef}
+              type="button"
+              className={`dropdown-toggle inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 ${isTemplateMenuOpen ? "border-slate-300 bg-slate-50" : ""}`}
+              onClick={() => setIsTemplateMenuOpen((open) => !open)}
+              aria-label="Действия с шаблоном"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            <Dropdown
+              isOpen={isTemplateMenuOpen}
+              onClose={() => setIsTemplateMenuOpen(false)}
+              usePortal
+              anchorEl={templateMenuAnchorRef.current}
+              className="w-[220px] p-1"
+            >
+              <DropdownItem
+                onClick={() => {
+                  if (isDownloadingTemplate || isImportingExcel) return;
+                  void handleDownloadTemplate();
+                }}
+                onItemClick={() => setIsTemplateMenuOpen(false)}
+                className={`flex items-center gap-2 rounded-lg ${isDownloadingTemplate ? "opacity-60" : ""}`}
+              >
+                <Download size={16} />
+                {isDownloadingTemplate ? "Скачивание..." : "Скачать шаблон"}
+              </DropdownItem>
+              <DropdownItem
+                onClick={() => {
+                  if (isImportingExcel || isDownloadingTemplate) return;
+                  handleOpenUpload();
+                }}
+                onItemClick={() => setIsTemplateMenuOpen(false)}
+                className={`flex items-center gap-2 rounded-lg ${isImportingExcel ? "opacity-60" : ""}`}
+              >
+                <Upload size={16} />
+                {isImportingExcel ? "Загрузка..." : "Загрузить Excel"}
+              </DropdownItem>
+            </Dropdown>
+
+            <input
+              ref={excelInputRef}
+              type="file"
+              accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              className="hidden"
+              onChange={(event) => {
+                void handleUploadExcel(event);
+              }}
+            />
           </div>
+        </div>
 
-          <div className="border-b border-slate-100 px-6 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="relative block w-full md:max-w-sm">
-                <Search
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="text"
-                  value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
-                  placeholder="Поиск..."
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-                />
-              </label>
-
-              <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white p-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
-                  aria-label="Предыдущий месяц"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="min-w-[150px] px-2 text-center text-sm font-semibold text-gray-700">
-                  {monthLabel}
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
-                  aria-label="Следующий месяц"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleDownloadTemplate();
-                  }}
-                  disabled={isDownloadingTemplate || isImportingExcel}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Download size={16} />
-                  {isDownloadingTemplate ? "Скачивание..." : "Скачать шаблон"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenUpload}
-                  disabled={isImportingExcel || isDownloadingTemplate}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Upload size={16} />
-                  {isImportingExcel ? "Загрузка..." : "Загрузить Excel"}
-                </button>
-                <input
-                  ref={excelInputRef}
-                  type="file"
-                  accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                  className="hidden"
-                  onChange={(event) => {
-                    void handleUploadExcel(event);
-                  }}
-                />
-              </div>
+        {isFiltersOpen ? (
+          <div
+            className="px-4 lg:px-6 py-2"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+              background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+              border: "1px solid #e2e8f0",
+              borderTop: "1px solid #dbe4ee",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+            }}
+          >
+            <div style={{ minWidth: "180px", maxWidth: "260px", flex: "0 1 260px" }}>
+              <Select
+                inputId="salary-filter-employee"
+                value={employeeFilterOptions.find((option) => option.value === employeeFilter) || null}
+                onChange={(option: any) => setEmployeeFilter(option?.value || "")}
+                options={employeeFilterOptions}
+                placeholder="Сотрудник"
+                isSearchable
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={selectPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
             </div>
-          </div>
 
-          <div className="px-6 py-5">
+            <div style={{ minWidth: "170px", maxWidth: "230px", flex: "0 1 230px" }}>
+              <Select
+                inputId="salary-filter-operation"
+                value={operationFilterOptions.find((option) => option.value === operationFilter) || null}
+                onChange={(option: any) => setOperationFilter(option?.value || "")}
+                options={operationFilterOptions}
+                placeholder="Операция"
+                isSearchable
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={selectPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
+
+            <div style={{ minWidth: "200px", maxWidth: "260px", flex: "0 1 260px" }}>
+              <Select
+                inputId="salary-filter-compensation-type"
+                value={
+                  compensationTypeFilterOptions.find((option) => option.value === compensationTypeFilter) || null
+                }
+                onChange={(option: any) => setCompensationTypeFilter(option?.value || "")}
+                options={compensationTypeFilterOptions}
+                placeholder="Тип компенсации"
+                isSearchable
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={selectPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
+
+            {activeFiltersCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEmployeeFilter("");
+                  setOperationFilter("");
+                  setCompensationTypeFilter("");
+                }}
+                className="ml-auto inline-flex h-10 items-center rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
+              >
+                Сбросить
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="px-4 lg:px-6 py-5" style={showStickyPagination ? { paddingBottom: "92px" } : undefined}>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="px-4 py-4">
             {isPageLoading ? (
               <div className="py-8 flex items-center justify-center">
                 <div className="w-7 h-7 rounded-full border-2 border-slate-200 animate-spin border-t-slate-500" />
@@ -623,10 +935,10 @@ function FinanceSalaryPage() {
                   Повторить
                 </button>
               </div>
-            ) : records.length === 0 ? (
+            ) : filteredRecords.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
                 <p className="m-0 text-[13px] text-slate-500">
-                  Записей о зарплате пока нет
+                  Записи не найдены
                 </p>
               </div>
             ) : (
@@ -645,7 +957,7 @@ function FinanceSalaryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {records.map((record) => (
+                    {filteredRecords.map((record) => (
                       <tr key={record.guid} className="border-b border-slate-100 align-top">
                         <td className="py-3 pr-4 text-[13px] text-slate-800">
                           {record.employeeGuid ? (
@@ -712,18 +1024,22 @@ function FinanceSalaryPage() {
               </div>
             )}
           </div>
-
-          {!isPageLoading && !isError && totalCount > 0 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalCount={totalCount}
-              limit={PAGE_SIZE}
-              onPageChange={setCurrentPage}
-            />
-          )}
-        </section>
+          </div>
+        </div>
       </div>
+
+      {showStickyPagination ? (
+        <EmployeesPaginationFooter
+          visibleRangeLabel={visibleRangeLabel}
+          paginationItems={paginationItems}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          brandColor={companyStore.mainColor}
+          onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+          onPageChange={(page) => setCurrentPage(page)}
+        />
+      ) : null}
 
       <Modal
         isOpen={Boolean(editingRecord)}

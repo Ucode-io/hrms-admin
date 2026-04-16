@@ -122,7 +122,9 @@ export interface Employee {
 const EMPLOYEE_ROLE_ID = import.meta.env.VITE_EMPLOYEE_ROLE_ID || "";
 
 // ───── List employees ─────
-export const useEmployeesQuery = (params: { limit?: number; offset?: number; search?: string } = {}) => {
+export const useEmployeesQuery = (
+  params: { limit?: number; offset?: number; search?: string; enabled?: boolean } = {}
+) => {
   return useQuery(["employees", params], async () => {
     const dataObj: Record<string, any> = {
       limit: params.limit ?? 10,
@@ -144,6 +146,8 @@ export const useEmployeesQuery = (params: { limit?: number; offset?: number; sea
       },
     });
     return res.data?.data?.data;
+  }, {
+    enabled: params.enabled ?? true,
   });
 };
 
