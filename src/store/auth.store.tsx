@@ -22,15 +22,18 @@ class Store {
   constructor() {
     makeAutoObservable(this);
 
-    makePersistable(this, {
+    void makePersistable(this, {
       name: "ayva-auth",
-      properties: ["isAuth", "token", "user", "user_data"],
+      properties: ["isAuth", "token", "refreshToken", "user", "user_data"],
       storage: window.localStorage,
+    }).then(() => {
+      this.hydrateTokensFromStorage();
     });
   }
 
   isAuth = false;
   token: string | null = null;
+  refreshToken: string | null = null;
   user: UserData | null = null;
   user_data: UserData | null = null;
 
@@ -42,14 +45,21 @@ class Store {
     this.token = token;
   }
 
+  setRefreshToken(refreshToken: string | null) {
+    this.refreshToken = refreshToken;
+  }
+
   setUser(user: UserData | null) {
     this.user = user;
     this.user_data = user;
   }
 
-  login(token: string, user: UserData) {
+  login(token: string, user: UserData, refreshToken?: string | null) {
     this.isAuth = true;
     this.token = token;
+    if (typeof refreshToken !== "undefined") {
+      this.refreshToken = refreshToken;
+    }
     this.user = user;
     this.user_data = user;
   }
@@ -57,9 +67,25 @@ class Store {
   logout() {
     this.isAuth = false;
     this.token = null;
+    this.refreshToken = null;
     this.user = null;
     this.user_data = null;
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("refresh_token");
+  }
+
+  private hydrateTokensFromStorage() {
+    const storageToken = localStorage.getItem("auth_token");
+    const storageRefreshToken = localStorage.getItem("refresh_token");
+
+    if (storageToken && !this.token) {
+      this.token = storageToken;
+      this.isAuth = true;
+    }
+
+    if (storageRefreshToken && !this.refreshToken) {
+      this.refreshToken = storageRefreshToken;
+    }
   }
 }
 

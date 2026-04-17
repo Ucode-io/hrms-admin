@@ -27,11 +27,7 @@ const SignInForm = observer(function SignInForm() {
       const userData = response?.user_data || {};
 
       if (accessToken) {
-        authStore.login(accessToken, userData);
-        localStorage.setItem("auth_token", accessToken);
-        if (refreshToken) {
-          localStorage.setItem("refresh_token", refreshToken);
-        }
+        authStore.login(accessToken, userData, refreshToken || null);
         navigate("/");
       } else {
         setError("Ошибка получения токена");

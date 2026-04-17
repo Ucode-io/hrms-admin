@@ -74,6 +74,7 @@ import AgreementForm from "./modules/Agreements/Form";
 import OrganizationStructureModule from "./modules/Organization/Structure";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
+import AuthTokenSyncWrapper from "./components/common/AuthTokenSyncWrapper";
 import { QueryClientProvider } from "react-query";
 import queryClient from "./api/queryClient";
 import authStore from "./store/auth.store";
@@ -133,8 +134,9 @@ function App() {
         }}
       />
       <Router>
-        <ScrollToTop />
-        <Routes>
+        <AuthTokenSyncWrapper>
+          <ScrollToTop />
+          <Routes>
           {/* Dashboard Layout */}
           {
             isAuth ? <Route path="/" element={<AppLayout />}>
@@ -250,7 +252,8 @@ function App() {
 
           {/* Fallback Route */}
           <Route path="*" element={<NotFound />} />
-        </Routes>
+          </Routes>
+        </AuthTokenSyncWrapper>
       </Router>
     </QueryClientProvider>
   );
