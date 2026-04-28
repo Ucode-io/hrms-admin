@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { observer } from "mobx-react-lite";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import Select, { type SingleValue, type StylesConfig } from "react-select";
 import {
   Background,
@@ -22,9 +23,22 @@ import { Modal } from "../../../components/ui/modal";
 import companyStore from "../../../store/company.store";
 import { type Employee, useEmployeesQuery } from "../../../api/services/employee.service";
 import {
+  type Department,
+  useCreateDepartment,
+  useDeleteDepartment,
+  useDepartmentsSettingsAggregationQuery,
+  useUpdateDepartment,
+} from "../../../api/services/department.service";
+import departmentExperienceLevelService, {
+  useSyncDepartmentExperienceLevels,
+} from "../../../api/services/departmentExperienceLevel.service";
+import {
   type OrgStructureNode,
   useOrgStructureReportQuery,
 } from "../../../api/services/reports.service";
+import type { Option } from "../../Settings/Departments/types";
+import DepartmentUpsertModal from "../../Settings/Departments/components/DepartmentUpsertModal";
+import { resolveDepartmentLeaderName } from "../../Settings/Departments/utils";
 
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 132;
@@ -32,6 +46,7 @@ const HORIZONTAL_GAP = 42;
 const VERTICAL_GAP = 100;
 const ROOT_GAP = 80;
 const CHART_PADDING = 40;
+const ROOT_KEY = "__root__";
 
 type OrgNodeData = {
   nodeId: string;
@@ -45,6 +60,7 @@ type OrgNodeData = {
   hasParent: boolean;
   hasChildren: boolean;
   isHighlighted: boolean;
+  onAddChild?: (nodeId: string) => void;
 };
 
 type DepartmentTreeOption = {
@@ -58,6 +74,28 @@ type LevelFilterOption = {
   value: string;
   label: string;
   hierarchyLevel: number;
+};
+
+const resolveCreatedOrUpdatedGuid = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== "object") return null;
+  const data = payload as Record<string, unknown>;
+  if (typeof data.guid === "string" && data.guid) return data.guid;
+
+  const response = data.response;
+  if (response && typeof response === "object") {
+    const responseObj = response as Record<string, unknown>;
+    if (typeof responseObj.guid === "string" && responseObj.guid) return responseObj.guid;
+  }
+
+  if (Array.isArray(response)) {
+    const first = response[0];
+    if (first && typeof first === "object") {
+      const firstObj = first as Record<string, unknown>;
+      if (typeof firstObj.guid === "string" && firstObj.guid) return firstObj.guid;
+    }
+  }
+
+  return null;
 };
 
 const COLOR_PALETTE = [
@@ -231,7 +269,7 @@ const getFilterSelectStyles = <
 const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
   return (
     <div
-      className="min-w-[220px] cursor-pointer rounded-2xl border-2 px-4 py-3 text-center shadow-sm transition hover:shadow-md"
+      className="group relative min-w-[220px] cursor-pointer overflow-visible rounded-2xl border-2 px-4 py-3 text-center shadow-sm transition hover:shadow-md"
       style={{
         borderColor: data.isHighlighted ? "#f59e0b" : data.borderColor,
         backgroundColor: data.isHighlighted ? "#fffbeb" : data.backgroundColor,
@@ -243,7 +281,7 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
         type="target"
         position={Position.Top}
         style={{ opacity: data.hasParent ? 1 : 0 }}
-        className="!h-2 !w-2 !border-0 !bg-slate-300"
+        className="!h-0 !w-0 !border-0 !bg-transparent"
       />
 
       <div
@@ -255,12 +293,23 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
 
       <p className="mt-3 text-lg font-semibold text-slate-800">{data.managerName}</p>
       <p className="mt-1 text-base font-medium text-slate-500">{data.subtitle}</p>
+      <button
+        type="button"
+        className="pointer-events-none absolute bottom-0 left-1/2 inline-flex h-7 w-7 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-slate-50 focus:pointer-events-auto focus:opacity-100"
+        title="Добавить дочерний отдел"
+        onClick={(event) => {
+          event.stopPropagation();
+          data.onAddChild?.(data.nodeId);
+        }}
+      >
+        <Plus size={14} />
+      </button>
 
       <Handle
         type="source"
         position={Position.Bottom}
         style={{ opacity: data.hasChildren ? 1 : 0 }}
-        className="!h-2 !w-2 !border-0 !bg-slate-300"
+        className="!h-0 !w-0 !border-0 !bg-transparent"
       />
     </div>
   );
@@ -268,7 +317,8 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
 
 const buildHierarchyLayout = (
   nodes: OrgStructureNode[],
-  highlightedNodeIds: Set<string>
+  highlightedNodeIds: Set<string>,
+  onAddChild?: (nodeId: string) => void
 ) => {
   if (nodes.length === 0) {
     return {
@@ -389,6 +439,7 @@ const buildHierarchyLayout = (
         hasParent: Boolean(node.parent_id && nodeById.has(node.parent_id)),
         hasChildren: (childrenByParent.get(node.id)?.length || 0) > 0,
         isHighlighted: highlightedNodeIds.has(node.id),
+        onAddChild,
       },
     };
   });
@@ -400,10 +451,14 @@ const buildHierarchyLayout = (
       source: String(node.parent_id),
       target: node.id,
       type: "smoothstep",
+      pathOptions: {
+        borderRadius: 0,
+        offset: 18,
+      },
       animated: false,
       style: {
         stroke: "#CBD5E1",
-        strokeWidth: 2,
+        strokeWidth: 1.8,
       },
     }));
 
@@ -419,16 +474,46 @@ const buildHierarchyLayout = (
 
 interface OrganizationStructureModuleProps {
   embedded?: boolean;
+  searchValue?: string;
+  onSearchValueChange?: (value: string) => void;
+  filtersOpen?: boolean;
+  onActiveFiltersCountChange?: (count: number) => void;
+  createRequestKey?: number;
 }
 
-function OrganizationStructureModule({ embedded = false }: OrganizationStructureModuleProps) {
-  const [searchInput, setSearchInput] = useState("");
+function OrganizationStructureModule({
+  embedded = false,
+  searchValue,
+  onSearchValueChange,
+  filtersOpen = false,
+  onActiveFiltersCountChange,
+  createRequestKey,
+}: OrganizationStructureModuleProps) {
+  const [internalSearchInput, setInternalSearchInput] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedHierarchyLevel, setSelectedHierarchyLevel] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [isUpsertModalOpen, setIsUpsertModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [departmentToDelete, setDepartmentToDelete] = useState<Department | null>(null);
+  const [departmentTitle, setDepartmentTitle] = useState("");
+  const [parentDepartmentId, setParentDepartmentId] = useState("");
+  const [leaderUserId, setLeaderUserId] = useState("");
+  const [experienceLevelIds, setExperienceLevelIds] = useState<string[]>([]);
+  const [experienceLevelFallbackOptions, setExperienceLevelFallbackOptions] = useState<Option[]>([]);
+  const [isLoadingExperienceLevels, setIsLoadingExperienceLevels] = useState(false);
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
+  const searchInput = typeof searchValue === "string" ? searchValue : internalSearchInput;
+  const setSearchInput = (value: string) => {
+    if (onSearchValueChange) {
+      onSearchValueChange(value);
+      return;
+    }
+    setInternalSearchInput(value);
+  };
 
   const requestData = useMemo(() => {
     const payload: Record<string, unknown> = {};
@@ -461,30 +546,38 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
     error,
     refetch,
   } = useOrgStructureReportQuery(requestData);
+  const { data: departmentsData } = useDepartmentsSettingsAggregationQuery({
+    params: { limit: 1000 },
+    querySettings: { enabled: embedded },
+  });
+  const createDepartmentMutation = useCreateDepartment();
+  const updateDepartmentMutation = useUpdateDepartment();
+  const deleteDepartmentMutation = useDeleteDepartment();
+  const syncExperienceLevelsMutation = useSyncDepartmentExperienceLevels();
 
   const result = data?.result;
   const cards = result?.cards || {};
   const chartNodes = result?.chart?.nodes || [];
-  const departments = result?.filters?.departments || [];
-  const levels = result?.filters?.levels || [];
+  const filterDepartments = result?.filters?.departments || [];
+  const filterLevels = result?.filters?.levels || [];
   const departmentOptions = useMemo<DepartmentTreeOption[]>(
     () =>
-      departments.map((department) => ({
+      filterDepartments.map((department) => ({
         value: department.guid,
         label: department.title,
         hierarchyLevel: Number(department.hierarchy_level || 1),
         parentId: department.parent_id,
       })),
-    [departments]
+    [filterDepartments]
   );
   const levelOptions = useMemo<LevelFilterOption[]>(
     () =>
-      levels.map((level) => ({
+      filterLevels.map((level) => ({
         value: String(level.value),
         label: level.label,
         hierarchyLevel: Number(level.value || 1),
       })),
-    [levels]
+    [filterLevels]
   );
   const selectedDepartmentOption = useMemo(
     () => departmentOptions.find((option) => option.value === selectedDepartmentId) || null,
@@ -514,10 +607,96 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
     () => new Map(chartNodes.map((node) => [node.id, node])),
     [chartNodes]
   );
+  const settingsDepartments = useMemo(
+    () => departmentsData?.response || [],
+    [departmentsData?.response]
+  );
+  const departmentsById = useMemo(
+    () => new Map(settingsDepartments.map((department) => [department.guid, department])),
+    [settingsDepartments]
+  );
+
+  const departmentLevels = useMemo(() => {
+    const levels = new Map<string, number>();
+    const allIds = new Set(settingsDepartments.map((dep) => dep.guid));
+    const map = new Map<string, Department[]>();
+
+    for (const dep of settingsDepartments) {
+      const parentKey =
+        dep.departments_id && allIds.has(dep.departments_id) ? dep.departments_id : ROOT_KEY;
+      if (!map.has(parentKey)) {
+        map.set(parentKey, []);
+      }
+      map.get(parentKey)?.push(dep);
+    }
+
+    const walk = (parentKey: string, level: number) => {
+      const children = map.get(parentKey) || [];
+      for (const child of children) {
+        levels.set(child.guid, level);
+        walk(child.guid, level + 1);
+      }
+    };
+
+    walk(ROOT_KEY, 0);
+    return levels;
+  }, [settingsDepartments]);
+
+  const forbiddenParentIds = useMemo(() => {
+    if (!editingDepartment) return new Set<string>();
+
+    const blocked = new Set<string>([editingDepartment.guid]);
+    const queue = [editingDepartment.guid];
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (!currentId) continue;
+
+      for (const dep of settingsDepartments) {
+        if (dep.departments_id === currentId && !blocked.has(dep.guid)) {
+          blocked.add(dep.guid);
+          queue.push(dep.guid);
+        }
+      }
+    }
+
+    return blocked;
+  }, [settingsDepartments, editingDepartment]);
+
+  const parentOptions = useMemo<Option[]>(() => {
+    const options: Option[] = [{ value: "", label: "Без родителя" }];
+    const allowed = settingsDepartments
+      .filter((dep) => !forbiddenParentIds.has(dep.guid))
+      .sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ru"));
+
+    for (const dep of allowed) {
+      const level = departmentLevels.get(dep.guid) || 0;
+      const prefix = level > 0 ? `${"|- ".repeat(Math.min(level, 4))}` : "";
+      options.push({ value: dep.guid, label: `${prefix}${String(dep.title || "Без названия")}` });
+    }
+
+    return options;
+  }, [departmentLevels, settingsDepartments, forbiddenParentIds]);
+
+  const openCreateChildDepartmentModal = useCallback((nodeId: string) => {
+    const node = nodeById.get(nodeId);
+    if (!node) return;
+
+    const parentGuid = String(node.department_guid || node.id || "").trim();
+    if (!parentGuid) return;
+
+    setEditingDepartment(null);
+    setDepartmentTitle("");
+    setParentDepartmentId(parentGuid);
+    setLeaderUserId("");
+    setExperienceLevelIds([]);
+    setExperienceLevelFallbackOptions([]);
+    setIsLoadingExperienceLevels(false);
+    setIsUpsertModalOpen(true);
+  }, [nodeById]);
 
   const layout = useMemo(
-    () => buildHierarchyLayout(chartNodes, highlightedNodeIds),
-    [chartNodes, highlightedNodeIds]
+    () => buildHierarchyLayout(chartNodes, highlightedNodeIds, openCreateChildDepartmentModal),
+    [chartNodes, highlightedNodeIds, openCreateChildDepartmentModal]
   );
   const highlightedGraphNodes = useMemo(
     () => layout.graphNodes.filter((node) => highlightedNodeIds.has(node.id)),
@@ -527,6 +706,25 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
     () => Math.max(540, layout.maxDepth * (NODE_HEIGHT + VERTICAL_GAP) + CHART_PADDING * 2),
     [layout.maxDepth]
   );
+  const activeFiltersCount = [selectedDepartmentId, selectedHierarchyLevel].filter(Boolean).length;
+
+  useEffect(() => {
+    onActiveFiltersCountChange?.(activeFiltersCount);
+  }, [activeFiltersCount, onActiveFiltersCountChange]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    if (!createRequestKey) return;
+
+    setEditingDepartment(null);
+    setDepartmentTitle("");
+    setParentDepartmentId("");
+    setLeaderUserId("");
+    setExperienceLevelIds([]);
+    setExperienceLevelFallbackOptions([]);
+    setIsLoadingExperienceLevels(false);
+    setIsUpsertModalOpen(true);
+  }, [createRequestKey, embedded]);
 
   useEffect(() => {
     if (!flowInstance) return;
@@ -558,21 +756,18 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
   const hierarchyLevels = Number(cards.hierarchy_levels || 0);
 
   const nodeTypes = useMemo(() => ({ orgNode: OrgNodeCard }), []);
-  const onNodeClick = useMemo<NodeMouseHandler<OrgNodeData> | undefined>(
-    () => {
-      if (embedded) return undefined;
-      return (_event, node) => {
-        setSelectedNodeId(node.id);
-        setEmployeeSearch("");
-      };
+  const onNodeClick = useMemo<NodeMouseHandler<OrgNodeData>>(
+    () => (_event, node) => {
+      setSelectedNodeId(node.id);
+      setEmployeeSearch("");
     },
-    [embedded]
+    []
   );
 
   const { data: employeesData, isLoading: isEmployeesLoading } = useEmployeesQuery({
     limit: 5000,
     offset: 0,
-    enabled: !embedded,
+    enabled: Boolean(selectedNodeId),
   });
 
   const allEmployees = useMemo<Employee[]>(
@@ -580,6 +775,11 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
     [employeesData?.response]
   );
   const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) || null : null;
+  const selectedNodeDepartment = useMemo(() => {
+    if (!selectedNode) return null;
+    const key = selectedNode.department_guid || selectedNode.id;
+    return departmentsById.get(key) || null;
+  }, [departmentsById, selectedNode]);
   const selectedEmployees = useMemo(() => {
     if (!selectedNode || !selectedNodeId) return [];
 
@@ -617,6 +817,138 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
       return searchTarget.includes(normalizedSearch);
     });
   }, [allEmployees, employeeSearch, selectedNode, selectedNodeId]);
+
+  const loadExperienceLevelsForDepartment = async (departmentGuid: string) => {
+    setIsLoadingExperienceLevels(true);
+
+    try {
+      const relations = await departmentExperienceLevelService.getListByDepartment(departmentGuid);
+      const nextIds: string[] = [];
+      const fallback: Option[] = [];
+      const seenFallback = new Set<string>();
+
+      for (const relation of relations.response) {
+        if (!relation.experience_levels_id) continue;
+        nextIds.push(relation.experience_levels_id);
+        const titleFromRelation =
+          relation.experience_levels_id_data &&
+          typeof relation.experience_levels_id_data === "object" &&
+          typeof relation.experience_levels_id_data.title === "string"
+            ? relation.experience_levels_id_data.title
+            : relation.experience_levels_id;
+        if (!seenFallback.has(relation.experience_levels_id)) {
+          fallback.push({
+            value: relation.experience_levels_id,
+            label: titleFromRelation,
+          });
+          seenFallback.add(relation.experience_levels_id);
+        }
+      }
+
+      setExperienceLevelIds(Array.from(new Set(nextIds)));
+      setExperienceLevelFallbackOptions(fallback);
+    } catch (loadError) {
+      console.error("Failed to load department experience levels:", loadError);
+      toast.error("Не удалось загрузить уровни опыта для департамента.");
+      setExperienceLevelIds([]);
+      setExperienceLevelFallbackOptions([]);
+    } finally {
+      setIsLoadingExperienceLevels(false);
+    }
+  };
+
+  const openEditModal = (department: Department) => {
+    setEditingDepartment(department);
+    setDepartmentTitle(String(department.title || ""));
+    setParentDepartmentId(department.departments_id || "");
+    setLeaderUserId(department.user_base_id || "");
+    setExperienceLevelIds([]);
+    setExperienceLevelFallbackOptions([]);
+    setIsUpsertModalOpen(true);
+    void loadExperienceLevelsForDepartment(department.guid);
+  };
+
+  const closeUpsertModal = () => {
+    if (createDepartmentMutation.isLoading || updateDepartmentMutation.isLoading || syncExperienceLevelsMutation.isLoading) {
+      return;
+    }
+    setIsUpsertModalOpen(false);
+    setEditingDepartment(null);
+    setDepartmentTitle("");
+    setParentDepartmentId("");
+    setLeaderUserId("");
+    setExperienceLevelIds([]);
+    setExperienceLevelFallbackOptions([]);
+    setIsLoadingExperienceLevels(false);
+  };
+
+  const openDeleteModal = (department: Department) => {
+    setDepartmentToDelete(department);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (deleteDepartmentMutation.isLoading) return;
+    setDepartmentToDelete(null);
+    setIsDeleteModalOpen(false);
+  };
+
+  const handleSubmitDepartment = async () => {
+    const title = departmentTitle.trim();
+    if (!title) {
+      toast.error("Название департамента обязательно.");
+      return;
+    }
+
+    const payload = {
+      title,
+      departments_id: parentDepartmentId || null,
+      user_base_id: leaderUserId || null,
+    };
+
+    try {
+      let savedDepartmentGuid: string | null = editingDepartment?.guid || null;
+      if (editingDepartment) {
+        const updated = await updateDepartmentMutation.mutateAsync({
+          guid: editingDepartment.guid,
+          data: payload,
+        });
+        savedDepartmentGuid = resolveCreatedOrUpdatedGuid(updated) || savedDepartmentGuid;
+      } else {
+        const created = await createDepartmentMutation.mutateAsync(payload);
+        savedDepartmentGuid = resolveCreatedOrUpdatedGuid(created);
+      }
+
+      if (savedDepartmentGuid) {
+        await syncExperienceLevelsMutation.mutateAsync({
+          departmentGuid: savedDepartmentGuid,
+          experienceLevelIds,
+        });
+      }
+
+      toast.success(editingDepartment ? "Департамент обновлен." : "Департамент создан.");
+      closeUpsertModal();
+      setSelectedNodeId(null);
+      void refetch();
+    } catch (submitError) {
+      console.error("Failed to save department from org structure:", submitError);
+      toast.error(editingDepartment ? "Не удалось обновить департамент." : "Не удалось создать департамент.");
+    }
+  };
+
+  const handleDeleteDepartment = async () => {
+    if (!departmentToDelete) return;
+    try {
+      await deleteDepartmentMutation.mutateAsync(departmentToDelete.guid);
+      toast.success("Департамент удален.");
+      closeDeleteModal();
+      setSelectedNodeId(null);
+      void refetch();
+    } catch (deleteError) {
+      console.error("Failed to delete department from org structure:", deleteError);
+      toast.error("Не удалось удалить департамент.");
+    }
+  };
 
   const resetFilters = () => {
     setSearchInput("");
@@ -731,11 +1063,228 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
     );
   }
 
+  const nodeDetailsModal = (
+    <Modal
+      isOpen={Boolean(selectedNode)}
+      onClose={() => setSelectedNodeId(null)}
+      className="max-w-[760px] p-5"
+    >
+      <div className="space-y-4">
+        <div className="pr-10">
+          <h2 className="text-xl font-semibold text-slate-900">
+            {selectedNode?.manager?.full_name || "Руководитель"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {selectedNode?.manager?.position_title || "Руководитель"} •{" "}
+            {selectedNode?.title || "Отдел"}
+          </p>
+          {selectedNodeDepartment ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => openEditModal(selectedNodeDepartment)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <Pencil size={13} />
+                Редактировать
+              </button>
+              <button
+                type="button"
+                onClick={() => openDeleteModal(selectedNodeDepartment)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
+              >
+                <Trash2 size={13} />
+                Удалить
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <label className="relative block">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            type="text"
+            value={employeeSearch}
+            onChange={(event) => setEmployeeSearch(event.target.value)}
+            placeholder="Поиск сотрудника..."
+            className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-brand-300"
+          />
+        </label>
+
+        <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-200">
+          {isEmployeesLoading ? (
+            <div className="flex h-28 items-center justify-center">
+              <Spinner />
+            </div>
+          ) : selectedEmployees.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-slate-500">
+              Сотрудники не найдены
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {selectedEmployees.map((employee) => (
+                <li key={employee.guid} className="flex items-center gap-3 px-4 py-3">
+                  {employee.photo ? (
+                    <img
+                      src={employee.photo}
+                      alt={getEmployeeFullName(employee)}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600">
+                      {getEmployeeInitials(employee)}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-800">
+                      {getEmployeeFullName(employee)}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {getEmployeeSubtitle(employee) || employee.email || employee.phone || "—"}
+                    </p>
+                  </div>
+
+                  <Link
+                    to={`/employees/${employee.guid}`}
+                    className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                    onClick={() => setSelectedNodeId(null)}
+                  >
+                    Профиль
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+
+  const upsertModal = (
+    <DepartmentUpsertModal
+      isOpen={isUpsertModalOpen}
+      isSaving={
+        createDepartmentMutation.isLoading ||
+        updateDepartmentMutation.isLoading ||
+        syncExperienceLevelsMutation.isLoading ||
+        isLoadingExperienceLevels
+      }
+      isEditing={Boolean(editingDepartment)}
+      departmentTitle={departmentTitle}
+      parentDepartmentId={parentDepartmentId}
+      leaderUserId={leaderUserId}
+      experienceLevelIds={experienceLevelIds}
+      experienceLevelFallbackOptions={experienceLevelFallbackOptions}
+      leaderFallbackLabel={editingDepartment ? resolveDepartmentLeaderName(editingDepartment) : ""}
+      parentOptions={parentOptions}
+      onClose={closeUpsertModal}
+      onDepartmentTitleChange={setDepartmentTitle}
+      onParentDepartmentChange={setParentDepartmentId}
+      onLeaderChange={setLeaderUserId}
+      onExperienceLevelsChange={setExperienceLevelIds}
+      onSubmit={() => {
+        void handleSubmitDepartment();
+      }}
+    />
+  );
+
+  const deleteModal = (
+    <Modal isOpen={isDeleteModalOpen} onClose={closeDeleteModal} className="mx-4 w-full max-w-md p-5">
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Удалить департамент?</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            Департамент <span className="font-semibold text-slate-700">{departmentToDelete?.title || "—"}</span>{" "}
+            будет удален без возможности восстановления.
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={closeDeleteModal}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            disabled={deleteDepartmentMutation.isLoading}
+          >
+            Отмена
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void handleDeleteDepartment();
+            }}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={deleteDepartmentMutation.isLoading}
+          >
+            {deleteDepartmentMutation.isLoading ? "Удаляем..." : "Удалить"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+
   if (embedded) {
     return (
-      <section className="h-full min-h-0 overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        {graphContent}
-      </section>
+      <>
+        <section className="h-full min-h-0 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          {filtersOpen ? (
+            <div className="border-b border-gray-100 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-[230px] flex-1 md:flex-none">
+                  <Select<DepartmentTreeOption, false>
+                    options={departmentOptions}
+                    value={selectedDepartmentOption}
+                    onChange={(option: SingleValue<DepartmentTreeOption>) =>
+                      setSelectedDepartmentId(option?.value || "")
+                    }
+                    placeholder="Все отделы"
+                    isSearchable
+                    isClearable
+                    styles={getFilterSelectStyles<DepartmentTreeOption>()}
+                    menuPortalTarget={selectPortalTarget}
+                    menuPosition="fixed"
+                    noOptionsMessage={() => "Отделы не найдены"}
+                  />
+                </div>
+
+                <div className="min-w-[210px] flex-1 md:flex-none">
+                  <Select<LevelFilterOption, false>
+                    options={levelOptions}
+                    value={selectedLevelOption}
+                    onChange={(option: SingleValue<LevelFilterOption>) =>
+                      setSelectedHierarchyLevel(option?.value || "")
+                    }
+                    placeholder="Все уровни"
+                    isSearchable={false}
+                    isClearable
+                    styles={getFilterSelectStyles<LevelFilterOption>()}
+                    menuPortalTarget={selectPortalTarget}
+                    menuPosition="fixed"
+                    noOptionsMessage={() => "Уровни не найдены"}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="ml-auto inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+                >
+                  Сбросить
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {graphContent}
+        </section>
+        {nodeDetailsModal}
+        {upsertModal}
+        {deleteModal}
+      </>
     );
   }
 
@@ -857,84 +1406,9 @@ function OrganizationStructureModule({ embedded = false }: OrganizationStructure
         </section>
       </div>
 
-      <Modal
-        isOpen={Boolean(selectedNode)}
-        onClose={() => setSelectedNodeId(null)}
-        className="max-w-[760px] p-5"
-      >
-        <div className="space-y-4">
-          <div className="pr-10">
-            <h2 className="text-xl font-semibold text-slate-900">
-              {selectedNode?.manager?.full_name || "Руководитель"}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedNode?.manager?.position_title || "Руководитель"} •{" "}
-              {selectedNode?.title || "Отдел"}
-            </p>
-          </div>
-
-          <label className="relative block">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="text"
-              value={employeeSearch}
-              onChange={(event) => setEmployeeSearch(event.target.value)}
-              placeholder="Поиск сотрудника..."
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-brand-300"
-            />
-          </label>
-
-          <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-200">
-            {isEmployeesLoading ? (
-              <div className="flex h-28 items-center justify-center">
-                <Spinner />
-              </div>
-            ) : selectedEmployees.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-slate-500">
-                Сотрудники не найдены
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {selectedEmployees.map((employee) => (
-                  <li key={employee.guid} className="flex items-center gap-3 px-4 py-3">
-                    {employee.photo ? (
-                      <img
-                        src={employee.photo}
-                        alt={getEmployeeFullName(employee)}
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600">
-                        {getEmployeeInitials(employee)}
-                      </div>
-                    )}
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-800">
-                        {getEmployeeFullName(employee)}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">
-                        {getEmployeeSubtitle(employee) || employee.email || employee.phone || "—"}
-                      </p>
-                    </div>
-
-                    <Link
-                      to={`/employees/${employee.guid}`}
-                      className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                      onClick={() => setSelectedNodeId(null)}
-                    >
-                      Профиль
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </Modal>
+      {nodeDetailsModal}
+      {upsertModal}
+      {deleteModal}
     </>
   );
 }

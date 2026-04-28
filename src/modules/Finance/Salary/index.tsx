@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import Select from "react-select";
+import Select, { type StylesConfig } from "react-select";
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,11 +23,13 @@ import EmployeesPaginationFooter from "../../Employees/List/components/Employees
 import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
 import {
   useDeleteEmployeeCompensation,
+  useCreateEmployeeCompensation,
   type EmployeeCompensation,
   useEmployeeSalaryCompensationsQuery,
   useUpdateEmployeeCompensation,
 } from "../../../api/services/employeeCompensation.service";
 import { COMPANY_ID, useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
+import EmployeeInfiniteSelect from "../../../components/autocomplete/EmployeeInfiniteSelect";
 
 type OperationType = "income" | "deduction";
 type PaginationItem = number | string;
@@ -59,6 +61,14 @@ type EditDraft = {
   description: string;
   compensationTypeId: string;
   operationType: OperationType;
+};
+
+type CreateDraft = {
+  employeeGuid: string;
+  employeeName: string;
+  accrualDate: string;
+  description: string;
+  amountsByType: Record<string, string>;
 };
 
 const OPERATION_LABELS: Record<OperationType, string> = {
@@ -151,6 +161,14 @@ const getDefaultEditDraft = (): EditDraft => ({
   description: "",
   compensationTypeId: "",
   operationType: "income",
+});
+
+const getDefaultCreateDraft = (accrualDate = toIsoDate(new Date())): CreateDraft => ({
+  employeeGuid: "",
+  employeeName: "",
+  accrualDate,
+  description: "",
+  amountsByType: {},
 });
 
 const base64ToBlob = (base64: string, mimeType: string): Blob => {
@@ -284,10 +302,16 @@ function FinanceSalaryPage() {
   const [recordToDelete, setRecordToDelete] = useState<CompensationRecord | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft>(getDefaultEditDraft());
   const [editError, setEditError] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createDraft, setCreateDraft] = useState<CreateDraft>(() =>
+    getDefaultCreateDraft(toIsoDate(new Date()))
+  );
+  const [createError, setCreateError] = useState("");
   const lastKnownTotalCountRef = useRef(0);
   const excelInputRef = useRef<HTMLInputElement | null>(null);
   const templateMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
+  const createMutation = useCreateEmployeeCompensation("all");
   const updateMutation = useUpdateEmployeeCompensation("all");
   const deleteMutation = useDeleteEmployeeCompensation("all");
 
@@ -314,6 +338,10 @@ function FinanceSalaryPage() {
     setCurrentPage(1);
   }, [selectedMonth]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [employeeFilter, operationFilter, compensationTypeFilter]);
+
   const monthRange = useMemo(() => getMonthRange(selectedMonth), [selectedMonth]);
   const monthKey = useMemo(() => toMonthKey(selectedMonth), [selectedMonth]);
   const monthLabel = useMemo(() => formatMonthLabel(selectedMonth), [selectedMonth]);
@@ -324,6 +352,12 @@ function FinanceSalaryPage() {
     search: debouncedSearch,
     dateFrom: monthRange.from,
     dateTo: monthRange.to,
+    userBaseId: employeeFilter || undefined,
+    operationType:
+      operationFilter === "income" || operationFilter === "deduction"
+        ? operationFilter
+        : undefined,
+    compensationTypeId: compensationTypeFilter || undefined,
   });
 
   const records = useMemo<CompensationRecord[]>(() => {
@@ -366,7 +400,8 @@ function FinanceSalaryPage() {
   const totalCount = data?.count ?? lastKnownTotalCountRef.current;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const isPageLoading = isLoading || isFetching;
-  const isMutatingRecord = updateMutation.isLoading || deleteMutation.isLoading;
+  const isMutatingRecord =
+    createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading;
   const companyGuid =
     companyStore.company?.guid && typeof companyStore.company.guid === "string"
       ? companyStore.company.guid
@@ -412,17 +447,35 @@ function FinanceSalaryPage() {
         .sort((a, b) => a.label.localeCompare(b.label, "ru")),
     [compensationTypeOptions]
   );
-  const filteredRecords = useMemo(() => {
-    return records.filter((record) => {
-      if (employeeFilter && record.employeeGuid !== employeeFilter) return false;
-      if (operationFilter && record.operationType !== operationFilter) return false;
-      if (compensationTypeFilter && record.compensationTypeId !== compensationTypeFilter) return false;
-      return true;
-    });
-  }, [records, employeeFilter, operationFilter, compensationTypeFilter]);
+  const createCompensationTypeItems = useMemo(
+    () =>
+      compensationTypeOptions
+        .filter((item) => typeof item.guid === "string")
+        .map((item) => ({
+          guid: item.guid as string,
+          title: typeof item.title === "string" && item.title.trim() ? item.title : "Без названия",
+          operationType: resolveOperationType(item.operation_type),
+        }))
+        .sort((a, b) => {
+          if (a.operationType !== b.operationType) {
+            return a.operationType === "income" ? -1 : 1;
+          }
+          return a.title.localeCompare(b.title, "ru");
+        }),
+    [compensationTypeOptions]
+  );
+  const knownEmployeeNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const record of records) {
+      const guid = (record.employeeGuid || "").trim();
+      const name = (record.employeeName || "").trim();
+      if (!guid || !name || map.has(guid)) continue;
+      map.set(guid, name);
+    }
+    return map;
+  }, [records]);
   const activeFiltersCount = [employeeFilter, operationFilter, compensationTypeFilter].filter(Boolean).length;
   const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
-  const hasActiveFilters = activeFiltersCount > 0;
   const filterSelectStyles = useMemo(
     () => ({
       control: (base: any, state: any) => ({
@@ -506,6 +559,89 @@ function FinanceSalaryPage() {
     }),
     []
   );
+  const createEmployeeSelectStyles = useMemo<StylesConfig<FilterOption, false>>(
+    () => ({
+      control: (base, state) => ({
+        ...base,
+        minHeight: 40,
+        borderRadius: 12,
+        borderColor: state.isFocused ? "#cbd5e1" : "#e2e8f0",
+        boxShadow: "none",
+        "&:hover": {
+          borderColor: "#cbd5e1",
+        },
+      }),
+      valueContainer: (base) => ({
+        ...base,
+        padding: "0 10px",
+        fontSize: 14,
+      }),
+      input: (base) => ({
+        ...base,
+        color: "#1e293b",
+        fontSize: 14,
+        margin: 0,
+        padding: 0,
+      }),
+      singleValue: (base) => ({
+        ...base,
+        color: "#334155",
+        fontSize: 14,
+        fontWeight: 500,
+      }),
+      placeholder: (base) => ({
+        ...base,
+        color: "#94a3b8",
+        fontSize: 14,
+      }),
+      indicatorsContainer: (base) => ({
+        ...base,
+        color: "#64748b",
+      }),
+      dropdownIndicator: (base) => ({
+        ...base,
+        color: "#64748b",
+        padding: 6,
+        "&:hover": {
+          color: "#475569",
+        },
+      }),
+      clearIndicator: (base) => ({
+        ...base,
+        color: "#64748b",
+        padding: 6,
+        "&:hover": {
+          color: "#475569",
+        },
+      }),
+      indicatorSeparator: () => ({
+        display: "none",
+      }),
+      option: (base, state) => ({
+        ...base,
+        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        fontSize: 14,
+        padding: "8px 12px",
+      }),
+      menu: (base) => ({
+        ...base,
+        borderRadius: 10,
+        overflow: "hidden",
+        zIndex: 100000,
+      }),
+      menuPortal: (base) => ({
+        ...base,
+        zIndex: 100000,
+      }),
+      noOptionsMessage: (base) => ({
+        ...base,
+        color: "#64748b",
+        fontSize: 13,
+      }),
+    }),
+    []
+  );
   const paginationItems = useMemo(
     () => buildPaginationItems(currentPage, totalPages),
     [currentPage, totalPages]
@@ -513,19 +649,23 @@ function FinanceSalaryPage() {
   const visibleFrom = totalCount > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
   const visibleTo = totalCount > 0 ? Math.min(currentPage * PAGE_SIZE, totalCount) : 0;
   const visibleRangeLabel =
-    hasActiveFilters
-      ? `Отфильтровано ${filteredRecords.length} из ${records.length} на странице`
-      : totalCount > 0
-        ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
-        : "Нет данных";
-  const showStickyPagination =
-    !isPageLoading && !isError && totalCount > 0 && (!hasActiveFilters || filteredRecords.length > 0);
+    totalCount > 0
+      ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
+      : "Нет данных";
+  const showStickyPagination = !isPageLoading && !isError && totalCount > 0;
 
   const closeEditModal = () => {
     if (isMutatingRecord) return;
     setEditingRecord(null);
     setEditDraft(getDefaultEditDraft());
     setEditError("");
+  };
+
+  const closeCreateModal = () => {
+    if (isMutatingRecord) return;
+    setIsCreateModalOpen(false);
+    setCreateError("");
+    setCreateDraft(getDefaultCreateDraft(monthRange.from));
   };
 
   const closeDeleteModal = () => {
@@ -543,6 +683,12 @@ function FinanceSalaryPage() {
       operationType: record.operationType,
     });
     setEditError("");
+  };
+
+  const openCreateModal = () => {
+    setCreateError("");
+    setCreateDraft(getDefaultCreateDraft(monthRange.from));
+    setIsCreateModalOpen(true);
   };
 
   useEffect(() => {
@@ -608,6 +754,66 @@ function FinanceSalaryPage() {
     } catch (error) {
       console.error("Finance salary delete error:", error);
       toast.error(getErrorMessage(error, "Не удалось удалить запись."));
+    }
+  };
+
+  const handleCreateMultiple = async () => {
+    if (!createDraft.employeeGuid) {
+      setCreateError("Выберите сотрудника.");
+      return;
+    }
+
+    if (!createDraft.accrualDate) {
+      setCreateError("Укажите дату начисления.");
+      return;
+    }
+
+    const rowsToCreate = createCompensationTypeItems
+      .map((typeItem) => {
+        const rawValue = (createDraft.amountsByType[typeItem.guid] || "").trim();
+        if (!rawValue) return null;
+        const parsedAmount = Number(rawValue);
+        if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+          throw new Error(`Некорректная сумма для "${typeItem.title}".`);
+        }
+        return {
+          amount: parsedAmount,
+          compensationTypeId: typeItem.guid,
+          operationType: typeItem.operationType,
+        };
+      })
+      .filter((item): item is { amount: number; compensationTypeId: string; operationType: OperationType } =>
+        Boolean(item)
+      );
+
+    if (rowsToCreate.length === 0) {
+      setCreateError("Укажите сумму хотя бы для одной операции.");
+      return;
+    }
+
+    try {
+      setCreateError("");
+      await Promise.all(
+        rowsToCreate.map((row) =>
+          createMutation.mutateAsync({
+            user_base_id: createDraft.employeeGuid,
+            companies_id: companyGuid || COMPANY_ID,
+            date: createDraft.accrualDate,
+            amount: row.amount,
+            description: createDraft.description.trim() || null,
+            compensation_types_id: row.compensationTypeId,
+            operation_type: [row.operationType],
+          })
+        )
+      );
+
+      toast.success(`Добавлено ${rowsToCreate.length} операций.`);
+      closeCreateModal();
+      setCurrentPage(1);
+      await refetch();
+    } catch (error) {
+      console.error("Finance salary create multiple error:", error);
+      setCreateError(getErrorMessage(error, "Не удалось добавить операции."));
     }
   };
 
@@ -775,7 +981,7 @@ function FinanceSalaryPage() {
 
             <button
               type="button"
-              onClick={() => {}}
+              onClick={openCreateModal}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-semibold text-white transition hover:bg-brand-600"
             >
               <Plus size={16} />
@@ -935,7 +1141,7 @@ function FinanceSalaryPage() {
                   Повторить
                 </button>
               </div>
-            ) : filteredRecords.length === 0 ? (
+            ) : records.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
                 <p className="m-0 text-[13px] text-slate-500">
                   Записи не найдены
@@ -957,7 +1163,7 @@ function FinanceSalaryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRecords.map((record) => (
+                    {records.map((record) => (
                       <tr key={record.guid} className="border-b border-slate-100 align-top">
                         <td className="py-3 pr-4 text-[13px] text-slate-800">
                           {record.employeeGuid ? (
@@ -1040,6 +1246,154 @@ function FinanceSalaryPage() {
           onPageChange={(page) => setCurrentPage(page)}
         />
       ) : null}
+
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={closeCreateModal}
+        className="mx-4 w-full max-w-3xl p-5 sm:p-6"
+        showCloseButton={false}
+      >
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Добавить операции</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Выберите сотрудника и заполните суммы только для нужных операций.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeCreateModal}
+              disabled={isMutatingRecord}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-500">Сотрудник</span>
+              <EmployeeInfiniteSelect
+                value={createDraft.employeeGuid}
+                onChange={(value) =>
+                  setCreateDraft((prev) => ({
+                    ...prev,
+                    employeeGuid: value,
+                    employeeName: value ? knownEmployeeNameMap.get(value) || "" : "",
+                  }))
+                }
+                fallbackLabel={
+                  createDraft.employeeName ||
+                  (createDraft.employeeGuid ? knownEmployeeNameMap.get(createDraft.employeeGuid) : "") ||
+                  undefined
+                }
+                placeholder="Выберите сотрудника"
+                styles={createEmployeeSelectStyles}
+                menuPortalTarget={selectPortalTarget || undefined}
+              />
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-slate-500">Дата начисления</span>
+              <input
+                type="date"
+                value={createDraft.accrualDate}
+                onChange={(event) =>
+                  setCreateDraft((prev) => ({
+                    ...prev,
+                    accrualDate: event.target.value,
+                  }))
+                }
+                className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+              />
+            </label>
+          </div>
+
+          <label className="space-y-1">
+            <span className="text-xs font-medium text-slate-500">Описание (опционально)</span>
+            <input
+              type="text"
+              value={createDraft.description}
+              onChange={(event) =>
+                setCreateDraft((prev) => ({
+                  ...prev,
+                  description: event.target.value,
+                }))
+              }
+              className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+              placeholder="Общее описание для созданных операций"
+            />
+          </label>
+
+          <div className="rounded-xl border border-slate-200">
+            <div className="max-h-[320px] overflow-y-auto p-3">
+              <div className="space-y-2">
+                {createCompensationTypeItems.map((typeItem) => (
+                  <div
+                    key={typeItem.guid}
+                    className="grid grid-cols-1 items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/50 p-2 sm:grid-cols-[minmax(0,1fr)_180px]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${OPERATION_TAG_STYLES[typeItem.operationType]}`}
+                      >
+                        {OPERATION_LABELS[typeItem.operationType]}
+                      </span>
+                      <span className="text-sm font-medium text-slate-700">{typeItem.title}</span>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={createDraft.amountsByType[typeItem.guid] || ""}
+                      onChange={(event) =>
+                        setCreateDraft((prev) => ({
+                          ...prev,
+                          amountsByType: {
+                            ...prev.amountsByType,
+                            [typeItem.guid]: event.target.value,
+                          },
+                        }))
+                      }
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                      placeholder="0"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {createError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">
+              {createError}
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeCreateModal}
+              disabled={isMutatingRecord}
+              className="inline-flex h-10 items-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleCreateMultiple();
+              }}
+              disabled={isMutatingRecord}
+              className="inline-flex h-10 items-center rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {createMutation.isLoading ? "Сохранение..." : "Добавить"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={Boolean(editingRecord)}

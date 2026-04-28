@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { useSidebar } from "../context/SidebarContext";
+import { type HeaderBreadcrumbItem, useHeaderBreadcrumb } from "../context/HeaderBreadcrumbContext";
 import UserDropdown from "../components/header/UserDropdown";
 import companyStore from "../store/company.store";
 import { observer } from "mobx-react-lite";
@@ -11,8 +12,19 @@ const SEGMENT_LABELS: Record<string, string> = {
   employees: "Сотрудники",
   organization: "Организация",
   reports: "Отчеты",
+  "age-distribution": "Возрастное распределение",
+  "gender-distribution": "Гендерное распределение",
+  "staff-count": "Численность сотрудников",
+  "staff-turnover": "Текучесть кадров",
+  tenure: "Стаж",
+  "absence-balance": "Баланс отсутствий",
+  attendance: "Посещаемость",
+  "sport-attendance": "Посещение спорта",
+  payroll: "ФОТ",
+  "bonus-deductions": "Бонусы и удержания",
   settings: "Настройки",
   finance: "Финансы",
+  salary: "Зарплата",
   time: "Время",
   calendar: "Календарь",
   clients: "Клиенты",
@@ -37,21 +49,50 @@ const normalizeSegmentLabel = (segment: string) => {
   return SEGMENT_LABELS[segment] || formatSegment(segment);
 };
 
-const buildHeaderBreadcrumbs = (pathname: string) => {
-  const segments = pathname.split("/").filter(Boolean);
-  if (segments.length === 0) return ["Главная страница"];
-
-  if (segments[0] === "employees") {
-    const tail = segments.slice(1).map(normalizeSegmentLabel);
-    return ["Люди", "Сотрудники", ...tail];
+const buildHeaderBreadcrumbs = (
+  pathname: string,
+  getOverrideLabel: (path: string) => string | undefined,
+  getOverrideItems: (path: string) => HeaderBreadcrumbItem[] | undefined
+): HeaderBreadcrumbItem[] => {
+  const overrideItems = getOverrideItems(pathname);
+  if (overrideItems && overrideItems.length > 0) {
+    return overrideItems;
   }
 
-  return segments.map(normalizeSegmentLabel);
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) {
+    return [{ label: "Главная страница", to: "/dashboard" }];
+  }
+
+  if (segments[0] === "employees") {
+    const tail = segments.slice(1).map((segment, index) => {
+      const to = `/${["employees", ...segments.slice(1, index + 2)].join("/")}`;
+      return {
+        label: getOverrideLabel(to) || normalizeSegmentLabel(segment),
+        to,
+      };
+    });
+
+    return [
+      { label: "Люди", to: "/employees" },
+      { label: "Сотрудники", to: "/employees" },
+      ...tail,
+    ];
+  }
+
+  return segments.map((segment, index) => {
+    const to = `/${segments.slice(0, index + 1).join("/")}`;
+    return {
+      label: getOverrideLabel(to) || normalizeSegmentLabel(segment),
+      to,
+    };
+  });
 };
 
 const AppHeader: React.FC = () => {
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const location = useLocation();
+  const { getBreadcrumbLabel, getBreadcrumbItems } = useHeaderBreadcrumb();
 
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
@@ -62,8 +103,8 @@ const AppHeader: React.FC = () => {
   };
 
   const breadcrumbs = useMemo(() => {
-    return buildHeaderBreadcrumbs(location.pathname);
-  }, [location.pathname]);
+    return buildHeaderBreadcrumbs(location.pathname, getBreadcrumbLabel, getBreadcrumbItems);
+  }, [getBreadcrumbItems, getBreadcrumbLabel, location.pathname]);
 
   return (
     <header className="sticky top-0 flex items-center justify-between w-full h-16 bg-white border-b border-gray-200 px-4 lg:px-6 z-40">
@@ -89,12 +130,14 @@ const AppHeader: React.FC = () => {
             {breadcrumbs.map((crumb, index) => {
               const isLast = index === breadcrumbs.length - 1;
               return (
-                <div key={`${crumb}-${index}`} className="inline-flex min-w-0 items-center gap-2">
-                  <span
+                <div key={`${crumb.to}-${index}`} className="inline-flex min-w-0 items-center gap-2">
+                  <Link
+                    to={crumb.to}
                     className={`truncate ${isLast ? "font-semibold text-gray-800" : "font-medium text-gray-500"}`}
+                    aria-current={isLast ? "page" : undefined}
                   >
-                    {crumb}
-                  </span>
+                    {crumb.label}
+                  </Link>
                   {!isLast ? <span className="text-gray-400">›</span> : null}
                 </div>
               );

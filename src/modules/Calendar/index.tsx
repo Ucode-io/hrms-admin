@@ -1,12 +1,14 @@
 import { type ChangeEvent, type ReactNode, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import { ChevronLeft, ChevronRight, Clock3, Plus, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
 import Button from "../../components/ui/button/Button";
 import { Modal } from "../../components/ui/modal";
+import ExpandableSearchInput from "../../components/form/ExpandableSearchInput";
 import AbsenceRequestModal from "../../components/absences/AbsenceRequestModal";
+import { useHeaderBreadcrumbItems } from "../../context/HeaderBreadcrumbContext";
 import {
   type Absence,
   type AbsenceRequestStatus,
@@ -484,6 +486,14 @@ export default function CalendarModule() {
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [selectedAbsence, setSelectedAbsence] = useState<SelectedAbsence | null>(null);
   const [reviewStatusInProgress, setReviewStatusInProgress] = useState<AbsenceRequestStatus | null>(null);
+  const breadcrumbItems = useMemo(
+    () => [
+      { label: "Время", to: "/time/attendance" },
+      { label: "Отсутствие", to: "/calendar" },
+    ],
+    []
+  );
+  useHeaderBreadcrumbItems(breadcrumbItems);
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -498,11 +508,16 @@ export default function CalendarModule() {
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      setDebouncedSearch(searchValue.trim());
-      setEmployeesPage(1);
-      setEmployees([]);
-      isNextPageRequestedRef.current = false;
-      lastKnownTotalCountRef.current = 0;
+      const nextSearch = searchValue.trim();
+      setDebouncedSearch((prevSearch) => {
+        if (prevSearch === nextSearch) return prevSearch;
+
+        setEmployeesPage(1);
+        setEmployees([]);
+        isNextPageRequestedRef.current = false;
+        lastKnownTotalCountRef.current = 0;
+        return nextSearch;
+      });
     }, 350);
 
     return () => {
@@ -897,215 +912,221 @@ export default function CalendarModule() {
     <>
       <PageMeta title="Календарь | HRMS" description="Календарь отсутствий сотрудников" />
 
-      <div className="flex h-[calc(100vh-96px)] min-h-0 flex-col gap-4 overflow-hidden md:h-[calc(100vh-112px)]">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Календарь</h1>
+      <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4 flex h-[calc(100vh-88px)] min-h-0 flex-col">
+        <div
+          className="px-4 lg:px-6 py-2"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: "10px",
+            flexWrap: "wrap",
+            backgroundColor: "#fff",
+            border: "1px solid #e2e8f0",
+            borderTop: "none",
+          }}
+        >
+          <div className="ml-auto flex min-w-0 items-center gap-2">
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "3px",
+                borderRadius: "12px",
+                border: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+                height: "38px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentMonth(
+                    (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                  )
+                }
+                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                aria-label="Предыдущий месяц"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
+                {monthLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentMonth(
+                    (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                  )
+                }
+                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                aria-label="Следующий месяц"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <ExpandableSearchInput
+              value={searchValue}
+              onChange={setSearchValue}
+              inputId="calendar-search"
+              placeholder="Поиск сотрудника..."
+              expandedWidth={320}
+              collapsedSize={40}
+              brandColor="var(--color-brand-500)"
+            />
 
-          <Button
-            className="h-10 rounded-xl px-3.5 text-sm"
-            startIcon={<Plus size={15} />}
-            onClick={openCreateModal}
-          >
-            Запрос на отсутствие
-          </Button>
+            <Button
+              className="h-10 shrink-0 rounded-xl px-3.5 text-sm whitespace-nowrap"
+              startIcon={<Plus size={15} />}
+              onClick={openCreateModal}
+            >
+              Запрос на отсутствие
+            </Button>
+          </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-gray-200 bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white p-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentMonth(
-                      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-                    )
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
-                  aria-label="Предыдущий месяц"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="px-2 text-sm font-semibold text-gray-700">{monthLabel}</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentMonth(
-                      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-                    )
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
-                  aria-label="Следующий месяц"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
-              <Button
-                variant="outline"
-                className="h-10 rounded-lg px-4 text-sm"
-                onClick={() => {
-                  const now = new Date();
-                  setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
-                }}
-              >
-                Текущий месяц
-              </Button>
+        <div className="min-h-0 flex-1 px-4 py-4 lg:px-6">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-gray-100 bg-slate-50/70 px-4 py-3 text-sm text-gray-500">
+              {totalCount > 0
+                ? `Отображено ${Math.min(employees.length, totalCount)} из ${totalCount}`
+                : isInitialEmployeesLoading
+                  ? "Загружаем сотрудников..."
+                  : "Сотрудники не найдены"}
             </div>
 
-            <label className="relative block w-full max-w-[320px]">
-              <Search
-                size={17}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                type="text"
-                value={searchValue}
-                onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск сотрудника..."
-                className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
-              />
-            </label>
-          </div>
-
-          <div className="px-4 py-3 text-sm text-gray-500">
-            {totalCount > 0
-              ? `Отображено ${Math.min(employees.length, totalCount)} из ${totalCount}`
-              : isInitialEmployeesLoading
-                ? "Загружаем сотрудников..."
-                : "Сотрудники не найдены"}
-          </div>
-
-          <div
-            className="min-h-0 flex-1 max-w-full overflow-auto border-t border-gray-100"
-            onScroll={handleEmployeesScroll}
-          >
-            <table
-              className="border-separate border-spacing-0"
-              style={{ minWidth: 280 + monthDays.length * 44 }}
+            <div
+              className="min-h-0 max-w-full flex-1 overflow-auto border-t border-gray-100"
+              onScroll={handleEmployeesScroll}
             >
-              <thead>
-                <tr>
-                  <th className="sticky top-0 left-0 z-40 min-w-[280px] border-b border-r border-gray-100 bg-gray-50 px-4 py-2 text-left text-xs font-semibold text-gray-600">
-                    Сотрудник
-                  </th>
-                  {monthDays.map((day) => (
-                    <th
-                      key={day.dateKey}
-                      className={`sticky top-0 z-30 min-w-[44px] border-b border-r border-gray-100 px-0.5 py-1 text-center ${
-                        day.isWeekend ? "bg-gray-50" : "bg-white"
-                      }`}
-                    >
-                      <div className="text-[14px] font-semibold text-gray-700">{day.dayNumber}</div>
-                      <div className="text-[11px] font-medium text-gray-400">{day.weekdayShort}</div>
+              <table
+                className="border-separate border-spacing-0"
+                style={{ minWidth: 320 + monthDays.length * 44 }}
+              >
+                <thead>
+                  <tr>
+                    <th className="sticky top-0 left-0 z-40 min-w-[320px] border-b border-r border-gray-100 bg-gray-50 px-4 py-2 text-left text-xs font-semibold text-gray-600">
+                      Сотрудник
                     </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {isLoading
-                  ? Array.from({ length: 8 }).map((_, rowIndex) => (
-                      <tr key={`calendar-skeleton-${rowIndex}`}>
-                        <td className="sticky left-0 z-10 h-14 min-w-[280px] border-b border-r border-gray-100 bg-white px-4 py-2">
-                          <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
-                        </td>
-                        {monthDays.map((day) => (
-                          <td
-                            key={`calendar-skeleton-day-${rowIndex}-${day.dateKey}`}
-                            className="h-14 min-w-[44px] border-b border-r border-gray-100 bg-white"
-                          />
-                        ))}
-                      </tr>
-                    ))
-                  : null}
-
-                {!isLoading && employees.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={monthDays.length + 1}
-                      className="px-4 py-12 text-center text-sm text-gray-500"
-                    >
-                      Нет сотрудников для отображения.
-                    </td>
+                    {monthDays.map((day) => (
+                      <th
+                        key={day.dateKey}
+                        className={`sticky top-0 z-30 min-w-[44px] border-b border-r border-gray-100 px-0.5 py-1 text-center ${
+                          day.isWeekend ? "bg-gray-50" : "bg-white"
+                        }`}
+                      >
+                        <div className="text-[14px] font-semibold text-gray-700">{day.dayNumber}</div>
+                        <div className="text-[11px] font-medium text-gray-400">{day.weekdayShort}</div>
+                      </th>
+                    ))}
                   </tr>
-                ) : null}
+                </thead>
 
-                {!isLoading
-                  ? employees.map((employee) => {
-                      const fullName = buildEmployeeName(employee);
-                      const subtitle = buildEmployeeSubtitle(employee);
-                      const rowAbsences = absencesByEmployee.get(employee.guid) || [];
-                      const timelineCells = buildTimelineCells({
-                        absences: rowAbsences,
-                        days: monthDays,
-                        monthStart: currentMonth,
-                        onSegmentClick: (absence) =>
-                          setSelectedAbsence({
-                            guid: absence.guid,
-                            userBaseId: absence.userBaseId,
-                            absencePolicyId: absence.absencePolicyId,
-                            title: absence.title,
-                            color: absence.color,
-                            icon: absence.icon,
-                            status: absence.status,
-                            dateFrom: absence.dateFrom,
-                            dateTo: absence.dateTo,
-                            requestedDays: absence.requestedDays,
-                            employeeName: fullName,
-                          }),
-                      });
-
-                      return (
-                        <tr key={employee.guid} className="group">
-                          <td className="sticky left-0 z-10 min-w-[280px] border-b border-r border-gray-100 bg-white px-4 py-2 group-hover:bg-slate-50/70">
-                            <div className="flex items-center gap-3">
-                              {employee.photo ? (
-                                <img
-                                  src={employee.photo}
-                                  alt={fullName}
-                                  className="h-9 w-9 shrink-0 rounded-full border border-gray-200 object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-brand-50 text-sm font-semibold text-brand-600">
-                                  {buildInitials(employee)}
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-gray-900">{fullName}</div>
-                                <div className="truncate text-xs text-gray-500">{subtitle || "—"}</div>
-                              </div>
-                            </div>
+                <tbody>
+                  {isLoading
+                    ? Array.from({ length: 8 }).map((_, rowIndex) => (
+                        <tr key={`calendar-skeleton-${rowIndex}`}>
+                          <td className="sticky left-0 z-10 h-14 min-w-[320px] border-b border-r border-gray-100 bg-white px-4 py-2">
+                            <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
                           </td>
-                          {timelineCells}
+                          {monthDays.map((day) => (
+                            <td
+                              key={`calendar-skeleton-day-${rowIndex}-${day.dateKey}`}
+                              className="h-14 min-w-[44px] border-b border-r border-gray-100 bg-white"
+                            />
+                          ))}
                         </tr>
-                      );
-                    })
-                  : null}
+                      ))
+                    : null}
 
-                {!isLoading && isLoadingMoreEmployees ? (
-                  <tr>
-                    <td
-                      colSpan={monthDays.length + 1}
-                      className="px-4 py-5 text-center text-sm text-gray-500"
-                    >
-                      Загружаем ещё сотрудников...
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                  {!isLoading && employees.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={monthDays.length + 1}
+                        className="px-4 py-12 text-center text-sm text-gray-500"
+                      >
+                        Нет сотрудников для отображения.
+                      </td>
+                    </tr>
+                  ) : null}
 
-          <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-sm">
-            <span className="text-gray-500">
-              {totalCount > 0 && !hasMoreEmployees
-                ? "Все сотрудники загружены"
-                : totalCount === 0
-                  ? "Сотрудники не найдены"
-                  : ""}
-            </span>
-            {isLoadingMoreEmployees ? <span className="text-gray-500">Загрузка...</span> : null}
+                  {!isLoading
+                    ? employees.map((employee) => {
+                        const fullName = buildEmployeeName(employee);
+                        const subtitle = buildEmployeeSubtitle(employee);
+                        const rowAbsences = absencesByEmployee.get(employee.guid) || [];
+                        const timelineCells = buildTimelineCells({
+                          absences: rowAbsences,
+                          days: monthDays,
+                          monthStart: currentMonth,
+                          onSegmentClick: (absence) =>
+                            setSelectedAbsence({
+                              guid: absence.guid,
+                              userBaseId: absence.userBaseId,
+                              absencePolicyId: absence.absencePolicyId,
+                              title: absence.title,
+                              color: absence.color,
+                              icon: absence.icon,
+                              status: absence.status,
+                              dateFrom: absence.dateFrom,
+                              dateTo: absence.dateTo,
+                              requestedDays: absence.requestedDays,
+                              employeeName: fullName,
+                            }),
+                        });
+
+                        return (
+                          <tr key={employee.guid} className="group">
+                            <td className="sticky left-0 z-10 min-w-[320px] border-b border-r border-gray-100 bg-white px-4 py-2 group-hover:bg-slate-50/70">
+                              <div className="flex items-center gap-3">
+                                {employee.photo ? (
+                                  <img
+                                    src={employee.photo}
+                                    alt={fullName}
+                                    className="h-9 w-9 shrink-0 rounded-full border border-gray-200 object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-brand-50 text-sm font-semibold text-brand-600">
+                                    {buildInitials(employee)}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-semibold text-gray-900">{fullName}</div>
+                                  <div className="truncate text-xs text-gray-500">{subtitle || "—"}</div>
+                                </div>
+                              </div>
+                            </td>
+                            {timelineCells}
+                          </tr>
+                        );
+                      })
+                    : null}
+
+                  {!isLoading && isLoadingMoreEmployees ? (
+                    <tr>
+                      <td
+                        colSpan={monthDays.length + 1}
+                        className="px-4 py-5 text-center text-sm text-gray-500"
+                      >
+                        Загружаем ещё сотрудников...
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-sm">
+              <span className="text-gray-500">
+                {totalCount > 0 && !hasMoreEmployees
+                  ? "Все сотрудники загружены"
+                  : totalCount === 0
+                    ? "Сотрудники не найдены"
+                    : ""}
+              </span>
+              {isLoadingMoreEmployees ? <span className="text-gray-500">Загрузка...</span> : null}
+            </div>
           </div>
         </div>
       </div>

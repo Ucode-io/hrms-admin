@@ -1,4 +1,5 @@
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
+import { HeaderBreadcrumbProvider } from "../context/HeaderBreadcrumbContext";
 import { Outlet } from "react-router";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
@@ -29,7 +30,9 @@ const LayoutContent: React.FC = () => {
 const AppLayout: React.FC = () => {
   return (
     <SidebarProvider>
-      <LayoutContent />
+      <HeaderBreadcrumbProvider>
+        <LayoutContent />
+      </HeaderBreadcrumbProvider>
     </SidebarProvider>
   );
 };

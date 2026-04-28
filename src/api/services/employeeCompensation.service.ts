@@ -97,6 +97,9 @@ export const useEmployeeSalaryCompensationsQuery = ({
   search,
   dateFrom,
   dateTo,
+  userBaseId,
+  operationType,
+  compensationTypeId,
   enabled = true,
 }: {
   limit?: number;
@@ -104,10 +107,24 @@ export const useEmployeeSalaryCompensationsQuery = ({
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  userBaseId?: string;
+  operationType?: "income" | "deduction";
+  compensationTypeId?: string;
   enabled?: boolean;
 }) => {
   return useQuery(
-    ["employee-compensations", "salary", limit, offset, search || "", dateFrom || "", dateTo || ""],
+    [
+      "employee-compensations",
+      "salary",
+      limit,
+      offset,
+      search || "",
+      dateFrom || "",
+      dateTo || "",
+      userBaseId || "",
+      operationType || "",
+      compensationTypeId || "",
+    ],
     async (): Promise<EmployeeCompensationListResponse> => {
       const dataObj: Record<string, unknown> = {
         limit,
@@ -121,6 +138,15 @@ export const useEmployeeSalaryCompensationsQuery = ({
           $gte: dateFrom,
           $lte: dateTo,
         };
+      }
+      if (userBaseId && userBaseId.trim()) {
+        dataObj.user_base_id = userBaseId.trim();
+      }
+      if (operationType) {
+        dataObj.operation_type = [operationType];
+      }
+      if (compensationTypeId && compensationTypeId.trim()) {
+        dataObj.compensation_types_id = compensationTypeId.trim();
       }
 
       const res = await instance.get(`/v2/items/${SLUG}`, {

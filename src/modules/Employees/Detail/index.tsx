@@ -23,6 +23,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
 import { useEmployeeQuery, useUpdateEmployee } from "../../../api/services/employee.service";
 import { useEmployeeWorksQuery } from "../../../api/services/employeeWork.service";
+import { useHeaderBreadcrumbLabel } from "../../../context/HeaderBreadcrumbContext";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
 import { Modal } from "../../../components/ui/modal";
@@ -211,6 +212,8 @@ function EmployeeDetail() {
   const employeeCover = companyStore.company?.employee_cover;
 
   const { data: emp, isLoading } = useEmployeeQuery(id || "");
+  const breadcrumbEmployeeName = [emp?.first_name, emp?.second_name].filter(Boolean).join(" ").trim();
+  useHeaderBreadcrumbLabel(breadcrumbEmployeeName);
   const { data: employeeWorksData } = useEmployeeWorksQuery({
     userBaseId: emp?.guid || "",
     limit: 100,

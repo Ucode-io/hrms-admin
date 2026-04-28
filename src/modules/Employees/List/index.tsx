@@ -85,6 +85,10 @@ function EmployeesList() {
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
+  const [orgSearchQuery, setOrgSearchQuery] = useState("");
+  const [orgFiltersOpen, setOrgFiltersOpen] = useState(false);
+  const [orgActiveFiltersCount, setOrgActiveFiltersCount] = useState(0);
+  const [orgCreateRequestKey, setOrgCreateRequestKey] = useState(0);
   const navigate = useNavigate();
 
   const brandColor = companyStore.mainColor;
@@ -165,7 +169,9 @@ function EmployeesList() {
     locationFilter,
     positionFilter,
   ].filter(Boolean).length;
-  const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
+  const isFilterButtonActive = isOrgView
+    ? orgFiltersOpen || orgActiveFiltersCount > 0
+    : isFiltersOpen || activeFiltersCount > 0;
 
   const filterSelectStyles = useMemo(
     () => ({
@@ -256,6 +262,12 @@ function EmployeesList() {
       setIsFiltersOpen(false);
     }
   }, [isOrgView, isFiltersOpen]);
+
+  useEffect(() => {
+    if (!isOrgView && orgFiltersOpen) {
+      setOrgFiltersOpen(false);
+    }
+  }, [isOrgView, orgFiltersOpen]);
 
   const paginationItems = useMemo(
     () => buildPaginationItems(currentPage, totalPages),
@@ -418,13 +430,21 @@ function EmployeesList() {
 
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexWrap: "nowrap", justifyContent: "flex-end" }}>
             <ExpandableSearchInput
-              value={searchQuery}
+              value={isOrgView ? orgSearchQuery : searchQuery}
               onChange={(value) => {
+                if (isOrgView) {
+                  setOrgSearchQuery(value);
+                  return;
+                }
                 setSearchQuery(value);
                 setCurrentPage(1);
               }}
               inputId="employees-search"
-              placeholder="Поиск по имени, электронной почте или номеру телефона"
+              placeholder={
+                isOrgView
+                  ? "Поиск отдела..."
+                  : "Поиск по имени, электронной почте или номеру телефона"
+              }
               expandedWidth={460}
               collapsedSize={38}
               brandColor={brandColor}
@@ -433,9 +453,11 @@ function EmployeesList() {
             <button
               id="employees-filter-btn"
               type="button"
-              disabled={isOrgView}
               onClick={() => {
-                if (isOrgView) return;
+                if (isOrgView) {
+                  setOrgFiltersOpen((open) => !open);
+                  return;
+                }
                 setIsFiltersOpen((open) => !open);
               }}
               style={{
@@ -445,33 +467,40 @@ function EmployeesList() {
                 padding: "8px 14px",
                 fontSize: "14px",
                 fontWeight: 500,
-                color: isOrgView ? "#94a3b8" : isFilterButtonActive ? "#2563eb" : "#1e293b",
-                backgroundColor: isOrgView ? "#f8fafc" : isFilterButtonActive ? "#eff6ff" : "#fff",
-                border: isOrgView
-                  ? "1px solid #e2e8f0"
-                  : isFilterButtonActive
-                    ? "1px solid #bfdbfe"
-                    : "1px solid #e2e8f0",
+                color: isFilterButtonActive ? "#2563eb" : "#1e293b",
+                backgroundColor: isFilterButtonActive ? "#eff6ff" : "#fff",
+                border: isFilterButtonActive
+                  ? "1px solid #bfdbfe"
+                  : "1px solid #e2e8f0",
                 borderRadius: "10px",
-                cursor: isOrgView ? "not-allowed" : "pointer",
+                cursor: "pointer",
                 transition: "background-color 0.2s",
               }}
               onMouseEnter={(e) => {
-                if (isFilterButtonActive || isOrgView) return;
+                if (isFilterButtonActive) return;
                 e.currentTarget.style.backgroundColor = "#f8fafc";
               }}
               onMouseLeave={(e) => {
-                if (isFilterButtonActive || isOrgView) return;
+                if (isFilterButtonActive) return;
                 e.currentTarget.style.backgroundColor = "#fff";
               }}
             >
               <SlidersHorizontal style={{ width: "16px", height: "16px" }} />
-              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+              Фильтр
+              {(isOrgView ? orgActiveFiltersCount : activeFiltersCount) > 0
+                ? ` (${isOrgView ? orgActiveFiltersCount : activeFiltersCount})`
+                : ""}
             </button>
 
             <button
               id="employees-add-btn"
-              onClick={() => navigate("/employees/new")}
+              onClick={() => {
+                if (isOrgView) {
+                  setOrgCreateRequestKey((prev) => prev + 1);
+                  return;
+                }
+                navigate("/employees/new");
+              }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -656,7 +685,14 @@ function EmployeesList() {
           }
         >
           {viewMode === "org" ? (
-            <OrganizationStructureModule embedded />
+            <OrganizationStructureModule
+              embedded
+              searchValue={orgSearchQuery}
+              onSearchValueChange={setOrgSearchQuery}
+              filtersOpen={orgFiltersOpen}
+              onActiveFiltersCountChange={setOrgActiveFiltersCount}
+              createRequestKey={orgCreateRequestKey}
+            />
           ) : isLoading ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
               <div
@@ -696,7 +732,6 @@ function EmployeesList() {
                     <EmployeeCard
                       key={emp.guid}
                       employee={emp}
-                      brandColor={brandColor}
                       name={getDisplayName(emp)}
                       position={getPosition(emp)}
                       department={getDepartment(emp)}
@@ -947,7 +982,6 @@ function ContactIcon({
 
 function EmployeeCard({
   employee,
-  brandColor,
   name,
   position,
   department,
@@ -955,7 +989,6 @@ function EmployeeCard({
   onClick,
 }: {
   employee: Employee;
-  brandColor: string;
   name: string;
   position: string;
   department: string;

@@ -1,10 +1,12 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 interface BreadcrumbProps {
   pageTitle: string;
 }
 
 const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
+  const location = useLocation();
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
       <h2
@@ -39,8 +41,14 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
               </svg>
             </Link>
           </li>
-          <li className="text-sm text-gray-800 dark:text-white/90">
-            {pageTitle}
+          <li>
+            <Link
+              className="text-sm text-gray-800 dark:text-white/90"
+              to={location.pathname}
+              aria-current="page"
+            >
+              {pageTitle}
+            </Link>
           </li>
         </ol>
       </nav>
