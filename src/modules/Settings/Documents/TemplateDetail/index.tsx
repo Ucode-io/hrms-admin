@@ -80,7 +80,7 @@ export default function DocumentTemplateDetailPage() {
 
       <div className="space-y-4">
         <Link
-          to="/settings/documents"
+          to="/settings/documents?tab=templates"
           className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
         >
           <ChevronLeft size={16} />

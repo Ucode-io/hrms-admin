@@ -46,6 +46,7 @@ type DocumentCardsTabProps = {
   includeFileField?: boolean;
   fileRequiredText?: string;
   onCardClick?: (item: DocumentsCardItem) => void;
+  onEditItem?: (item: DocumentsCardItem) => void;
   showCount?: boolean;
 };
 
@@ -77,6 +78,7 @@ export default function DocumentCardsTab({
   includeFileField = false,
   fileRequiredText = "Поле файла обязательно.",
   onCardClick,
+  onEditItem,
   showCount = false,
 }: DocumentCardsTabProps) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -360,7 +362,14 @@ export default function DocumentCardsTab({
                         anchorEl={actionButtonRefs.current[item.guid]}
                       >
                         <DropdownItem
-                          onClick={() => openEditModal(item)}
+                          onClick={() => {
+                            if (onEditItem) {
+                              onEditItem(item);
+                              setOpenActionsFor(null);
+                              return;
+                            }
+                            openEditModal(item);
+                          }}
                           className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                         >
                           Изменить

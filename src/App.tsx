@@ -37,7 +37,7 @@ import AbsencePoliciesSettingsPage from "./modules/Settings/AbsencePolicies";
 import HolidayPoliciesSettingsPage from "./modules/Settings/HolidayPolicies";
 import HolidayPolicyDetailPage from "./modules/Settings/HolidayPolicies/Detail";
 import DocumentsSettingsPage from "./modules/Settings/Documents";
-import DocumentTemplateDetailPage from "./modules/Settings/Documents/TemplateDetail";
+import CreateDocumentTemplatePage from "./modules/Settings/Documents/TemplateCreate";
 import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
 import ProbationPoliciesSettingsPage from "./modules/Settings/ProbationPolicies";
 import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
@@ -192,7 +192,9 @@ function App() {
               <Route path="/settings/holiday-policies" element={<HolidayPoliciesSettingsPage />} />
               <Route path="/settings/holiday-policies/:id" element={<HolidayPolicyDetailPage />} />
               <Route path="/settings/documents" element={<DocumentsSettingsPage />} />
-              <Route path="/settings/documents/templates/:id" element={<DocumentTemplateDetailPage />} />
+              <Route path="/settings/documents/templates/new" element={<CreateDocumentTemplatePage />} />
+              <Route path="/settings/documents/templates/:id/edit" element={<CreateDocumentTemplatePage />} />
+              <Route path="/settings/documents/templates/:id" element={<CreateDocumentTemplatePage />} />
               <Route path="/settings/work-schedules" element={<WorkSchedulesSettingsPage />} />
               <Route path="/settings/probation-policies" element={<ProbationPoliciesSettingsPage />} />
               <Route path="/settings/dismissal-reasons" element={<DismissalReasonsSettingsPage />} />
