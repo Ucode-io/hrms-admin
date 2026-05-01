@@ -52,6 +52,8 @@ import SettingsPage from "./modules/Settings";
 import EmployeesList from "./modules/Employees/List";
 import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
+import EmployeeGenerateDocumentFromTemplatePage from "./modules/Employees/Detail/components/document-generation/GenerateFromTemplatePage";
+import DocumentsPage from "./modules/Documents";
 import CalendarModule from "./modules/Calendar";
 import TimeAttendancePage from "./modules/Time/Attendance";
 import ReportsHomePage from "./modules/Reports";
@@ -213,6 +215,9 @@ function App() {
               <Route path="/employees/new" element={<EmployeeForm />} />
               <Route path="/employees/:id" element={<EmployeeDetail />} />
               <Route path="/employees/:id/edit" element={<EmployeeForm />} />
+              <Route path="/employees/:id/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
+              <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/calendar" element={<CalendarModule />} />
               <Route path="/time/attendance" element={<TimeAttendancePage />} />
               <Route path="/reports" element={<ReportsHomePage />} />

@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  FileText,
   Home,
   ListOrdered,
   Settings,
@@ -51,6 +52,10 @@ const moduleSections: ModuleSection[] = [
     ],
   },
   {
+    title: "Документы",
+    items: [{ name: "Документы", path: "/documents", icon: <FileText size={18} /> }],
+  },
+  {
     title: "Время",
     items: [
       { name: "Посешаемость", path: "/time/attendance", icon: <CalendarCheck size={18} /> },
@@ -74,6 +79,7 @@ const moduleSections: ModuleSection[] = [
 const ENABLED_PATHS = new Set([
   "/dashboard",
   "/employees",
+  "/documents",
   "/reports",
   "/time/attendance",
   "/reports/attendance",

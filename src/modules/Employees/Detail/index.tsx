@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft,
   ChevronRight,
@@ -193,7 +193,10 @@ function generateStrongPassword(length = 12): string {
 function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("Личное");
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<Tab>(
+    location.state?.activeTab === "Документы" ? "Документы" : "Личное"
+  );
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isDismissModalOpen, setIsDismissModalOpen] = useState(false);
@@ -241,6 +244,12 @@ function EmployeeDetail() {
     params: { limit: 200, offset: 0 },
   });
   const updateEmployeeMutation = useUpdateEmployee();
+
+  useEffect(() => {
+    if (location.state?.activeTab === "Документы") {
+      setActiveTab("Документы");
+    }
+  }, [location.state]);
 
   if (isLoading || !emp) {
     return (

@@ -1,19 +1,26 @@
-import { type ChangeEvent, type MouseEvent, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   Download,
   Eye,
   File,
+  FilePlus2,
   FileSpreadsheet,
   FileText,
   Folder,
   FolderOpen,
   Image,
+  Search,
   Trash2,
   Upload,
   Video,
 } from "lucide-react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import type { StylesConfig } from "react-select";
+import Button from "../../../../components/ui/button/Button";
+import { Modal } from "../../../../components/ui/modal";
+import EmployeeInfiniteSelect from "../../../../components/autocomplete/EmployeeInfiniteSelect";
 import { useUploadFile } from "../../../../api/services/file-upload.service";
 import {
   useCreateDocument,
@@ -23,7 +30,7 @@ import {
 import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
 
 type DocumentsSectionProps = {
-  employeeGuid: string;
+  employeeGuid?: string;
   brandColor: string;
 };
 
@@ -49,6 +56,20 @@ type EmployeeDocumentItem = {
 };
 
 const FOLDERS_SLUG = "document_folders";
+const TEMPLATES_SLUG = "document_templates";
+
+type TemplateItem = {
+  guid: string;
+  title?: string;
+  description?: string;
+  file?: string;
+  [key: string]: unknown;
+};
+
+type SelectOption = {
+  value: string;
+  label: string;
+};
 
 const detectDocumentType = (file: File): string => {
   const mime = file.type.toLowerCase();
@@ -66,6 +87,70 @@ const detectDocumentType = (file: File): string => {
 
   return "file";
 };
+
+const getGenerateEmployeeSelectStyles = (): StylesConfig<SelectOption, false> => ({
+  control: (base, state) => ({
+    ...base,
+    minHeight: "44px",
+    height: "44px",
+    borderColor: state.isFocused ? "var(--color-brand-500)" : "#cbd5e1",
+    borderRadius: "0.75rem",
+    boxShadow: state.isFocused ? "0 0 0 3px rgba(var(--company-color-rgb, 70, 95, 255), 0.10)" : "none",
+    "&:hover": {
+      borderColor: state.isFocused ? "var(--color-brand-500)" : "#cbd5e1",
+    },
+  }),
+  valueContainer: (base) => ({
+    ...base,
+    padding: "0 12px",
+    fontSize: "14px",
+    color: "#0f172a",
+  }),
+  input: (base) => ({
+    ...base,
+    margin: 0,
+    padding: 0,
+    fontSize: "14px",
+    color: "#0f172a",
+  }),
+  indicatorsContainer: (base) => ({
+    ...base,
+    height: "42px",
+  }),
+  indicatorSeparator: (base) => ({
+    ...base,
+    backgroundColor: "#e2e8f0",
+  }),
+  singleValue: (base) => ({
+    ...base,
+    fontSize: "14px",
+    color: "#0f172a",
+  }),
+  placeholder: (base) => ({
+    ...base,
+    fontSize: "14px",
+    color: "#94a3b8",
+  }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: "14px",
+    cursor: "pointer",
+    backgroundColor: state.isSelected ? "var(--color-brand-500)" : state.isFocused ? "#f8fafc" : "white",
+    color: state.isSelected ? "white" : "#0f172a",
+    padding: "10px 12px",
+  }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 100100,
+    borderRadius: "0.75rem",
+    border: "1px solid #e2e8f0",
+    overflow: "hidden",
+  }),
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: 100100,
+  }),
+});
 
 const normalizeDocumentType = (value: EmployeeDocumentItem["type"]): string => {
   if (Array.isArray(value)) {
@@ -143,9 +228,16 @@ export default function EmployeeDocumentsSection({
   employeeGuid,
   brandColor,
 }: DocumentsSectionProps) {
+  const normalizedEmployeeGuid = typeof employeeGuid === "string" ? employeeGuid.trim() : "";
+  const isGlobalMode = !normalizedEmployeeGuid;
+  const navigate = useNavigate();
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const [activeFolder, setActiveFolder] = useState<DocumentFolderItem | null>(null);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [selectedTemplateGuid, setSelectedTemplateGuid] = useState("");
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [selectedGenerateEmployeeGuid, setSelectedGenerateEmployeeGuid] = useState("");
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const activeFolderUploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -158,11 +250,21 @@ export default function EmployeeDocumentsSection({
   });
 
   const { data: docsData, isLoading: isDocsLoading } = useDocumentsQuery({
-    data: {
-      user_base_id: employeeGuid,
+    data: normalizedEmployeeGuid ? { user_base_id: normalizedEmployeeGuid } : {},
+    allowWithoutFilters: isGlobalMode,
+    querySettings: {
+      enabled: isGlobalMode ? true : Boolean(normalizedEmployeeGuid),
+    },
+  });
+  const { data: templatesData, isLoading: isTemplatesLoading } = useSettingsDirectoryQuery({
+    slug: TEMPLATES_SLUG,
+    params: {
+      limit: 1000,
+      offset: 0,
+      search: templateSearch.trim() || undefined,
     },
     querySettings: {
-      enabled: Boolean(employeeGuid),
+      enabled: isTemplateModalOpen,
     },
   });
 
@@ -178,6 +280,30 @@ export default function EmployeeDocumentsSection({
     () => ((docsData?.response || []) as EmployeeDocumentItem[]),
     [docsData?.response]
   );
+  const templates = useMemo(
+    () => ((templatesData?.response || []) as TemplateItem[]),
+    [templatesData?.response]
+  );
+  const filteredTemplates = useMemo(() => {
+    const needle = templateSearch.trim().toLowerCase();
+    if (!needle) return templates;
+    return templates.filter((template) => {
+      const title = String(template.title || "").toLowerCase();
+      const description = String(template.description || "").toLowerCase();
+      return title.includes(needle) || description.includes(needle);
+    });
+  }, [templateSearch, templates]);
+  const selectedTemplate = useMemo(() => {
+    if (!selectedTemplateGuid) return filteredTemplates[0] || null;
+    return filteredTemplates.find((item) => item.guid === selectedTemplateGuid) || filteredTemplates[0] || null;
+  }, [filteredTemplates, selectedTemplateGuid]);
+
+  useEffect(() => {
+    if (!isTemplateModalOpen) return;
+    if (selectedTemplateGuid) return;
+    if (filteredTemplates.length === 0) return;
+    setSelectedTemplateGuid(filteredTemplates[0].guid);
+  }, [filteredTemplates, isTemplateModalOpen, selectedTemplateGuid]);
 
   const documentsByFolder = useMemo(() => {
     const grouped = new Map<string, EmployeeDocumentItem[]>();
@@ -219,7 +345,7 @@ export default function EmployeeDocumentsSection({
         name: selectedFile.name,
         file: uploadedUrl,
         type: [detectedType],
-        user_base_id: employeeGuid,
+        ...(normalizedEmployeeGuid ? { user_base_id: normalizedEmployeeGuid } : {}),
         document_folders_id: folder.guid,
       });
 
@@ -249,6 +375,47 @@ export default function EmployeeDocumentsSection({
     if (!selectedFile || !activeFolder) return;
 
     await uploadDocumentToFolder(activeFolder, selectedFile);
+  };
+
+  const openGenerateTemplatePicker = () => {
+    if (!activeFolder?.guid) {
+      toast.error("Сначала выберите папку для нового документа.");
+      return;
+    }
+    setSelectedTemplateGuid("");
+    setTemplateSearch("");
+    setSelectedGenerateEmployeeGuid("");
+    setIsTemplateModalOpen(true);
+  };
+
+  const closeTemplateModal = () => {
+    setIsTemplateModalOpen(false);
+  };
+
+  const openGeneratePage = () => {
+    if (!activeFolder?.guid || !selectedTemplate?.guid) {
+      return;
+    }
+
+    const generationEmployeeGuid = normalizedEmployeeGuid || selectedGenerateEmployeeGuid;
+    if (!generationEmployeeGuid) {
+      toast.error("Выберите сотрудника для генерации документа.");
+      return;
+    }
+
+    closeTemplateModal();
+    const queryParams = new URLSearchParams({
+      folderId: activeFolder.guid,
+    });
+    if (isGlobalMode) {
+      queryParams.set("employeeId", generationEmployeeGuid);
+      navigate(`/documents/generate/${selectedTemplate.guid}?${queryParams.toString()}`);
+      return;
+    }
+
+    navigate(
+      `/employees/${generationEmployeeGuid}/documents/generate/${selectedTemplate.guid}?${queryParams.toString()}`
+    );
   };
 
   const handleOpenFile = (doc: EmployeeDocumentItem) => {
@@ -370,7 +537,7 @@ export default function EmployeeDocumentsSection({
                   return (
                     <div
                       key={doc.guid}
-                      className="w-full rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 sm:w-[360px]"
+                      className="flex h-[220px] w-full flex-col rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 sm:w-[360px]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
@@ -384,7 +551,7 @@ export default function EmployeeDocumentsSection({
                       <p className="m-0 mt-3 truncate text-[14px] font-semibold text-slate-900">{docName}</p>
                       <p className="mt-1 truncate text-[12px] text-slate-500">{doc.file || "—"}</p>
 
-                      <div className="mt-4 flex items-center gap-2">
+                      <div className="mt-auto pt-4 flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleOpenFile(doc)}
@@ -415,21 +582,35 @@ export default function EmployeeDocumentsSection({
                   );
                 })}
 
-                <button
-                  type="button"
-                  onClick={() => activeFolderUploadInputRef.current?.click()}
-                  disabled={uploadingFolderId === activeFolder.guid}
-                  className="h-[140px] w-[140px] shrink-0 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-default disabled:opacity-70"
-                >
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-center">
-                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-500">
-                      <Upload className="h-5 w-5" style={{ color: brandColor }} />
+                <div className="flex h-[220px] w-[210px] shrink-0 flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={() => activeFolderUploadInputRef.current?.click()}
+                    disabled={uploadingFolderId === activeFolder.guid}
+                    className="min-h-0 flex-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-default disabled:opacity-70"
+                  >
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-center">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-500">
+                        <Upload className="h-5 w-5" style={{ color: brandColor }} />
+                      </div>
+                      <p className="m-0 text-[14px] font-semibold text-slate-700">
+                        {uploadingFolderId === activeFolder.guid ? "Загрузка..." : "Добавить файл"}
+                      </p>
                     </div>
-                    <p className="m-0 text-[14px] font-semibold text-slate-700">
-                      {uploadingFolderId === activeFolder.guid ? "Загрузка..." : "Добавить файл"}
-                    </p>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openGenerateTemplatePicker}
+                    className="min-h-0 flex-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 transition hover:border-slate-400 hover:bg-slate-100"
+                  >
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-center">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-500">
+                        <FilePlus2 className="h-5 w-5" style={{ color: brandColor }} />
+                      </div>
+                      <p className="m-0 text-[14px] font-semibold text-slate-700">Сгенерировать файл</p>
+                    </div>
+                  </button>
+                </div>
                 <input
                   ref={activeFolderUploadInputRef}
                   type="file"
@@ -528,6 +709,93 @@ export default function EmployeeDocumentsSection({
           </>
         )}
       </div>
+
+      <Modal isOpen={isTemplateModalOpen} onClose={closeTemplateModal} className="mx-4 w-full max-w-2xl p-6">
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-xl font-semibold text-slate-900">Выбор шаблона</h3>
+            <p className="mt-1 text-sm text-slate-500">Выберите шаблон для генерации документа</p>
+          </div>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={templateSearch}
+              onChange={(event) => setTemplateSearch(event.target.value)}
+              placeholder="Поиск шаблона..."
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
+            />
+          </div>
+
+          <div className="max-h-[55vh] overflow-y-auto rounded-xl border border-slate-200 p-3">
+            {isTemplatesLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`template-skeleton-${index}`}
+                    className="h-[72px] animate-pulse rounded-lg border border-slate-200 bg-slate-100"
+                  />
+                ))}
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500">
+                {templateSearch.trim() ? "По вашему запросу ничего не найдено." : "Шаблоны документов не найдены."}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {filteredTemplates.map((template) => {
+                  const isActive = template.guid === selectedTemplate?.guid;
+                  return (
+                    <button
+                      key={template.guid}
+                      type="button"
+                      onClick={() => setSelectedTemplateGuid(template.guid)}
+                      className={`w-full rounded-xl border p-3 text-left transition ${
+                        isActive
+                          ? "border-brand-300 bg-brand-50"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <p className="line-clamp-2 text-sm font-semibold text-slate-900">
+                        {String(template.title || "Без названия")}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                        {String(template.description || "Без описания")}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {isGlobalMode ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-slate-700">Сотрудник для генерации</p>
+              <EmployeeInfiniteSelect
+                value={selectedGenerateEmployeeGuid}
+                onChange={setSelectedGenerateEmployeeGuid}
+                placeholder="Выберите сотрудника"
+                styles={getGenerateEmployeeSelectStyles()}
+                classNamePrefix="documents-generate-employee-select"
+                menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+              />
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={closeTemplateModal}>
+              Отмена
+            </Button>
+            <Button
+              onClick={openGeneratePage}
+              disabled={!selectedTemplate || isTemplatesLoading || (isGlobalMode && !selectedGenerateEmployeeGuid)}
+            >
+              Продолжить
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

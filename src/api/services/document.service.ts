@@ -28,19 +28,23 @@ type DocumentsFilterData = {
 // Get documents list
 export const useDocumentsQuery = ({
   data,
+  allowWithoutFilters = false,
   querySettings = {},
 }: {
   data: DocumentsFilterData;
+  allowWithoutFilters?: boolean;
   querySettings?: Record<string, unknown>;
 }) => {
+  const hasFilters =
+    !!data?.clients_id ||
+    !!data?.contracts_id ||
+    !!data?.user_base_id ||
+    !!data?.document_folders_id;
+
   return useQuery({
     queryKey: ["documents", data],
     queryFn: () => httpRequest.get(`/v2/items/documents`, { params: { data: encodeJsonToUrlParam(data) } }),
-    enabled:
-      !!data?.clients_id ||
-      !!data?.contracts_id ||
-      !!data?.user_base_id ||
-      !!data?.document_folders_id,
+    enabled: allowWithoutFilters || hasFilters,
     ...querySettings,
   });
 };

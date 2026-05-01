@@ -9,6 +9,7 @@ import { Bell, Menu, X } from "lucide-react";
 
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: "Главная страница",
+  documents: "Документы",
   employees: "Сотрудники",
   organization: "Организация",
   reports: "Отчеты",
@@ -33,6 +34,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   merchants: "Партнеры",
   notifications: "Уведомления",
   news: "Новости",
+  generate: "Генерация",
 };
 
 const formatSegment = (segment: string) =>
