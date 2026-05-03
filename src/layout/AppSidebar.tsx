@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import { Link, useLocation } from "react-router";
 import {
   BarChart3,
-  Building2,
   CalendarCheck,
   CalendarDays,
   ChevronLeft,
@@ -12,6 +11,7 @@ import {
   Home,
   ListOrdered,
   Settings,
+  Target,
   UserRoundCheck,
   WalletCards,
 } from "lucide-react";
@@ -48,7 +48,6 @@ const moduleSections: ModuleSection[] = [
     items: [
       { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
       // { name: "Рекртутинг", path: "/recruiting/vacancies", icon: <Users size={18} /> },
-      { name: "Орг структура", path: "/organization/structure", icon: <Building2 size={18} /> },
     ],
   },
   {
@@ -68,7 +67,10 @@ const moduleSections: ModuleSection[] = [
   },
   {
     title: "Отчеты",
-    items: [{ name: "Отчеты", path: "/reports", icon: <BarChart3 size={18} /> }],
+    items: [
+      { name: "Отчеты", path: "/reports", icon: <BarChart3 size={18} /> },
+      { name: "KPI", path: "/kpi", icon: <Target size={18} /> },
+    ],
   },
   // {
   //   title: "Документы",
@@ -86,7 +88,7 @@ const ENABLED_PATHS = new Set([
   "/reports/absence-balance",
   "/calendar",
   "/finance/salary",
-  "/organization/structure",
+  "/kpi",
   "/settings/compensation",
   "/settings/news",
 ]);

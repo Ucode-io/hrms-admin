@@ -13,6 +13,7 @@ import MerchantTransactionFormPage from "./modules/MerchantTransactions/Form";
 import DebtsList from "./modules/Debts/List";
 import PaymentsList from "./modules/Payments/List";
 import FinanceSalaryPage from "./modules/Finance/Salary";
+import KpiPage from "./modules/KPI";
 import ClientsList from "./modules/Client/List";
 import ClientDetail from "./modules/Client/Detail";
 import ClientFormPage from "./modules/Client/Form";
@@ -163,6 +164,7 @@ function App() {
               <Route path="/finance/debts" element={<DebtsList />} />
               <Route path="/finance/payments" element={<PaymentsList />} />
               <Route path="/finance/salary" element={<FinanceSalaryPage />} />
+              <Route path="/kpi" element={<KpiPage />} />
               <Route path="/merchants/partnership-requests" element={<UnderDevelopment />} />
 
               <Route path="/clients" element={<ClientsList />} />

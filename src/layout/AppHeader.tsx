@@ -13,6 +13,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   employees: "Сотрудники",
   organization: "Организация",
   reports: "Отчеты",
+  kpi: "KPI",
   "age-distribution": "Возрастное распределение",
   "gender-distribution": "Гендерное распределение",
   "staff-count": "Численность сотрудников",

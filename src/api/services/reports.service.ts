@@ -29,6 +29,11 @@ const GET_BONUS_DEDUCTIONS_TABLE_METHOD = "get_bonus_deductions_table";
 const GET_ORG_STRUCTURE_METHOD = "get_org_structure";
 const GET_SALARY_EXCEL_TEMPLATE_METHOD = "get_salary_excel_template";
 const IMPORT_SALARY_EXCEL_METHOD = "import_salary_excel";
+const GET_KPI_METHOD = "get_kpi";
+const GET_KPI_TABLE_METHOD = "get_kpi_table";
+const SAVE_KPI_METHOD = "save_kpi";
+const DELETE_KPI_METHOD = "delete_kpi";
+const UPDATE_KPI_VALUE_METHOD = "update_kpi_value";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -856,6 +861,128 @@ export type ImportSalaryExcelInvokeResponse = {
   };
 };
 
+export type KpiPeriodType = "monthly" | "weekly";
+
+export type KpiFilterOption = {
+  value: string;
+  label: string;
+};
+
+export type KpiFiltersResult = {
+  filters?: {
+    period_types?: KpiFilterOption[];
+    bucket_types?: KpiFilterOption[];
+    value_symbol_positions?: KpiFilterOption[];
+    departments?: KpiFilterOption[];
+    sources?: KpiFilterOption[];
+    defaults?: {
+      period_type?: KpiPeriodType;
+      date_from?: string;
+      date_to?: string;
+    };
+  };
+  filters_applied?: JsonRecord;
+};
+
+export type KpiGetInvokeResponse = {
+  method: typeof GET_KPI_METHOD;
+  result: KpiFiltersResult;
+};
+
+export type KpiTableBucket = {
+  guid: string;
+  bucket_type: KpiPeriodType | string;
+  bucket_index: number;
+  bucket_start: string;
+  bucket_end: string;
+  bucket_label: string;
+  plan_value: number;
+  actual_value: number;
+  percent: number;
+};
+
+export type KpiTableItem = {
+  guid: string;
+  departments_id: string | null;
+  department: string;
+  title: string;
+  description: string;
+  source: string;
+  value_symbol?: string;
+  value_symbol_position?: "prefix" | "suffix" | string;
+  period_type: KpiPeriodType | string;
+  start_date: string;
+  end_date: string;
+  start_date_label?: string;
+  end_date_label?: string;
+  plan_total: number;
+  actual_total: number;
+  percent_total: number;
+  values: KpiTableBucket[];
+};
+
+export type KpiTableGroup = {
+  department: string;
+  items: KpiTableItem[];
+};
+
+export type KpiTableResult = {
+  count: number;
+  period_type: KpiPeriodType | string;
+  period?: {
+    from: string;
+    to: string;
+    label: string;
+  };
+  groups: KpiTableGroup[];
+  items: KpiTableItem[];
+  filters_applied?: JsonRecord;
+};
+
+export type KpiTableInvokeResponse = {
+  method: typeof GET_KPI_TABLE_METHOD;
+  result: KpiTableResult;
+};
+
+export type SaveKpiInvokeResponse = {
+  method: typeof SAVE_KPI_METHOD;
+  result: {
+    guid: string;
+    period_type: KpiPeriodType | string;
+    value_symbol?: string;
+    value_symbol_position?: "prefix" | "suffix" | string;
+    plan_total: number;
+    actual_total: number;
+    percent_total: number;
+    bucket_count: number;
+  };
+};
+
+export type DeleteKpiInvokeResponse = {
+  method: typeof DELETE_KPI_METHOD;
+  result: {
+    guid: string;
+    deleted_values_count: number;
+  };
+};
+
+export type UpdateKpiValueInvokeResponse = {
+  method: typeof UPDATE_KPI_VALUE_METHOD;
+  result: {
+    kpi_value_guid: string;
+    kpi_items_id: string;
+    bucket_index: number;
+    plan_value: number;
+    actual_value: number;
+    percent: number;
+    totals?: {
+      plan_total: number;
+      actual_total: number;
+      percent_total: number;
+    };
+  };
+};
+
 type AgeDistributionWrappedResponse = {
   data?: AgeDistributionInvokeResponse;
 };
@@ -1046,6 +1173,41 @@ const isImportSalaryExcelInvokeResponse = (
 ): value is ImportSalaryExcelInvokeResponse => {
   if (!isRecord(value)) return false;
   return value.method === IMPORT_SALARY_EXCEL_METHOD && isRecord(value.result);
+};
+
+const isKpiGetInvokeResponse = (
+  value: unknown
+): value is KpiGetInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_KPI_METHOD && isRecord(value.result);
+};
+
+const isKpiTableInvokeResponse = (
+  value: unknown
+): value is KpiTableInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_KPI_TABLE_METHOD && isRecord(value.result);
+};
+
+const isSaveKpiInvokeResponse = (
+  value: unknown
+): value is SaveKpiInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === SAVE_KPI_METHOD && isRecord(value.result);
+};
+
+const isDeleteKpiInvokeResponse = (
+  value: unknown
+): value is DeleteKpiInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === DELETE_KPI_METHOD && isRecord(value.result);
+};
+
+const isUpdateKpiValueInvokeResponse = (
+  value: unknown
+): value is UpdateKpiValueInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === UPDATE_KPI_VALUE_METHOD && isRecord(value.result);
 };
 
 const normalizeAgeDistributionResponse = (
@@ -1900,7 +2062,252 @@ const normalizeImportSalaryExcelResponse = (
   throw new Error("Unexpected response format for import_salary_excel");
 };
 
+const normalizeKpiGetResponse = (
+  raw: unknown
+): KpiGetInvokeResponse => {
+  if (isKpiGetInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isKpiGetInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isKpiGetInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_kpi");
+};
+
+const normalizeKpiTableResponse = (
+  raw: unknown
+): KpiTableInvokeResponse => {
+  if (isKpiTableInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isKpiTableInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isKpiTableInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_kpi_table");
+};
+
+const normalizeSaveKpiResponse = (
+  raw: unknown
+): SaveKpiInvokeResponse => {
+  if (isSaveKpiInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isSaveKpiInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isSaveKpiInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for save_kpi");
+};
+
+const normalizeDeleteKpiResponse = (
+  raw: unknown
+): DeleteKpiInvokeResponse => {
+  if (isDeleteKpiInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isDeleteKpiInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isDeleteKpiInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for delete_kpi");
+};
+
+const normalizeUpdateKpiValueResponse = (
+  raw: unknown
+): UpdateKpiValueInvokeResponse => {
+  if (isUpdateKpiValueInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isUpdateKpiValueInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isUpdateKpiValueInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for update_kpi_value");
+};
+
 const reportsService = {
+  getKpi: async (
+    requestData: JsonRecord = {}
+  ): Promise<KpiGetInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_KPI_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeKpiGetResponse(response.data);
+  },
+  getKpiTable: async (
+    requestData: JsonRecord = {}
+  ): Promise<KpiTableInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_KPI_TABLE_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeKpiTableResponse(response.data);
+  },
+  saveKpi: async (
+    requestData: JsonRecord = {}
+  ): Promise<SaveKpiInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: SAVE_KPI_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeSaveKpiResponse(response.data);
+  },
+  deleteKpi: async (
+    requestData: JsonRecord = {}
+  ): Promise<DeleteKpiInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: DELETE_KPI_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeDeleteKpiResponse(response.data);
+  },
+  updateKpiValue: async (
+    requestData: JsonRecord = {}
+  ): Promise<UpdateKpiValueInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: UPDATE_KPI_VALUE_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeUpdateKpiValueResponse(response.data);
+  },
   getAgeDistribution: async (
     requestData: JsonRecord = {}
   ): Promise<AgeDistributionInvokeResponse> => {
