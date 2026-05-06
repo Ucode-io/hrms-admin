@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   Fragment,
   useCallback,
   useEffect,
@@ -7,7 +8,8 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import DatePicker from "react-datepicker";
+import DatePicker, { registerLocale } from "react-datepicker";
+import { ru } from "date-fns/locale/ru";
 import "react-datepicker/dist/react-datepicker.css";
 import { observer } from "mobx-react-lite";
 import {
@@ -37,6 +39,8 @@ import reportsService, {
   type KpiTableGroup,
   type KpiTableItem,
 } from "../../api/services/reports.service";
+
+registerLocale("ru", ru);
 
 type KpiPeriodMode = KpiPeriodType;
 
@@ -92,8 +96,10 @@ type FilterOption = {
 };
 
 const KPI_PERIOD_TABS: { key: KpiPeriodMode; label: string }[] = [
-  { key: "monthly", label: "Месячный KPI" },
   { key: "weekly", label: "Недельный KPI" },
+  { key: "monthly", label: "Месячный KPI" },
+  { key: "quarterly", label: "Квартальный KPI" },
+  { key: "yearly", label: "Годовой KPI" },
 ];
 
 const pad = (value: number): string => String(value).padStart(2, "0");
@@ -110,6 +116,15 @@ const formatPeriodLabel = (cursorDate: Date, mode: KpiPeriodMode): string => {
     }).format(cursorDate);
 
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  }
+
+  if (mode === "quarterly") {
+    const quarter = Math.floor(cursorDate.getMonth() / 3) + 1;
+    return `${quarter} квартал ${cursorDate.getFullYear()} г.`;
+  }
+
+  if (mode === "yearly") {
+    return `${cursorDate.getFullYear()} г.`;
   }
 
   const day = cursorDate.getDay();
@@ -146,14 +161,38 @@ const getWeekStart = (value: Date): Date => {
   return start;
 };
 
+const getQuarterStart = (value: Date): Date => {
+  const quarterStartMonth = Math.floor(value.getMonth() / 3) * 3;
+  return new Date(value.getFullYear(), quarterStartMonth, 1);
+};
+
 const WEEK_DAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const KPI_NAME_COLUMN_MIN_WIDTH = 150;
+const KPI_NAME_COLUMN_MAX_WIDTH = 300;
+const KPI_NAME_COLUMN_CHAR_WIDTH = 8;
+const KPI_NAME_COLUMN_SIDE_PADDING = 48;
 
 const roundToTwo = (value: number): number => Math.round(value * 100) / 100;
 
 const formatMetricValue = (value: number): string => {
   if (!Number.isFinite(value)) return "0";
   if (Number.isInteger(value)) return String(value);
-  return value.toFixed(2).replace(/\.00$/, "");
+  const raw = String(value);
+  if (raw.includes("e") || raw.includes("E")) {
+    return value.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  }
+  return raw;
+};
+
+const formatMetricDisplayValue = (value: number): string => {
+  const normalized = formatMetricValue(value);
+  const isNegative = normalized.startsWith("-");
+  const unsigned = isNegative ? normalized.slice(1) : normalized;
+  const [integerPartRaw, decimalPart] = unsigned.split(".");
+  const integerPart = integerPartRaw || "0";
+  const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const withSign = isNegative ? `-${groupedInteger}` : groupedInteger;
+  return decimalPart ? `${withSign}.${decimalPart}` : withSign;
 };
 
 const formatValueWithSymbol = (
@@ -161,12 +200,12 @@ const formatValueWithSymbol = (
   symbol: string,
   position: "prefix" | "suffix"
 ): string => {
-  const formatted = formatMetricValue(value);
+  const formatted = formatMetricDisplayValue(value);
   const normalizedSymbol = symbol.trim();
   if (!normalizedSymbol) return formatted;
   return position === "prefix"
-    ? `${normalizedSymbol}${formatted}`
-    : `${formatted}${normalizedSymbol}`;
+    ? `${normalizedSymbol} ${formatted}`
+    : `${formatted} ${normalizedSymbol}`;
 };
 
 const formatDisplayDate = (value: string): string => {
@@ -199,13 +238,16 @@ const formatShortDate = (value: Date): string => {
   return `${pad(value.getDate())}.${pad(value.getMonth() + 1)}`;
 };
 
+const getBucketCountByPeriod = (periodType: KpiPeriodMode): number => {
+  if (periodType === "weekly") return 7;
+  if (periodType === "quarterly") return 3;
+  if (periodType === "yearly") return 4;
+  return 4;
+};
+
 const getDefaultDraft = (goalType: KpiPeriodMode): CreateKpiDraft => {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end =
-    goalType === "monthly"
-      ? new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 6);
+  const defaultRange = getPeriodRange(now, goalType);
 
   return {
     departmentId: "",
@@ -216,8 +258,8 @@ const getDefaultDraft = (goalType: KpiPeriodMode): CreateKpiDraft => {
     name: "",
     description: "",
     goalType,
-    startDate: toIsoDate(start),
-    endDate: toIsoDate(end),
+    startDate: defaultRange.from,
+    endDate: defaultRange.to,
     planValue: "",
   };
 };
@@ -229,18 +271,78 @@ const getPeriodRange = (cursorDate: Date, mode: KpiPeriodMode): { from: string; 
     return { from: toIsoDate(start), to: toIsoDate(end) };
   }
 
+  if (mode === "quarterly") {
+    const start = getQuarterStart(cursorDate);
+    const end = new Date(start.getFullYear(), start.getMonth() + 3, 0);
+    return { from: toIsoDate(start), to: toIsoDate(end) };
+  }
+
+  if (mode === "yearly") {
+    const start = new Date(cursorDate.getFullYear(), 0, 1);
+    const end = new Date(cursorDate.getFullYear(), 11, 31);
+    return { from: toIsoDate(start), to: toIsoDate(end) };
+  }
+
   const start = getWeekStart(cursorDate);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return { from: toIsoDate(start), to: toIsoDate(end) };
 };
 
+const getGoalTypeBadgeLabel = (goalType: KpiPeriodMode): string => {
+  if (goalType === "weekly") return "Нед. цель";
+  if (goalType === "quarterly") return "Кв. цель";
+  if (goalType === "yearly") return "Год. цель";
+  return "Мес. цель";
+};
+
+const getPickerDateFormatByPeriod = (periodType: KpiPeriodMode): string => {
+  if (periodType === "weekly") return "dd.MM.yyyy";
+  if (periodType === "monthly") return "MM.yyyy";
+  if (periodType === "quarterly") return "QQQ yyyy";
+  return "yyyy";
+};
+
+const formatDraftPeriodRangeLabel = (
+  startDateIso: string,
+  endDateIso: string,
+  periodType: KpiPeriodMode
+): string => {
+  const start = toDatePickerValue(startDateIso);
+  const end = toDatePickerValue(endDateIso);
+  if (!start || !end) return "";
+
+  if (periodType === "monthly") {
+    const formatted = new Intl.DateTimeFormat("ru-RU", {
+      month: "long",
+      year: "numeric",
+    }).format(start);
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  }
+
+  if (periodType === "quarterly") {
+    const quarter = Math.floor(start.getMonth() / 3) + 1;
+    return `${quarter} квартал ${start.getFullYear()} г.`;
+  }
+
+  if (periodType === "yearly") {
+    return `${start.getFullYear()} г.`;
+  }
+
+  return `${formatDisplayDate(startDateIso)} - ${formatDisplayDate(endDateIso)}`;
+};
+
 const mapKpiItemFromApi = (item: KpiTableItem): KpiRecord => {
   const values = Array.isArray(item.values) ? [...item.values] : [];
   values.sort((a, b) => Number(a.bucket_index || 0) - Number(b.bucket_index || 0));
 
-  const normalizedPeriodType = item.period_type === "weekly" ? "weekly" : "monthly";
-  const targetCount = normalizedPeriodType === "weekly" ? 7 : 4;
+  const normalizedPeriodType: KpiPeriodMode =
+    item.period_type === "weekly" ||
+    item.period_type === "quarterly" ||
+    item.period_type === "yearly"
+      ? item.period_type
+      : "monthly";
+  const targetCount = getBucketCountByPeriod(normalizedPeriodType);
   const valuesForDisplay = values.slice(0, targetCount);
   const metricsByIndex = new Map(
     valuesForDisplay.map((bucket) => [
@@ -465,6 +567,14 @@ function KpiPage() {
   }, [draft.departmentId]);
 
   const periodRange = useMemo(() => getPeriodRange(cursorDate, periodMode), [cursorDate, periodMode]);
+  const selectedDraftPeriodDate = useMemo<Date | null>(
+    () => toDatePickerValue(draft.startDate) || toDatePickerValue(draft.endDate),
+    [draft.startDate, draft.endDate]
+  );
+  const draftPeriodRangeLabel = useMemo(
+    () => formatDraftPeriodRangeLabel(draft.startDate, draft.endDate, draft.goalType),
+    [draft.startDate, draft.endDate, draft.goalType]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -594,6 +704,39 @@ function KpiPage() {
       };
     });
   }, [cursorDate]);
+  const quarterlyMonthColumns = useMemo(() => {
+    const quarterStart = getQuarterStart(cursorDate);
+    return Array.from({ length: 3 }, (_, index) => {
+      const monthDate = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + index, 1);
+      const formatted = new Intl.DateTimeFormat("ru-RU", { month: "short" }).format(monthDate);
+      const monthLabel = formatted.replace(".", "");
+      return {
+        key: `quarter-month-${index + 1}`,
+        label: `${monthLabel.charAt(0).toUpperCase()}${monthLabel.slice(1)} ${monthDate.getFullYear()}`,
+      };
+    });
+  }, [cursorDate]);
+  const yearlyQuarterColumns = useMemo(() => {
+    return Array.from({ length: 4 }, (_, index) => {
+      const quarter = index + 1;
+      return {
+        key: `year-quarter-${quarter}`,
+        label: `${quarter} кв.`,
+      };
+    });
+  }, [cursorDate]);
+  const activeBucketColumns = useMemo(() => {
+    if (periodMode === "weekly") return weeklyDayColumns;
+    if (periodMode === "quarterly") return quarterlyMonthColumns;
+    if (periodMode === "yearly") return yearlyQuarterColumns;
+    return monthlyWeekColumns;
+  }, [periodMode, weeklyDayColumns, quarterlyMonthColumns, yearlyQuarterColumns, monthlyWeekColumns]);
+  const isWeeklyMode = periodMode === "weekly";
+  const tableMinWidthClass = useMemo(() => {
+    if (activeBucketColumns.length >= 12) return "min-w-[4200px]";
+    if (activeBucketColumns.length >= 7) return "min-w-[2600px]";
+    return "min-w-[1800px]";
+  }, [activeBucketColumns.length]);
 
   const selectedDepartmentFilterOption = useMemo<FilterOption | null>(
     () => departmentFilterOptions.find((option) => option.value === departmentFilter) || null,
@@ -628,6 +771,30 @@ function KpiPage() {
     return [...groups.entries()];
   }, [kpiItems, kpiGroups]);
 
+  const kpiNameColumnWidth = useMemo(() => {
+    const labels = [
+      "KPI / Название",
+      ...groupedItems.map(([department]) => department || ""),
+      ...kpiItems.map((item) => item.name || ""),
+    ];
+
+    const longestLabelLength = labels.reduce((maxLength, label) => {
+      return Math.max(maxLength, label.trim().length);
+    }, 0);
+
+    const estimatedWidth = longestLabelLength * KPI_NAME_COLUMN_CHAR_WIDTH + KPI_NAME_COLUMN_SIDE_PADDING;
+    return Math.min(KPI_NAME_COLUMN_MAX_WIDTH, Math.max(KPI_NAME_COLUMN_MIN_WIDTH, estimatedWidth));
+  }, [groupedItems, kpiItems]);
+
+  const kpiNameColumnStyle = useMemo<CSSProperties>(
+    () => ({
+      width: `${kpiNameColumnWidth}px`,
+      minWidth: `${KPI_NAME_COLUMN_MIN_WIDTH}px`,
+      maxWidth: `${KPI_NAME_COLUMN_MAX_WIDTH}px`,
+    }),
+    [kpiNameColumnWidth]
+  );
+
   const rowIndexById = useMemo(() => {
     const map = new Map<string, number>();
     let counter = 1;
@@ -652,10 +819,32 @@ function KpiPage() {
       const nextDate = new Date(prev);
       if (periodMode === "monthly") {
         nextDate.setMonth(prev.getMonth() + (direction === "prev" ? -1 : 1));
-      } else {
+      } else if (periodMode === "weekly") {
         nextDate.setDate(prev.getDate() + (direction === "prev" ? -7 : 7));
+      } else if (periodMode === "quarterly") {
+        nextDate.setMonth(prev.getMonth() + (direction === "prev" ? -3 : 3));
+      } else {
+        nextDate.setFullYear(prev.getFullYear() + (direction === "prev" ? -1 : 1));
       }
       return nextDate;
+    });
+  };
+
+  const handleDraftPeriodChange = (date: Date | null) => {
+    setDraft((prev) => {
+      if (!date) {
+        return {
+          ...prev,
+          startDate: "",
+          endDate: "",
+        };
+      }
+      const nextRange = getPeriodRange(date, prev.goalType);
+      return {
+        ...prev,
+        startDate: nextRange.from,
+        endDate: nextRange.to,
+      };
     });
   };
 
@@ -946,7 +1135,15 @@ function KpiPage() {
                 type="button"
                 onClick={() => handleMovePeriod("prev")}
                 className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label={periodMode === "monthly" ? "Предыдущий месяц" : "Предыдущая неделя"}
+                aria-label={
+                  periodMode === "weekly"
+                    ? "Предыдущая неделя"
+                    : periodMode === "quarterly"
+                      ? "Предыдущий квартал"
+                      : periodMode === "yearly"
+                        ? "Предыдущий год"
+                        : "Предыдущий месяц"
+                }
               >
                 <ChevronLeft size={16} />
               </button>
@@ -957,7 +1154,15 @@ function KpiPage() {
                 type="button"
                 onClick={() => handleMovePeriod("next")}
                 className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label={periodMode === "monthly" ? "Следующий месяц" : "Следующая неделя"}
+                aria-label={
+                  periodMode === "weekly"
+                    ? "Следующая неделя"
+                    : periodMode === "quarterly"
+                      ? "Следующий квартал"
+                      : periodMode === "yearly"
+                        ? "Следующий год"
+                        : "Следующий месяц"
+                }
               >
                 <ChevronRight size={16} />
               </button>
@@ -1069,158 +1274,81 @@ function KpiPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table
-                  className={`${periodMode === "weekly" ? "min-w-[2600px]" : "min-w-[1800px]"} text-center [&_th]:align-middle [&_td]:align-middle [&_th]:text-center [&_td]:text-center [&_th]:border-r [&_th]:border-slate-100 [&_td]:border-r [&_td]:border-slate-100 [&_th:last-child]:border-r-0 [&_td:last-child]:border-r-0`}
+                  className={`${tableMinWidthClass} text-center [&_th]:align-middle [&_td]:align-middle [&_th]:text-center [&_td]:text-center [&_th]:border-r [&_th]:border-slate-100 [&_td]:border-r [&_td]:border-slate-100 [&_th:last-child]:border-r-0 [&_td:last-child]:border-r-0`}
                 >
                   <thead>
-                    {periodMode === "monthly" ? (
-                      <>
-                        <tr className="border-b border-slate-200">
-                          <th
-                            rowSpan={2}
-                            className="sticky left-0 z-30 w-12 min-w-[52px] !border-r-0 bg-white py-1.5 pl-3 pr-3 text-[12px] font-semibold text-slate-500 shadow-[inset_-1px_0_0_#f1f5f9]"
-                          >
-                            #
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="sticky left-[52px] z-30 min-w-[240px] !border-r-0 bg-white py-1.5 !pl-4 pr-3 !text-left text-[12px] font-semibold text-slate-500 shadow-[inset_-1px_0_0_#f1f5f9]"
-                          >
-                            KPI / Название
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
-                          >
-                            Источник
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
-                          >
-                            Тип
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
-                          >
-                            Период
-                          </th>
-                          {monthlyWeekColumns.map((weekColumn) => (
-                            <th
-                              key={weekColumn.key}
-                              colSpan={3}
-                              className="px-2 py-2 text-center text-[12px] font-semibold text-slate-500"
-                            >
-                              {weekColumn.label}
-                            </th>
-                          ))}
-                          <th
-                            colSpan={3}
-                            className="border-l-2 border-blue-100 bg-blue-50/60 px-2 py-2 text-center text-[12px] font-semibold text-slate-600"
-                          >
-                            Итого
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-200">
-                          {["week-1", "week-2", "week-3", "week-4"].map((weekKey) => (
-                            <Fragment key={`${weekKey}-sub`}>
-                              <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
-                                План
-                              </th>
-                              <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
-                                Факт
-                              </th>
-                              <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
-                                %
-                              </th>
-                            </Fragment>
-                          ))}
-                          <th className="border-l-2 border-blue-100 bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
+                    <tr className="border-b border-slate-200">
+                      <th
+                        rowSpan={2}
+                        className="sticky left-0 z-30 w-12 min-w-[52px] !border-r-0 bg-white py-1.5 pl-3 pr-3 text-[12px] font-semibold text-slate-500 shadow-[inset_-1px_0_0_#f1f5f9]"
+                      >
+                        #
+                      </th>
+                      <th
+                        rowSpan={2}
+                        style={kpiNameColumnStyle}
+                        className="sticky left-[52px] z-30 !border-r-0 bg-white py-1.5 !pl-4 pr-3 !text-left text-[12px] font-semibold text-slate-500 shadow-[inset_-1px_0_0_#f1f5f9]"
+                      >
+                        KPI / Название
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
+                      >
+                        Источник
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
+                      >
+                        Тип
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
+                      >
+                        Период
+                      </th>
+                      {activeBucketColumns.map((column) => (
+                        <th
+                          key={column.key}
+                          colSpan={3}
+                          className="px-2 py-2 text-center text-[12px] font-semibold text-slate-500"
+                        >
+                          {column.label}
+                        </th>
+                      ))}
+                      <th
+                        colSpan={3}
+                        className="border-l-2 border-blue-100 bg-blue-50/60 px-2 py-2 text-center text-[12px] font-semibold text-slate-600"
+                      >
+                        Итого
+                      </th>
+                    </tr>
+                    <tr className="border-b border-slate-200">
+                      {activeBucketColumns.map((column) => (
+                        <Fragment key={`${column.key}-sub`}>
+                          <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
                             План
                           </th>
-                          <th className="bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
+                          <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
                             Факт
                           </th>
-                          <th className="bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
+                          <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
                             %
                           </th>
-                        </tr>
-                      </>
-                    ) : (
-                      <>
-                        <tr className="border-b border-slate-200">
-                          <th
-                            rowSpan={2}
-                            className="sticky left-0 z-30 w-12 min-w-[52px] !border-r-0 bg-white py-1.5 pl-3 pr-3 text-center text-[12px] font-semibold text-slate-500 shadow-[inset_-1px_0_0_#f1f5f9]"
-                          >
-                            #
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="sticky left-[52px] z-30 min-w-[240px] !border-r-0 bg-white py-1.5 !pl-4 pr-3 !text-left text-[12px] font-semibold text-slate-500 shadow-[inset_-1px_0_0_#f1f5f9]"
-                          >
-                            KPI / Название
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
-                          >
-                            Источник
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
-                          >
-                            Тип
-                          </th>
-                          <th
-                            rowSpan={2}
-                            className="py-2 pr-3 text-[12px] font-semibold text-slate-500"
-                          >
-                            Период
-                          </th>
-                          {weeklyDayColumns.map((dayColumn) => (
-                            <th
-                              key={dayColumn.key}
-                              colSpan={3}
-                              className="px-2 py-2 text-center text-[12px] font-semibold text-slate-500"
-                            >
-                              {dayColumn.label}
-                            </th>
-                          ))}
-                          <th
-                            colSpan={3}
-                            className="border-l-2 border-blue-100 bg-blue-50/60 px-2 py-2 text-center text-[12px] font-semibold text-slate-600"
-                          >
-                            Итого
-                          </th>
-                        </tr>
-                        <tr className="border-b border-slate-200">
-                          {weeklyDayColumns.map((dayColumn) => (
-                            <Fragment key={`${dayColumn.key}-sub`}>
-                              <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
-                                План
-                              </th>
-                              <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
-                                Факт
-                              </th>
-                              <th className="px-1 py-1 text-center text-[12px] font-semibold text-slate-500">
-                                %
-                              </th>
-                            </Fragment>
-                          ))}
-                          <th className="border-l-2 border-blue-100 bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
-                            План
-                          </th>
-                          <th className="bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
-                            Факт
-                          </th>
-                          <th className="bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
-                            %
-                          </th>
-                        </tr>
-                      </>
-                    )}
+                        </Fragment>
+                      ))}
+                      <th className="border-l-2 border-blue-100 bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
+                        План
+                      </th>
+                      <th className="bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
+                        Факт
+                      </th>
+                      <th className="bg-blue-50/60 px-1 py-1 text-center text-[12px] font-semibold text-slate-600">
+                        %
+                      </th>
+                    </tr>
                   </thead>
                   <tbody>
                     {groupedItems.map(([department, items]) => {
@@ -1228,25 +1356,51 @@ function KpiPage() {
                         <Fragment key={`group-${department}`}>
                           <tr key={`group-${department}`} className="border-b border-slate-100 bg-slate-50/70">
                             <td className="sticky left-0 z-20 w-12 min-w-[52px] !border-r-0 bg-slate-50/70 py-1.5 pl-3 pr-3 shadow-[inset_-1px_0_0_#f1f5f9]" />
-                            <td className="sticky left-[52px] z-20 min-w-[240px] !border-r-0 bg-slate-50/70 py-1.5 !pl-4 pr-3 !text-left shadow-[inset_-1px_0_0_#f1f5f9]">
+                            <td
+                              style={kpiNameColumnStyle}
+                              className="sticky left-[52px] z-20 !border-r-0 bg-slate-50/70 py-1.5 !pl-4 pr-3 !text-left shadow-[inset_-1px_0_0_#f1f5f9]"
+                            >
                               <div className="text-[13px] font-semibold text-brand-500">
                                 {department}
                               </div>
                             </td>
-                            <td colSpan={periodMode === "monthly" ? 18 : 27} className="py-1.5 pr-3">
+                            <td colSpan={activeBucketColumns.length * 3 + 6} className="py-1.5 pr-3">
                             </td>
                           </tr>
 
                           {items.map((item) => {
                             const totalActualValue = item.actualValue;
                             const totalPercent = item.percentTotal;
-                            const dailyMetrics = item.weeklyMetrics;
+                            const canEditCurrentViewBuckets = item.goalType === periodMode;
+                            const inactiveBucketCellClass = canEditCurrentViewBuckets
+                              ? ""
+                              : " bg-slate-100/70";
+                            const displayMetrics = canEditCurrentViewBuckets
+                              ? Array.from({ length: activeBucketColumns.length }, (_, index) => {
+                                  const metric = item.weeklyMetrics[index];
+                                  if (metric) return metric;
+                                  return {
+                                    guid: "",
+                                    plan: 0,
+                                    actual: 0,
+                                    percent: 0,
+                                  };
+                                })
+                              : Array.from({ length: activeBucketColumns.length }, () => ({
+                                  guid: "",
+                                  plan: 0,
+                                  actual: 0,
+                                  percent: 0,
+                                }));
                             return (
                               <tr key={item.id} className="group border-b border-slate-100">
                                 <td className="sticky left-0 z-10 w-12 min-w-[52px] !border-r-0 bg-white py-1.5 pl-3 pr-3 text-[13px] text-slate-500 shadow-[inset_-1px_0_0_#f1f5f9]">
                                   {rowIndexById.get(item.id) ?? "—"}
                                 </td>
-                                <td className="sticky left-[52px] z-10 min-w-[240px] !border-r-0 bg-white py-1.5 !pl-4 pr-3 !text-left shadow-[inset_-1px_0_0_#f1f5f9]">
+                                <td
+                                  style={kpiNameColumnStyle}
+                                  className="sticky left-[52px] z-10 !border-r-0 bg-white py-1.5 !pl-4 pr-3 !text-left shadow-[inset_-1px_0_0_#f1f5f9]"
+                                >
                                   <div className="flex items-center justify-start gap-1.5">
                                     <span className="text-[13px] font-semibold text-slate-900">{item.name}</span>
                                     <button
@@ -1266,41 +1420,93 @@ function KpiPage() {
                                 <td className="py-1.5 pr-3 text-[13px] text-slate-700">{item.source}</td>
                                 <td className="py-1.5 pr-3 text-[13px] text-slate-700">
                                   <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-600">
-                                    {item.goalType === "monthly" ? "Мес. цель" : "Нед. цель"}
+                                    {getGoalTypeBadgeLabel(item.goalType)}
                                   </span>
                                 </td>
                                 <td className="py-1.5 pr-3 text-[13px] text-slate-600">
                                   {formatDisplayDate(item.startDate)} <br />
                                   {formatDisplayDate(item.endDate)}
                                 </td>
-                                {periodMode === "monthly" ? (
+                                {!isWeeklyMode ? (
                                   <>
-                                    {item.weeklyMetrics.map((week, weekIndex) => {
-                                      const weekPercent = week.percent;
+                                    {displayMetrics.map((bucket, bucketIndex) => {
+                                      const bucketPercent = bucket.percent;
                                       return (
-                                        <Fragment key={`${item.id}-week-${weekIndex}`}>
-                                          <td className="px-1 py-1.5 text-center text-[13px] text-slate-500">
-                                            {formatValueWithSymbol(
-                                              week.plan,
-                                              item.valueSymbol,
-                                              item.valueSymbolPosition
+                                        <Fragment key={`${item.id}-bucket-${bucketIndex}`}>
+                                          <td
+                                            className={`px-1 py-1.5 text-center text-[13px] text-slate-500${inactiveBucketCellClass}`}
+                                          >
+                                            {canEditCurrentViewBuckets ? (
+                                              formatValueWithSymbol(
+                                                bucket.plan,
+                                                item.valueSymbol,
+                                                item.valueSymbolPosition
+                                              )
+                                            ) : (
+                                              <span className="text-[12px] text-slate-300">—</span>
                                             )}
                                           </td>
-                                          <td className="px-1 py-1.5 text-center text-[13px] font-semibold text-slate-800">
-                                            {formatValueWithSymbol(
-                                              week.actual,
-                                              item.valueSymbol,
-                                              item.valueSymbolPosition
+                                          <td
+                                            className={`px-1 py-1.5 text-center text-[13px] font-semibold text-slate-800${inactiveBucketCellClass}`}
+                                          >
+                                            {canEditCurrentViewBuckets ? (
+                                              editingDailyCell?.itemId === item.id &&
+                                              editingDailyCell.dayIndex === bucketIndex ? (
+                                                <input
+                                                  type="number"
+                                                  min={0}
+                                                  step="0.01"
+                                                  autoFocus
+                                                  value={editingDailyCell.draftValue}
+                                                  onChange={(event) =>
+                                                    setEditingDailyCell((prev) =>
+                                                      prev &&
+                                                      prev.itemId === item.id &&
+                                                      prev.dayIndex === bucketIndex
+                                                        ? { ...prev, draftValue: event.target.value }
+                                                        : prev
+                                                    )
+                                                  }
+                                                  onBlur={(event) => {
+                                                    commitDailyCellEdit(item.id, bucketIndex, event.target.value);
+                                                    setEditingDailyCell(null);
+                                                  }}
+                                                  onKeyDown={(event) =>
+                                                    handleDailyCellKeyDown(event, item.id, bucketIndex)
+                                                  }
+                                                  className="h-7 w-[72px] rounded-md border border-slate-200 px-2 text-center text-[12px] font-semibold text-slate-800 outline-none transition focus:border-slate-300"
+                                                />
+                                              ) : (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    openDailyCellEdit(item.id, bucketIndex, bucket.actual)
+                                                  }
+                                                  className="inline-flex h-7 w-[72px] items-center justify-center rounded-md border border-transparent px-2 text-center text-[12px] font-semibold text-slate-800 transition hover:border-slate-200 hover:bg-slate-50"
+                                                >
+                                                  {formatValueWithSymbol(
+                                                    bucket.actual,
+                                                    item.valueSymbol,
+                                                    item.valueSymbolPosition
+                                                  )}
+                                                </button>
+                                              )
+                                            ) : (
+                                              <span className="text-[12px] text-slate-300">—</span>
                                             )}
                                           </td>
-                                          <td className="px-1 py-1.5 text-center">
-                                            <span
-                                              className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold ${getPercentBadgeClass(
-                                                weekPercent
-                                              )}`}
-                                            >
-                                              {weekPercent}%
-                                            </span>
+                                          <td className={`px-1 py-1.5 text-center${inactiveBucketCellClass}`}>
+                                            {canEditCurrentViewBuckets ? (
+                                              <span
+                                                className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold ${getPercentBadgeClass(
+                                                  bucketPercent
+                                                )}`}
+                                              >
+                                                {bucketPercent}%
+                                              </span>
+                                            ) : (
+                                              <span className="text-[12px] text-slate-300">—</span>
+                                            )}
                                           </td>
                                         </Fragment>
                                       );
@@ -1331,17 +1537,23 @@ function KpiPage() {
                                   </>
                                 ) : (
                                   <>
-                                    {dailyMetrics.map((dayMetric, dayIndex) => (
+                                    {displayMetrics.map((dayMetric, dayIndex) => (
                                       <Fragment key={`${item.id}-day-${dayIndex}`}>
-                                        <td className="px-1 py-1.5 text-center text-[13px] text-slate-500">
-                                          {formatValueWithSymbol(
-                                            dayMetric.plan,
-                                            item.valueSymbol,
-                                            item.valueSymbolPosition
+                                        <td
+                                          className={`px-1 py-1.5 text-center text-[13px] text-slate-500${inactiveBucketCellClass}`}
+                                        >
+                                          {canEditCurrentViewBuckets ? (
+                                            formatValueWithSymbol(
+                                              dayMetric.plan,
+                                              item.valueSymbol,
+                                              item.valueSymbolPosition
+                                            )
+                                          ) : (
+                                            <span className="text-[12px] text-slate-300">—</span>
                                           )}
                                         </td>
-                                        <td className="px-1 py-1.5 text-center">
-                                          {!dayMetric.guid ? (
+                                        <td className={`px-1 py-1.5 text-center${inactiveBucketCellClass}`}>
+                                          {!canEditCurrentViewBuckets || !dayMetric.guid ? (
                                             <span className="text-[12px] text-slate-300">—</span>
                                           ) : editingDailyCell?.itemId === item.id &&
                                           editingDailyCell.dayIndex === dayIndex ? (
@@ -1385,14 +1597,18 @@ function KpiPage() {
                                             </button>
                                           )}
                                         </td>
-                                        <td className="px-1 py-1.5 text-center">
-                                          <span
-                                            className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold ${getPercentBadgeClass(
-                                              dayMetric.percent
-                                            )}`}
-                                          >
-                                            {dayMetric.percent}%
-                                          </span>
+                                        <td className={`px-1 py-1.5 text-center${inactiveBucketCellClass}`}>
+                                          {canEditCurrentViewBuckets ? (
+                                            <span
+                                              className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold ${getPercentBadgeClass(
+                                                dayMetric.percent
+                                              )}`}
+                                            >
+                                              {dayMetric.percent}%
+                                            </span>
+                                          ) : (
+                                            <span className="text-[12px] text-slate-300">—</span>
+                                          )}
                                         </td>
                                       </Fragment>
                                     ))}
@@ -1569,71 +1785,51 @@ function KpiPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <label className="block space-y-2">
-                <span className="text-xs font-medium text-slate-500">Начало периода *</span>
-                <DatePicker
-                  selected={toDatePickerValue(draft.startDate)}
-                  onChange={(date: Date | null) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      startDate: date ? toIsoDate(date) : "",
-                    }))
-                  }
-                  dateFormat="dd.MM.yyyy"
-                  placeholderText="Выберите дату"
-                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-                  popperClassName="kpi-datepicker-popper"
-                  popperProps={{ strategy: "fixed" }}
-                  portalId="root"
-                  withPortal
-                  showPopperArrow={false}
-                  calendarStartDay={1}
-                />
-              </label>
-
-              <label className="block space-y-2">
-                <span className="text-xs font-medium text-slate-500">Конец периода *</span>
-                <DatePicker
-                  selected={toDatePickerValue(draft.endDate)}
-                  onChange={(date: Date | null) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      endDate: date ? toIsoDate(date) : "",
-                    }))
-                  }
-                  dateFormat="dd.MM.yyyy"
-                  placeholderText="Выберите дату"
-                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-                  popperClassName="kpi-datepicker-popper"
-                  popperProps={{ strategy: "fixed" }}
-                  portalId="root"
-                  withPortal
-                  showPopperArrow={false}
-                  calendarStartDay={1}
-                />
-              </label>
-            </div>
-
             <label className="block space-y-2">
-              <span className="text-xs font-medium text-slate-500">Плановое значение *</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={draft.planValue}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    planValue: event.target.value,
-                  }))
-                }
-                placeholder="100"
+              <span className="text-xs font-medium text-slate-500">Период *</span>
+              <DatePicker
+                selected={selectedDraftPeriodDate}
+                onChange={handleDraftPeriodChange}
+                locale="ru"
+                dateFormat={getPickerDateFormatByPeriod(draft.goalType)}
+                placeholderText="Выберите период"
                 className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                popperClassName="kpi-datepicker-popper"
+                calendarClassName={`kpi-period-calendar kpi-period-calendar--${draft.goalType}`}
+                popperProps={{ strategy: "fixed" }}
+                portalId="root"
+                withPortal
+                showPopperArrow={false}
+                calendarStartDay={1}
+                showWeekPicker={draft.goalType === "weekly"}
+                showMonthYearPicker={draft.goalType === "monthly"}
+                showQuarterYearPicker={draft.goalType === "quarterly"}
+                showYearPicker={draft.goalType === "yearly"}
               />
+              {draftPeriodRangeLabel ? (
+                <span className="text-xs text-slate-500">{draftPeriodRangeLabel}</span>
+              ) : null}
             </label>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <label className="block space-y-2">
+                <span className="text-xs font-medium text-slate-500">Плановое значение *</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.planValue}
+                  onChange={(event) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      planValue: event.target.value,
+                    }))
+                  }
+                  placeholder="100"
+                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                />
+              </label>
+
               <label className="block space-y-2">
                 <span className="text-xs font-medium text-slate-500">Символ/текст возле значения</span>
                 <input

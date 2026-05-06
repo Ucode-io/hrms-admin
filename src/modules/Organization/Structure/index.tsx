@@ -36,6 +36,7 @@ import {
   type OrgStructureNode,
   useOrgStructureReportQuery,
 } from "../../../api/services/reports.service";
+import { type Position as PositionItem, usePositionsQuery } from "../../../api/services/position.service";
 import type { Option } from "../../Settings/Departments/types";
 import DepartmentUpsertModal from "../../Settings/Departments/components/DepartmentUpsertModal";
 import { resolveDepartmentLeaderName } from "../../Settings/Departments/utils";
@@ -47,6 +48,15 @@ const VERTICAL_GAP = 100;
 const ROOT_GAP = 80;
 const CHART_PADDING = 40;
 const ROOT_KEY = "__root__";
+const UNASSIGNED_POSITION_KEY = "__unassigned_position__";
+const VERTICAL_MODE_X_GAP = 180;
+const VERTICAL_MODE_Y_GAP = 28;
+
+type StructureViewMode = "departments" | "positions";
+type OrgStructureDisplayNode = OrgStructureNode & {
+  node_kind?: StructureViewMode;
+};
+type LayoutMode = "topDown" | "leftRight" | "topDownVerticalChildren";
 
 type OrgNodeData = {
   nodeId: string;
@@ -59,8 +69,11 @@ type OrgNodeData = {
   avatarColor: string;
   hasParent: boolean;
   hasChildren: boolean;
+  showCollapseControl: boolean;
+  isCollapsed: boolean;
   isHighlighted: boolean;
   onAddChild?: (nodeId: string) => void;
+  onToggleCollapse?: (nodeId: string) => void;
 };
 
 type DepartmentTreeOption = {
@@ -131,7 +144,17 @@ const getPaletteByLevel = (level: number) => {
   return COLOR_PALETTE[index];
 };
 
-const buildSubtitle = (node: OrgStructureNode): string => {
+const buildSubtitle = (node: OrgStructureDisplayNode): string => {
+  if (node.node_kind === "positions") {
+    if (node.manager?.guid) {
+      return node.manager?.position_title || "Без должности";
+    }
+    const peopleCount = Number.isFinite(Number(node.direct_employees_count))
+      ? Number(node.direct_employees_count)
+      : 0;
+    return `${peopleCount} чел.`;
+  }
+
   const position = node.manager?.position_title || "Руководитель";
   const peopleCount = Number.isFinite(Number(node.direct_employees_count))
     ? Number(node.direct_employees_count)
@@ -142,6 +165,158 @@ const buildSubtitle = (node: OrgStructureNode): string => {
   }
 
   return position;
+};
+
+const buildPositionNodes = (positions: PositionItem[], employees: Employee[]): OrgStructureDisplayNode[] => {
+  const positionsById = new Map<string, PositionItem>();
+  for (const position of positions) {
+    if (!position.guid) continue;
+    positionsById.set(position.guid, position);
+  }
+
+  const getEmployeePositionId = (employee: Employee): string => {
+    const rawPositionId =
+      typeof employee.positions_id === "string" ? employee.positions_id.trim() : "";
+    return rawPositionId && positionsById.has(rawPositionId) ? rawPositionId : UNASSIGNED_POSITION_KEY;
+  };
+
+  const getPositionTitle = (employee: Employee): string => {
+    const positionId = getEmployeePositionId(employee);
+    return (
+      employee.positions_id_data?.title ||
+      (positionId !== UNASSIGNED_POSITION_KEY ? positionsById.get(positionId)?.title : "") ||
+      "Без должности"
+    );
+  };
+
+  const employeesByPosition = new Map<string, Employee[]>();
+  for (const employee of employees) {
+    const positionId = getEmployeePositionId(employee);
+    if (!employeesByPosition.has(positionId)) {
+      employeesByPosition.set(positionId, []);
+    }
+    employeesByPosition.get(positionId)?.push(employee);
+  }
+
+  for (const groupEmployees of employeesByPosition.values()) {
+    groupEmployees.sort((left, right) =>
+      getEmployeeFullName(left).localeCompare(getEmployeeFullName(right), "ru")
+    );
+  }
+
+  const positionLevelMemo = new Map<string, number>();
+  const getPositionLevel = (positionId: string, visited = new Set<string>()): number => {
+    if (positionId === UNASSIGNED_POSITION_KEY || !positionsById.has(positionId)) {
+      return 1;
+    }
+
+    if (positionLevelMemo.has(positionId)) {
+      return positionLevelMemo.get(positionId) as number;
+    }
+
+    if (visited.has(positionId)) {
+      return 1;
+    }
+
+    visited.add(positionId);
+    const position = positionsById.get(positionId);
+    const parentPositionId =
+      position && typeof position.positions_id === "string" ? position.positions_id.trim() : "";
+    const level =
+      parentPositionId && positionsById.has(parentPositionId)
+        ? getPositionLevel(parentPositionId, visited) + 1
+        : 1;
+
+    positionLevelMemo.set(positionId, level);
+    return level;
+  };
+
+  const getParentEmployeeId = (employee: Employee): string | null => {
+    const positionId = getEmployeePositionId(employee);
+    if (positionId === UNASSIGNED_POSITION_KEY) {
+      return null;
+    }
+
+    const position = positionsById.get(positionId);
+    const parentPositionId =
+      position && typeof position.positions_id === "string" ? position.positions_id.trim() : "";
+    if (!parentPositionId || parentPositionId === positionId || !positionsById.has(parentPositionId)) {
+      return null;
+    }
+
+    const parentEmployee = employeesByPosition.get(parentPositionId)?.[0];
+    return parentEmployee?.guid && parentEmployee.guid !== employee.guid
+      ? `employee:${parentEmployee.guid}`
+      : null;
+  };
+
+  const nodes = employees.map((employee) => {
+    const positionId = getEmployeePositionId(employee);
+    const positionTitle = getPositionTitle(employee);
+    const fullName = getEmployeeFullName(employee);
+
+    return {
+      id: `employee:${employee.guid}`,
+      department_guid: positionId,
+      title: fullName,
+      parent_id: getParentEmployeeId(employee),
+      hierarchy_level: getPositionLevel(positionId),
+      direct_employees_count: 0,
+      total_employees_count: 1,
+      children_count: 0,
+      node_kind: "positions",
+      manager: {
+        guid: employee.guid,
+        full_name: fullName,
+        first_name: employee.first_name || null,
+        second_name: employee.second_name || null,
+        middle_name: employee.middle_name || null,
+        email: employee.email || null,
+        phone: employee.phone || null,
+        photo: employee.photo || null,
+        initials: getEmployeeInitials(employee),
+        position_title: positionTitle,
+      },
+    };
+  });
+
+  const childrenByParent = new Map<string, OrgStructureDisplayNode[]>();
+  for (const node of nodes) {
+    if (!node.parent_id) continue;
+    if (!childrenByParent.has(node.parent_id)) {
+      childrenByParent.set(node.parent_id, []);
+    }
+    childrenByParent.get(node.parent_id)?.push(node);
+  }
+
+  const totalEmployeesByNodeId = new Map<string, number>();
+  const getTotalEmployees = (nodeId: string, visited = new Set<string>()): number => {
+    if (totalEmployeesByNodeId.has(nodeId)) {
+      return totalEmployeesByNodeId.get(nodeId) as number;
+    }
+
+    if (visited.has(nodeId)) {
+      return 0;
+    }
+
+    visited.add(nodeId);
+    const total = (childrenByParent.get(nodeId) || []).reduce(
+      (sum, child) => sum + getTotalEmployees(child.id, visited),
+      1
+    );
+    totalEmployeesByNodeId.set(nodeId, total);
+    visited.delete(nodeId);
+    return total;
+  };
+
+  for (const node of nodes) {
+    const childrenCount = childrenByParent.get(node.id)?.length || 0;
+    node.direct_employees_count = childrenCount;
+    node.children_count = childrenCount;
+    node.total_employees_count = getTotalEmployees(node.id);
+  }
+
+  return nodes;
 };
 
 const getEmployeeFullName = (employee: Employee): string => {
@@ -293,17 +468,34 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
 
       <p className="mt-3 text-lg font-semibold text-slate-800">{data.managerName}</p>
       <p className="mt-1 text-base font-medium text-slate-500">{data.subtitle}</p>
-      <button
-        type="button"
-        className="pointer-events-none absolute bottom-0 left-1/2 inline-flex h-7 w-7 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-slate-50 focus:pointer-events-auto focus:opacity-100"
-        title="Добавить дочерний отдел"
-        onClick={(event) => {
-          event.stopPropagation();
-          data.onAddChild?.(data.nodeId);
-        }}
-      >
-        <Plus size={14} />
-      </button>
+      {data.hasChildren && data.showCollapseControl ? (
+        <button
+          type="button"
+          className="pointer-events-none absolute bottom-0 left-1/2 z-10 inline-flex h-7 w-7 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-lg leading-none text-slate-600 opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-slate-50 focus:pointer-events-auto focus:opacity-100"
+          title={data.isCollapsed ? "Показать дочерние узлы" : "Скрыть дочерние узлы"}
+          onClick={(event) => {
+            event.stopPropagation();
+            data.onToggleCollapse?.(data.nodeId);
+          }}
+        >
+          {data.isCollapsed ? "+" : "-"}
+        </button>
+      ) : null}
+      {data.onAddChild ? (
+        <button
+          type="button"
+          className={`pointer-events-none absolute bottom-0 inline-flex h-7 w-7 translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-slate-50 focus:pointer-events-auto focus:opacity-100 ${
+            data.hasChildren ? "left-1/2 translate-x-[14px]" : "left-1/2 -translate-x-1/2"
+          }`}
+          title="Добавить дочерний отдел"
+          onClick={(event) => {
+            event.stopPropagation();
+            data.onAddChild?.(data.nodeId);
+          }}
+        >
+          <Plus size={14} />
+        </button>
+      ) : null}
 
       <Handle
         type="source"
@@ -316,9 +508,12 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
 };
 
 const buildHierarchyLayout = (
-  nodes: OrgStructureNode[],
+  nodes: OrgStructureDisplayNode[],
   highlightedNodeIds: Set<string>,
-  onAddChild?: (nodeId: string) => void
+  onAddChild?: (nodeId: string) => void,
+  layoutMode: LayoutMode = "topDown",
+  collapsedNodeIds: Set<string> = new Set<string>(),
+  onToggleCollapse?: (nodeId: string) => void
 ) => {
   if (nodes.length === 0) {
     return {
@@ -350,12 +545,57 @@ const buildHierarchyLayout = (
     });
   }
 
-  const roots = nodes
+  const rootsAll = nodes
     .filter((node) => !node.parent_id || !nodeById.has(node.parent_id))
     .sort((left, right) => left.title.localeCompare(right.title, "ru"))
     .map((node) => node.id);
 
+  const visibleNodeIds = new Set<string>();
+  const collectVisibleNodes = (nodeId: string) => {
+    visibleNodeIds.add(nodeId);
+    if (collapsedNodeIds.has(nodeId)) {
+      return;
+    }
+    const childIds = childrenByParent.get(nodeId) || [];
+    for (const childId of childIds) {
+      collectVisibleNodes(childId);
+    }
+  };
+
+  for (const rootId of rootsAll) {
+    collectVisibleNodes(rootId);
+  }
+
+  const visibleNodes = nodes.filter((node) => visibleNodeIds.has(node.id));
+  const visibleNodeById = new Map(visibleNodes.map((node) => [node.id, node]));
+  const visibleChildrenByParent = new Map<string, string[]>();
+
+  for (const node of visibleNodes) {
+    if (!node.parent_id || !visibleNodeById.has(node.parent_id)) {
+      continue;
+    }
+
+    if (!visibleChildrenByParent.has(node.parent_id)) {
+      visibleChildrenByParent.set(node.parent_id, []);
+    }
+    visibleChildrenByParent.get(node.parent_id)?.push(node.id);
+  }
+
+  for (const childIds of visibleChildrenByParent.values()) {
+    childIds.sort((leftId, rightId) => {
+      const leftTitle = nodeById.get(leftId)?.title || "";
+      const rightTitle = nodeById.get(rightId)?.title || "";
+      return leftTitle.localeCompare(rightTitle, "ru");
+    });
+  }
+
+  const roots = visibleNodes
+    .filter((node) => !node.parent_id || !visibleNodeById.has(node.parent_id))
+    .sort((left, right) => left.title.localeCompare(right.title, "ru"))
+    .map((node) => node.id);
+
   const subtreeWidthMemo = new Map<string, number>();
+  const subtreeHeightMemo = new Map<string, number>();
   const depthByNodeId = new Map<string, number>();
 
   const getSubtreeWidth = (nodeId: string): number => {
@@ -363,7 +603,7 @@ const buildHierarchyLayout = (
       return subtreeWidthMemo.get(nodeId) as number;
     }
 
-    const childIds = childrenByParent.get(nodeId) || [];
+    const childIds = visibleChildrenByParent.get(nodeId) || [];
     if (childIds.length === 0) {
       subtreeWidthMemo.set(nodeId, NODE_WIDTH);
       return NODE_WIDTH;
@@ -378,6 +618,24 @@ const buildHierarchyLayout = (
 
   const positionByNodeId = new Map<string, { x: number; y: number }>();
 
+  const getSubtreeHeight = (nodeId: string): number => {
+    if (subtreeHeightMemo.has(nodeId)) {
+      return subtreeHeightMemo.get(nodeId) as number;
+    }
+
+    const childIds = visibleChildrenByParent.get(nodeId) || [];
+    if (childIds.length === 0) {
+      subtreeHeightMemo.set(nodeId, NODE_HEIGHT);
+      return NODE_HEIGHT;
+    }
+
+    const childrenHeight = childIds.reduce((sum, childId) => sum + getSubtreeHeight(childId), 0);
+    const totalChildrenHeight = childrenHeight + (childIds.length - 1) * VERTICAL_MODE_Y_GAP;
+    const nodeHeight = Math.max(NODE_HEIGHT, totalChildrenHeight);
+    subtreeHeightMemo.set(nodeId, nodeHeight);
+    return nodeHeight;
+  };
+
   const placeNode = (nodeId: string, leftX: number, depth: number) => {
     const nodeWidth = getSubtreeWidth(nodeId);
     const centerX = leftX + nodeWidth / 2;
@@ -387,7 +645,7 @@ const buildHierarchyLayout = (
     positionByNodeId.set(nodeId, { x, y });
     depthByNodeId.set(nodeId, depth);
 
-    const childIds = childrenByParent.get(nodeId) || [];
+    const childIds = visibleChildrenByParent.get(nodeId) || [];
     if (childIds.length === 0) {
       return;
     }
@@ -403,20 +661,86 @@ const buildHierarchyLayout = (
     }
   };
 
-  const totalRootsWidth =
-    roots.reduce((sum, rootId) => sum + getSubtreeWidth(rootId), 0) + Math.max(0, roots.length - 1) * ROOT_GAP;
-  let rootLeftX = CHART_PADDING;
+  if (layoutMode === "leftRight") {
+    const placeNodeLeftRight = (nodeId: string, topY: number, depth: number) => {
+      const nodeHeight = getSubtreeHeight(nodeId);
+      const centerY = topY + nodeHeight / 2;
+      const x = CHART_PADDING + (depth - 1) * (NODE_WIDTH + VERTICAL_MODE_X_GAP);
+      const y = centerY - NODE_HEIGHT / 2;
 
-  if (roots.length > 0 && totalRootsWidth < 1200) {
-    rootLeftX += (1200 - totalRootsWidth) / 2;
+      positionByNodeId.set(nodeId, { x, y });
+      depthByNodeId.set(nodeId, depth);
+
+      const childIds = visibleChildrenByParent.get(nodeId) || [];
+      if (childIds.length === 0) {
+        return;
+      }
+
+      const totalChildrenHeight =
+        childIds.reduce((sum, childId) => sum + getSubtreeHeight(childId), 0) +
+        (childIds.length - 1) * VERTICAL_MODE_Y_GAP;
+      let childTopY = topY + (nodeHeight - totalChildrenHeight) / 2;
+
+      for (const childId of childIds) {
+        placeNodeLeftRight(childId, childTopY, depth + 1);
+        childTopY += getSubtreeHeight(childId) + VERTICAL_MODE_Y_GAP;
+      }
+    };
+
+    let rootTopY = CHART_PADDING;
+    for (const rootId of roots) {
+      placeNodeLeftRight(rootId, rootTopY, 1);
+      rootTopY += getSubtreeHeight(rootId) + ROOT_GAP;
+    }
+  } else if (layoutMode === "topDownVerticalChildren") {
+    const getSubtreeHeightTopDownVertical = (nodeId: string): number => {
+      const childIds = visibleChildrenByParent.get(nodeId) || [];
+      if (childIds.length === 0) {
+        return NODE_HEIGHT;
+      }
+      const childrenHeight =
+        childIds.reduce((sum, childId) => sum + getSubtreeHeightTopDownVertical(childId), 0) +
+        (childIds.length - 1) * VERTICAL_MODE_Y_GAP;
+      return NODE_HEIGHT + VERTICAL_GAP + childrenHeight;
+    };
+
+    const placeTopDownVertical = (nodeId: string, leftX: number, topY: number, depth: number) => {
+      positionByNodeId.set(nodeId, { x: leftX, y: topY });
+      depthByNodeId.set(nodeId, depth);
+
+      const childIds = visibleChildrenByParent.get(nodeId) || [];
+      if (childIds.length === 0) {
+        return;
+      }
+
+      let childTopY = topY + NODE_HEIGHT + VERTICAL_GAP;
+      for (const childId of childIds) {
+        placeTopDownVertical(childId, leftX, childTopY, depth + 1);
+        childTopY += getSubtreeHeightTopDownVertical(childId) + VERTICAL_MODE_Y_GAP;
+      }
+    };
+
+    let rootLeftX = CHART_PADDING;
+    for (const rootId of roots) {
+      placeTopDownVertical(rootId, rootLeftX, CHART_PADDING, 1);
+      rootLeftX += NODE_WIDTH + ROOT_GAP;
+    }
+  } else {
+    const totalRootsWidth =
+      roots.reduce((sum, rootId) => sum + getSubtreeWidth(rootId), 0) + Math.max(0, roots.length - 1) * ROOT_GAP;
+    let rootLeftX = CHART_PADDING;
+
+    if (roots.length > 0 && totalRootsWidth < 1200) {
+      rootLeftX += (1200 - totalRootsWidth) / 2;
+    }
+
+    for (const rootId of roots) {
+      placeNode(rootId, rootLeftX, 1);
+      rootLeftX += getSubtreeWidth(rootId) + ROOT_GAP;
+    }
   }
 
-  for (const rootId of roots) {
-    placeNode(rootId, rootLeftX, 1);
-    rootLeftX += getSubtreeWidth(rootId) + ROOT_GAP;
-  }
-
-  const graphNodes: Node<OrgNodeData>[] = nodes.map((node) => {
+  const graphNodes: Node<OrgNodeData>[] = visibleNodes.map((node) => {
     const palette = getPaletteByLevel(node.hierarchy_level);
     const managerName = node.manager?.full_name || "Не назначен";
     const managerInitials = node.manager?.initials || "U";
@@ -436,16 +760,19 @@ const buildHierarchyLayout = (
         borderColor: palette.border,
         backgroundColor: palette.background,
         avatarColor: palette.avatar,
-        hasParent: Boolean(node.parent_id && nodeById.has(node.parent_id)),
+        hasParent: Boolean(node.parent_id && visibleNodeById.has(node.parent_id)),
         hasChildren: (childrenByParent.get(node.id)?.length || 0) > 0,
+        showCollapseControl: node.node_kind === "positions",
+        isCollapsed: collapsedNodeIds.has(node.id),
         isHighlighted: highlightedNodeIds.has(node.id),
         onAddChild,
+        onToggleCollapse,
       },
     };
   });
 
-  const graphEdges: Edge[] = nodes
-    .filter((node) => node.parent_id && nodeById.has(node.parent_id))
+  const graphEdges: Edge[] = visibleNodes
+    .filter((node) => node.parent_id && visibleNodeById.has(node.parent_id))
     .map((node) => ({
       id: `edge:${node.parent_id}:${node.id}`,
       source: String(node.parent_id),
@@ -492,6 +819,8 @@ function OrganizationStructureModule({
   const [internalSearchInput, setInternalSearchInput] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedHierarchyLevel, setSelectedHierarchyLevel] = useState("");
+  const [structureViewMode, setStructureViewMode] = useState<StructureViewMode>("departments");
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
@@ -527,16 +856,16 @@ function OrganizationStructureModule({
       payload.companies_id = companyGuid;
     }
 
-    if (selectedDepartmentId) {
+    if (structureViewMode === "departments" && selectedDepartmentId) {
       payload.department_id = selectedDepartmentId;
     }
 
-    if (selectedHierarchyLevel) {
+    if (structureViewMode === "departments" && selectedHierarchyLevel) {
       payload.hierarchy_level = Number(selectedHierarchyLevel);
     }
 
     return payload;
-  }, [selectedDepartmentId, selectedHierarchyLevel, companyStore.company?.guid]);
+  }, [structureViewMode, selectedDepartmentId, selectedHierarchyLevel, companyStore.company?.guid]);
 
   const {
     data,
@@ -546,6 +875,16 @@ function OrganizationStructureModule({
     error,
     refetch,
   } = useOrgStructureReportQuery(requestData);
+  const { data: positionsData, isLoading: isPositionsLoading } = usePositionsQuery({
+    params: { limit: 5000, offset: 0 },
+    querySettings: { enabled: structureViewMode === "positions" },
+  });
+  const shouldLoadEmployees = structureViewMode === "positions" || Boolean(selectedNodeId);
+  const { data: employeesData, isLoading: isEmployeesLoading } = useEmployeesQuery({
+    limit: 5000,
+    offset: 0,
+    enabled: shouldLoadEmployees,
+  });
   const { data: departmentsData } = useDepartmentsSettingsAggregationQuery({
     params: { limit: 1000 },
     querySettings: { enabled: embedded },
@@ -557,7 +896,7 @@ function OrganizationStructureModule({
 
   const result = data?.result;
   const cards = result?.cards || {};
-  const chartNodes = result?.chart?.nodes || [];
+  const departmentChartNodes = (result?.chart?.nodes || []) as OrgStructureDisplayNode[];
   const filterDepartments = result?.filters?.departments || [];
   const filterLevels = result?.filters?.levels || [];
   const departmentOptions = useMemo<DepartmentTreeOption[]>(
@@ -587,6 +926,16 @@ function OrganizationStructureModule({
     () => levelOptions.find((option) => option.value === selectedHierarchyLevel) || null,
     [levelOptions, selectedHierarchyLevel]
   );
+  const allEmployees = useMemo<Employee[]>(
+    () => ((employeesData?.response || []) as Employee[]),
+    [employeesData?.response]
+  );
+  const positionChartNodes = useMemo(
+    () => buildPositionNodes((positionsData?.response || []) as PositionItem[], allEmployees),
+    [positionsData?.response, allEmployees]
+  );
+  const chartNodes = structureViewMode === "positions" ? positionChartNodes : departmentChartNodes;
+
   const highlightedNodeIds = useMemo(() => {
     const normalized = searchInput.trim().toLowerCase();
     if (!normalized) {
@@ -607,6 +956,17 @@ function OrganizationStructureModule({
     () => new Map(chartNodes.map((node) => [node.id, node])),
     [chartNodes]
   );
+  const collapsedNodeIdSet = useMemo(() => new Set(collapsedNodeIds), [collapsedNodeIds]);
+  const toggleNodeCollapse = useCallback((nodeId: string) => {
+    setCollapsedNodeIds((previous) =>
+      previous.includes(nodeId)
+        ? previous.filter((id) => id !== nodeId)
+        : [...previous, nodeId]
+    );
+  }, []);
+  useEffect(() => {
+    setCollapsedNodeIds((previous) => previous.filter((id) => nodeById.has(id)));
+  }, [nodeById]);
   const settingsDepartments = useMemo(
     () => departmentsData?.response || [],
     [departmentsData?.response]
@@ -695,18 +1055,43 @@ function OrganizationStructureModule({
   }, [nodeById]);
 
   const layout = useMemo(
-    () => buildHierarchyLayout(chartNodes, highlightedNodeIds, openCreateChildDepartmentModal),
-    [chartNodes, highlightedNodeIds, openCreateChildDepartmentModal]
+    () =>
+      buildHierarchyLayout(
+        chartNodes,
+        highlightedNodeIds,
+        structureViewMode === "departments" ? openCreateChildDepartmentModal : undefined,
+        structureViewMode === "positions" ? "topDownVerticalChildren" : "topDown",
+        collapsedNodeIdSet,
+        toggleNodeCollapse
+      ),
+    [
+      chartNodes,
+      collapsedNodeIdSet,
+      highlightedNodeIds,
+      openCreateChildDepartmentModal,
+      structureViewMode,
+      toggleNodeCollapse,
+    ]
   );
   const highlightedGraphNodes = useMemo(
     () => layout.graphNodes.filter((node) => highlightedNodeIds.has(node.id)),
     [highlightedNodeIds, layout.graphNodes]
   );
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    const isVisible = layout.graphNodes.some((node) => node.id === selectedNodeId);
+    if (!isVisible) {
+      setSelectedNodeId(null);
+    }
+  }, [layout.graphNodes, selectedNodeId]);
   const chartHeight = useMemo(
     () => Math.max(540, layout.maxDepth * (NODE_HEIGHT + VERTICAL_GAP) + CHART_PADDING * 2),
     [layout.maxDepth]
   );
-  const activeFiltersCount = [selectedDepartmentId, selectedHierarchyLevel].filter(Boolean).length;
+  const activeFiltersCount =
+    structureViewMode === "departments"
+      ? [selectedDepartmentId, selectedHierarchyLevel].filter(Boolean).length
+      : 0;
 
   useEffect(() => {
     onActiveFiltersCountChange?.(activeFiltersCount);
@@ -754,6 +1139,26 @@ function OrganizationStructureModule({
   const departmentsCount = Number(cards.departments_count || 0);
   const managersCount = Number(cards.managers_count || 0);
   const hierarchyLevels = Number(cards.hierarchy_levels || 0);
+  const isPositionsMode = structureViewMode === "positions";
+  const positionsList = (positionsData?.response || []) as PositionItem[];
+  const positionsCount = Number(positionsData?.count || positionsList.length);
+  const occupiedPositionIds = new Set(
+    allEmployees
+      .map((employee) =>
+        typeof employee.positions_id === "string" && employee.positions_id.trim()
+          ? employee.positions_id.trim()
+          : ""
+      )
+      .filter(Boolean)
+  );
+  const positionsWithoutEmployees = positionsList.filter(
+    (position) => !occupiedPositionIds.has(position.guid)
+  ).length;
+  const positionsLevels =
+    positionChartNodes.length > 0
+      ? Math.max(...positionChartNodes.map((node) => Number(node.hierarchy_level || 1)), 1)
+      : 0;
+  const moduleLoading = isLoading || (isPositionsMode && (isPositionsLoading || (shouldLoadEmployees && isEmployeesLoading)));
 
   const nodeTypes = useMemo(() => ({ orgNode: OrgNodeCard }), []);
   const onNodeClick = useMemo<NodeMouseHandler<OrgNodeData>>(
@@ -764,27 +1169,51 @@ function OrganizationStructureModule({
     []
   );
 
-  const { data: employeesData, isLoading: isEmployeesLoading } = useEmployeesQuery({
-    limit: 5000,
-    offset: 0,
-    enabled: Boolean(selectedNodeId),
-  });
-
-  const allEmployees = useMemo<Employee[]>(
-    () => ((employeesData?.response || []) as Employee[]),
-    [employeesData?.response]
-  );
   const selectedNode = selectedNodeId ? nodeById.get(selectedNodeId) || null : null;
   const selectedNodeDepartment = useMemo(() => {
-    if (!selectedNode) return null;
+    if (!selectedNode || structureViewMode !== "departments") return null;
     const key = selectedNode.department_guid || selectedNode.id;
     return departmentsById.get(key) || null;
-  }, [departmentsById, selectedNode]);
+  }, [departmentsById, selectedNode, structureViewMode]);
   const selectedEmployees = useMemo(() => {
     if (!selectedNode || !selectedNodeId) return [];
+    const positionsById = new Map(positionsList.map((position) => [position.guid, position]));
+    const getTopPositionId = (positionId: string): string => {
+      if (!positionId || !positionsById.has(positionId)) {
+        return UNASSIGNED_POSITION_KEY;
+      }
 
-    const managerGuid = selectedNode.manager?.guid || null;
+      const visited = new Set<string>();
+      let currentId = positionId;
+      while (currentId && positionsById.has(currentId) && !visited.has(currentId)) {
+        visited.add(currentId);
+        const current = positionsById.get(currentId);
+        const parentId =
+          current && typeof current.positions_id === "string" ? current.positions_id.trim() : "";
+        if (!parentId || !positionsById.has(parentId)) {
+          return currentId;
+        }
+        currentId = parentId;
+      }
+      return currentId || positionId;
+    };
+
     const filtered = allEmployees.filter((employee) => {
+      if (structureViewMode === "positions") {
+        if (selectedNodeId.startsWith("employee:")) {
+          return employee.guid === selectedNodeId.replace("employee:", "");
+        }
+        if (selectedNodeId.startsWith("position:")) {
+          const positionId =
+            typeof employee.positions_id === "string" ? employee.positions_id.trim() : "";
+          const employeeTopPositionId = positionId
+            ? getTopPositionId(positionId)
+            : UNASSIGNED_POSITION_KEY;
+          return employeeTopPositionId === selectedNode.department_guid;
+        }
+        return false;
+      }
+
       const departmentId =
         typeof employee.departments_id === "string" && employee.departments_id.trim()
           ? employee.departments_id.trim()
@@ -792,6 +1221,8 @@ function OrganizationStructureModule({
       if (!departmentId || departmentId !== selectedNodeId) {
         return false;
       }
+
+      const managerGuid = selectedNode.manager?.guid || null;
       if (managerGuid && employee.guid === managerGuid) {
         return false;
       }
@@ -816,7 +1247,7 @@ function OrganizationStructureModule({
 
       return searchTarget.includes(normalizedSearch);
     });
-  }, [allEmployees, employeeSearch, selectedNode, selectedNodeId]);
+  }, [allEmployees, employeeSearch, positionsList, selectedNode, selectedNodeId, structureViewMode]);
 
   const loadExperienceLevelsForDepartment = async (departmentGuid: string) => {
     setIsLoadingExperienceLevels(true);
@@ -956,6 +1387,43 @@ function OrganizationStructureModule({
     setSelectedHierarchyLevel("");
   };
 
+  useEffect(() => {
+    setSelectedNodeId(null);
+    setEmployeeSearch("");
+    setCollapsedNodeIds([]);
+    if (structureViewMode === "positions") {
+      setSelectedDepartmentId("");
+      setSelectedHierarchyLevel("");
+    }
+  }, [structureViewMode]);
+
+  const structureModeToggle = (
+    <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+      <button
+        type="button"
+        onClick={() => setStructureViewMode("departments")}
+        className={`h-8 rounded-lg px-3 text-sm font-semibold transition ${
+          structureViewMode === "departments"
+            ? "bg-white text-brand-600 shadow-sm"
+            : "text-slate-600 hover:text-slate-800"
+        }`}
+      >
+        Департаменты
+      </button>
+      <button
+        type="button"
+        onClick={() => setStructureViewMode("positions")}
+        className={`h-8 rounded-lg px-3 text-sm font-semibold transition ${
+          structureViewMode === "positions"
+            ? "bg-white text-brand-600 shadow-sm"
+            : "text-slate-600 hover:text-slate-800"
+        }`}
+      >
+        Сотрудники
+      </button>
+    </div>
+  );
+
   const graphContent = (
     <div className={embedded ? "relative h-full" : "relative"}>
       {isFetching ? (
@@ -1007,7 +1475,7 @@ function OrganizationStructureModule({
     </div>
   );
 
-  if (isLoading) {
+  if (moduleLoading) {
     if (embedded) {
       return (
         <div className="flex h-full min-h-0 items-center justify-center rounded-2xl border border-gray-200 bg-white">
@@ -1072,13 +1540,18 @@ function OrganizationStructureModule({
       <div className="space-y-4">
         <div className="pr-10">
           <h2 className="text-xl font-semibold text-slate-900">
-            {selectedNode?.manager?.full_name || "Руководитель"}
+            {isPositionsMode
+              ? selectedNode?.title || "Должность"
+              : selectedNode?.manager?.full_name || "Руководитель"}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            {selectedNode?.manager?.position_title || "Руководитель"} •{" "}
-            {selectedNode?.title || "Отдел"}
+            {isPositionsMode
+              ? selectedNode?.manager?.guid
+                ? `${selectedNode?.manager?.position_title || "Без должности"}`
+                : `Сотрудников: ${Number(selectedNode?.direct_employees_count || 0)}`
+              : `${selectedNode?.manager?.position_title || "Руководитель"} • ${selectedNode?.title || "Отдел"}`}
           </p>
-          {selectedNodeDepartment ? (
+          {selectedNodeDepartment && !isPositionsMode ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -1231,42 +1704,51 @@ function OrganizationStructureModule({
     return (
       <>
         <section className="h-full min-h-0 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 px-4 py-3">{structureModeToggle}</div>
           {filtersOpen ? (
             <div className="border-b border-gray-100 px-4 py-3">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="min-w-[230px] flex-1 md:flex-none">
-                  <Select<DepartmentTreeOption, false>
-                    options={departmentOptions}
-                    value={selectedDepartmentOption}
-                    onChange={(option: SingleValue<DepartmentTreeOption>) =>
-                      setSelectedDepartmentId(option?.value || "")
-                    }
-                    placeholder="Все отделы"
-                    isSearchable
-                    isClearable
-                    styles={getFilterSelectStyles<DepartmentTreeOption>()}
-                    menuPortalTarget={selectPortalTarget}
-                    menuPosition="fixed"
-                    noOptionsMessage={() => "Отделы не найдены"}
-                  />
-                </div>
+                {structureViewMode === "departments" ? (
+                  <>
+                    <div className="min-w-[230px] flex-1 md:flex-none">
+                      <Select<DepartmentTreeOption, false>
+                        options={departmentOptions}
+                        value={selectedDepartmentOption}
+                        onChange={(option: SingleValue<DepartmentTreeOption>) =>
+                          setSelectedDepartmentId(option?.value || "")
+                        }
+                        placeholder="Все отделы"
+                        isSearchable
+                        isClearable
+                        styles={getFilterSelectStyles<DepartmentTreeOption>()}
+                        menuPortalTarget={selectPortalTarget}
+                        menuPosition="fixed"
+                        noOptionsMessage={() => "Отделы не найдены"}
+                      />
+                    </div>
 
-                <div className="min-w-[210px] flex-1 md:flex-none">
-                  <Select<LevelFilterOption, false>
-                    options={levelOptions}
-                    value={selectedLevelOption}
-                    onChange={(option: SingleValue<LevelFilterOption>) =>
-                      setSelectedHierarchyLevel(option?.value || "")
-                    }
-                    placeholder="Все уровни"
-                    isSearchable={false}
-                    isClearable
-                    styles={getFilterSelectStyles<LevelFilterOption>()}
-                    menuPortalTarget={selectPortalTarget}
-                    menuPosition="fixed"
-                    noOptionsMessage={() => "Уровни не найдены"}
-                  />
-                </div>
+                    <div className="min-w-[210px] flex-1 md:flex-none">
+                      <Select<LevelFilterOption, false>
+                        options={levelOptions}
+                        value={selectedLevelOption}
+                        onChange={(option: SingleValue<LevelFilterOption>) =>
+                          setSelectedHierarchyLevel(option?.value || "")
+                        }
+                        placeholder="Все уровни"
+                        isSearchable={false}
+                        isClearable
+                        styles={getFilterSelectStyles<LevelFilterOption>()}
+                        menuPortalTarget={selectPortalTarget}
+                        menuPosition="fixed"
+                        noOptionsMessage={() => "Уровни не найдены"}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm font-medium text-slate-500">
+                    Для режима Сотрудники фильтры по отделам и уровням не применяются.
+                  </p>
+                )}
 
                 <button
                   type="button"
@@ -1310,6 +1792,8 @@ function OrganizationStructureModule({
 
           <div className="border-b border-gray-100 px-6 py-4">
             <div className="flex flex-wrap items-center gap-3">
+              {structureModeToggle}
+
               <label className="relative w-full md:max-w-[270px]">
                 <Search
                   size={17}
@@ -1319,59 +1803,63 @@ function OrganizationStructureModule({
                   type="text"
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Поиск отдела..."
+                  placeholder={structureViewMode === "positions" ? "Поиск должности..." : "Поиск отдела..."}
                   className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                 />
               </label>
 
-              <div className="min-w-[230px] flex-1 md:flex-none">
-                <Select<DepartmentTreeOption, false>
-                  options={departmentOptions}
-                  value={selectedDepartmentOption}
-                  onChange={(option: SingleValue<DepartmentTreeOption>) =>
-                    setSelectedDepartmentId(option?.value || "")
-                  }
-                  placeholder="Все отделы"
-                  isSearchable
-                  isClearable
-                  styles={getFilterSelectStyles<DepartmentTreeOption>()}
-                  menuPortalTarget={selectPortalTarget}
-                  menuPosition="fixed"
-                  noOptionsMessage={() => "Отделы не найдены"}
-                  formatOptionLabel={(option, meta) => {
-                    if (meta.context === "value") {
-                      return <span>{option.label}</span>;
-                    }
+              {structureViewMode === "departments" ? (
+                <>
+                  <div className="min-w-[230px] flex-1 md:flex-none">
+                    <Select<DepartmentTreeOption, false>
+                      options={departmentOptions}
+                      value={selectedDepartmentOption}
+                      onChange={(option: SingleValue<DepartmentTreeOption>) =>
+                        setSelectedDepartmentId(option?.value || "")
+                      }
+                      placeholder="Все отделы"
+                      isSearchable
+                      isClearable
+                      styles={getFilterSelectStyles<DepartmentTreeOption>()}
+                      menuPortalTarget={selectPortalTarget}
+                      menuPosition="fixed"
+                      noOptionsMessage={() => "Отделы не найдены"}
+                      formatOptionLabel={(option, meta) => {
+                        if (meta.context === "value") {
+                          return <span>{option.label}</span>;
+                        }
 
-                    return (
-                      <div className="flex items-center gap-2">
-                        {option.hierarchyLevel > 1 ? (
-                          <span className="text-xs text-slate-300">└</span>
-                        ) : null}
-                        <span className="font-medium text-slate-700">{option.label}</span>
-                        <span className="ml-auto text-xs text-slate-400">L{option.hierarchyLevel}</span>
-                      </div>
-                    );
-                  }}
-                />
-              </div>
+                        return (
+                          <div className="flex items-center gap-2">
+                            {option.hierarchyLevel > 1 ? (
+                              <span className="text-xs text-slate-300">└</span>
+                            ) : null}
+                            <span className="font-medium text-slate-700">{option.label}</span>
+                            <span className="ml-auto text-xs text-slate-400">L{option.hierarchyLevel}</span>
+                          </div>
+                        );
+                      }}
+                    />
+                  </div>
 
-              <div className="min-w-[210px] flex-1 md:flex-none">
-                <Select<LevelFilterOption, false>
-                  options={levelOptions}
-                  value={selectedLevelOption}
-                  onChange={(option: SingleValue<LevelFilterOption>) =>
-                    setSelectedHierarchyLevel(option?.value || "")
-                  }
-                  placeholder="Все уровни"
-                  isSearchable={false}
-                  isClearable
-                  styles={getFilterSelectStyles<LevelFilterOption>()}
-                  menuPortalTarget={selectPortalTarget}
-                  menuPosition="fixed"
-                  noOptionsMessage={() => "Уровни не найдены"}
-                />
-              </div>
+                  <div className="min-w-[210px] flex-1 md:flex-none">
+                    <Select<LevelFilterOption, false>
+                      options={levelOptions}
+                      value={selectedLevelOption}
+                      onChange={(option: SingleValue<LevelFilterOption>) =>
+                        setSelectedHierarchyLevel(option?.value || "")
+                      }
+                      placeholder="Все уровни"
+                      isSearchable={false}
+                      isClearable
+                      styles={getFilterSelectStyles<LevelFilterOption>()}
+                      menuPortalTarget={selectPortalTarget}
+                      menuPosition="fixed"
+                      noOptionsMessage={() => "Уровни не найдены"}
+                    />
+                  </div>
+                </>
+              ) : null}
 
               <button
                 type="button"
@@ -1386,19 +1874,29 @@ function OrganizationStructureModule({
           <div className="grid gap-4 border-b border-gray-100 px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
             <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
               <p className="text-sm text-gray-500">Всего сотрудников</p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">{totalEmployees}</p>
+              <p className="mt-2 text-4xl font-semibold text-gray-900">
+                {isPositionsMode ? allEmployees.length : totalEmployees}
+              </p>
             </article>
             <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
-              <p className="text-sm text-gray-500">Отделов</p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">{departmentsCount}</p>
+              <p className="text-sm text-gray-500">{isPositionsMode ? "Должностей" : "Отделов"}</p>
+              <p className="mt-2 text-4xl font-semibold text-gray-900">
+                {isPositionsMode ? positionsCount : departmentsCount}
+              </p>
             </article>
             <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
-              <p className="text-sm text-gray-500">Менеджеров</p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">{managersCount}</p>
+              <p className="text-sm text-gray-500">
+                {isPositionsMode ? "Позиций без сотрудников" : "Менеджеров"}
+              </p>
+              <p className="mt-2 text-4xl font-semibold text-gray-900">
+                {isPositionsMode ? positionsWithoutEmployees : managersCount}
+              </p>
             </article>
             <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
               <p className="text-sm text-gray-500">Уровней иерархии</p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">{hierarchyLevels}</p>
+              <p className="mt-2 text-4xl font-semibold text-gray-900">
+                {isPositionsMode ? positionsLevels : hierarchyLevels}
+              </p>
             </article>
           </div>
 

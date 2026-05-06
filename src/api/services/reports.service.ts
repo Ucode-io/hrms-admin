@@ -861,7 +861,7 @@ export type ImportSalaryExcelInvokeResponse = {
   };
 };
 
-export type KpiPeriodType = "monthly" | "weekly";
+export type KpiPeriodType = "monthly" | "weekly" | "quarterly" | "yearly";
 
 export type KpiFilterOption = {
   value: string;
