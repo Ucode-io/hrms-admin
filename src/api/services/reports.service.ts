@@ -26,6 +26,7 @@ const GET_PAYROLL_METHOD = "get_payroll";
 const GET_PAYROLL_TABLE_METHOD = "get_payroll_table";
 const GET_BONUS_DEDUCTIONS_METHOD = "get_bonus_deductions";
 const GET_BONUS_DEDUCTIONS_TABLE_METHOD = "get_bonus_deductions_table";
+const GET_BONUS_DEDUCTIONS_EXCEL_METHOD = "get_bonus_deductions_excel";
 const GET_ORG_STRUCTURE_METHOD = "get_org_structure";
 const GET_SALARY_EXCEL_TEMPLATE_METHOD = "get_salary_excel_template";
 const IMPORT_SALARY_EXCEL_METHOD = "import_salary_excel";
@@ -758,6 +759,22 @@ export type BonusDeductionsTableInvokeResponse = {
   result: BonusDeductionsTableResult;
 };
 
+export type BonusDeductionsExcelInvokeResponse = {
+  method: typeof GET_BONUS_DEDUCTIONS_EXCEL_METHOD;
+  result: {
+    period_key?: string;
+    period_label?: string | null;
+    file_name: string;
+    mime_type: string;
+    file_base64: string;
+    metadata?: {
+      employees_count?: number;
+      accrual_types?: Array<{ key: string; label: string }>;
+      deduction_types?: Array<{ key: string; label: string }>;
+    };
+  };
+};
+
 export type OrgStructureManagerInfo = {
   guid: string | null;
   full_name: string;
@@ -1152,6 +1169,13 @@ const isBonusDeductionsTableInvokeResponse = (
 ): value is BonusDeductionsTableInvokeResponse => {
   if (!isRecord(value)) return false;
   return value.method === GET_BONUS_DEDUCTIONS_TABLE_METHOD && isRecord(value.result);
+};
+
+const isBonusDeductionsExcelInvokeResponse = (
+  value: unknown
+): value is BonusDeductionsExcelInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_BONUS_DEDUCTIONS_EXCEL_METHOD && isRecord(value.result);
 };
 
 const isOrgStructureInvokeResponse = (
@@ -1951,6 +1975,43 @@ const normalizeBonusDeductionsTableResponse = (
   throw new Error("Unexpected response format for get_bonus_deductions_table");
 };
 
+const normalizeBonusDeductionsExcelResponse = (
+  raw: unknown
+): BonusDeductionsExcelInvokeResponse => {
+  if (isBonusDeductionsExcelInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isBonusDeductionsExcelInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isBonusDeductionsExcelInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_bonus_deductions_excel");
+};
+
 const normalizeOrgStructureResponse = (
   raw: unknown
 ): OrgStructureInvokeResponse => {
@@ -2654,6 +2715,18 @@ const reportsService = {
     });
 
     return normalizeBonusDeductionsTableResponse(response.data);
+  },
+  getBonusDeductionsExcel: async (
+    requestData: JsonRecord = {}
+  ): Promise<BonusDeductionsExcelInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_BONUS_DEDUCTIONS_EXCEL_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeBonusDeductionsExcelResponse(response.data);
   },
   getOrgStructure: async (
     requestData: JsonRecord = {}

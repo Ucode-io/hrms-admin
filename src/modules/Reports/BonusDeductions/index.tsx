@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
-import { ArrowLeft, MoreHorizontal, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Download, MoreHorizontal, Search, SlidersHorizontal } from "lucide-react";
 import Select from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
-import {
+import reportsService, {
   useBonusDeductionsReportQuery,
   useBonusDeductionsTableQuery,
 } from "../../../api/services/reports.service";
@@ -191,10 +191,23 @@ const getEmployeeFullName = (firstName, secondName) => {
   return fullName || "—";
 };
 
+const base64ToBlob = (base64, mimeType) => {
+  const binaryString = window.atob(base64);
+  const length = binaryString.length;
+  const bytes = new Uint8Array(length);
+
+  for (let index = 0; index < length; index += 1) {
+    bytes[index] = binaryString.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType || "application/octet-stream" });
+};
+
 function BonusDeductionsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -295,6 +308,37 @@ function BonusDeductionsPage() {
     setSearch("");
     setSearchInput("");
     setIsAdvancedFiltersOpen(false);
+  };
+
+  const handleExportExcel = async () => {
+    if (isExporting) return;
+
+    try {
+      setIsExporting(true);
+
+      const response = await reportsService.getBonusDeductionsExcel(tableRequestData);
+      const payload = response.result;
+
+      if (!payload.file_base64) {
+        throw new Error("Файл не получен.");
+      }
+
+      const blob = base64ToBlob(payload.file_base64, payload.mime_type);
+      const fileName = payload.file_name || "bonus-deductions.xlsx";
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Bonus deductions excel export error:", error);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const accrualColumnCount = Math.max(1, accrualTypes.length);
@@ -487,6 +531,18 @@ function BonusDeductionsPage() {
                     Сбросить фильтры
                   </button>
                 ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleExportExcel();
+                  }}
+                  disabled={isExporting || isTableLoading || isTableFetching}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download size={15} />
+                  {isExporting ? "Экспорт..." : "Экспорт в excel"}
+                </button>
               </div>
             </div>
 
