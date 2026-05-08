@@ -86,7 +86,7 @@ function EmployeeForm() {
   /* ── API queries ── */
   const { data: employee, isLoading } = useEmployeeQuery(id || "");
   const { data: departmentsData } = useDepartmentsSettingsQuery({ params: { limit: 200 } });
-  const { data: positionsData } = usePositionsQuery({ params: { limit: 200 } });
+  const { data: positionsData } = usePositionsQuery({ params: { all: true } });
   const { data: employmentTypesData } = useEmploymentTypesQuery({ params: { limit: 200 } });
   const { data: divisionsData } = useDivisionsQuery({ params: { limit: 200 } });
   const { data: experienceLevelsData } = useExperienceLevelsQuery({ params: { limit: 200 } });

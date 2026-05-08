@@ -122,7 +122,7 @@ export default function PositionsSettingsPage() {
   }, [searchValue]);
 
   const { data, isLoading } = usePositionsQuery({
-    params: { limit: 1000 },
+    params: { all: true },
   });
   const createMutation = useCreatePosition();
   const updateMutation = useUpdatePosition();

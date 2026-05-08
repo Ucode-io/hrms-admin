@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import httpRequest from "../httpRequest";
+import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 
 export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 
@@ -25,15 +26,80 @@ export interface PositionListParams {
   limit?: number;
   offset?: number;
   search?: string;
+  all?: boolean;
 }
 
 const positionService = {
   getList: async (params?: PositionListParams): Promise<PositionListResponse> => {
-    const res = await httpRequest.get("/v2/items/positions", { params });
+    const { all = false, ...requestParams } = params || {};
+    const buildRequestParams = (payload: Record<string, unknown>) => {
+      const cleanPayload = Object.fromEntries(
+        Object.entries(payload).filter(([, value]) => value !== undefined)
+      );
+
+      if (Object.keys(cleanPayload).length === 0) {
+        return undefined;
+      }
+
+      return {
+        data: encodeJsonToUrlParam(cleanPayload),
+      };
+    };
+
+    if (!all) {
+      const res = await httpRequest.get("/v2/items/positions", {
+        params: buildRequestParams(requestParams),
+      });
+
+      return {
+        count: Number(res?.count || 0),
+        response: Array.isArray(res?.response) ? (res.response as Position[]) : [],
+      };
+    }
+
+    const limit =
+      typeof requestParams.limit === "number" && requestParams.limit > 0
+        ? requestParams.limit
+        : 200;
+    const initialOffset =
+      typeof requestParams.offset === "number" && requestParams.offset >= 0
+        ? requestParams.offset
+        : 0;
+    const maxRequests = 200;
+    let offset = initialOffset;
+    let totalCount: number | null = null;
+    const response: Position[] = [];
+
+    for (let requestIndex = 0; requestIndex < maxRequests; requestIndex += 1) {
+      const res = await httpRequest.get("/v2/items/positions", {
+        params: buildRequestParams({
+          ...requestParams,
+          limit,
+          offset,
+        }),
+      });
+
+      const chunk = Array.isArray(res?.response) ? (res.response as Position[]) : [];
+      const chunkCount = Number(res?.count);
+      if (Number.isFinite(chunkCount) && chunkCount >= 0) {
+        totalCount = chunkCount;
+      }
+
+      if (chunk.length === 0) {
+        break;
+      }
+
+      response.push(...chunk);
+      offset += chunk.length;
+
+      if (totalCount !== null && offset - initialOffset >= totalCount) {
+        break;
+      }
+    }
 
     return {
-      count: Number(res?.count || 0),
-      response: Array.isArray(res?.response) ? (res.response as Position[]) : [],
+      count: totalCount ?? response.length,
+      response,
     };
   },
 

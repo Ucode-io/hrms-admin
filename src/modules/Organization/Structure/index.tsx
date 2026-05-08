@@ -51,6 +51,9 @@ const ROOT_KEY = "__root__";
 const UNASSIGNED_POSITION_KEY = "__unassigned_position__";
 const VERTICAL_MODE_X_GAP = 180;
 const VERTICAL_MODE_Y_GAP = 28;
+const POSITION_MODE_HORIZONTAL_GAP = 64;
+const POSITION_MODE_VERTICAL_GAP = 120;
+const POSITION_MODE_STACK_GAP = 36;
 
 type StructureViewMode = "departments" | "positions";
 type OrgStructureDisplayNode = OrgStructureNode & {
@@ -453,9 +456,16 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
       title={`Открыть сотрудников: ${data.managerName}`}
     >
       <Handle
+        id="target-top"
         type="target"
         position={Position.Top}
         style={{ opacity: data.hasParent ? 1 : 0 }}
+        className="!h-0 !w-0 !border-0 !bg-transparent"
+      />
+      <Handle
+        id="target-left"
+        type="target"
+        position={Position.Left}
         className="!h-0 !w-0 !border-0 !bg-transparent"
       />
 
@@ -498,9 +508,22 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
       ) : null}
 
       <Handle
+        id="source-bottom"
         type="source"
         position={Position.Bottom}
         style={{ opacity: data.hasChildren ? 1 : 0 }}
+        className="!h-0 !w-0 !border-0 !bg-transparent"
+      />
+      <Handle
+        id="source-left"
+        type="source"
+        position={Position.Left}
+        className="!h-0 !w-0 !border-0 !bg-transparent"
+      />
+      <Handle
+        id="source-right"
+        type="source"
+        position={Position.Right}
         className="!h-0 !w-0 !border-0 !bg-transparent"
       />
     </div>
@@ -693,37 +716,175 @@ const buildHierarchyLayout = (
       rootTopY += getSubtreeHeight(rootId) + ROOT_GAP;
     }
   } else if (layoutMode === "topDownVerticalChildren") {
-    const getSubtreeHeightTopDownVertical = (nodeId: string): number => {
+    const childGroupsMemo = new Map<string, string[][]>();
+    const subtreeWidthMemoVertical = new Map<string, number>();
+    const subtreeHeightMemoVertical = new Map<string, number>();
+
+    const getPositionGroupTitle = (nodeId: string): string => {
+      const node = visibleNodeById.get(nodeId);
+      const title = typeof node?.manager?.position_title === "string"
+        ? node.manager.position_title.trim()
+        : "";
+      if (title) {
+        return title;
+      }
+      return typeof node?.title === "string" ? node.title : "";
+    };
+
+    const getChildGroupsByPosition = (nodeId: string): string[][] => {
+      if (childGroupsMemo.has(nodeId)) {
+        return childGroupsMemo.get(nodeId) as string[][];
+      }
+
       const childIds = visibleChildrenByParent.get(nodeId) || [];
       if (childIds.length === 0) {
+        childGroupsMemo.set(nodeId, []);
+        return [];
+      }
+
+      const groupsMap = new Map<string, string[]>();
+      for (const childId of childIds) {
+        const childNode = visibleNodeById.get(childId);
+        const groupKey =
+          childNode && typeof childNode.department_guid === "string" && childNode.department_guid.trim()
+            ? childNode.department_guid.trim()
+            : UNASSIGNED_POSITION_KEY;
+
+        if (!groupsMap.has(groupKey)) {
+          groupsMap.set(groupKey, []);
+        }
+        groupsMap.get(groupKey)?.push(childId);
+      }
+
+      const groups = Array.from(groupsMap.entries()).map(([groupKey, ids]) => {
+        ids.sort((leftId, rightId) => {
+          const leftTitle = visibleNodeById.get(leftId)?.title || "";
+          const rightTitle = visibleNodeById.get(rightId)?.title || "";
+          return leftTitle.localeCompare(rightTitle, "ru");
+        });
+
+        return {
+          groupKey,
+          ids,
+          groupTitle: getPositionGroupTitle(ids[0]),
+        };
+      });
+
+      groups.sort((left, right) => {
+        const byPosition = left.groupTitle.localeCompare(right.groupTitle, "ru");
+        if (byPosition !== 0) {
+          return byPosition;
+        }
+        return left.groupKey.localeCompare(right.groupKey, "ru");
+      });
+
+      const groupedIds = groups.map((group) => group.ids);
+      childGroupsMemo.set(nodeId, groupedIds);
+      return groupedIds;
+    };
+
+    const getSubtreeWidthTopDownVertical = (nodeId: string): number => {
+      if (subtreeWidthMemoVertical.has(nodeId)) {
+        return subtreeWidthMemoVertical.get(nodeId) as number;
+      }
+
+      const childGroups = getChildGroupsByPosition(nodeId);
+      if (childGroups.length === 0) {
+        subtreeWidthMemoVertical.set(nodeId, NODE_WIDTH);
+        return NODE_WIDTH;
+      }
+
+      const groupWidths = childGroups.map((group) =>
+        group.reduce(
+          (maxWidth, childId) => Math.max(maxWidth, getSubtreeWidthTopDownVertical(childId)),
+          NODE_WIDTH
+        )
+      );
+
+      const totalChildrenWidth =
+        groupWidths.reduce((sum, width) => sum + width, 0) +
+        (groupWidths.length - 1) * POSITION_MODE_HORIZONTAL_GAP;
+      const width = Math.max(NODE_WIDTH, totalChildrenWidth);
+      subtreeWidthMemoVertical.set(nodeId, width);
+      return width;
+    };
+
+    const getSubtreeHeightTopDownVertical = (nodeId: string): number => {
+      if (subtreeHeightMemoVertical.has(nodeId)) {
+        return subtreeHeightMemoVertical.get(nodeId) as number;
+      }
+
+      const childGroups = getChildGroupsByPosition(nodeId);
+      if (childGroups.length === 0) {
+        subtreeHeightMemoVertical.set(nodeId, NODE_HEIGHT);
         return NODE_HEIGHT;
       }
-      const childrenHeight =
-        childIds.reduce((sum, childId) => sum + getSubtreeHeightTopDownVertical(childId), 0) +
-        (childIds.length - 1) * VERTICAL_MODE_Y_GAP;
-      return NODE_HEIGHT + VERTICAL_GAP + childrenHeight;
+
+      const groupHeights = childGroups.map((group) => {
+        const childrenHeight =
+          group.reduce((sum, childId) => sum + getSubtreeHeightTopDownVertical(childId), 0) +
+          (group.length - 1) * POSITION_MODE_STACK_GAP;
+        return childrenHeight;
+      });
+
+      const childrenHeight = Math.max(...groupHeights, 0);
+      const height = NODE_HEIGHT + POSITION_MODE_VERTICAL_GAP + childrenHeight;
+      subtreeHeightMemoVertical.set(nodeId, height);
+      return height;
     };
 
     const placeTopDownVertical = (nodeId: string, leftX: number, topY: number, depth: number) => {
-      positionByNodeId.set(nodeId, { x: leftX, y: topY });
+      const nodeWidth = getSubtreeWidthTopDownVertical(nodeId);
+      const nodeX = leftX + (nodeWidth - NODE_WIDTH) / 2;
+      positionByNodeId.set(nodeId, { x: nodeX, y: topY });
       depthByNodeId.set(nodeId, depth);
 
-      const childIds = visibleChildrenByParent.get(nodeId) || [];
-      if (childIds.length === 0) {
+      const childGroups = getChildGroupsByPosition(nodeId);
+      if (childGroups.length === 0) {
         return;
       }
 
-      let childTopY = topY + NODE_HEIGHT + VERTICAL_GAP;
-      for (const childId of childIds) {
-        placeTopDownVertical(childId, leftX, childTopY, depth + 1);
-        childTopY += getSubtreeHeightTopDownVertical(childId) + VERTICAL_MODE_Y_GAP;
+      const groupWidths = childGroups.map((group) =>
+        group.reduce(
+          (maxWidth, childId) => Math.max(maxWidth, getSubtreeWidthTopDownVertical(childId)),
+          NODE_WIDTH
+        )
+      );
+      const totalChildrenWidth =
+        groupWidths.reduce((sum, width) => sum + width, 0) +
+        (groupWidths.length - 1) * POSITION_MODE_HORIZONTAL_GAP;
+
+      let groupLeftX = leftX + (nodeWidth - totalChildrenWidth) / 2;
+      const childStartY = topY + NODE_HEIGHT + POSITION_MODE_VERTICAL_GAP;
+
+      for (let groupIndex = 0; groupIndex < childGroups.length; groupIndex += 1) {
+        const group = childGroups[groupIndex];
+        const groupWidth = groupWidths[groupIndex];
+        let childTopY = childStartY;
+
+        for (const childId of group) {
+          const childWidth = getSubtreeWidthTopDownVertical(childId);
+          const childLeftX = groupLeftX + (groupWidth - childWidth) / 2;
+          placeTopDownVertical(childId, childLeftX, childTopY, depth + 1);
+          childTopY += getSubtreeHeightTopDownVertical(childId) + POSITION_MODE_STACK_GAP;
+        }
+
+        groupLeftX += groupWidth + POSITION_MODE_HORIZONTAL_GAP;
       }
     };
 
+    const totalRootsWidth =
+      roots.reduce((sum, rootId) => sum + getSubtreeWidthTopDownVertical(rootId), 0) +
+      Math.max(0, roots.length - 1) * ROOT_GAP;
     let rootLeftX = CHART_PADDING;
+
+    if (roots.length > 0 && totalRootsWidth < 1200) {
+      rootLeftX += (1200 - totalRootsWidth) / 2;
+    }
+
     for (const rootId of roots) {
       placeTopDownVertical(rootId, rootLeftX, CHART_PADDING, 1);
-      rootLeftX += NODE_WIDTH + ROOT_GAP;
+      rootLeftX += getSubtreeWidthTopDownVertical(rootId) + ROOT_GAP;
     }
   } else {
     const totalRootsWidth =
@@ -771,23 +932,98 @@ const buildHierarchyLayout = (
     };
   });
 
+  const childGroupMetaByNodeId = new Map<
+    string,
+    {
+      isVerticalStack: boolean;
+      isFirstInGroup: boolean;
+      previousInGroupId: string | null;
+    }
+  >();
+  for (const [parentId, childIds] of visibleChildrenByParent.entries()) {
+    const groupsMap = new Map<string, string[]>();
+    for (const childId of childIds) {
+      const childNode = visibleNodeById.get(childId);
+      const groupKey =
+        childNode && typeof childNode.department_guid === "string" && childNode.department_guid.trim()
+          ? childNode.department_guid.trim()
+          : UNASSIGNED_POSITION_KEY;
+
+      if (!groupsMap.has(groupKey)) {
+        groupsMap.set(groupKey, []);
+      }
+      groupsMap.get(groupKey)?.push(childId);
+    }
+
+    for (const ids of groupsMap.values()) {
+      ids.sort((leftId, rightId) => {
+        const leftTitle = visibleNodeById.get(leftId)?.title || "";
+        const rightTitle = visibleNodeById.get(rightId)?.title || "";
+        return leftTitle.localeCompare(rightTitle, "ru");
+      });
+
+      const isVerticalStack = ids.length > 1;
+      for (let index = 0; index < ids.length; index += 1) {
+        childGroupMetaByNodeId.set(ids[index], {
+          isVerticalStack,
+          isFirstInGroup: index === 0,
+          previousInGroupId: index > 0 ? ids[index - 1] : null,
+        });
+      }
+    }
+  }
+
   const graphEdges: Edge[] = visibleNodes
     .filter((node) => node.parent_id && visibleNodeById.has(node.parent_id))
-    .map((node) => ({
-      id: `edge:${node.parent_id}:${node.id}`,
-      source: String(node.parent_id),
-      target: node.id,
-      type: "smoothstep",
-      pathOptions: {
-        borderRadius: 0,
-        offset: 18,
-      },
-      animated: false,
-      style: {
-        stroke: "#CBD5E1",
-        strokeWidth: 1.8,
-      },
-    }));
+    .map((node) => {
+      const groupMeta = childGroupMetaByNodeId.get(node.id);
+      const stackedLinkSourceId =
+        groupMeta?.isVerticalStack && !groupMeta.isFirstInGroup && groupMeta.previousInGroupId
+          ? groupMeta.previousInGroupId
+          : null;
+      const sourceId = stackedLinkSourceId || String(node.parent_id);
+      const targetId = node.id;
+      const sourcePosition = positionByNodeId.get(sourceId) || { x: 0, y: 0 };
+      const targetPosition = positionByNodeId.get(targetId) || { x: 0, y: 0 };
+      const isVerticalStack = Boolean(groupMeta?.isVerticalStack);
+      const isInnerStackEdge = Boolean(stackedLinkSourceId);
+      const shouldUseSideRouting = isVerticalStack || isInnerStackEdge;
+
+      let sourceHandle = "source-bottom";
+      let targetHandle = "target-top";
+      if (shouldUseSideRouting) {
+        sourceHandle = isInnerStackEdge
+          ? "source-left"
+          : targetPosition.x >= sourcePosition.x
+            ? "source-right"
+            : "source-left";
+        targetHandle = "target-left";
+      }
+
+      return {
+        id: `edge:${sourceId}:${targetId}`,
+        source: sourceId,
+        target: targetId,
+        sourceHandle,
+        targetHandle,
+        type: shouldUseSideRouting ? "step" : "smoothstep",
+        pathOptions: shouldUseSideRouting
+          ? {
+              borderRadius: 8,
+              offset: isInnerStackEdge ? 16 : 22,
+            }
+          : {
+              borderRadius: 0,
+              offset: 18,
+            },
+        animated: false,
+        zIndex: 0,
+        style: {
+          stroke: "#CBD5E1",
+          strokeWidth: shouldUseSideRouting ? 1.6 : 1.8,
+        },
+      };
+    });
 
   const maxDepth =
     Math.max(...Array.from(depthByNodeId.values()), 1);
@@ -876,7 +1112,7 @@ function OrganizationStructureModule({
     refetch,
   } = useOrgStructureReportQuery(requestData);
   const { data: positionsData, isLoading: isPositionsLoading } = usePositionsQuery({
-    params: { limit: 5000, offset: 0 },
+    params: { all: true },
     querySettings: { enabled: structureViewMode === "positions" },
   });
   const shouldLoadEmployees = structureViewMode === "positions" || Boolean(selectedNodeId);
