@@ -878,24 +878,33 @@ export type ImportSalaryExcelInvokeResponse = {
   };
 };
 
-export type KpiPeriodType = "monthly" | "weekly" | "quarterly" | "yearly";
+export type KpiPeriodType = "daily" | "monthly" | "weekly" | "quarterly" | "yearly";
 
 export type KpiFilterOption = {
   value: string;
   label: string;
 };
 
+export type KpiParentOption = {
+  value: string;
+  label: string;
+  period_type?: KpiPeriodType | string;
+  start_date?: string;
+  end_date?: string;
+};
+
 export type KpiFiltersResult = {
   filters?: {
     period_types?: KpiFilterOption[];
-    bucket_types?: KpiFilterOption[];
     value_symbol_positions?: KpiFilterOption[];
     departments?: KpiFilterOption[];
     sources?: KpiFilterOption[];
+    parents?: KpiParentOption[];
     defaults?: {
       period_type?: KpiPeriodType;
       date_from?: string;
       date_to?: string;
+      value_symbol_position?: "prefix" | "suffix";
     };
   };
   filters_applied?: JsonRecord;
@@ -906,20 +915,9 @@ export type KpiGetInvokeResponse = {
   result: KpiFiltersResult;
 };
 
-export type KpiTableBucket = {
-  guid: string;
-  bucket_type: KpiPeriodType | string;
-  bucket_index: number;
-  bucket_start: string;
-  bucket_end: string;
-  bucket_label: string;
-  plan_value: number;
-  actual_value: number;
-  percent: number;
-};
-
 export type KpiTableItem = {
   guid: string;
+  parent_id: string | null;
   departments_id: string | null;
   department: string;
   title: string;
@@ -932,10 +930,13 @@ export type KpiTableItem = {
   end_date: string;
   start_date_label?: string;
   end_date_label?: string;
+  own_plan_total: number;
+  own_actual_total: number;
   plan_total: number;
   actual_total: number;
   percent_total: number;
-  values: KpiTableBucket[];
+  has_children: boolean;
+  children: KpiTableItem[];
 };
 
 export type KpiTableGroup = {
@@ -965,13 +966,15 @@ export type SaveKpiInvokeResponse = {
   method: typeof SAVE_KPI_METHOD;
   result: {
     guid: string;
+    parent_id: string | null;
     period_type: KpiPeriodType | string;
     value_symbol?: string;
     value_symbol_position?: "prefix" | "suffix" | string;
     plan_total: number;
     actual_total: number;
     percent_total: number;
-    bucket_count: number;
+    has_children: boolean;
+    child_ids: string[];
   };
 };
 
@@ -979,24 +982,25 @@ export type DeleteKpiInvokeResponse = {
   method: typeof DELETE_KPI_METHOD;
   result: {
     guid: string;
-    deleted_values_count: number;
+    deleted_count: number;
+    deleted_ids: string[];
   };
 };
 
 export type UpdateKpiValueInvokeResponse = {
   method: typeof UPDATE_KPI_VALUE_METHOD;
   result: {
-    kpi_value_guid: string;
-    kpi_items_id: string;
-    bucket_index: number;
-    plan_value: number;
-    actual_value: number;
-    percent: number;
-    totals?: {
+    guid: string;
+    parent_id: string | null;
+    plan_total: number;
+    actual_total: number;
+    percent_total: number;
+    root?: {
+      guid: string;
       plan_total: number;
       actual_total: number;
       percent_total: number;
-    };
+    } | null;
   };
 };
 
