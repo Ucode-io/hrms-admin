@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import type { StylesConfig } from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
 import { Modal } from "../../../components/ui/modal";
@@ -24,6 +24,7 @@ type AttendanceItem = {
   check_out_time?: string | null;
   delay_time?: string | null;
   status?: string[] | string | null;
+  action_status?: string[] | string | null;
   created_at?: string | null;
   user_base_id?: string | null;
   user_base_id_data?: {
@@ -36,7 +37,8 @@ type AttendanceItem = {
   [key: string]: unknown;
 };
 
-type AttendanceStatus = "present" | "late" | "absent" | "unknown";
+type AttendanceWorkflowStatus = "accepted" | "rejected" | "requested" | "unknown";
+type AttendanceActionStatus = "present" | "late" | "absent" | "unknown";
 
 type AttendanceRecord = {
   guid: string;
@@ -44,7 +46,8 @@ type AttendanceRecord = {
   checkInTime: string;
   checkOutTime: string;
   delayTime: string;
-  status: AttendanceStatus;
+  requestStatus: AttendanceWorkflowStatus;
+  actionStatus: AttendanceActionStatus;
   createdAt: string;
   employeeGuid: string;
   employeeName: string;
@@ -55,7 +58,6 @@ type AttendanceDraft = {
   date: Date | null;
   checkInTime: string;
   checkOutTime: string;
-  delayTime: string;
 };
 
 type SelectOption = {
@@ -69,6 +71,7 @@ const PAGE_SIZE = 20;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const WORK_DAY_START_MINUTES = 9 * 60;
 
 const getEmployeeSelectStyles = (): StylesConfig<SelectOption, false> => ({
   control: (base, state) => ({
@@ -118,6 +121,28 @@ const normalizeDelayTimeForPayload = (value: string | null | undefined): string 
     return value.trim();
   }
   return "00:00";
+};
+
+const parseTimeToMinutes = (value: string): number | null => {
+  const normalized = normalizeTime(value);
+  if (!normalized) return null;
+  const [hours, minutes] = normalized.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const toDelayString = (minutes: number): string => {
+  const safe = Math.max(0, Math.floor(minutes));
+  const hh = String(Math.floor(safe / 60)).padStart(2, "0");
+  const mm = String(safe % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+};
+
+const computeDelayTimeFromCheckIn = (checkInTime: string): string => {
+  const checkInMinutes = parseTimeToMinutes(checkInTime);
+  if (checkInMinutes == null) return "00:00";
+  const diff = Math.max(0, checkInMinutes - WORK_DAY_START_MINUTES);
+  return toDelayString(diff);
 };
 
 const toTimestamp = (value: string | null | undefined): number => {
@@ -255,7 +280,18 @@ const formatTimeLabel = (value: string): string => {
 
 const hasDelayValue = (value: string): boolean => DELAY_TIME_PATTERN.test(value) && value !== "00:00";
 
-const normalizeAttendanceStatus = (value: unknown): AttendanceStatus => {
+const normalizeAttendanceWorkflowStatus = (value: unknown): AttendanceWorkflowStatus => {
+  const normalized = Array.isArray(value)
+    ? String(value[0] || "").trim().toLowerCase()
+    : String(value || "").trim().toLowerCase();
+
+  if (normalized === "accepted") return "accepted";
+  if (normalized === "rejected") return "rejected";
+  if (normalized === "requested") return "requested";
+  return "unknown";
+};
+
+const normalizeAttendanceActionStatus = (value: unknown): AttendanceActionStatus => {
   const normalized = Array.isArray(value)
     ? String(value[0] || "").trim().toLowerCase()
     : String(value || "").trim().toLowerCase();
@@ -266,18 +302,16 @@ const normalizeAttendanceStatus = (value: unknown): AttendanceStatus => {
   return "unknown";
 };
 
-const resolveStatusFromTime = (
-  checkInTime: string,
-  delayTime: string
-): Exclude<AttendanceStatus, "unknown"> => {
-  if (!checkInTime) return "absent";
-  return hasDelayValue(delayTime) ? "late" : "present";
+const resolveActionStatusFromTime = (
+  checkInTime: string
+): Exclude<AttendanceActionStatus, "unknown"> => {
+  const normalizedCheckIn = normalizeTime(checkInTime);
+  if (!normalizedCheckIn) return "absent";
+  return hasDelayValue(computeDelayTimeFromCheckIn(normalizedCheckIn)) ? "late" : "present";
 };
 
-const getAttendanceTag = (
-  checkInTime: string,
-  delayTime: string,
-  status: AttendanceStatus
+const getActionStatusTag = (
+  status: AttendanceActionStatus
 ): { label: string; className: string } => {
   if (status === "absent") {
     return {
@@ -300,28 +334,43 @@ const getAttendanceTag = (
     };
   }
 
-  const hasCheckIn = Boolean(normalizeTime(checkInTime));
-  if (!hasCheckIn) {
+  return {
+    label: "—",
+    className: "border-slate-200 bg-slate-100 text-slate-500",
+  };
+};
+
+const getWorkflowStatusTag = (
+  status: AttendanceWorkflowStatus
+): { label: string; className: string } => {
+  if (status === "accepted") {
     return {
-      label: "—",
-      className: "border-slate-200 bg-slate-100 text-slate-500",
+      label: "Подтверждено",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
     };
   }
 
-  if (hasDelayValue(delayTime)) {
+  if (status === "requested") {
     return {
-      label: "Опоздал",
+      label: "Запрошено",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (status === "rejected") {
+    return {
+      label: "Отклонено",
       className: "border-rose-200 bg-rose-50 text-rose-700",
     };
   }
 
   return {
-    label: "Без опоздания",
-    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    label: "—",
+    className: "border-slate-200 bg-slate-100 text-slate-500",
   };
 };
 
-const getDelayLabel = (delayTime: string, status: AttendanceStatus): string => {
+const getDelayLabel = (delayTime: string, status: AttendanceActionStatus): string => {
   if (status === "late" || hasDelayValue(delayTime)) {
     return hasDelayValue(delayTime) ? delayTime : "00:00";
   }
@@ -360,7 +409,6 @@ const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
     date: baseDate,
     checkInTime: timeNow,
     checkOutTime: "",
-    delayTime: "00:00",
   };
 };
 
@@ -410,7 +458,8 @@ export default function TimeAttendancePage() {
         checkInTime,
         checkOutTime,
         delayTime,
-        status: normalizeAttendanceStatus(item.status),
+        requestStatus: normalizeAttendanceWorkflowStatus(item.status),
+        actionStatus: normalizeAttendanceActionStatus(item.action_status),
         createdAt: typeof item.created_at === "string" ? item.created_at : "",
         employeeGuid: employeeInfo.employeeGuid,
         employeeName: employeeInfo.employeeName,
@@ -492,7 +541,6 @@ export default function TimeAttendancePage() {
       date: toDateValue(record.date || record.createdAt),
       checkInTime: normalizeTime(record.checkInTime),
       checkOutTime: normalizeTime(record.checkOutTime),
-      delayTime: normalizeDelayTime(record.delayTime) || "00:00",
     });
     setEmployeeFallbackLabel(record.employeeName || "");
     setFormError("");
@@ -513,6 +561,8 @@ export default function TimeAttendancePage() {
 
     const checkInTime = normalizeTime(draft.checkInTime);
     const checkOutTime = normalizeTime(draft.checkOutTime);
+    const delayTime = computeDelayTimeFromCheckIn(checkInTime);
+    const actionStatus = resolveActionStatusFromTime(checkInTime);
 
     if (!checkInTime && !checkOutTime) {
       setFormError("Укажите хотя бы одно время: приход или уход.");
@@ -525,8 +575,9 @@ export default function TimeAttendancePage() {
       date: toIsoDate(draft.date),
       ...(checkInTime ? { check_in_time: checkInTime } : {}),
       ...(checkOutTime ? { check_out_time: checkOutTime } : {}),
-      ...(checkInTime ? { delay_time: normalizeDelayTimeForPayload(draft.delayTime) } : {}),
-      status: [resolveStatusFromTime(checkInTime, draft.delayTime)],
+      delay_time: normalizeDelayTimeForPayload(delayTime),
+      status: ["accepted"],
+      action_status: [actionStatus],
     };
 
     try {
@@ -557,6 +608,28 @@ export default function TimeAttendancePage() {
     } catch (deleteError) {
       console.error("Attendance delete error:", deleteError);
       setActionError("Не удалось удалить запись. Попробуйте ещё раз.");
+    }
+  };
+
+  const handleConfirmRequested = async (record: AttendanceRecord) => {
+    try {
+      setActionError("");
+      await updateMutation.mutateAsync({
+        guid: record.guid,
+        data: {
+          user_base_id: record.employeeGuid,
+          companies_id: companyStore.company?.guid || COMPANY_ID,
+          date: record.date,
+          ...(record.checkInTime ? { check_in_time: record.checkInTime } : {}),
+          ...(record.checkOutTime ? { check_out_time: record.checkOutTime } : {}),
+          delay_time: normalizeDelayTimeForPayload(record.delayTime),
+          status: ["accepted"],
+          action_status: [record.actionStatus === "unknown" ? resolveActionStatusFromTime(record.checkInTime) : record.actionStatus],
+        },
+      });
+    } catch (confirmError) {
+      console.error("Attendance confirm error:", confirmError);
+      setActionError("Не удалось подтвердить запись. Попробуйте ещё раз.");
     }
   };
 
@@ -662,17 +735,15 @@ export default function TimeAttendancePage() {
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Приход</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Уход</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Опоздание</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Статус</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">Статус действия</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">Статус заявки</th>
                           <th className="py-2 text-right text-[12px] font-semibold text-slate-500">Действия</th>
                         </tr>
                       </thead>
                       <tbody>
                         {pageItems.map((record) => {
-                          const attendanceTag = getAttendanceTag(
-                            record.checkInTime,
-                            record.delayTime,
-                            record.status
-                          );
+                          const actionTag = getActionStatusTag(record.actionStatus);
+                          const requestTag = getWorkflowStatusTag(record.requestStatus);
 
                           return (
                             <tr key={record.guid} className="border-b border-slate-100">
@@ -696,17 +767,37 @@ export default function TimeAttendancePage() {
                                 {formatTimeLabel(record.checkOutTime)}
                               </td>
                               <td className="py-3 text-[13px] font-semibold text-slate-900">
-                                {getDelayLabel(record.delayTime, record.status)}
+                                {getDelayLabel(record.delayTime, record.actionStatus)}
                               </td>
                               <td className="py-3 text-[13px] text-slate-700">
                                 <span
-                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${attendanceTag.className}`}
+                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${actionTag.className}`}
                                 >
-                                  {attendanceTag.label}
+                                  {actionTag.label}
+                                </span>
+                              </td>
+                              <td className="py-3 text-[13px] text-slate-700">
+                                <span
+                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${requestTag.className}`}
+                                >
+                                  {requestTag.label}
                                 </span>
                               </td>
                               <td className="py-3">
                                 <div className="flex justify-end gap-2">
+                                  {record.requestStatus === "requested" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        void handleConfirmRequested(record);
+                                      }}
+                                      className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                                      title="Подтвердить"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                      Подтвердить
+                                    </button>
+                                  ) : null}
                                   <button
                                     type="button"
                                     onClick={() => openEdit(record)}
@@ -799,7 +890,7 @@ export default function TimeAttendancePage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Дата
@@ -818,24 +909,6 @@ export default function TimeAttendancePage() {
                 showYearDropdown
                 dropdownMode="select"
                 wrapperClassName="w-full"
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Время опоздания
-              </label>
-              <input
-                type="time"
-                step={60}
-                value={draft.delayTime}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    delayTime: event.target.value,
-                  }))
-                }
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
             </div>

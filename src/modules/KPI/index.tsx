@@ -111,6 +111,40 @@ const dayOfWeekIndex = (date: Date): number => {
   return day === 0 ? 6 : day - 1;
 };
 
+const buildMondayFridayWeeksForMonth = (monthDate: Date): Array<{ start: Date; end: Date }> => {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+
+  const cursor = new Date(monthStart);
+  cursor.setDate(monthStart.getDate() - dayOfWeekIndex(monthStart));
+
+  const result: Array<{ start: Date; end: Date }> = [];
+  while (cursor <= monthEnd) {
+    const start = new Date(cursor);
+    const end = new Date(cursor);
+    end.setDate(start.getDate() + 4);
+
+    let daysInTargetMonth = 0;
+    for (let i = 0; i < 5; i += 1) {
+      const day = new Date(start);
+      day.setDate(start.getDate() + i);
+      if (day.getFullYear() === year && day.getMonth() === month) {
+        daysInTargetMonth += 1;
+      }
+    }
+
+    if (daysInTargetMonth >= 3) {
+      result.push({ start, end });
+    }
+
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  return result;
+};
+
 const formatPeriodSlotLabel = (periodType: KpiPeriodMode, start: Date, end: Date): string => {
   if (periodType === "daily") {
     return `${DAY_NAMES_SHORT[dayOfWeekIndex(start)]} ${pad(start.getDate())}.${pad(start.getMonth() + 1)}`;
@@ -154,14 +188,15 @@ const computeChildSlots = (
 
   if (parentPeriodType === "yearly") {
     const year = parentStart.getFullYear();
-    return Array.from({ length: 12 }, (_, m) => {
-      const start = new Date(year, m, 1);
-      const end = new Date(year, m + 1, 0);
+    return Array.from({ length: 4 }, (_, quarterIndex) => {
+      const quarterStartMonth = quarterIndex * 3;
+      const start = new Date(year, quarterStartMonth, 1);
+      const end = new Date(year, quarterStartMonth + 3, 0);
       return {
-        periodType: "monthly" as const,
+        periodType: "quarterly" as const,
         startDate: toIsoDate(start),
         endDate: toIsoDate(end),
-        label: formatPeriodSlotLabel("monthly", start, end),
+        label: formatPeriodSlotLabel("quarterly", start, end),
       };
     });
   }
@@ -182,19 +217,7 @@ const computeChildSlots = (
   }
 
   if (parentPeriodType === "monthly") {
-    const monthStart = new Date(parentStart.getFullYear(), parentStart.getMonth(), 1);
-    const monthEnd = new Date(parentStart.getFullYear(), parentStart.getMonth() + 1, 0);
-    return Array.from({ length: 4 }, (_, i) => {
-      const start = new Date(monthStart);
-      start.setDate(monthStart.getDate() + i * 7);
-      let end: Date;
-      if (i === 3) {
-        end = new Date(monthEnd);
-      } else {
-        end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        if (end > monthEnd) end = new Date(monthEnd);
-      }
+    return buildMondayFridayWeeksForMonth(parentStart).map(({ start, end }) => {
       return {
         periodType: "weekly" as const,
         startDate: toIsoDate(start),
@@ -237,23 +260,10 @@ const computeTopBuckets = (
   }
 
   if (periodMode === "monthly") {
-    const monthStart = new Date(cursorDate.getFullYear(), cursorDate.getMonth(), 1);
-    const monthEnd = new Date(cursorDate.getFullYear(), cursorDate.getMonth() + 1, 0);
-    return Array.from({ length: 4 }, (_, i) => {
-      const start = new Date(monthStart);
-      start.setDate(monthStart.getDate() + i * 7);
-      let end: Date;
-      if (i === 3) {
-        end = new Date(monthEnd);
-      } else {
-        end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        if (end > monthEnd) end = new Date(monthEnd);
-      }
-      const label = `${pad(start.getDate())}.${pad(start.getMonth() + 1)} – ${pad(end.getDate())}.${pad(end.getMonth() + 1)}`;
+    return buildMondayFridayWeeksForMonth(cursorDate).map(({ start, end }, i) => {
       return {
         key: `wk-${i + 1}`,
-        label,
+        label: formatPeriodSlotLabel("weekly", start, end),
         shortLabel: `Нед ${i + 1}`,
         startIso: toIsoDate(start),
         endIso: toIsoDate(end),
@@ -284,21 +294,18 @@ const computeTopBuckets = (
     });
   }
 
-  return Array.from({ length: 12 }, (_, i) => {
-    const monthDate = new Date(cursorDate.getFullYear(), i, 1);
-    const monthEnd = new Date(cursorDate.getFullYear(), i + 1, 0);
-    const monthName = new Intl.DateTimeFormat("ru-RU", { month: "short" })
-      .format(monthDate)
-      .replace(".", "");
-    const cap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+  return Array.from({ length: 4 }, (_, i) => {
+    const quarterStartMonth = i * 3;
+    const start = new Date(cursorDate.getFullYear(), quarterStartMonth, 1);
+    const end = new Date(cursorDate.getFullYear(), quarterStartMonth + 3, 0);
     return {
-      key: `mo-${i + 1}`,
-      label: cap,
-      shortLabel: cap,
-      startIso: toIsoDate(monthDate),
-      endIso: toIsoDate(monthEnd),
+      key: `q-${i + 1}`,
+      label: `${i + 1} квартал`,
+      shortLabel: `${i + 1} кв.`,
+      startIso: toIsoDate(start),
+      endIso: toIsoDate(end),
       canExpand: canExpandByIndex[i] || false,
-      periodType: "monthly",
+      periodType: "quarterly",
     };
   });
 };
@@ -308,23 +315,37 @@ const computeSubBuckets = (top: TopBucket): SubBucket[] => {
   const end = toDatePickerValue(top.endIso);
   if (!start || !end) return [];
 
-  return Array.from({ length: 4 }, (_, i) => {
-    const subStart = new Date(start);
-    subStart.setDate(start.getDate() + i * 7);
-    let subEnd: Date;
-    if (i === 3) {
-      subEnd = new Date(end);
-    } else {
-      subEnd = new Date(subStart);
-      subEnd.setDate(subStart.getDate() + 6);
-      if (subEnd > end) subEnd = new Date(end);
-    }
-    return {
-      label: `${pad(subStart.getDate())}.${pad(subStart.getMonth() + 1)} – ${pad(subEnd.getDate())}.${pad(subEnd.getMonth() + 1)}`,
-      startIso: toIsoDate(subStart),
-      endIso: toIsoDate(subEnd),
-    };
-  });
+  if (top.periodType === "quarterly") {
+    const year = start.getFullYear();
+    const firstMonth = Math.floor(start.getMonth() / 3) * 3;
+    return Array.from({ length: 3 }, (_, i) => {
+      const monthStart = new Date(year, firstMonth + i, 1);
+      const monthEnd = new Date(year, firstMonth + i + 1, 0);
+      const monthName = new Intl.DateTimeFormat("ru-RU", { month: "short" })
+        .format(monthStart)
+        .replace(".", "");
+      const cap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+      return {
+        label: `${cap} ${year}`,
+        startIso: toIsoDate(monthStart),
+        endIso: toIsoDate(monthEnd),
+        periodType: "monthly",
+      };
+    });
+  }
+
+  if (top.periodType === "monthly") {
+    return buildMondayFridayWeeksForMonth(start).map(({ start: subStart, end: subEnd }) => {
+      return {
+        label: `${pad(subStart.getDate())}.${pad(subStart.getMonth() + 1)} – ${pad(subEnd.getDate())}.${pad(subEnd.getMonth() + 1)}`,
+        startIso: toIsoDate(subStart),
+        endIso: toIsoDate(subEnd),
+        periodType: "weekly",
+      };
+    });
+  }
+
+  return [];
 };
 
 const buildLeafBuckets = (
@@ -348,7 +369,7 @@ const buildLeafBuckets = (
           isToggle: false,
           toggleState: "expanded",
           isTotalOfExpanded: false,
-          bucketPeriodType: "weekly",
+          bucketPeriodType: sub.periodType,
         });
       });
       leaves.push({
@@ -426,6 +447,7 @@ type SubBucket = {
   label: string;
   startIso: string;
   endIso: string;
+  periodType: KpiPeriodMode;
 };
 
 type LeafBucket = {
@@ -473,11 +495,18 @@ const getBucketHeaderBgClass = (periodType: KpiPeriodMode): string => {
   }
 };
 
+const getExpandTitleByPeriod = (periodType: KpiPeriodMode): string => {
+  if (periodType === "quarterly") return "Развернуть до месяцев";
+  if (periodType === "monthly") return "Развернуть до недель";
+  if (periodType === "weekly") return "Развернуть до дней";
+  return "Развернуть";
+};
+
 const KPI_PERIOD_TABS: { key: KpiPeriodMode; label: string }[] = [
-  { key: "weekly", label: "Недельный KPI" },
-  { key: "monthly", label: "Месячный KPI" },
-  { key: "quarterly", label: "Квартальный KPI" },
   { key: "yearly", label: "Годовой KPI" },
+  { key: "quarterly", label: "Квартальный KPI" },
+  { key: "monthly", label: "Месячный KPI" },
+  { key: "weekly", label: "Недельный KPI" },
 ];
 
 const pad = (value: number): string => String(value).padStart(2, "0");
@@ -532,6 +561,36 @@ const formatMetricDisplayValue = (value: number): string => {
   const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const withSign = isNegative ? `-${groupedInteger}` : groupedInteger;
   return decimalPart ? `${withSign}.${decimalPart}` : withSign;
+};
+
+const sanitizePlanInputValue = (value: string): string => {
+  if (!value) return "";
+  const normalized = value
+    .replace(/\s+/g, "")
+    .replace(/,/g, ".")
+    .replace(/[^\d.]/g, "");
+  const [integerPart = "", ...rest] = normalized.split(".");
+  if (rest.length === 0) return integerPart;
+  return `${integerPart}.${rest.join("")}`;
+};
+
+const formatPlanInputValue = (value: string): string => {
+  const normalized = sanitizePlanInputValue(value);
+  if (!normalized) return "";
+  const hasTrailingDot = normalized.endsWith(".");
+  const [integerRaw = "", decimalRaw = ""] = normalized.split(".");
+  const integerCleaned = integerRaw.replace(/^0+(?=\d)/, "") || "0";
+  const groupedInteger = integerCleaned.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+  if (hasTrailingDot) return `${groupedInteger}.`;
+  return decimalRaw ? `${groupedInteger}.${decimalRaw}` : groupedInteger;
+};
+
+const parsePlanInputValue = (value: string): number => {
+  const normalized = sanitizePlanInputValue(value);
+  if (!normalized || normalized === ".") return Number.NaN;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
 const formatValueWithSymbol = (
@@ -741,10 +800,10 @@ const computeChildDefaults = (
   parentPlanValue: string,
   slotsCount: number
 ): { name: string; planValue: string } => {
-  const planNumber = Number(parentPlanValue);
+  const planNumber = parsePlanInputValue(parentPlanValue);
   const perChild =
     Number.isFinite(planNumber) && planNumber > 0 && slotsCount > 0
-      ? formatPlanForInput(planNumber / slotsCount)
+      ? formatPlanInputValue(formatPlanForInput(planNumber / slotsCount))
       : "";
   return {
     name: parentName,
@@ -1026,11 +1085,11 @@ function KpiPage() {
   const canExpandByIndex = useMemo(() => {
     const maxLen =
       periodMode === "yearly"
-        ? 12
+        ? 4
         : periodMode === "quarterly"
           ? 3
           : periodMode === "monthly"
-            ? 4
+            ? buildMondayFridayWeeksForMonth(cursorDate).length
             : periodMode === "weekly"
               ? 7
               : 0;
@@ -1192,11 +1251,15 @@ function KpiPage() {
       periodType: child.periodType,
       startDate: normalizeDateInputValue(child.startDate),
       endDate: normalizeDateInputValue(child.endDate),
-      planValue: String(child.ownPlanValue),
+      planValue: formatPlanInputValue(String(child.ownPlanValue)),
     }));
 
     const slots = computeChildSlots(item.periodType, startIso, endIso);
-    const editDefaults = computeChildDefaults(item.name, String(item.ownPlanValue), slots.length);
+    const editDefaults = computeChildDefaults(
+      item.name,
+      formatPlanInputValue(String(item.ownPlanValue)),
+      slots.length
+    );
     const children =
       item.hasChildren && slots.length > 0
         ? buildChildrenFromSlots(slots, existingChildren, editDefaults)
@@ -1215,7 +1278,7 @@ function KpiPage() {
       periodType: item.periodType,
       startDate: startIso,
       endDate: endIso,
-      planValue: String(item.ownPlanValue),
+      planValue: formatPlanInputValue(String(item.ownPlanValue)),
       hasChildren: item.hasChildren && childrenSupported(item.periodType),
       children,
     });
@@ -1356,7 +1419,7 @@ function KpiPage() {
       return;
     }
 
-    const planTotal = Number(draft.planValue);
+    const planTotal = parsePlanInputValue(draft.planValue);
     if (!Number.isFinite(planTotal) || planTotal <= 0) {
       setCreateError("Плановое значение должно быть больше 0");
       return;
@@ -1382,7 +1445,7 @@ function KpiPage() {
           setCreateError("Заполните название каждого дочернего KPI");
           return;
         }
-        const childPlan = Number(child.planValue);
+        const childPlan = parsePlanInputValue(child.planValue);
         if (!Number.isFinite(childPlan) || childPlan < 0) {
           setCreateError("План дочернего KPI не может быть отрицательным");
           return;
@@ -1858,7 +1921,7 @@ function KpiPage() {
                                     onClick={() => toggleColumnExpand(leaf.topKey)}
                                     className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white/80 text-slate-500 transition hover:bg-white"
                                     aria-label={isExpanded ? "Свернуть колонку" : "Развернуть колонку"}
-                                    title={isExpanded ? "Свернуть" : "Развернуть до недель"}
+                                    title={isExpanded ? "Свернуть" : getExpandTitleByPeriod(leaf.bucketPeriodType)}
                                   >
                                     {isExpanded ? <Minus size={12} /> : <Plus size={12} />}
                                   </button>
@@ -2095,12 +2158,14 @@ function KpiPage() {
                 <label className="block space-y-2">
                   <span className="text-xs font-medium text-slate-500">Плановое значение *</span>
                   <input
-                    type="number"
-                    min={0}
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={draft.planValue}
                     onChange={(event) =>
-                      setDraft((prev) => ({ ...prev, planValue: event.target.value }))
+                      setDraft((prev) => ({
+                        ...prev,
+                        planValue: formatPlanInputValue(event.target.value),
+                      }))
                     }
                     placeholder="100"
                     className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
@@ -2228,12 +2293,13 @@ function KpiPage() {
                               <td className="px-3 py-2 text-[13px] text-slate-700">{periodLabel}</td>
                               <td className="px-3 py-2">
                                 <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
+                                  type="text"
+                                  inputMode="decimal"
                                   value={child.planValue}
                                   onChange={(event) =>
-                                    updateChildDraft(child.uid, { planValue: event.target.value })
+                                    updateChildDraft(child.uid, {
+                                      planValue: formatPlanInputValue(event.target.value),
+                                    })
                                   }
                                   placeholder="0"
                                   className="h-9 w-full rounded-md border border-slate-200 px-2 text-right text-[13px] font-semibold text-slate-700 outline-none transition focus:border-slate-300"

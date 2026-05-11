@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import Select, { type SingleValue, type StylesConfig } from "react-select";
 import {
   Background,
+  BaseEdge,
   Controls,
   Handle,
   MiniMap,
@@ -13,6 +14,8 @@ import {
   ReactFlow,
   type ReactFlowInstance,
   type Edge,
+  type EdgeProps,
+  type EdgeTypes,
   type NodeMouseHandler,
   type Node,
 } from "@xyflow/react";
@@ -59,14 +62,21 @@ const POSITION_MODE_STACK_INDENT = 36;
 type StructureViewMode = "departments" | "positions";
 type OrgStructureDisplayNode = OrgStructureNode & {
   node_kind?: StructureViewMode;
+  employeeDepartmentTitle?: string;
 };
 type LayoutMode = "topDown" | "leftRight" | "topDownVerticalChildren";
+
+type Point = {
+  x: number;
+  y: number;
+};
 
 type OrgNodeData = {
   nodeId: string;
   departmentTitle: string;
   managerName: string;
   managerInitials: string;
+  managerPhoto: string | null;
   subtitle: string;
   borderColor: string;
   backgroundColor: string;
@@ -185,7 +195,9 @@ const getPositionTitleRank = (rawTitle: string): number => {
 const buildSubtitle = (node: OrgStructureDisplayNode): string => {
   if (node.node_kind === "positions") {
     if (node.manager?.guid) {
-      return node.manager?.position_title || "Без должности";
+      return [node.manager?.position_title || "Без должности", node.employeeDepartmentTitle]
+        .filter(Boolean)
+        .join(" • ");
     }
     const peopleCount = Number.isFinite(Number(node.direct_employees_count))
       ? Number(node.direct_employees_count)
@@ -332,6 +344,7 @@ const buildPositionNodes = (positions: PositionItem[], employees: Employee[]): O
       total_employees_count: 1,
       children_count: 0,
       node_kind: "positions",
+      employeeDepartmentTitle: employee.departments_id_data?.title || "",
       manager: {
         guid: employee.guid,
         full_name: fullName,
@@ -511,8 +524,10 @@ const getFilterSelectStyles = <
 const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
   return (
     <div
-      className="group relative min-w-[220px] cursor-pointer overflow-visible rounded-2xl border-2 px-4 py-3 text-center shadow-sm transition hover:shadow-md"
+      className="group relative cursor-pointer overflow-visible rounded-2xl border-2 px-4 py-3 shadow-sm transition hover:shadow-md"
       style={{
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
         borderColor: data.isHighlighted ? "#f59e0b" : data.borderColor,
         backgroundColor: data.isHighlighted ? "#fffbeb" : data.backgroundColor,
         boxShadow: data.isHighlighted ? "0 0 0 2px rgba(245, 158, 11, 0.25)" : undefined,
@@ -533,15 +548,22 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
         className="!h-0 !w-0 !border-0 !bg-transparent"
       />
 
-      <div
-        className="mx-auto flex h-14 w-14 items-center justify-center rounded-full text-[26px] font-semibold text-white"
-        style={{ backgroundColor: data.avatarColor }}
-      >
-        {data.managerInitials}
+      <div className="flex min-w-0 items-start gap-3">
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-[16px] font-extrabold text-white"
+          style={{ backgroundColor: data.avatarColor }}
+        >
+          {data.managerPhoto ? (
+            <img src={data.managerPhoto} alt={data.managerName} className="h-full w-full object-cover" />
+          ) : (
+            data.managerInitials
+          )}
+        </div>
+        <div className="min-w-0 flex-1 text-left">
+          <p className="m-0 truncate text-[20px] font-bold leading-tight text-slate-800">{data.managerName}</p>
+          <p className="m-0 mt-1 truncate text-sm font-medium text-slate-500">{data.subtitle}</p>
+        </div>
       </div>
-
-      <p className="mt-3 text-lg font-semibold text-slate-800">{data.managerName}</p>
-      <p className="mt-1 text-base font-medium text-slate-500">{data.subtitle}</p>
       {data.hasChildren && data.showCollapseControl ? (
         <button
           type="button"
@@ -592,6 +614,115 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
       />
     </div>
   );
+};
+
+const buildRoundedPath = (rawPoints: Point[], radius = 12): string => {
+  const points = rawPoints.filter((point, index, array) => {
+    const prev = array[index - 1];
+    return !prev || Math.abs(prev.x - point.x) > 0.5 || Math.abs(prev.y - point.y) > 0.5;
+  });
+
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const prev = points[index - 1];
+    const current = points[index];
+    const next = points[index + 1];
+    const prevDistance = Math.hypot(current.x - prev.x, current.y - prev.y);
+    const nextDistance = Math.hypot(next.x - current.x, next.y - current.y);
+    const cornerRadius = Math.min(radius, prevDistance / 2, nextDistance / 2);
+
+    const before = {
+      x: current.x - ((current.x - prev.x) / prevDistance) * cornerRadius,
+      y: current.y - ((current.y - prev.y) / prevDistance) * cornerRadius,
+    };
+    const after = {
+      x: current.x + ((next.x - current.x) / nextDistance) * cornerRadius,
+      y: current.y + ((next.y - current.y) / nextDistance) * cornerRadius,
+    };
+
+    path += ` L ${before.x} ${before.y} Q ${current.x} ${current.y} ${after.x} ${after.y}`;
+  }
+
+  const last = points[points.length - 1];
+  return `${path} L ${last.x} ${last.y}`;
+};
+
+const OrgChartEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style,
+}: EdgeProps) => {
+  const isInnerStack = sourcePosition === Position.Left && targetPosition === Position.Left;
+  const isTargetLeft = targetPosition === Position.Left;
+
+  let points: Point[];
+
+  if (isInnerStack) {
+    const elbowX = Math.min(sourceX, targetX) - 28;
+    points = [
+      { x: sourceX, y: sourceY },
+      { x: elbowX, y: sourceY },
+      { x: elbowX, y: targetY },
+      { x: targetX, y: targetY },
+    ];
+  } else {
+    const isCenteredChild = !isTargetLeft && Math.abs(targetX - sourceX) < NODE_WIDTH * 0.18;
+
+    if (isCenteredChild) {
+      points = [
+        { x: sourceX, y: sourceY },
+        { x: targetX, y: targetY },
+      ];
+    } else {
+      const verticalGap = Math.max(42, Math.min(86, Math.abs(targetY - sourceY) * 0.34));
+      const busY = sourceY + verticalGap;
+
+      if (isTargetLeft) {
+        const sideX = targetX - 28;
+        points = [
+          { x: sourceX, y: sourceY },
+          { x: sourceX, y: busY },
+          { x: sideX, y: busY },
+          { x: sideX, y: targetY },
+          { x: targetX, y: targetY },
+        ];
+      } else {
+        points = [
+          { x: sourceX, y: sourceY },
+          { x: sourceX, y: busY },
+          { x: targetX, y: busY },
+          { x: targetX, y: targetY },
+        ];
+      }
+    }
+  }
+
+  return (
+    <BaseEdge
+      id={id}
+      path={buildRoundedPath(points, 10)}
+      style={{
+        stroke: "#CBD5E1",
+        strokeWidth: 1.5,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        ...style,
+      }}
+    />
+  );
+};
+
+const orgEdgeTypes: EdgeTypes = {
+  org: OrgChartEdge,
 };
 
 const buildHierarchyLayout = (
@@ -1029,6 +1160,23 @@ const buildHierarchyLayout = (
       placeTopDownVertical(rootId, rootLeftX, CHART_PADDING, 1);
       rootLeftX += getSubtreeWidthTopDownVertical(rootId) + ROOT_GAP;
     }
+
+    for (const parentNodeId of visibleNodes.map((node) => node.id)) {
+      const parentNode = visibleNodeById.get(parentNodeId);
+      const parentPosition = positionByNodeId.get(parentNodeId);
+      if (!parentNode || Number(parentNode.hierarchy_level || 1) !== 1 || !parentPosition) continue;
+
+      const primaryChildId = getChildGroupsByPosition(parentNodeId)
+        .find((group) => group.length === 1 && getChildGroupsByPosition(group[0]).length > 0)?.[0];
+      const childPosition = primaryChildId ? positionByNodeId.get(primaryChildId) : null;
+      if (!childPosition) continue;
+
+      const delta = (childPosition.x + NODE_WIDTH / 2) - (parentPosition.x + NODE_WIDTH / 2);
+      if (Math.abs(delta) > 80) continue;
+
+      const nudge = Math.max(-48, Math.min(48, delta));
+      positionByNodeId.set(parentNodeId, { ...parentPosition, x: parentPosition.x + nudge });
+    }
   } else {
     const totalRootsWidth =
       roots.reduce((sum, rootId) => sum + getSubtreeWidth(rootId), 0) + Math.max(0, roots.length - 1) * ROOT_GAP;
@@ -1048,6 +1196,7 @@ const buildHierarchyLayout = (
     const palette = getPaletteByLevel(node.hierarchy_level);
     const managerName = node.manager?.full_name || "Не назначен";
     const managerInitials = node.manager?.initials || "U";
+    const managerPhoto = node.manager?.photo || null;
 
     return {
       id: node.id,
@@ -1060,6 +1209,7 @@ const buildHierarchyLayout = (
         departmentTitle: node.title,
         managerName,
         managerInitials,
+        managerPhoto,
         subtitle: buildSubtitle(node),
         borderColor: palette.border,
         backgroundColor: palette.background,
@@ -1145,16 +1295,14 @@ const buildHierarchyLayout = (
         target: targetId,
         sourceHandle,
         targetHandle,
-        type: "step",
-        pathOptions: {
-          borderRadius: 12,
-          offset: isInnerStackEdge ? 14 : isVerticalStackEdge ? 18 : 20,
-        },
+        type: "org",
         animated: false,
         zIndex: 0,
         style: {
           stroke: "#CBD5E1",
-          strokeWidth: 1.4,
+          strokeWidth: 1.5,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
         },
       };
     });
@@ -1786,6 +1934,7 @@ function OrganizationStructureModule({
             nodes={layout.graphNodes}
             edges={layout.graphEdges}
             nodeTypes={nodeTypes}
+            edgeTypes={orgEdgeTypes}
             onInit={setFlowInstance}
             fitView
             fitViewOptions={{ padding: 0.2, maxZoom: 1.1, minZoom: 0.05 }}
@@ -1883,101 +2032,150 @@ function OrganizationStructureModule({
       className="max-w-[760px] p-5"
     >
       <div className="space-y-4">
-        <div className="pr-10">
-          <h2 className="text-xl font-semibold text-slate-900">
-            {isPositionsMode
-              ? selectedNode?.title || "Должность"
-              : selectedNode?.manager?.full_name || "Руководитель"}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {isPositionsMode
-              ? selectedNode?.manager?.guid
-                ? `${selectedNode?.manager?.position_title || "Без должности"}`
-                : `Сотрудников: ${Number(selectedNode?.direct_employees_count || 0)}`
-              : `${selectedNode?.manager?.position_title || "Руководитель"} • ${selectedNode?.title || "Отдел"}`}
-          </p>
-          {selectedNodeDepartment && !isPositionsMode ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => openEditModal(selectedNodeDepartment)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <Pencil size={13} />
-                Редактировать
-              </button>
-              <button
-                type="button"
-                onClick={() => openDeleteModal(selectedNodeDepartment)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
-              >
-                <Trash2 size={13} />
-                Удалить
-              </button>
+        {isPositionsMode && selectedNode?.manager?.guid ? (
+          <>
+            <div className="flex items-start gap-4 pr-10">
+              {selectedNode.manager.photo ? (
+                <img
+                  src={selectedNode.manager.photo}
+                  alt={selectedNode.manager.full_name}
+                  className="h-16 w-16 rounded-2xl object-cover"
+                />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-lg font-semibold text-brand-600">
+                  {selectedNode.manager.initials}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-xl font-semibold text-slate-900">
+                  {selectedNode.manager.full_name || selectedNode.title || "Сотрудник"}
+                </h2>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  {selectedNode.manager.position_title || "Без должности"}
+                </p>
+              </div>
             </div>
-          ) : null}
-        </div>
 
-        <label className="relative block">
-          <Search
-            size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            type="text"
-            value={employeeSearch}
-            onChange={(event) => setEmployeeSearch(event.target.value)}
-            placeholder="Поиск сотрудника..."
-            className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-brand-300"
-          />
-        </label>
-
-        <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-200">
-          {isEmployeesLoading ? (
-            <div className="flex h-28 items-center justify-center">
-              <Spinner />
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="grid gap-3 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500">Email</span>
+                  <span className="truncate font-medium text-slate-800">{selectedNode.manager.email || "Не указан"}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500">Телефон</span>
+                  <span className="truncate font-medium text-slate-800">{selectedNode.manager.phone || "Не указан"}</span>
+                </div>
+              </div>
             </div>
-          ) : selectedEmployees.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-slate-500">
-              Сотрудники не найдены
-            </div>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {selectedEmployees.map((employee) => (
-                <li key={employee.guid} className="flex items-center gap-3 px-4 py-3">
-                  {employee.photo ? (
-                    <img
-                      src={employee.photo}
-                      alt={getEmployeeFullName(employee)}
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600">
-                      {getEmployeeInitials(employee)}
-                    </div>
-                  )}
 
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-800">
-                      {getEmployeeFullName(employee)}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">
-                      {getEmployeeSubtitle(employee) || employee.email || employee.phone || "—"}
-                    </p>
-                  </div>
-
-                  <Link
-                    to={`/employees/${employee.guid}`}
-                    className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                    onClick={() => setSelectedNodeId(null)}
+            <Link
+              to={`/employees/${selectedNode.manager.guid}`}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              onClick={() => setSelectedNodeId(null)}
+            >
+              Открыть профиль
+            </Link>
+          </>
+        ) : (
+          <>
+            <div className="pr-10">
+              <h2 className="text-xl font-semibold text-slate-900">
+                {isPositionsMode
+                  ? selectedNode?.title || "Должность"
+                  : selectedNode?.manager?.full_name || "Руководитель"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {isPositionsMode
+                  ? selectedNode?.manager?.guid
+                    ? `${selectedNode?.manager?.position_title || "Без должности"}`
+                    : `Сотрудников: ${Number(selectedNode?.direct_employees_count || 0)}`
+                  : `${selectedNode?.manager?.position_title || "Руководитель"} • ${selectedNode?.title || "Отдел"}`}
+              </p>
+              {selectedNodeDepartment && !isPositionsMode ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(selectedNodeDepartment)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
-                    Профиль
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                    <Pencil size={13} />
+                    Редактировать
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openDeleteModal(selectedNodeDepartment)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
+                  >
+                    <Trash2 size={13} />
+                    Удалить
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <label className="relative block">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="text"
+                value={employeeSearch}
+                onChange={(event) => setEmployeeSearch(event.target.value)}
+                placeholder="Поиск сотрудника..."
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-brand-300"
+              />
+            </label>
+
+            <div className="max-h-[460px] overflow-y-auto rounded-xl border border-slate-200">
+              {isEmployeesLoading ? (
+                <div className="flex h-28 items-center justify-center">
+                  <Spinner />
+                </div>
+              ) : selectedEmployees.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-slate-500">
+                  Сотрудники не найдены
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {selectedEmployees.map((employee) => (
+                    <li key={employee.guid} className="flex items-center gap-3 px-4 py-3">
+                      {employee.photo ? (
+                        <img
+                          src={employee.photo}
+                          alt={getEmployeeFullName(employee)}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600">
+                          {getEmployeeInitials(employee)}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-800">
+                          {getEmployeeFullName(employee)}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {getEmployeeSubtitle(employee) || employee.email || employee.phone || "—"}
+                        </p>
+                      </div>
+
+                      <Link
+                        to={`/employees/${employee.guid}`}
+                        className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                        onClick={() => setSelectedNodeId(null)}
+                      >
+                        Профиль
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </Modal>
   );

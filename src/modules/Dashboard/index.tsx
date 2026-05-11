@@ -27,6 +27,7 @@ import AbsenceRequestModal, {
 } from "../../components/absences/AbsenceRequestModal";
 import { type NotificationItem, useNotificationsQuery } from "../../api/services/notification.service";
 import {
+  type DashboardHolidayEvent,
   useDashboardAgendaHolidaysQuery,
   useDashboardVacationSummariesQuery,
 } from "../../api/services/dashboard.service";
@@ -41,6 +42,7 @@ type AgendaDay = {
   label: string;
   dateKey: string;
   dateLabel: string;
+  isWeekend: boolean;
 };
 
 const WEEKDAY_LABELS_RU = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"] as const;
@@ -109,12 +111,14 @@ const buildAgendaWeek = (baseDate: Date): AgendaDay[] => {
     const current = new Date(weekStart);
     current.setDate(weekStart.getDate() + index);
     const dateKey = toIsoDate(current);
+    const dayOfWeek = current.getDay();
 
     return {
       id: dateKey,
-      label: WEEKDAY_LABELS_RU[current.getDay()],
+      label: WEEKDAY_LABELS_RU[dayOfWeek],
       dateKey,
       dateLabel: String(current.getDate()).padStart(2, "0"),
+      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
     };
   });
 };
@@ -263,12 +267,17 @@ function DashboardPage() {
   const [isUploadingRequestAttachments, setIsUploadingRequestAttachments] = useState(false);
 
   const agendaEventsByDate = useMemo(() => {
-    const map = new Map<string, string[]>();
+    const map = new Map<string, DashboardHolidayEvent[]>();
     for (const item of agendaHolidays) {
       if (!item.date || !item.title) continue;
       const list = map.get(item.date) || [];
-      if (!list.includes(item.title)) {
-        list.push(item.title);
+      const key = item.guid || `${item.date}-${item.title}`;
+      const isDuplicate = list.some((event) => {
+        const eventKey = event.guid || `${event.date}-${event.title}`;
+        return eventKey === key;
+      });
+      if (!isDuplicate) {
+        list.push(item);
       }
       map.set(item.date, list);
     }
@@ -279,6 +288,24 @@ function DashboardPage() {
     () => agendaEventsByDate.get(selectedAgendaDate) || [],
     [agendaEventsByDate, selectedAgendaDate]
   );
+
+  const agendaDayStatusByDate = useMemo(() => {
+    const map = new Map<string, "holiday" | "weekend" | null>();
+    for (const day of agendaDays) {
+      const dayEvents = agendaEventsByDate.get(day.dateKey) || [];
+      const hasHoliday = dayEvents.some((event) => !event.isWorkingHoliday);
+      if (hasHoliday) {
+        map.set(day.dateKey, "holiday");
+        continue;
+      }
+      if (day.isWeekend) {
+        map.set(day.dateKey, "weekend");
+        continue;
+      }
+      map.set(day.dateKey, null);
+    }
+    return map;
+  }, [agendaDays, agendaEventsByDate]);
 
   const selectedAgendaInfoDate = useMemo(
     () => formatAgendaInfoDate(selectedAgendaDate, todayIso),
@@ -605,21 +632,37 @@ function DashboardPage() {
 
             <div className="space-y-4 px-5 py-4">
               <div className="grid grid-cols-7 gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
-                {agendaDays.map((day) => (
-                  <button
-                    type="button"
-                    key={day.id}
-                    onClick={() => setSelectedAgendaDate(day.dateKey)}
-                    className={`rounded-lg px-1 py-2 text-center ${
-                      selectedAgendaDate === day.dateKey
-                        ? "bg-rose-50 text-rose-500"
-                        : "bg-white text-gray-700 hover:bg-gray-100"
-                    }`}
-                  >
-                    <div className="text-[11px] font-medium uppercase opacity-70">{day.label}</div>
-                    <div className="mt-1 text-lg font-semibold">{day.dateLabel}</div>
-                  </button>
-                ))}
+                {agendaDays.map((day) => {
+                  const isSelected = selectedAgendaDate === day.dateKey;
+                  const dayStatus = agendaDayStatusByDate.get(day.dateKey) || null;
+                  const dayStatusLabel =
+                    dayStatus === "holiday" ? "Праздник" : dayStatus === "weekend" ? "Выходной" : "";
+
+                  return (
+                    <button
+                      type="button"
+                      key={day.id}
+                      onClick={() => setSelectedAgendaDate(day.dateKey)}
+                      className={`rounded-lg px-1 py-2 text-center transition ${
+                        isSelected ? "bg-rose-50 text-rose-500" : "bg-white text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      <div className="text-[11px] font-medium uppercase opacity-70">{day.label}</div>
+                      <div className="mt-1 text-lg font-semibold">{day.dateLabel}</div>
+                      {dayStatusLabel ? (
+                        <span
+                          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
+                            dayStatus === "holiday"
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-sky-100 text-sky-700"
+                          }`}
+                        >
+                          {dayStatusLabel}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
@@ -648,8 +691,8 @@ function DashboardPage() {
                 ) : (
                   <div className="mt-1 space-y-1">
                     {selectedAgendaEvents.map((event) => (
-                      <p key={`${selectedAgendaDate}-${event}`} className="text-sm text-gray-700">
-                        {event}
+                      <p key={event.guid} className="text-sm text-gray-700">
+                        {event.title}
                       </p>
                     ))}
                   </div>
