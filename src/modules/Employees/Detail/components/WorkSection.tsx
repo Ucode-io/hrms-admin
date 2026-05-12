@@ -23,12 +23,14 @@ import httpRequest from "../../../../api/httpRequest";
 import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
 import { useDepartmentExperienceLevelsSummaryQuery } from "../../../../api/services/departmentExperienceLevel.service";
 import {
+  default as employeeWorkService,
   type EmployeeWork,
   useCreateEmployeeWork,
   useDeleteEmployeeWork,
   useEmployeeWorksQuery,
   useUpdateEmployeeWork,
 } from "../../../../api/services/employeeWork.service";
+import { useUpdateEmployee } from "../../../../api/services/employee.service";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
 
 type WorkSectionProps = {
@@ -472,6 +474,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
   const createEmployeeWork = useCreateEmployeeWork();
   const updateEmployeeWork = useUpdateEmployeeWork();
   const deleteEmployeeWork = useDeleteEmployeeWork();
+  const updateEmployee = useUpdateEmployee();
 
   const isSaving = createEmployeeWork.isLoading || updateEmployeeWork.isLoading;
   const isDeleting = deleteEmployeeWork.isLoading;
@@ -698,6 +701,33 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     setRecordToDeleteGuid(null);
   };
 
+  const syncUserBaseFromCurrentWork = async () => {
+    const works = await employeeWorkService.getList({
+      userBaseId: employeeGuid,
+      limit: 200,
+      offset: 0,
+    });
+
+    const rows = Array.isArray(works.response) ? works.response : [];
+    const sorted = [...rows].sort(compareEmployeeWorks);
+    const current = sorted.find((item) => !readString(item.date_to)) || sorted[0] || null;
+
+    const toNullable = (value: unknown): string | null => {
+      const normalized = readString(value);
+      return normalized || null;
+    };
+
+    await updateEmployee.mutateAsync({
+      guid: employeeGuid,
+      employment_types_id: toNullable(current?.employment_types_id),
+      departments_id: toNullable(current?.departments_id),
+      divisions_id: toNullable(current?.divisions_id),
+      locations_id: toNullable(current?.locations_id),
+      positions_id: toNullable(current?.positions_id),
+      experience_levels_id: toNullable(current?.experience_levels_id),
+    });
+  };
+
   const handleSave = async () => {
     if (!form.positionsId) {
       toast.error("Выберите должность");
@@ -756,6 +786,13 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
           data: payload,
         });
 
+        try {
+          await syncUserBaseFromCurrentWork();
+        } catch (syncError) {
+          console.error("Work updated but user_base sync failed:", syncError);
+          toast.error("Запись сохранена, но профиль сотрудника не синхронизирован.");
+        }
+
         toast.success("Запись о работе обновлена");
         resetEditModal();
         return;
@@ -795,6 +832,13 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
         throw createError;
       }
 
+      try {
+        await syncUserBaseFromCurrentWork();
+      } catch (syncError) {
+        console.error("Work created but user_base sync failed:", syncError);
+        toast.error("Должность добавлена, но профиль сотрудника не синхронизирован.");
+      }
+
       toast.success("Новая должность добавлена");
       resetEditModal();
     } catch {
@@ -830,6 +874,13 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
           closeDeleteModal();
           return;
         }
+      }
+
+      try {
+        await syncUserBaseFromCurrentWork();
+      } catch (syncError) {
+        console.error("Work deleted but user_base sync failed:", syncError);
+        toast.error("Запись удалена, но профиль сотрудника не синхронизирован.");
       }
 
       toast.success("Запись о работе удалена");

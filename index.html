@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
       (function () {
+        var mode = "%MODE%";
+        if (mode === "development") {
+          return;
+        }
+
         var webSdkScript = document.createElement("script");
 
         // fetch the latest 2.x.x version of the Web-SDK from the CDN
@@ -18,7 +23,7 @@
             app: {
               name: "HRMS",
               version: "1.0.0",
-              environment: "production",
+              environment: mode || "production",
             },
           });
 

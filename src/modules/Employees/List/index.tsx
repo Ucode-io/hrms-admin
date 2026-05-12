@@ -88,7 +88,6 @@ function EmployeesList() {
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
   const [orgFiltersOpen, setOrgFiltersOpen] = useState(false);
   const [orgActiveFiltersCount, setOrgActiveFiltersCount] = useState(0);
-  const [orgCreateRequestKey, setOrgCreateRequestKey] = useState(0);
   const navigate = useNavigate();
 
   const brandColor = companyStore.mainColor;
@@ -495,10 +494,6 @@ function EmployeesList() {
             <button
               id="employees-add-btn"
               onClick={() => {
-                if (isOrgView) {
-                  setOrgCreateRequestKey((prev) => prev + 1);
-                  return;
-                }
                 navigate("/employees/new");
               }}
               style={{
@@ -691,7 +686,6 @@ function EmployeesList() {
               onSearchValueChange={setOrgSearchQuery}
               filtersOpen={orgFiltersOpen}
               onActiveFiltersCountChange={setOrgActiveFiltersCount}
-              createRequestKey={orgCreateRequestKey}
             />
           ) : isLoading ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>

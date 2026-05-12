@@ -24,12 +24,11 @@ import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
 import { Modal } from "../../../components/ui/modal";
 import companyStore from "../../../store/company.store";
-import { type Employee, useEmployeesQuery } from "../../../api/services/employee.service";
+import { type Employee } from "../../../api/services/employee.service";
 import {
   type Department,
   useCreateDepartment,
   useDeleteDepartment,
-  useDepartmentsSettingsAggregationQuery,
   useUpdateDepartment,
 } from "../../../api/services/department.service";
 import departmentExperienceLevelService, {
@@ -39,7 +38,6 @@ import {
   type OrgStructureNode,
   useOrgStructureReportQuery,
 } from "../../../api/services/reports.service";
-import { type Position as PositionItem, usePositionsQuery } from "../../../api/services/position.service";
 import type { Option } from "../../Settings/Departments/types";
 import DepartmentUpsertModal from "../../Settings/Departments/components/DepartmentUpsertModal";
 import { resolveDepartmentLeaderName } from "../../Settings/Departments/utils";
@@ -69,6 +67,10 @@ type LayoutMode = "topDown" | "leftRight" | "topDownVerticalChildren";
 type Point = {
   x: number;
   y: number;
+};
+
+type OrgEdgeData = {
+  sharedBusY?: number;
 };
 
 type OrgNodeData = {
@@ -194,6 +196,10 @@ const getPositionTitleRank = (rawTitle: string): number => {
 
 const buildSubtitle = (node: OrgStructureDisplayNode): string => {
   if (node.node_kind === "positions") {
+    if (!node.manager?.guid && typeof node.id === "string" && node.id.startsWith("position:")) {
+      return "";
+    }
+
     if (node.manager?.guid) {
       return [node.manager?.position_title || "Без должности", node.employeeDepartmentTitle]
         .filter(Boolean)
@@ -659,6 +665,7 @@ const OrgChartEdge = ({
   targetY,
   sourcePosition,
   targetPosition,
+  data,
   style,
 }: EdgeProps) => {
   const isInnerStack = sourcePosition === Position.Left && targetPosition === Position.Left;
@@ -675,34 +682,29 @@ const OrgChartEdge = ({
       { x: targetX, y: targetY },
     ];
   } else {
-    const isCenteredChild = !isTargetLeft && Math.abs(targetX - sourceX) < NODE_WIDTH * 0.18;
+    const sharedBusY =
+      data && typeof data === "object" && "sharedBusY" in data && typeof data.sharedBusY === "number"
+        ? data.sharedBusY
+        : null;
+    const verticalGap = Math.max(42, Math.min(86, Math.abs(targetY - sourceY) * 0.34));
+    const busY = sharedBusY ?? sourceY + verticalGap;
 
-    if (isCenteredChild) {
+    if (isTargetLeft) {
+      const sideX = targetX - 28;
       points = [
         { x: sourceX, y: sourceY },
+        { x: sourceX, y: busY },
+        { x: sideX, y: busY },
+        { x: sideX, y: targetY },
         { x: targetX, y: targetY },
       ];
     } else {
-      const verticalGap = Math.max(42, Math.min(86, Math.abs(targetY - sourceY) * 0.34));
-      const busY = sourceY + verticalGap;
-
-      if (isTargetLeft) {
-        const sideX = targetX - 28;
-        points = [
-          { x: sourceX, y: sourceY },
-          { x: sourceX, y: busY },
-          { x: sideX, y: busY },
-          { x: sideX, y: targetY },
-          { x: targetX, y: targetY },
-        ];
-      } else {
-        points = [
-          { x: sourceX, y: sourceY },
-          { x: sourceX, y: busY },
-          { x: targetX, y: busY },
-          { x: targetX, y: targetY },
-        ];
-      }
+      points = [
+        { x: sourceX, y: sourceY },
+        { x: sourceX, y: busY },
+        { x: targetX, y: busY },
+        { x: targetX, y: targetY },
+      ];
     }
   }
 
@@ -735,7 +737,7 @@ const buildHierarchyLayout = (
 ) => {
   if (nodes.length === 0) {
     return {
-      graphNodes: [] as Node<OrgNodeData>[],
+      graphNodes: [] as Node[],
       graphEdges: [] as Edge[],
       maxDepth: 1,
     };
@@ -1233,7 +1235,7 @@ const buildHierarchyLayout = (
       previousInGroupId: string | null;
     }
   >();
-  for (const [parentId, childIds] of visibleChildrenByParent.entries()) {
+  for (const [, childIds] of visibleChildrenByParent.entries()) {
     const groupsMap = new Map<string, string[]>();
     for (const childId of childIds) {
       const childNode = visibleNodeById.get(childId);
@@ -1266,15 +1268,46 @@ const buildHierarchyLayout = (
     }
   }
 
+  const sharedBusYByParentId = new Map<string, number>();
+  for (const [parentId, childIds] of visibleChildrenByParent.entries()) {
+    const parentPosition = positionByNodeId.get(parentId);
+    if (!parentPosition || childIds.length === 0) {
+      continue;
+    }
+
+    const directChildIds = childIds.filter((childId) => {
+      const groupMeta = childGroupMetaByNodeId.get(childId);
+      return !(groupMeta?.isVerticalStack && !groupMeta.isFirstInGroup && groupMeta.previousInGroupId);
+    });
+    if (directChildIds.length === 0) {
+      continue;
+    }
+
+    const sourceY = parentPosition.y + NODE_HEIGHT;
+    const minTargetY = directChildIds.reduce((minY, childId) => {
+      const childPosition = positionByNodeId.get(childId);
+      if (!childPosition) return minY;
+      return Math.min(minY, childPosition.y);
+    }, Number.POSITIVE_INFINITY);
+
+    if (!Number.isFinite(minTargetY)) {
+      continue;
+    }
+
+    const verticalGap = Math.max(42, Math.min(86, Math.abs(minTargetY - sourceY) * 0.34));
+    sharedBusYByParentId.set(parentId, sourceY + verticalGap);
+  }
+
   const graphEdges: Edge[] = visibleNodes
     .filter((node) => node.parent_id && visibleNodeById.has(node.parent_id))
     .map((node) => {
       const groupMeta = childGroupMetaByNodeId.get(node.id);
+      const parentId = String(node.parent_id);
       const stackedLinkSourceId =
         groupMeta?.isVerticalStack && !groupMeta.isFirstInGroup && groupMeta.previousInGroupId
           ? groupMeta.previousInGroupId
           : null;
-      const sourceId = stackedLinkSourceId || String(node.parent_id);
+      const sourceId = stackedLinkSourceId || parentId;
       const targetId = node.id;
       const isInnerStackEdge = Boolean(stackedLinkSourceId);
       const isVerticalStackEdge = Boolean(groupMeta?.isVerticalStack);
@@ -1288,6 +1321,8 @@ const buildHierarchyLayout = (
         sourceHandle = "source-bottom";
         targetHandle = "target-left";
       }
+
+      const sharedBusY = !isInnerStackEdge ? sharedBusYByParentId.get(parentId) : undefined;
 
       return {
         id: `edge:${sourceId}:${targetId}`,
@@ -1304,6 +1339,7 @@ const buildHierarchyLayout = (
           strokeLinecap: "round",
           strokeLinejoin: "round",
         },
+        data: sharedBusY !== undefined ? ({ sharedBusY } satisfies OrgEdgeData) : undefined,
       };
     });
 
@@ -1393,24 +1429,11 @@ function OrganizationStructureModule({
     error,
     refetch,
   } = useOrgStructureReportQuery(requestData);
-  const { data: positionsData, isLoading: isPositionsLoading } = usePositionsQuery({
-    params: { all: true },
-    querySettings: { enabled: structureViewMode === "positions" },
-  });
-  const shouldLoadEmployees = structureViewMode === "positions" || Boolean(selectedNodeId);
-  const { data: employeesData, isLoading: isEmployeesLoading } = useEmployeesQuery({
-    limit: 5000,
-    offset: 0,
-    enabled: shouldLoadEmployees,
-  });
-  const { data: departmentsData } = useDepartmentsSettingsAggregationQuery({
-    params: { limit: 1000 },
-    querySettings: { enabled: embedded },
-  });
   const createDepartmentMutation = useCreateDepartment();
   const updateDepartmentMutation = useUpdateDepartment();
   const deleteDepartmentMutation = useDeleteDepartment();
   const syncExperienceLevelsMutation = useSyncDepartmentExperienceLevels();
+  const isEmployeesLoading = false;
 
   const result = data?.result;
   const cards = result?.cards || {};
@@ -1444,15 +1467,16 @@ function OrganizationStructureModule({
     () => levelOptions.find((option) => option.value === selectedHierarchyLevel) || null,
     [levelOptions, selectedHierarchyLevel]
   );
-  const allEmployees = useMemo<Employee[]>(
-    () => ((employeesData?.response || []) as Employee[]),
-    [employeesData?.response]
+  const chartNodes = useMemo(
+    () =>
+      structureViewMode === "positions"
+        ? (((result?.chart?.nodes || []) as OrgStructureDisplayNode[]).map((node) => ({
+            ...node,
+            node_kind: "positions",
+          })))
+        : departmentChartNodes,
+    [departmentChartNodes, result?.chart?.nodes, structureViewMode]
   );
-  const positionChartNodes = useMemo(
-    () => buildPositionNodes((positionsData?.response || []) as PositionItem[], allEmployees),
-    [positionsData?.response, allEmployees]
-  );
-  const chartNodes = structureViewMode === "positions" ? positionChartNodes : departmentChartNodes;
 
   const highlightedNodeIds = useMemo(() => {
     const normalized = searchInput.trim().toLowerCase();
@@ -1485,9 +1509,9 @@ function OrganizationStructureModule({
   useEffect(() => {
     setCollapsedNodeIds((previous) => previous.filter((id) => nodeById.has(id)));
   }, [nodeById]);
-  const settingsDepartments = useMemo(
-    () => departmentsData?.response || [],
-    [departmentsData?.response]
+  const settingsDepartments = useMemo<Department[]>(
+    () => [],
+    []
   );
   const departmentsById = useMemo(
     () => new Map(settingsDepartments.map((department) => [department.guid, department])),
@@ -1658,25 +1682,21 @@ function OrganizationStructureModule({
   const managersCount = Number(cards.managers_count || 0);
   const hierarchyLevels = Number(cards.hierarchy_levels || 0);
   const isPositionsMode = structureViewMode === "positions";
-  const positionsList = (positionsData?.response || []) as PositionItem[];
-  const positionsCount = Number(positionsData?.count || positionsList.length);
+  const positionsCount = Number(cards.departments_count || 0);
   const occupiedPositionIds = new Set(
-    allEmployees
-      .map((employee) =>
-        typeof employee.positions_id === "string" && employee.positions_id.trim()
-          ? employee.positions_id.trim()
+    chartNodes
+      .map((node) =>
+        typeof node.department_guid === "string" && node.department_guid.trim()
+          ? node.department_guid.trim()
           : ""
       )
-      .filter(Boolean)
+      .filter((guid) => guid && guid !== UNASSIGNED_POSITION_KEY)
   );
-  const positionsWithoutEmployees = positionsList.filter(
-    (position) => !occupiedPositionIds.has(position.guid)
+  const positionsWithoutEmployees = departmentOptions.filter(
+    (position) => !occupiedPositionIds.has(position.value)
   ).length;
-  const positionsLevels =
-    positionChartNodes.length > 0
-      ? Math.max(...positionChartNodes.map((node) => Number(node.hierarchy_level || 1)), 1)
-      : 0;
-  const moduleLoading = isLoading || (isPositionsMode && (isPositionsLoading || (shouldLoadEmployees && isEmployeesLoading)));
+  const positionsLevels = Number(cards.hierarchy_levels || 0);
+  const moduleLoading = isLoading;
 
   const nodeTypes = useMemo(() => ({ orgNode: OrgNodeCard }), []);
   const onNodeClick = useMemo<NodeMouseHandler<OrgNodeData>>(
@@ -1693,79 +1713,7 @@ function OrganizationStructureModule({
     const key = selectedNode.department_guid || selectedNode.id;
     return departmentsById.get(key) || null;
   }, [departmentsById, selectedNode, structureViewMode]);
-  const selectedEmployees = useMemo(() => {
-    if (!selectedNode || !selectedNodeId) return [];
-    const positionsById = new Map(positionsList.map((position) => [position.guid, position]));
-    const getTopPositionId = (positionId: string): string => {
-      if (!positionId || !positionsById.has(positionId)) {
-        return UNASSIGNED_POSITION_KEY;
-      }
-
-      const visited = new Set<string>();
-      let currentId = positionId;
-      while (currentId && positionsById.has(currentId) && !visited.has(currentId)) {
-        visited.add(currentId);
-        const current = positionsById.get(currentId);
-        const parentId =
-          current && typeof current.positions_id === "string" ? current.positions_id.trim() : "";
-        if (!parentId || !positionsById.has(parentId)) {
-          return currentId;
-        }
-        currentId = parentId;
-      }
-      return currentId || positionId;
-    };
-
-    const filtered = allEmployees.filter((employee) => {
-      if (structureViewMode === "positions") {
-        if (selectedNodeId.startsWith("employee:")) {
-          return employee.guid === selectedNodeId.replace("employee:", "");
-        }
-        if (selectedNodeId.startsWith("position:")) {
-          const positionId =
-            typeof employee.positions_id === "string" ? employee.positions_id.trim() : "";
-          const employeeTopPositionId = positionId
-            ? getTopPositionId(positionId)
-            : UNASSIGNED_POSITION_KEY;
-          return employeeTopPositionId === selectedNode.department_guid;
-        }
-        return false;
-      }
-
-      const departmentId =
-        typeof employee.departments_id === "string" && employee.departments_id.trim()
-          ? employee.departments_id.trim()
-          : "";
-      if (!departmentId || departmentId !== selectedNodeId) {
-        return false;
-      }
-
-      const managerGuid = selectedNode.manager?.guid || null;
-      if (managerGuid && employee.guid === managerGuid) {
-        return false;
-      }
-      return true;
-    });
-
-    const normalizedSearch = employeeSearch.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return filtered;
-    }
-
-    return filtered.filter((employee) => {
-      const searchTarget = [
-        getEmployeeFullName(employee),
-        employee.email || "",
-        employee.phone || "",
-        employee.positions_id_data?.title || "",
-        employee.departments_id_data?.title || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchTarget.includes(normalizedSearch);
-    });
-  }, [allEmployees, employeeSearch, positionsList, selectedNode, selectedNodeId, structureViewMode]);
+  const selectedEmployees = useMemo<Employee[]>(() => [], []);
 
   const loadExperienceLevelsForDepartment = async (departmentGuid: string) => {
     setIsLoadingExperienceLevels(true);
@@ -2415,7 +2363,7 @@ function OrganizationStructureModule({
             <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
               <p className="text-sm text-gray-500">Всего сотрудников</p>
               <p className="mt-2 text-4xl font-semibold text-gray-900">
-                {isPositionsMode ? allEmployees.length : totalEmployees}
+                {isPositionsMode ? Number(cards.total_employees || 0) : totalEmployees}
               </p>
             </article>
             <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
