@@ -24,19 +24,50 @@ export interface SkillListParams {
   limit?: number;
   offset?: number;
   search?: string;
+  [key: string]: unknown;
 }
+
+const resolveTotalCount = (payload: unknown, fallbackLength: number): number => {
+  if (!payload || typeof payload !== "object") return fallbackLength;
+
+  const source = payload as Record<string, unknown>;
+  const directCount = Number(source.count);
+  if (Number.isFinite(directCount) && directCount >= 0) return directCount;
+
+  const totalCount = Number((source.meta as Record<string, unknown> | undefined)?.total_count);
+  if (Number.isFinite(totalCount) && totalCount >= 0) return totalCount;
+
+  const filterCount = Number((source.meta as Record<string, unknown> | undefined)?.filter_count);
+  if (Number.isFinite(filterCount) && filterCount >= 0) return filterCount;
+
+  const total = Number(source.total);
+  if (Number.isFinite(total) && total >= 0) return total;
+
+  return fallbackLength;
+};
 
 const skillService = {
   getList: async (
     params?: SkillListParams
   ): Promise<SkillListResponse> => {
-    const res = await httpRequest.get("/v2/items/skills", { params });
+    const cleanParams = Object.fromEntries(
+      Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== null)
+    );
+
+    const res = await httpRequest.get("/v2/items/skills", {
+      params: {
+        ...cleanParams,
+        data: JSON.stringify(cleanParams),
+      },
+    });
+
+    const response = Array.isArray(res?.response)
+      ? (res.response as Skill[])
+      : [];
 
     return {
-      count: Number(res?.count || 0),
-      response: Array.isArray(res?.response)
-        ? (res.response as Skill[])
-        : [],
+      count: resolveTotalCount(res, response.length),
+      response,
     };
   },
 
@@ -67,7 +98,7 @@ export const useSkillsQuery = ({
   querySettings = {},
 }: {
   params?: SkillListParams;
-  querySettings?: any;
+  querySettings?: Record<string, unknown>;
 }) => {
   return useQuery({
     queryKey: ["SKILLS", params],

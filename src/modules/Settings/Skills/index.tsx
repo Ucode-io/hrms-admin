@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import {
   ChevronLeft,
   Download,
+  Loader2,
   MoreHorizontal,
   Plus,
   Search,
@@ -72,7 +73,12 @@ export default function SkillsSettingsPage() {
     [currentPage, debouncedSearch]
   );
 
-  const { data, isLoading, isFetching } = useSkillsQuery({ params: queryParams });
+  const { data, isLoading, isFetching } = useSkillsQuery({
+    params: queryParams,
+    querySettings: {
+      keepPreviousData: true,
+    },
+  });
   const createMutation = useCreateSkill();
   const updateMutation = useUpdateSkill();
   const deleteMutation = useDeleteSkill();
@@ -80,6 +86,7 @@ export default function SkillsSettingsPage() {
   const skills = data?.response || [];
   const totalCount = data?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const isTableFetching = isFetching && !isLoading;
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -215,7 +222,7 @@ export default function SkillsSettingsPage() {
           </div>
 
 
-          <div className="max-w-full overflow-x-auto border-t border-gray-100">
+          <div className="relative max-w-full overflow-x-auto border-t border-gray-100">
             <Table>
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
@@ -302,6 +309,15 @@ export default function SkillsSettingsPage() {
                 )}
               </TableBody>
             </Table>
+
+            {isTableFetching && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
+                <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm">
+                  <Loader2 size={16} className="animate-spin" />
+                  Загрузка...
+                </div>
+              </div>
+            )}
           </div>
 
           <Pagination

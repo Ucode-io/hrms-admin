@@ -20,6 +20,7 @@ export default function Pagination({
       </div>
       <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
           disabled={currentPage === 1}
           className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
@@ -40,6 +41,7 @@ export default function Pagination({
             }
             return (
               <button
+                type="button"
                 key={pageNum}
                 onClick={() => onPageChange(pageNum)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg ${currentPage === pageNum
@@ -53,6 +55,7 @@ export default function Pagination({
           })}
         </div>
         <button
+          type="button"
           onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
           disabled={currentPage === totalPages}
           className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
