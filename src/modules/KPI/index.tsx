@@ -16,6 +16,9 @@ import { observer } from "mobx-react-lite";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  LayoutGrid,
+  List,
   Minus,
   MoreHorizontal,
   Pencil,
@@ -724,6 +727,15 @@ const getGoalTypeBadgeLabel = (periodType: KpiPeriodMode): string => {
   return "Мес.";
 };
 
+const getGoalTypeBadgeClass = (periodType: KpiPeriodMode | string | undefined): string => {
+  if (periodType === "yearly") return "border-violet-200 bg-violet-50 text-violet-700";
+  if (periodType === "quarterly") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (periodType === "monthly") return "border-blue-200 bg-blue-50 text-blue-600";
+  if (periodType === "weekly") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (periodType === "daily") return "border-rose-200 bg-rose-50 text-rose-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+};
+
 const getAllowedParentPeriodTypes = (periodType: KpiPeriodMode): KpiPeriodMode[] => {
   if (periodType === "quarterly") return ["yearly"];
   if (periodType === "monthly") return ["quarterly"];
@@ -761,6 +773,34 @@ const getPeriodTypeTagLabel = (option: ParentSelectOption): string => {
   if (periodType === "weekly") return "Недельный";
   if (periodType === "daily") return "Дневной";
   return "";
+};
+
+const formatCompactPeriodLabel = (
+  periodType: KpiPeriodMode,
+  startDateIso: string,
+  endDateIso: string
+): string => {
+  const start = toDatePickerValue(startDateIso);
+  const end = toDatePickerValue(endDateIso);
+  if (!start || !end) return "—";
+
+  if (periodType === "yearly") {
+    return String(start.getFullYear());
+  }
+  if (periodType === "quarterly") {
+    return `${Math.floor(start.getMonth() / 3) + 1} кв.`;
+  }
+  if (periodType === "monthly") {
+    const monthShort = new Intl.DateTimeFormat("ru-RU", { month: "short" }).format(start);
+    return monthShort.charAt(0).toUpperCase() + monthShort.slice(1);
+  }
+  if (periodType === "weekly") {
+    return `${formatDisplayDate(toIsoDate(start)).slice(0, 5)} – ${formatDisplayDate(toIsoDate(end)).slice(0, 5)}`;
+  }
+  if (periodType === "daily") {
+    return formatDisplayDate(toIsoDate(start)).slice(0, 5);
+  }
+  return `${formatDisplayDate(toIsoDate(start))} – ${formatDisplayDate(toIsoDate(end))}`;
 };
 
 const normalizePeriodType = (value: unknown): KpiPeriodMode => {
@@ -993,7 +1033,8 @@ const getDefaultDraft = (periodType: KpiPeriodMode): CreateKpiDraft => {
 };
 
 function KpiPage() {
-  const [periodMode, setPeriodMode] = useState<KpiPeriodMode>("monthly");
+  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  const [periodMode, setPeriodMode] = useState<KpiPeriodMode>("yearly");
   const [cursorDate, setCursorDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
@@ -1013,11 +1054,12 @@ function KpiPage() {
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [kpiToDelete, setKpiToDelete] = useState<KpiRecord | null>(null);
   const [editingActualCell, setEditingActualCell] = useState<EditingActualCell | null>(null);
-  const [draft, setDraft] = useState<CreateKpiDraft>(() => getDefaultDraft("monthly"));
+  const [draft, setDraft] = useState<CreateKpiDraft>(() => getDefaultDraft("yearly"));
   const [positionFilterOptions, setPositionFilterOptions] = useState<FilterOption[]>([]);
   const [sourceFilterOptions, setSourceFilterOptions] = useState<FilterOption[]>([]);
   const [parentOptions, setParentOptions] = useState<KpiParentOption[]>([]);
   const [expandedColumns, setExpandedColumns] = useState<Set<string>>(() => new Set());
+  const [expandedTreeNodeIds, setExpandedTreeNodeIds] = useState<Set<string>>(() => new Set());
   const skipTableLoaderRef = useRef(false);
 
   const selectPortalTarget = typeof document !== "undefined" ? document.body : undefined;
@@ -1281,6 +1323,15 @@ function KpiPage() {
     });
   }, []);
 
+  const toggleTreeNodeExpand = useCallback((nodeId: string) => {
+    setExpandedTreeNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }, []);
+
   const tableMinWidthStyle = useMemo<CSSProperties>(() => {
     const cols = leafBuckets.length;
     const minWidth = 720 + cols * 180;
@@ -1358,7 +1409,9 @@ function KpiPage() {
       return (
         <div className="flex items-center justify-between gap-3">
           <span className="truncate">{option.label}</span>
-          <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+          <span
+            className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getGoalTypeBadgeClass(option.periodType)}`}
+          >
             {tagLabel}
           </span>
         </div>
@@ -1824,7 +1877,7 @@ function KpiPage() {
         <td className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-[13px] text-slate-500">
           {rowIndexById.get(item.id) ?? "—"}
         </td>
-        <td className="py-2 pr-3 text-left">
+        <td className="py-2 pl-4 pr-3 text-left">
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-semibold text-slate-900">{item.name}</span>
             <button
@@ -1846,7 +1899,9 @@ function KpiPage() {
         </td>
         <td className="py-2 pr-3 text-[13px] text-slate-700">{item.source}</td>
         <td className="py-2 pr-3 text-[13px] text-slate-700">
-          <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[12px] font-semibold text-blue-600">
+          <span
+            className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${getGoalTypeBadgeClass(item.periodType)}`}
+          >
             {getGoalTypeBadgeLabel(item.periodType)}
           </span>
         </td>
@@ -1914,6 +1969,89 @@ function KpiPage() {
     );
   };
 
+  const renderTreeListRows = (items: KpiRecord[], level = 0): JSX.Element[] => {
+    const rows: JSX.Element[] = [];
+
+    for (const item of items) {
+      const totalPlan = item.planValue;
+      const totalActual = item.actualValue;
+      const totalPercent = item.percentTotal;
+      const hasChildren = item.children.length > 0;
+      const isExpanded = expandedTreeNodeIds.has(item.id);
+      const periodLabel = formatCompactPeriodLabel(
+        item.periodType,
+        item.startDate,
+        item.endDate
+      );
+      const rowBgClass = getBucketBgClass(item.periodType);
+
+      rows.push(
+        <tr key={`list-row-${item.id}`} className={`border-b border-slate-100 ${rowBgClass}`}>
+          <td className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-center text-[13px] text-slate-500">
+            {level === 0 ? rowIndexById.get(item.id) ?? "—" : ""}
+          </td>
+          <td className="py-2 pl-4 pr-3 text-left">
+            <div className="flex items-start gap-2" style={{ paddingLeft: `${level * 18}px` }}>
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => toggleTreeNodeExpand(item.id)}
+                  className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+                  aria-label={isExpanded ? "Свернуть KPI" : "Развернуть KPI"}
+                >
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform ${isExpanded ? "rotate-180" : "-rotate-90"}`}
+                  />
+                </button>
+              ) : (
+                <span className="mt-2 inline-block h-1.5 w-1.5 rounded-full bg-slate-300" />
+              )}
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-slate-900">{item.name}</div>
+                {item.description ? (
+                  <div className="mt-0.5 text-[12px] text-slate-500">{item.description}</div>
+                ) : null}
+              </div>
+            </div>
+          </td>
+          <td className="py-2 pr-3 text-center text-[13px] text-slate-700">{item.source || "—"}</td>
+          <td className="py-2 pr-3 text-center text-[13px] text-slate-700">
+            <span
+              className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getGoalTypeBadgeClass(item.periodType)}`}
+            >
+              {getGoalTypeBadgeLabel(item.periodType)}
+            </span>
+          </td>
+          <td className="py-2 pr-3 text-center text-[13px] text-slate-600">{periodLabel}</td>
+          <td className="py-2 pr-3 text-center text-[13px] font-medium text-slate-700">
+            {formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)}
+          </td>
+          <td className="py-2 pr-3 text-center text-[13px] font-semibold text-slate-900">
+            {item.hasChildren ? (
+              <span>{formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}</span>
+            ) : (
+              renderLeafActualEditor(item)
+            )}
+          </td>
+          <td className="py-2 pr-3 text-center text-[13px]">
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-[12px] font-semibold ${getPercentBadgeClass(totalPercent)}`}
+            >
+              {totalPercent}%
+            </span>
+          </td>
+        </tr>
+      );
+
+      if (hasChildren && isExpanded) {
+        rows.push(...renderTreeListRows(item.children, level + 1));
+      }
+    }
+
+    return rows;
+  };
+
   return (
     <>
       <PageMeta title="KPI | HRMS" description="Управление KPI по должностям" />
@@ -1933,6 +2071,59 @@ function KpiPage() {
             borderBottom: isFiltersOpen ? "none" : "1px solid #e2e8f0",
           }}
         >
+          <div
+            className="inline-flex items-center rounded-2xl border border-slate-200 bg-slate-50 p-1"
+            style={{ marginLeft: "2px" }}
+          >
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                height: "30px",
+                padding: "0 12px",
+                border: viewMode === "list" ? "1px solid #dbeafe" : "1px solid transparent",
+                borderRadius: "8px",
+                backgroundColor: viewMode === "list" ? "#fff" : "transparent",
+                color: viewMode === "list" ? "#2563eb" : "#64748b",
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                boxShadow: viewMode === "list" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+              }}
+            >
+              <List style={{ width: "17px", height: "17px" }} />
+              Таблица
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("calendar")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                height: "30px",
+                padding: "0 12px",
+                border: viewMode === "calendar" ? "1px solid #dbeafe" : "1px solid transparent",
+                borderRadius: "8px",
+                backgroundColor: viewMode === "calendar" ? "#fff" : "transparent",
+                color: viewMode === "calendar" ? "#2563eb" : "#64748b",
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                boxShadow: viewMode === "calendar" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+              }}
+            >
+              <LayoutGrid style={{ width: "17px", height: "17px" }} />
+              Сетка
+            </button>
+          </div>
+
           <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
             {KPI_PERIOD_TABS.map((tab) => {
               const isActive = periodMode === tab.key;
@@ -1941,11 +2132,21 @@ function KpiPage() {
                   key={tab.key}
                   type="button"
                   onClick={() => setPeriodMode(tab.key)}
-                  className={`h-9 rounded-xl px-4 text-sm font-semibold transition ${
-                    isActive
-                      ? "bg-white text-brand-500 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    height: "30px",
+                    padding: "0 12px",
+                    border: isActive ? "1px solid #dbeafe" : "1px solid transparent",
+                    borderRadius: "8px",
+                    backgroundColor: isActive ? "#fff" : "transparent",
+                    color: isActive ? "#2563eb" : "#64748b",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    boxShadow: isActive ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+                  }}
                 >
                   {tab.label}
                 </button>
@@ -2089,115 +2290,156 @@ function KpiPage() {
                   <p className="m-0 text-[13px] text-slate-500">KPI не найдены</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table
-                    style={tableMinWidthStyle}
-                    className="w-full text-center [&_th]:align-middle [&_td]:align-middle [&_th]:border-r [&_th]:border-slate-100 [&_td]:border-r [&_td]:border-slate-100 [&_th:last-child]:border-r-0 [&_td:last-child]:border-r-0"
-                  >
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/60">
-                        <th
-                          rowSpan={2}
-                          className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-[12px] font-semibold text-slate-500"
-                        >
-                          #
-                        </th>
-                        <th
-                          rowSpan={2}
-                          className="py-2 pr-3 text-left text-[12px] font-semibold text-slate-500"
-                        >
-                          KPI / Название
-                        </th>
-                        <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
-                          Источник
-                        </th>
-                        <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
-                          Тип
-                        </th>
-                        <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
-                          Период
-                        </th>
-                        {leafBuckets.map((leaf) => {
-                          const isExpanded = leaf.toggleState === "expanded";
-                          const bgClass = getBucketHeaderBgClass(leaf.bucketPeriodType);
-                          return (
-                            <th
-                              key={leaf.key}
-                              colSpan={3}
-                              className={`px-2 py-2 text-center text-[12px] font-semibold text-slate-600 ${bgClass}`}
-                            >
-                              <span className="inline-flex items-center gap-1.5">
-                                <span>{leaf.label}</span>
-                                {leaf.isToggle ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleColumnExpand(leaf.topKey)}
-                                    className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white/80 text-slate-500 transition hover:bg-white"
-                                    aria-label={isExpanded ? "Свернуть колонку" : "Развернуть колонку"}
-                                    title={isExpanded ? "Свернуть" : getExpandTitleByPeriod(leaf.bucketPeriodType)}
-                                  >
-                                    {isExpanded ? <Minus size={12} /> : <Plus size={12} />}
-                                  </button>
-                                ) : null}
-                              </span>
-                            </th>
-                          );
-                        })}
-                        <th
-                          colSpan={3}
-                          className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}bg-blue-50/60 px-2 py-2 text-center text-[12px] font-semibold text-slate-600`}
-                        >
-                          Итого
-                        </th>
-                      </tr>
-                      <tr className="border-b border-slate-200">
-                        {leafBuckets.map((leaf) => {
-                          const bg = getBucketHeaderBgClass(leaf.bucketPeriodType);
-                          return (
-                            <Fragment key={`${leaf.key}-sub`}>
-                              <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
-                                План
+                viewMode === "calendar" ? (
+                  <div className="overflow-x-auto">
+                    <table
+                      style={tableMinWidthStyle}
+                      className="w-full text-center [&_th]:align-middle [&_td]:align-middle [&_th]:border-r [&_th]:border-slate-100 [&_td]:border-r [&_td]:border-slate-100 [&_th:last-child]:border-r-0 [&_td:last-child]:border-r-0"
+                    >
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/60">
+                          <th
+                            rowSpan={2}
+                            className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-[12px] font-semibold text-slate-500"
+                          >
+                            #
+                          </th>
+                          <th
+                            rowSpan={2}
+                            className="py-2 pl-4 pr-3 text-left text-[12px] font-semibold text-slate-500"
+                          >
+                            KPI / Название
+                          </th>
+                          <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
+                            Источник
+                          </th>
+                          <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
+                            Тип
+                          </th>
+                          <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
+                            Период
+                          </th>
+                          {leafBuckets.map((leaf) => {
+                            const isExpanded = leaf.toggleState === "expanded";
+                            const bgClass = getBucketHeaderBgClass(leaf.bucketPeriodType);
+                            return (
+                              <th
+                                key={leaf.key}
+                                colSpan={3}
+                                className={`px-2 py-2 text-center text-[12px] font-semibold text-slate-600 ${bgClass}`}
+                              >
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span>{leaf.label}</span>
+                                  {leaf.isToggle ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleColumnExpand(leaf.topKey)}
+                                      className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white/80 text-slate-500 transition hover:bg-white"
+                                      aria-label={isExpanded ? "Свернуть колонку" : "Развернуть колонку"}
+                                      title={isExpanded ? "Свернуть" : getExpandTitleByPeriod(leaf.bucketPeriodType)}
+                                    >
+                                      {isExpanded ? <Minus size={12} /> : <Plus size={12} />}
+                                    </button>
+                                  ) : null}
+                                </span>
                               </th>
-                              <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
-                                Факт
-                              </th>
-                              <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
-                                %
-                              </th>
-                            </Fragment>
-                          );
-                        })}
-                        <th
-                          className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600`}
-                        >
-                          План
-                        </th>
-                        <th className="bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600">
-                          Факт
-                        </th>
-                        <th className="bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600">
-                          %
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupedItems.map(([position, items]) => (
-                        <Fragment key={`group-${position}`}>
-                          <tr className="border-b border-slate-100 bg-slate-50/60">
-                            <td className="py-1.5 pl-3 pr-3" />
-                            <td
-                              colSpan={4 + leafBuckets.length * 3 + 3}
-                              className="py-1.5 pr-3 text-left text-[13px] font-semibold text-brand-500"
-                            >
-                              {position}
-                            </td>
-                          </tr>
-                          {items.map((item) => renderRow(item))}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            );
+                          })}
+                          <th
+                            colSpan={3}
+                            className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}bg-blue-50/60 px-2 py-2 text-center text-[12px] font-semibold text-slate-600`}
+                          >
+                            Итого
+                          </th>
+                        </tr>
+                        <tr className="border-b border-slate-200">
+                          {leafBuckets.map((leaf) => {
+                            const bg = getBucketHeaderBgClass(leaf.bucketPeriodType);
+                            return (
+                              <Fragment key={`${leaf.key}-sub`}>
+                                <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
+                                  План
+                                </th>
+                                <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
+                                  Факт
+                                </th>
+                                <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
+                                  %
+                                </th>
+                              </Fragment>
+                            );
+                          })}
+                          <th
+                            className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600`}
+                          >
+                            План
+                          </th>
+                          <th className="bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600">
+                            Факт
+                          </th>
+                          <th className="bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600">
+                            %
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupedItems.map(([position, items]) => (
+                          <Fragment key={`group-${position}`}>
+                            <tr className="border-b border-slate-100 bg-slate-50/60">
+                              <td className="py-1.5 pl-3 pr-3" />
+                              <td
+                                colSpan={4 + leafBuckets.length * 3 + 3}
+                                className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
+                              >
+                                {position}
+                              </td>
+                            </tr>
+                            {items.map((item) => renderRow(item))}
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[960px] [&_th]:align-middle [&_td]:align-middle [&_th]:border-r [&_th]:border-slate-100 [&_td]:border-r [&_td]:border-slate-100 [&_th:last-child]:border-r-0 [&_td:last-child]:border-r-0">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/60">
+                          <th className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-center text-[12px] font-semibold text-slate-500">
+                            #
+                          </th>
+                          <th className="py-2 pl-4 pr-3 text-left text-[12px] font-semibold text-slate-500">
+                            KPI / Название
+                          </th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">
+                            Источник
+                          </th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">Тип</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">Период</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">План</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">Факт</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">%</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupedItems.map(([position, items]) => (
+                          <Fragment key={`group-list-${position}`}>
+                            <tr className="border-b border-slate-100 bg-slate-50/60">
+                              <td className="py-1.5 pl-3 pr-3" />
+                              <td
+                                colSpan={7}
+                                className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
+                              >
+                                {position}
+                              </td>
+                            </tr>
+                            {renderTreeListRows(items)}
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -2500,7 +2742,9 @@ function KpiPage() {
                                 />
                               </td>
                               <td className="px-3 py-2">
-                                <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[12px] font-semibold text-blue-600">
+                                <span
+                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${getGoalTypeBadgeClass(child.periodType)}`}
+                                >
                                   {getGoalTypeBadgeLabel(child.periodType)}
                                 </span>
                               </td>
