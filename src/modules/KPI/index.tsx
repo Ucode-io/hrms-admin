@@ -1986,7 +1986,7 @@ function KpiPage() {
       const rowBgClass = getBucketBgClass(item.periodType);
 
       rows.push(
-        <tr key={`list-row-${item.id}`} className={`border-b border-slate-100 ${rowBgClass}`}>
+        <tr key={`list-row-${item.id}`} className={`group border-b border-slate-100 ${rowBgClass}`}>
           <td className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-center text-[13px] text-slate-500">
             {level === 0 ? rowIndexById.get(item.id) ?? "—" : ""}
           </td>
@@ -2008,7 +2008,21 @@ function KpiPage() {
                 <span className="mt-2 inline-block h-1.5 w-1.5 rounded-full bg-slate-300" />
               )}
               <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-slate-900">{item.name}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[13px] font-semibold text-slate-900">{item.name}</span>
+                  <button
+                    type="button"
+                    className={`dropdown-toggle inline-flex h-6 w-6 items-center justify-center rounded-md border transition ${
+                      actionMenuItemId === item.id
+                        ? "border-slate-300 bg-slate-50 text-slate-600 opacity-100"
+                        : "border-transparent text-slate-400 opacity-0 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-600 group-hover:opacity-100 focus:opacity-100"
+                    }`}
+                    onClick={(event) => openActionMenu(event, item.id)}
+                    aria-label={`Действия для ${item.name}`}
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                </div>
                 {item.description ? (
                   <div className="mt-0.5 text-[12px] text-slate-500">{item.description}</div>
                 ) : null}
