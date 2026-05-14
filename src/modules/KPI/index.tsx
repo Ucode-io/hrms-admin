@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
@@ -31,8 +32,10 @@ import { Modal } from "../../components/ui/modal";
 import { Dropdown } from "../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../components/ui/dropdown/DropdownItem";
 import companyStore from "../../store/company.store";
+import httpRequest from "../../api/httpRequest";
 import settingsDirectoryService from "../../api/services/settingsDirectory.service";
 import RemoteSingleSelect, { type RemoteSelectOption } from "../../components/autocomplete/RemoteSingleSelect";
+import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import reportsService, {
   type KpiFilterOption,
   type KpiParentOption,
@@ -50,11 +53,18 @@ type FilterOption = {
   label: string;
 };
 
+type ParentSelectOption = FilterOption & {
+  periodType?: KpiPeriodMode | string;
+  startDate?: string;
+  endDate?: string;
+  isRoot?: boolean;
+};
+
 type KpiRecord = {
   id: string;
   parentId: string | null;
-  departmentsId: string | null;
-  department: string;
+  positionsId: string | null;
+  position: string;
   name: string;
   description: string;
   source: string;
@@ -267,7 +277,7 @@ const computeTopBuckets = (
         shortLabel: `Нед ${i + 1}`,
         startIso: toIsoDate(start),
         endIso: toIsoDate(end),
-        canExpand: false,
+        canExpand: canExpandByIndex[i] || false,
         periodType: "weekly",
       };
     });
@@ -345,6 +355,22 @@ const computeSubBuckets = (top: TopBucket): SubBucket[] => {
     });
   }
 
+  if (top.periodType === "weekly") {
+    const days: SubBucket[] = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const day = new Date(cursor);
+      days.push({
+        label: formatPeriodSlotLabel("daily", day, day),
+        startIso: toIsoDate(day),
+        endIso: toIsoDate(day),
+        periodType: "daily",
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }
+
   return [];
 };
 
@@ -410,8 +436,8 @@ const getChildAtPath = (kpi: KpiRecord, path: number[]): KpiRecord | null => {
 type CreateKpiDraft = {
   parentId: string;
   parentTitle: string;
-  departmentId: string;
-  departmentTitle: string;
+  positionId: string;
+  positionTitle: string;
   source: string;
   valueSymbol: string;
   valueSymbolPosition: "prefix" | "suffix";
@@ -698,6 +724,45 @@ const getGoalTypeBadgeLabel = (periodType: KpiPeriodMode): string => {
   return "Мес.";
 };
 
+const getAllowedParentPeriodTypes = (periodType: KpiPeriodMode): KpiPeriodMode[] => {
+  if (periodType === "quarterly") return ["yearly"];
+  if (periodType === "monthly") return ["quarterly"];
+  if (periodType === "weekly") return ["monthly"];
+  if (periodType === "daily") return ["weekly"];
+  return [];
+};
+
+const getPeriodTypeTagLabel = (option: ParentSelectOption): string => {
+  const periodType = typeof option.periodType === "string" ? option.periodType : "";
+  const startDate = toDatePickerValue(option.startDate || "");
+  const endDate = toDatePickerValue(option.endDate || "");
+
+  if (periodType === "yearly" && startDate) {
+    return `Годовой ${startDate.getFullYear()}`;
+  }
+  if (periodType === "quarterly" && startDate) {
+    const quarter = Math.floor(startDate.getMonth() / 3) + 1;
+    return `Квартальный ${quarter}`;
+  }
+  if (periodType === "monthly" && startDate) {
+    const monthShort = new Intl.DateTimeFormat("ru-RU", { month: "short" }).format(startDate);
+    const monthLabel = monthShort.charAt(0).toUpperCase() + monthShort.slice(1);
+    return `Месячный ${monthLabel}`;
+  }
+  if (periodType === "weekly" && startDate && endDate) {
+    return `Недельный ${formatDisplayDate(toIsoDate(startDate)).slice(0, 5)} – ${formatDisplayDate(toIsoDate(endDate)).slice(0, 5)}`;
+  }
+  if (periodType === "daily" && startDate) {
+    return `Дневной ${formatDisplayDate(toIsoDate(startDate)).slice(0, 5)}`;
+  }
+  if (periodType === "yearly") return "Годовой";
+  if (periodType === "quarterly") return "Квартальный";
+  if (periodType === "monthly") return "Месячный";
+  if (periodType === "weekly") return "Недельный";
+  if (periodType === "daily") return "Дневной";
+  return "";
+};
+
 const normalizePeriodType = (value: unknown): KpiPeriodMode => {
   if (
     value === "daily" ||
@@ -742,8 +807,8 @@ const mapApiItem = (item: KpiTableItem): KpiRecord => {
   return {
     id: item.guid,
     parentId: item.parent_id || null,
-    departmentsId: item.departments_id || null,
-    department: item.department || "Без отдела",
+    positionsId: item.positions_id || null,
+    position: item.position || "Без должности",
     name: item.title || "Без названия",
     description: item.description || "",
     source: item.source || "Вручную",
@@ -764,11 +829,106 @@ const mapApiItem = (item: KpiTableItem): KpiRecord => {
   };
 };
 
+const applyActualValueToTree = (
+  items: KpiRecord[],
+  guid: string,
+  nextActual: number
+): { items: KpiRecord[]; changed: boolean } => {
+  let hasChanged = false;
+
+  const updateNode = (node: KpiRecord): KpiRecord => {
+    let nodeChanged = false;
+
+    const nextChildren = node.children.map((child) => {
+      const updatedChild = updateNode(child);
+      if (updatedChild !== child) {
+        nodeChanged = true;
+      }
+      return updatedChild;
+    });
+
+    let nextNode: KpiRecord = node;
+
+    if (node.id === guid && node.children.length === 0) {
+      const normalizedActual = roundToTwo(nextActual);
+      const nextPercent = calcPercent(normalizedActual, node.planValue);
+      nextNode = {
+        ...nextNode,
+        ownActualValue: normalizedActual,
+        actualValue: normalizedActual,
+        percentTotal: nextPercent,
+      };
+      nodeChanged = true;
+    }
+
+    if (nodeChanged && nextChildren.length > 0) {
+      const aggregatedActual = roundToTwo(
+        nextChildren.reduce((sum, child) => sum + child.actualValue, 0)
+      );
+      nextNode = {
+        ...nextNode,
+        children: nextChildren,
+        hasChildren: true,
+        actualValue: aggregatedActual,
+        percentTotal: calcPercent(aggregatedActual, nextNode.planValue),
+      };
+    } else if (nodeChanged) {
+      nextNode = {
+        ...nextNode,
+        children: nextChildren,
+      };
+    }
+
+    if (nextNode !== node) {
+      hasChanged = true;
+    }
+
+    return nextNode;
+  };
+
+  const nextItems = items.map((item) => updateNode(item));
+  return {
+    items: hasChanged ? nextItems : items,
+    changed: hasChanged,
+  };
+};
+
 const makeChildUid = (): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   return `child-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+};
+
+const loadRemoteOptionsBySlug = async ({
+  slug,
+  search,
+  limit,
+  offset,
+}: {
+  slug: string;
+  search: string;
+  limit: number;
+  offset: number;
+}) => {
+  const res = await httpRequest.get(`/v2/items/${slug}`, {
+    params: {
+      data: encodeJsonToUrlParam({
+        limit,
+        offset,
+        ...(search ? { search } : {}),
+      }),
+    },
+  });
+
+  const options = (Array.isArray(res?.response) ? res.response : [])
+    .map((item) => ({
+      value: typeof item?.guid === "string" ? item.guid : "",
+      label: typeof item?.title === "string" ? item.title : "",
+    }))
+    .filter((item) => item.value && item.label);
+
+  return { count: Number(res?.count || 0), options };
 };
 
 const formatPlanForInput = (value: number): string => {
@@ -816,8 +976,8 @@ const getDefaultDraft = (periodType: KpiPeriodMode): CreateKpiDraft => {
   return {
     parentId: "",
     parentTitle: "",
-    departmentId: "",
-    departmentTitle: "",
+    positionId: "",
+    positionTitle: "",
     source: "Вручную",
     valueSymbol: "",
     valueSymbolPosition: "suffix",
@@ -836,7 +996,7 @@ function KpiPage() {
   const [periodMode, setPeriodMode] = useState<KpiPeriodMode>("monthly");
   const [cursorDate, setCursorDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [positionFilter, setPositionFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [kpiItems, setKpiItems] = useState<KpiRecord[]>([]);
@@ -844,6 +1004,7 @@ function KpiPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFilters, setIsLoadingFilters] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [silentReloadToken, setSilentReloadToken] = useState(0);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createError, setCreateError] = useState("");
   const [isCreateSaving, setIsCreateSaving] = useState(false);
@@ -853,18 +1014,19 @@ function KpiPage() {
   const [kpiToDelete, setKpiToDelete] = useState<KpiRecord | null>(null);
   const [editingActualCell, setEditingActualCell] = useState<EditingActualCell | null>(null);
   const [draft, setDraft] = useState<CreateKpiDraft>(() => getDefaultDraft("monthly"));
-  const [departmentFilterOptions, setDepartmentFilterOptions] = useState<FilterOption[]>([]);
+  const [positionFilterOptions, setPositionFilterOptions] = useState<FilterOption[]>([]);
   const [sourceFilterOptions, setSourceFilterOptions] = useState<FilterOption[]>([]);
   const [parentOptions, setParentOptions] = useState<KpiParentOption[]>([]);
   const [expandedColumns, setExpandedColumns] = useState<Set<string>>(() => new Set());
+  const skipTableLoaderRef = useRef(false);
 
   const selectPortalTarget = typeof document !== "undefined" ? document.body : undefined;
   const filterSelectPortalTarget = typeof document !== "undefined" ? document.body : null;
 
-  const selectedDepartmentFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    if (!draft.departmentId || !draft.departmentTitle) return null;
-    return { value: draft.departmentId, label: draft.departmentTitle };
-  }, [draft.departmentId, draft.departmentTitle]);
+  const selectedPositionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    if (!draft.positionId || !draft.positionTitle) return null;
+    return { value: draft.positionId, label: draft.positionTitle };
+  }, [draft.positionId, draft.positionTitle]);
 
   const valueSymbolPositionOptions = useMemo<FilterOption[]>(
     () => [
@@ -929,37 +1091,29 @@ function KpiPage() {
     []
   );
 
-  const loadDepartmentOptions = useCallback(
+  const loadPositionOptions = useCallback(
     async ({ search, limit, offset }: { search: string; limit: number; offset: number }) => {
-      const res = await settingsDirectoryService.getList("departments", {
-        search: search || undefined,
+      return loadRemoteOptionsBySlug({
+        slug: "positions",
+        search,
         limit,
         offset,
       });
-
-      const options = (res.response || [])
-        .map((item) => ({
-          value: typeof item.guid === "string" ? item.guid : "",
-          label: typeof item.title === "string" ? item.title : "",
-        }))
-        .filter((item) => item.value && item.label);
-
-      return { count: res.count, options };
     },
     []
   );
 
   useEffect(() => {
-    if (!draft.departmentId) return;
+    if (!draft.positionId) return;
     let isCancelled = false;
     void (async () => {
       try {
-        const record = await settingsDirectoryService.getByGuid("departments", draft.departmentId);
+        const record = await settingsDirectoryService.getByGuid("positions", draft.positionId);
         const title = typeof record?.title === "string" ? record.title : "";
         if (isCancelled || !title) return;
         setDraft((prev) =>
-          prev.departmentId === draft.departmentId && prev.departmentTitle !== title
-            ? { ...prev, departmentTitle: title }
+          prev.positionId === draft.positionId && prev.positionTitle !== title
+            ? { ...prev, positionTitle: title }
             : prev
         );
       } catch {
@@ -969,7 +1123,7 @@ function KpiPage() {
     return () => {
       isCancelled = true;
     };
-  }, [draft.departmentId]);
+  }, [draft.positionId]);
 
   const periodRange = useMemo(() => getPeriodRange(cursorDate, periodMode), [cursorDate, periodMode]);
   const selectedDraftPeriodDate = useMemo<Date | null>(
@@ -993,12 +1147,12 @@ function KpiPage() {
         if (cancelled) return;
 
         const filters = response.result?.filters;
-        const departments = Array.isArray(filters?.departments) ? filters!.departments! : [];
+        const positions = Array.isArray(filters?.positions) ? filters!.positions! : [];
         const sources = Array.isArray(filters?.sources) ? filters!.sources! : [];
         const parents = Array.isArray(filters?.parents) ? filters!.parents! : [];
 
-        setDepartmentFilterOptions(
-          departments
+        setPositionFilterOptions(
+          positions
             .map((option: KpiFilterOption) => ({
               value: String(option.value || ""),
               label: String(option.label || ""),
@@ -1028,7 +1182,10 @@ function KpiPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setIsLoading(true);
+    const shouldShowLoading = !skipTableLoaderRef.current;
+    if (shouldShowLoading) {
+      setIsLoading(true);
+    }
     void (async () => {
       try {
         const response = await reportsService.getKpiTable({
@@ -1036,7 +1193,7 @@ function KpiPage() {
           date_from: periodRange.from,
           date_to: periodRange.to,
           search: searchQuery.trim() || undefined,
-          department_id: departmentFilter || undefined,
+          position_id: positionFilter || undefined,
           sources: sourceFilter ? [sourceFilter] : undefined,
         });
 
@@ -1053,7 +1210,8 @@ function KpiPage() {
           toast.error("Не удалось загрузить KPI");
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        skipTableLoaderRef.current = false;
+        if (!cancelled && shouldShowLoading) setIsLoading(false);
       }
     })();
 
@@ -1065,9 +1223,10 @@ function KpiPage() {
     periodRange.from,
     periodRange.to,
     searchQuery,
-    departmentFilter,
+    positionFilter,
     sourceFilter,
     reloadToken,
+    silentReloadToken,
   ]);
 
   const currentPeriodLabel = useMemo(
@@ -1128,48 +1287,98 @@ function KpiPage() {
     return { minWidth: `${minWidth}px` };
   }, [leafBuckets]);
 
-  const selectedDepartmentFilterOption = useMemo<FilterOption | null>(
-    () => departmentFilterOptions.find((option) => option.value === departmentFilter) || null,
-    [departmentFilterOptions, departmentFilter]
+  const selectedPositionFilterOption = useMemo<FilterOption | null>(
+    () => positionFilterOptions.find((option) => option.value === positionFilter) || null,
+    [positionFilterOptions, positionFilter]
   );
   const selectedSourceFilterOption = useMemo<FilterOption | null>(
     () => sourceFilterOptions.find((option) => option.value === sourceFilter) || null,
     [sourceFilterOptions, sourceFilter]
   );
   const activeFiltersCount = useMemo(
-    () => [departmentFilter, sourceFilter].filter(Boolean).length,
-    [departmentFilter, sourceFilter]
+    () => [positionFilter, sourceFilter].filter(Boolean).length,
+    [positionFilter, sourceFilter]
   );
   const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
 
-  const parentSelectOptions = useMemo<FilterOption[]>(
-    () => [
-      { value: "", label: "Не задан (корневой KPI)" },
-      ...parentOptions.map((option) => ({
-        value: option.value,
-        label: option.label,
-      })),
-    ],
-    [parentOptions]
+  const allowedParentPeriodTypes = useMemo(
+    () => getAllowedParentPeriodTypes(draft.periodType),
+    [draft.periodType]
   );
 
-  const selectedParentOption = useMemo<FilterOption | null>(
+  const parentSelectOptions = useMemo<ParentSelectOption[]>(
+    () => [
+      { value: "", label: "Не задан (корневой KPI)", isRoot: true },
+      ...parentOptions
+        .filter((option) =>
+          allowedParentPeriodTypes.includes(normalizePeriodType(option.period_type))
+        )
+        .map((option) => ({
+          value: option.value,
+          label: option.label,
+          periodType: option.period_type,
+          startDate: option.start_date,
+          endDate: option.end_date,
+        })),
+    ],
+    [parentOptions, allowedParentPeriodTypes]
+  );
+
+  const selectedParentOption = useMemo<ParentSelectOption | null>(
     () => parentSelectOptions.find((option) => option.value === draft.parentId) || parentSelectOptions[0] || null,
     [parentSelectOptions, draft.parentId]
+  );
+
+  useEffect(() => {
+    if (!draft.parentId) return;
+    const parentStillAllowed = parentSelectOptions.some(
+      (option) => option.value === draft.parentId
+    );
+    if (parentStillAllowed) return;
+    setDraft((prev) =>
+      prev.parentId
+        ? {
+            ...prev,
+            parentId: "",
+            parentTitle: "",
+          }
+        : prev
+    );
+  }, [draft.parentId, parentSelectOptions]);
+
+  const formatParentOptionLabel = useCallback(
+    (option: ParentSelectOption, meta: { context: "menu" | "value" }) => {
+      if (meta.context !== "menu" || option.isRoot) {
+        return option.label;
+      }
+
+      const tagLabel = getPeriodTypeTagLabel(option);
+      if (!tagLabel) return option.label;
+
+      return (
+        <div className="flex items-center justify-between gap-3">
+          <span className="truncate">{option.label}</span>
+          <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+            {tagLabel}
+          </span>
+        </div>
+      );
+    },
+    []
   );
 
   const groupedItems = useMemo(() => {
     const groups = new Map<string, KpiRecord[]>();
     if (kpiGroups.length > 0) {
       for (const group of kpiGroups) {
-        groups.set(group.department || "Без отдела", []);
+        groups.set(group.position || "Без должности", []);
       }
     }
     for (const item of kpiItems) {
-      if (!groups.has(item.department)) {
-        groups.set(item.department, []);
+      if (!groups.has(item.position)) {
+        groups.set(item.position, []);
       }
-      groups.get(item.department)?.push(item);
+      groups.get(item.position)?.push(item);
     }
     return [...groups.entries()];
   }, [kpiItems, kpiGroups]);
@@ -1268,8 +1477,8 @@ function KpiPage() {
     setDraft({
       parentId: item.parentId || "",
       parentTitle: "",
-      departmentId: item.departmentsId || "",
-      departmentTitle: item.department,
+      positionId: item.positionsId || "",
+      positionTitle: item.position,
       source: item.source || "Вручную",
       valueSymbol: item.valueSymbol || "",
       valueSymbolPosition: item.valueSymbolPosition || "suffix",
@@ -1327,13 +1536,17 @@ function KpiPage() {
     const parsed = Number(normalized);
     const nextActual = !Number.isFinite(parsed) || parsed < 0 ? 0 : roundToTwo(parsed);
 
+    setKpiItems((prev) => applyActualValueToTree(prev, guid, nextActual).items);
+
     void (async () => {
       try {
         await reportsService.updateKpiValue({ guid, actual_value: nextActual });
-        setReloadToken((prev) => prev + 1);
+        skipTableLoaderRef.current = true;
+        setSilentReloadToken((prev) => prev + 1);
       } catch {
         toast.error("Не удалось сохранить фактическое значение");
-        setReloadToken((prev) => prev + 1);
+        skipTableLoaderRef.current = true;
+        setSilentReloadToken((prev) => prev + 1);
       }
     })();
   };
@@ -1404,10 +1617,10 @@ function KpiPage() {
     if (isCreateSaving) return;
 
     const name = draft.name.trim();
-    const departmentId = draft.departmentId.trim();
+    const positionId = draft.positionId.trim();
 
-    if (!departmentId) {
-      setCreateError("Выберите отдел");
+    if (!positionId) {
+      setCreateError("Выберите должность");
       return;
     }
     if (!name) {
@@ -1479,7 +1692,7 @@ function KpiPage() {
         guid: editingKpiId || undefined,
         parent_id: draft.parentId || undefined,
         companies_id: companyStore.company?.guid,
-        departments_id: departmentId,
+        positions_id: positionId,
         title: name,
         description: draft.description.trim(),
         source: draft.source.trim() || "Вручную",
@@ -1703,7 +1916,7 @@ function KpiPage() {
 
   return (
     <>
-      <PageMeta title="KPI | HRMS" description="Управление KPI по отделам" />
+      <PageMeta title="KPI | HRMS" description="Управление KPI по должностям" />
 
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
         <div
@@ -1823,10 +2036,10 @@ function KpiPage() {
           >
             <div style={{ minWidth: "220px", maxWidth: "280px", flex: "0 1 280px" }}>
               <Select
-                options={departmentFilterOptions}
-                value={selectedDepartmentFilterOption}
-                onChange={(option) => setDepartmentFilter(option?.value || "")}
-                placeholder="Все отделы"
+                options={positionFilterOptions}
+                value={selectedPositionFilterOption}
+                onChange={(option) => setPositionFilter(option?.value || "")}
+                placeholder="Все должности"
                 isClearable
                 isDisabled={isLoadingFilters}
                 styles={filterSelectStyles}
@@ -1849,11 +2062,11 @@ function KpiPage() {
               />
             </div>
 
-            {departmentFilter || sourceFilter ? (
+            {positionFilter || sourceFilter ? (
               <button
                 type="button"
                 onClick={() => {
-                  setDepartmentFilter("");
+                  setPositionFilter("");
                   setSourceFilter("");
                 }}
                 className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
@@ -1968,15 +2181,15 @@ function KpiPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {groupedItems.map(([department, items]) => (
-                        <Fragment key={`group-${department}`}>
+                      {groupedItems.map(([position, items]) => (
+                        <Fragment key={`group-${position}`}>
                           <tr className="border-b border-slate-100 bg-slate-50/60">
                             <td className="py-1.5 pl-3 pr-3" />
                             <td
                               colSpan={4 + leafBuckets.length * 3 + 3}
                               className="py-1.5 pr-3 text-left text-[13px] font-semibold text-brand-500"
                             >
-                              {department}
+                              {position}
                             </td>
                           </tr>
                           {items.map((item) => renderRow(item))}
@@ -2026,6 +2239,7 @@ function KpiPage() {
                 <Select
                   options={parentSelectOptions}
                   value={selectedParentOption}
+                  formatOptionLabel={formatParentOptionLabel}
                   onChange={(option) =>
                     setDraft((prev) => ({
                       ...prev,
@@ -2043,20 +2257,20 @@ function KpiPage() {
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Отдел *</span>
+                  <span className="text-xs font-medium text-slate-500">Должность *</span>
                   <RemoteSingleSelect
-                    value={draft.departmentId}
+                    value={draft.positionId}
                     onChange={(value) =>
                       setDraft((prev) => ({
                         ...prev,
-                        departmentId: value,
-                        departmentTitle: "",
+                        positionId: value,
+                        positionTitle: "",
                       }))
                     }
-                    loadOptions={loadDepartmentOptions}
-                    fallbackOption={selectedDepartmentFallbackOption}
-                    placeholder="Выберите отдел"
-                    classNamePrefix="kpi-department-select"
+                    loadOptions={loadPositionOptions}
+                    fallbackOption={selectedPositionFallbackOption}
+                    placeholder="Выберите должность"
+                    classNamePrefix="kpi-position-select"
                     menuPortalTarget={selectPortalTarget}
                   />
                 </label>

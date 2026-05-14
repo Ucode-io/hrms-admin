@@ -897,7 +897,7 @@ export type KpiFiltersResult = {
   filters?: {
     period_types?: KpiFilterOption[];
     value_symbol_positions?: KpiFilterOption[];
-    departments?: KpiFilterOption[];
+    positions?: KpiFilterOption[];
     sources?: KpiFilterOption[];
     parents?: KpiParentOption[];
     defaults?: {
@@ -918,8 +918,8 @@ export type KpiGetInvokeResponse = {
 export type KpiTableItem = {
   guid: string;
   parent_id: string | null;
-  departments_id: string | null;
-  department: string;
+  positions_id: string | null;
+  position: string;
   title: string;
   description: string;
   source: string;
@@ -940,7 +940,7 @@ export type KpiTableItem = {
 };
 
 export type KpiTableGroup = {
-  department: string;
+  position: string;
   items: KpiTableItem[];
 };
 
@@ -967,6 +967,7 @@ export type SaveKpiInvokeResponse = {
   result: {
     guid: string;
     parent_id: string | null;
+    positions_id?: string | null;
     period_type: KpiPeriodType | string;
     value_symbol?: string;
     value_symbol_position?: "prefix" | "suffix" | string;
