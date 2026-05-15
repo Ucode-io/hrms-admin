@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useQuery } from "react-query";
 import authStore from "../../store/auth.store";
+import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 import { handleUnauthorizedError } from "../unauthorizedHandler";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
@@ -1019,45 +1020,10 @@ const reportsRequest = axios.create({
 
 reportsRequest.interceptors.request.use((config) => {
   const token = authStore.token ?? localStorage.getItem("auth_token");
-  const companyId =
-    authStore.companyId ??
-    (typeof authStore.user_data?.companies_id === "string" ? authStore.user_data.companies_id : null) ??
-    (typeof authStore.user?.companies_id === "string" ? authStore.user.companies_id : null);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
-  if (
-    companyId &&
-    typeof config.url === "string" &&
-    config.url.includes("/v2/invoke_function/") &&
-    config.data &&
-    typeof config.data === "object" &&
-    !Array.isArray(config.data)
-  ) {
-    const requestBody = { ...(config.data as Record<string, unknown>) };
-    const gatewayPayload =
-      requestBody.data && typeof requestBody.data === "object" && !Array.isArray(requestBody.data)
-        ? { ...(requestBody.data as Record<string, unknown>) }
-        : {};
-    const methodData =
-      gatewayPayload.data && typeof gatewayPayload.data === "object" && !Array.isArray(gatewayPayload.data)
-        ? { ...(gatewayPayload.data as Record<string, unknown>) }
-        : {};
-
-    if (typeof gatewayPayload.companies_id !== "string" || !gatewayPayload.companies_id.trim()) {
-      gatewayPayload.companies_id = companyId;
-    }
-    if (typeof methodData.companies_id !== "string" || !methodData.companies_id.trim()) {
-      methodData.companies_id = companyId;
-    }
-
-    gatewayPayload.data = methodData;
-    requestBody.data = gatewayPayload;
-    config.data = requestBody;
-  }
-
-  return config;
+  return injectCompaniesIdIntoInvokeFunctionRequest(config);
 });
 
 reportsRequest.interceptors.response.use(

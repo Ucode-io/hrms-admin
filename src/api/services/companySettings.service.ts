@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import httpRequest from "../httpRequest";
+import httpRequest, { injectCompaniesIdIntoItemsRequest } from "../httpRequest";
 export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 
 export interface CompanySettings {
@@ -43,6 +43,8 @@ const settingsRequest = axios.create({
     "x-api-key": SETTINGS_API_KEY,
   },
 });
+
+settingsRequest.interceptors.request.use((config) => injectCompaniesIdIntoItemsRequest(config));
 
 const companySettingsService = {
   get: async (): Promise<CompanySettings> => {

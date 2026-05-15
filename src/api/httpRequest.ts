@@ -14,13 +14,19 @@ const isItemsRequest = (url?: string): boolean => typeof url === "string" && url
 const isInvokeFunctionRequest = (url?: string): boolean =>
   typeof url === "string" && url.includes("/v2/invoke_function/");
 
-const getCompaniesId = (): string | null => {
+const normalizeCompanyId = (value: unknown): string | null =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+
+export const getCompaniesId = (): string | null => {
   if (typeof authStore.companyId === "string" && authStore.companyId.length > 0) {
-    return authStore.companyId;
+    return normalizeCompanyId(authStore.companyId);
   }
 
-  const userCompanyId = authStore.user_data?.companies_id ?? authStore.user?.companies_id;
-  return typeof userCompanyId === "string" && userCompanyId.length > 0 ? userCompanyId : null;
+  const userCompanyId =
+    normalizeCompanyId(authStore.user_data?.companies_id) ??
+    normalizeCompanyId(authStore.user?.companies_id);
+
+  return userCompanyId;
 };
 
 const parseDataQueryParam = (value: unknown): Record<string, unknown> => {
@@ -51,8 +57,10 @@ const parseDataQueryParam = (value: unknown): Record<string, unknown> => {
   return {};
 };
 
-const withCompaniesId = (data: Record<string, unknown>, companiesId: string) =>
-  data.companies_id ? data : { ...data, companies_id: companiesId };
+const withCompaniesId = (data: Record<string, unknown>, companiesId: string) => ({
+  ...data,
+  companies_id: companiesId,
+});
 
 export const injectCompaniesIdIntoItemsRequest = (
   config: InternalAxiosRequestConfig
@@ -66,6 +74,7 @@ export const injectCompaniesIdIntoItemsRequest = (
 
   if (method === "get") {
     const params = isRecord(config.params) ? { ...config.params } : {};
+    params.companies_id = companiesId;
     const dataParam = parseDataQueryParam(params.data);
     params.data = encodeURIComponent(JSON.stringify(withCompaniesId(dataParam, companiesId)));
     config.params = params;
@@ -74,47 +83,51 @@ export const injectCompaniesIdIntoItemsRequest = (
 
   if (isRecord(config.data)) {
     const requestBody = { ...config.data };
+    requestBody.companies_id = companiesId;
 
     if (isRecord(requestBody.data)) {
       requestBody.data = withCompaniesId(requestBody.data, companiesId);
-    } else {
-      requestBody.data = withCompaniesId({}, companiesId);
+    }
+
+    if (Array.isArray(requestBody.items)) {
+      requestBody.items = requestBody.items.map((item) =>
+        isRecord(item) ? withCompaniesId(item, companiesId) : item
+      );
     }
 
     config.data = requestBody;
     return config;
   }
 
-  config.data = { data: { companies_id: companiesId } };
+  config.data = { companies_id: companiesId, data: { companies_id: companiesId } };
   return config;
 };
 
-const injectCompaniesIdIntoInvokeFunctionRequest = (
+export const injectCompaniesIdIntoInvokeFunctionRequest = (
   config: InternalAxiosRequestConfig
 ): InternalAxiosRequestConfig => {
   const companiesId = getCompaniesId();
-  if (!companiesId || !isInvokeFunctionRequest(config.url) || !isRecord(config.data)) {
+  if (!companiesId || !isInvokeFunctionRequest(config.url)) {
     return config;
   }
 
-  const requestBody = { ...config.data };
+  const requestBody = isRecord(config.data) ? { ...config.data } : {};
   const gatewayPayload = isRecord(requestBody.data) ? { ...requestBody.data } : {};
 
-  gatewayPayload.companies_id =
-    typeof gatewayPayload.companies_id === "string" && gatewayPayload.companies_id.trim()
-      ? gatewayPayload.companies_id
-      : companiesId;
+  gatewayPayload.companies_id = companiesId;
 
   if (isRecord(gatewayPayload.data)) {
-    gatewayPayload.data =
-      typeof gatewayPayload.data.companies_id === "string" && gatewayPayload.data.companies_id.trim()
-        ? gatewayPayload.data
-        : { ...gatewayPayload.data, companies_id: companiesId };
+    gatewayPayload.data = withCompaniesId(gatewayPayload.data, companiesId);
+  } else if (Array.isArray(gatewayPayload.data)) {
+    gatewayPayload.data = gatewayPayload.data.map((item) =>
+      isRecord(item) ? withCompaniesId(item, companiesId) : item
+    );
   } else {
     gatewayPayload.data = { companies_id: companiesId };
   }
 
   requestBody.data = gatewayPayload;
+  requestBody.companies_id = companiesId;
   config.data = requestBody;
   return config;
 };

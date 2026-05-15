@@ -46,6 +46,12 @@ class Store {
       : null;
   }
 
+  private normalizeCompanyId(companyId: string | null | undefined): string | null {
+    return typeof companyId === "string" && companyId.trim().length > 0
+      ? companyId.trim()
+      : null;
+  }
+
   setIsAuth(value: boolean) {
     this.isAuth = value;
   }
@@ -67,7 +73,7 @@ class Store {
     }
   }
 
-  login(token: string, user: UserData, refreshToken?: string | null) {
+  login(token: string, user: UserData, refreshToken?: string | null, companyId?: string | null) {
     this.isAuth = true;
     this.token = token;
     if (typeof refreshToken !== "undefined") {
@@ -75,7 +81,7 @@ class Store {
     }
     this.user = user;
     this.user_data = user;
-    this.companyId = this.getCompanyIdFromUser(user);
+    this.companyId = this.normalizeCompanyId(companyId) ?? this.getCompanyIdFromUser(user);
   }
 
   logout() {

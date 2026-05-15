@@ -28,6 +28,7 @@ interface UserData {
 interface LoginResponseData {
   token: TokenData;
   user_data: UserData;
+  companies_id?: string | null;
 }
 
 interface LoginResponse {

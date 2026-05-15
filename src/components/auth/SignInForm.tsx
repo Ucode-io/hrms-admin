@@ -25,9 +25,17 @@ const SignInForm = observer(function SignInForm() {
       const accessToken = response?.token?.access_token;
       const refreshToken = response?.token?.refresh_token;
       const userData = response?.user_data || {};
+      const loginCompanyId =
+        typeof response?.companies_id === "string" && response.companies_id.trim().length > 0
+          ? response.companies_id.trim()
+          : null;
+
+      if (loginCompanyId && (typeof userData.companies_id !== "string" || !userData.companies_id.trim())) {
+        userData.companies_id = loginCompanyId;
+      }
 
       if (accessToken) {
-        authStore.login(accessToken, userData, refreshToken || null);
+        authStore.login(accessToken, userData, refreshToken || null, loginCompanyId);
         navigate("/");
       } else {
         setError("Ошибка получения токена");
