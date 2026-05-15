@@ -13,6 +13,7 @@ interface UserData {
   role_id?: string;
   client_type_id?: string;
   user_id_auth?: string;
+  companies_id?: string | null;
   avatar?: string;
   photo?: string;
   [key: string]: unknown;
@@ -24,7 +25,7 @@ class Store {
 
     void makePersistable(this, {
       name: "ayva-auth",
-      properties: ["isAuth", "token", "refreshToken", "user", "user_data"],
+      properties: ["isAuth", "token", "refreshToken", "user", "user_data", "companyId"],
       storage: window.localStorage,
     }).then(() => {
       this.hydrateTokensFromStorage();
@@ -36,6 +37,14 @@ class Store {
   refreshToken: string | null = null;
   user: UserData | null = null;
   user_data: UserData | null = null;
+  companyId: string | null = null;
+
+  private getCompanyIdFromUser(user: UserData | null): string | null {
+    if (!user) return null;
+    return typeof user.companies_id === "string" && user.companies_id.length > 0
+      ? user.companies_id
+      : null;
+  }
 
   setIsAuth(value: boolean) {
     this.isAuth = value;
@@ -52,6 +61,10 @@ class Store {
   setUser(user: UserData | null) {
     this.user = user;
     this.user_data = user;
+    const companyId = this.getCompanyIdFromUser(user);
+    if (companyId) {
+      this.companyId = companyId;
+    }
   }
 
   login(token: string, user: UserData, refreshToken?: string | null) {
@@ -62,6 +75,7 @@ class Store {
     }
     this.user = user;
     this.user_data = user;
+    this.companyId = this.getCompanyIdFromUser(user);
   }
 
   logout() {
@@ -70,6 +84,7 @@ class Store {
     this.refreshToken = null;
     this.user = null;
     this.user_data = null;
+    this.companyId = null;
     localStorage.removeItem("auth_token");
     localStorage.removeItem("refresh_token");
   }

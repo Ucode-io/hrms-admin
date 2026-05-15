@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import axios from "axios";
 import authStore from "../../store/auth.store";
+import { injectCompaniesIdIntoItemsRequest } from "../httpRequest";
 
 const BASE_URL = "https://api.admin.u-code.io";
 const PROJECT_ID = "84f1983d-5095-490e-ba9c-d2618b164c99";
@@ -18,7 +19,7 @@ instance.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  return config;
+  return injectCompaniesIdIntoItemsRequest(config);
 });
 
 export interface EmployeeEducation {

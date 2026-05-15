@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "react-query";
 import axios from "axios";
 import authStore from "../../store/auth.store";
-import httpRequest from "../httpRequest";
+import httpRequest, { injectCompaniesIdIntoItemsRequest } from "../httpRequest";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 
 
@@ -140,7 +140,7 @@ serverInstance.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  return config;
+  return injectCompaniesIdIntoItemsRequest(config);
 });
 
 export interface ServerClient {
