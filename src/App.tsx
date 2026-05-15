@@ -92,11 +92,16 @@ function App() {
   const lastSyncedUserKeyRef = useRef("");
   const isAuth = authStore.isAuth;
   const token = authStore.token;
+  const companyId = authStore.companyId;
   const authUserGuid = authStore.user_data?.guid || authStore.user?.guid;
 
   useEffect(() => {
-    companyStore.fetchCompany();
-  }, []);
+    if (!isAuth) {
+      companyStore.setStaticLoginCompanyConfig();
+      return;
+    }
+    void companyStore.fetchCompany(companyId);
+  }, [isAuth, companyId]);
 
   useEffect(() => {
     if (!isAuth || !token || !authUserGuid) {

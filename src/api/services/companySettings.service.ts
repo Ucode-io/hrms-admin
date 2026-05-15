@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import httpRequest, { injectCompaniesIdIntoItemsRequest } from "../httpRequest";
+import authStore from "../../store/auth.store";
 export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 
 export interface CompanySettings {
@@ -46,15 +47,25 @@ const settingsRequest = axios.create({
 
 settingsRequest.interceptors.request.use((config) => injectCompaniesIdIntoItemsRequest(config));
 
+const resolveCompanyId = (): string => {
+  const fromAuthStore =
+    (typeof authStore.companyId === "string" && authStore.companyId.trim()) ||
+    (typeof authStore.user_data?.companies_id === "string" && authStore.user_data.companies_id.trim()) ||
+    (typeof authStore.user?.companies_id === "string" && authStore.user.companies_id.trim()) ||
+    "";
+
+  return fromAuthStore || COMPANY_ID;
+};
+
 const companySettingsService = {
   get: async (): Promise<CompanySettings> => {
-    const res = await httpRequest.get(`/v2/items/companies/${COMPANY_ID}`);
+    const res = await httpRequest.get(`/v2/items/companies/${resolveCompanyId()}`);
 
     return res?.response as CompanySettings;
   },
 
   update: async (data: Partial<CompanySettings>) => {
-    const res = await httpRequest.put(`/v2/items/companies/${COMPANY_ID}`, { data });
+    const res = await httpRequest.put(`/v2/items/companies/${resolveCompanyId()}`, { data });
 
     return res?.response as CompanySettings;
   },
@@ -73,7 +84,7 @@ const settingsOptionsService = {
 };
 
 export const useCompanySettingsQuery = () =>
-  useQuery(["company-settings", COMPANY_ID], companySettingsService.get);
+  useQuery(["company-settings", resolveCompanyId()], companySettingsService.get);
 
 export const useCurrenciesQuery = () =>
   useQuery(["settings-options", "currencies"], settingsOptionsService.getCurrencies, {
@@ -90,7 +101,7 @@ export const useUpdateCompanySettings = () => {
 
   return useMutation(companySettingsService.update, {
     onSuccess: () => {
-      queryClient.invalidateQueries(["company-settings", COMPANY_ID]);
+      queryClient.invalidateQueries(["company-settings", resolveCompanyId()]);
     },
   });
 };

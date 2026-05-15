@@ -36,6 +36,7 @@ const SignInForm = observer(function SignInForm() {
 
       if (accessToken) {
         authStore.login(accessToken, userData, refreshToken || null, loginCompanyId);
+        void companyStore.fetchCompany(loginCompanyId);
         navigate("/");
       } else {
         setError("Ошибка получения токена");
