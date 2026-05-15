@@ -1,4 +1,5 @@
 import { type ChangeEvent, useMemo, useState } from "react";
+import { useQueryClient } from "react-query";
 import { Icon } from "@iconify/react";
 import {
   CalendarDays,
@@ -6,66 +7,37 @@ import {
   ChevronRight,
   Download,
   MoreHorizontal,
+  MoreVertical,
   Paperclip,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import AbsenceRequestModal from "../../../../components/absences/AbsenceRequestModal";
+import { Modal } from "../../../../components/ui/modal";
+import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
+import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
 import {
-  type Absence,
   type AbsenceRequestStatus,
-  useEmployeeAbsencesQuery,
   useCreateAbsence,
+  useDeleteAbsence,
   useUpdateAbsence,
 } from "../../../../api/services/absenceRequest.service";
 import {
-  type AbsenceBalanceTransaction,
-  useAbsenceBalanceTransactionsQuery,
-  useCreateAbsenceBalanceTransaction,
-} from "../../../../api/services/absenceBalanceTransaction.service";
+  useEmployeeAbsenceSummaryQuery,
+  type EmployeeAbsencePolicy,
+  type EmployeeAbsenceRequest,
+} from "../../../../api/services/employeeAbsenceSummary.service";
 import { useUploadFile } from "../../../../api/services/file-upload.service";
-import {
-  type SettingsDirectoryItem,
-  useSettingsDirectoryQuery,
-} from "../../../../api/services/settingsDirectory.service";
 
 type AbsencesSectionProps = {
   employeeGuid: string;
   brandColor: string;
 };
 
-type AbsencePolicyItem = SettingsDirectoryItem & {
-  icon?: string;
-  color?: string;
-  value?: number | string;
-  period?: string[] | string;
-};
-
 type AttachmentItem = {
   name: string;
   size: number;
   url: string;
-};
-
-type NormalizedAbsenceRequest = {
-  guid: string;
-  policyId: string;
-  status: AbsenceRequestStatus;
-  dateFrom: string;
-  dateTo: string;
-  requestedDays: number;
-  note: string;
-  attachments: AttachmentItem[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-type NormalizedBalanceTransaction = {
-  guid: string;
-  policyId: string;
-  absenceId: string;
-  amount: number;
-  type: string;
-  sourceDate: string;
 };
 
 type DateBreakdownItem = {
@@ -76,12 +48,6 @@ type DateBreakdownItem = {
   isWeekend: boolean;
 };
 
-type RequestedBreakdownItem = {
-  date: string;
-  value: number;
-};
-
-const ABSENCE_POLICIES_SLUG = "absence_policies";
 const DEFAULT_POLICY_ICON = "mdi:airplane";
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -114,17 +80,6 @@ const STATUS_BADGE_CLASSNAME: Record<AbsenceRequestStatus, string> = {
   rejected: "bg-rose-100 text-rose-700",
 };
 
-const resolveNumericValue = (value: unknown, fallback: number): number => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-
-  return fallback;
-};
-
 const resolveHexColor = (value: unknown, fallback: string): string => {
   if (typeof value !== "string") return fallback;
   const normalized = value.trim();
@@ -144,123 +99,29 @@ const parseIsoDate = (value: string): Date | null => {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   if (Number.isNaN(date.getTime())) return null;
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
     return null;
   }
   return date;
 };
 
-const parseFlexibleDate = (value: string): Date | null => {
-  if (!value) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return parseIsoDate(value);
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-};
-
-const formatDateRu = (value: string): string => {
+const formatDateRu = (value: string | null): string => {
+  if (!value) return "—";
   const date = parseIsoDate(value);
-  if (!date) return value || "—";
+  if (!date) return value;
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${day}.${month}.${date.getFullYear()}`;
 };
 
-const formatDateRange = (from: string, to: string): string => {
+const formatDateRange = (from: string | null, to: string | null): string => {
   if (!from && !to) return "—";
   if (from && to) return `${formatDateRu(from)} - ${formatDateRu(to)}`;
   return formatDateRu(from || to);
-};
-
-const resolveStatus = (value: unknown): AbsenceRequestStatus => {
-  if (Array.isArray(value)) {
-    const first = value[0];
-    if (first === "approved" || first === "rejected" || first === "pending") return first;
-    return "pending";
-  }
-
-  if (value === "approved" || value === "rejected" || value === "pending") {
-    return value;
-  }
-
-  return "pending";
-};
-
-const resolveStringValue = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    const first = value[0];
-    return typeof first === "string" ? first : "";
-  }
-  return typeof value === "string" ? value : "";
-};
-
-const parseStringList = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
-      .filter(Boolean);
-  }
-
-  if (typeof value !== "string") return [];
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
-        .filter(Boolean);
-    }
-  } catch {
-    // noop
-  }
-
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    return trimmed
-      .slice(1, -1)
-      .split(",")
-      .map((item) => item.replace(/["']/g, "").trim().toLowerCase())
-      .filter(Boolean);
-  }
-
-  return [trimmed.replace(/["']/g, "").toLowerCase()];
-};
-
-const getPeriodSlug = (value: unknown): "week" | "month" | "year" => {
-  const first = parseStringList(value)[0] || "";
-  if (first === "week" || first === "month" || first === "year") return first;
-  return "year";
-};
-
-const getWeekStartMonday = (value: Date): Date => {
-  const base = new Date(value.getFullYear(), value.getMonth(), value.getDate());
-  const dayOfWeek = base.getDay();
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  base.setDate(base.getDate() + diff);
-  return base;
-};
-
-const getPeriodRangeBySlug = (period: "week" | "month" | "year", now: Date): { from: string; to: string } => {
-  if (period === "week") {
-    const fromDate = getWeekStartMonday(now);
-    const toDate = new Date(fromDate);
-    toDate.setDate(fromDate.getDate() + 6);
-    return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
-  }
-
-  if (period === "month") {
-    const fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    const toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
-  }
-
-  const fromDate = new Date(now.getFullYear(), 0, 1);
-  const toDate = new Date(now.getFullYear(), 11, 31);
-  return { from: toIsoDate(fromDate), to: toIsoDate(toDate) };
 };
 
 const getDateBreakdown = (from: string, to: string): DateBreakdownItem[] => {
@@ -289,19 +150,21 @@ const getDateBreakdown = (from: string, to: string): DateBreakdownItem[] => {
   return list;
 };
 
-const resolveAttachments = (value: unknown): AttachmentItem[] => {
+const parseAttachmentsField = (value: string | null): AttachmentItem[] => {
+  if (!value) return [];
+
+  let parsed: unknown = value;
   if (typeof value === "string") {
     try {
-      const parsed = JSON.parse(value);
-      return resolveAttachments(parsed);
+      parsed = JSON.parse(value);
     } catch {
       return [];
     }
   }
 
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(parsed)) return [];
 
-  return value
+  return parsed
     .map((item) => {
       if (typeof item === "string") {
         const parts = item.split("/");
@@ -311,117 +174,36 @@ const resolveAttachments = (value: unknown): AttachmentItem[] => {
           url: item,
         };
       }
-
       if (item && typeof item === "object") {
-        const maybeUrl = (item as { url?: unknown; file?: unknown }).url || (item as { file?: unknown }).file;
+        const maybeUrl =
+          (item as { url?: unknown; file?: unknown }).url ||
+          (item as { file?: unknown }).file;
         if (typeof maybeUrl === "string" && maybeUrl) {
           const maybeName = (item as { name?: unknown }).name;
           const maybeSize = (item as { size?: unknown }).size;
-
           return {
             name:
               typeof maybeName === "string" && maybeName.trim()
                 ? maybeName
                 : maybeUrl.split("/").pop() || "Файл",
-            size: typeof maybeSize === "number" && Number.isFinite(maybeSize) ? maybeSize : 0,
+            size:
+              typeof maybeSize === "number" && Number.isFinite(maybeSize)
+                ? maybeSize
+                : 0,
             url: maybeUrl,
           };
         }
       }
-
       return null;
     })
     .filter((item): item is AttachmentItem => Boolean(item));
-};
-
-const resolveRequestedBreakdown = (value: unknown): RequestedBreakdownItem[] => {
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return resolveRequestedBreakdown(parsed);
-    } catch {
-      return [];
-    }
-  }
-
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-
-      const date = (item as { date?: unknown }).date;
-      const amount = (item as { value?: unknown; amount?: unknown }).value ?? (item as { amount?: unknown }).amount;
-
-      if (typeof date !== "string" || !date) return null;
-
-      return {
-        date,
-        value: resolveNumericValue(amount, 0),
-      };
-    })
-    .filter((item): item is RequestedBreakdownItem => Boolean(item));
-};
-
-const normalizeBalanceTransaction = (
-  item: AbsenceBalanceTransaction
-): NormalizedBalanceTransaction => {
-  const amount = resolveNumericValue(
-    item.amount ??
-      (item as { value?: unknown }).value ??
-      (item as { days?: unknown }).days,
-    0
-  );
-
-  const sourceDate =
-    (typeof item.date === "string" && item.date) ||
-    (typeof item.occurred_at === "string" && item.occurred_at) ||
-    (typeof item.created_at === "string" && item.created_at) ||
-    "";
-
-  return {
-    guid: item.guid,
-    policyId: typeof item.absence_policies_id === "string" ? item.absence_policies_id : "",
-    absenceId: typeof item.absences_id === "string" ? item.absences_id : "",
-    amount,
-    type: resolveStringValue(item.transaction_type || item.type).toLowerCase(),
-    sourceDate,
-  };
-};
-
-const normalizeRequest = (item: Absence): NormalizedAbsenceRequest => {
-  const dateFrom = typeof item.date_from === "string" ? item.date_from : "";
-  const dateTo = typeof item.date_to === "string" ? item.date_to : "";
-  const requestedBreakdown = resolveRequestedBreakdown(item.requested_breakdown);
-  const daysFromBreakdown = requestedBreakdown.reduce((sum, part) => sum + part.value, 0);
-  const calculatedDays = getDateBreakdown(dateFrom, dateTo).length;
-
-  return {
-    guid:
-      (typeof item.guid === "string" && item.guid) ||
-      (typeof (item as { id?: unknown }).id === "string" ? ((item as { id: string }).id) : ""),
-    policyId: typeof item.absence_policies_id === "string" ? item.absence_policies_id : "",
-    status: resolveStatus(item.status),
-    dateFrom,
-    dateTo,
-    requestedDays: resolveNumericValue(item.requested_days, daysFromBreakdown || calculatedDays),
-    note: typeof item.note === "string" ? item.note : "",
-    attachments: resolveAttachments(item.attachments),
-    createdAt: typeof item.created_at === "string" ? item.created_at : "",
-    updatedAt: typeof item.updated_at === "string" ? item.updated_at : "",
-  };
-};
-
-const byNewest = (a: NormalizedAbsenceRequest, b: NormalizedAbsenceRequest): number => {
-  const aTs = new Date(a.createdAt || a.updatedAt || 0).getTime();
-  const bTs = new Date(b.createdAt || b.updatedAt || 0).getTime();
-  return bTs - aTs;
 };
 
 export default function AbsencesSection({
   employeeGuid,
   brandColor,
 }: AbsencesSectionProps) {
+  const queryClient = useQueryClient();
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
   const attachmentInputId = `absence-attachment-upload-${employeeGuid}`;
 
@@ -437,135 +219,66 @@ export default function AbsencesSection({
   const [modalAttachments, setModalAttachments] = useState<AttachmentItem[]>([]);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
+  const [deletingRequest, setDeletingRequest] = useState<EmployeeAbsenceRequest | null>(null);
+  const [openMenuRequestId, setOpenMenuRequestId] = useState<string | null>(null);
 
-  const { data: policiesData, isLoading: isPoliciesLoading } = useSettingsDirectoryQuery({
-    slug: ABSENCE_POLICIES_SLUG,
-    params: {
-      limit: 1000,
-      offset: 0,
-    },
-  });
-
-  const { data: requestsData, isLoading: isRequestsLoading } = useEmployeeAbsencesQuery({
+  const summaryQuery = useEmployeeAbsenceSummaryQuery({
     userBaseId: employeeGuid,
-    querySettings: {
-      enabled: Boolean(employeeGuid),
-    },
+    asOfDate: todayIso,
+    historyYear,
+    querySettings: { enabled: Boolean(employeeGuid) },
   });
 
-  const { data: balanceTransactionsData } = useAbsenceBalanceTransactionsQuery({
-    data: {
-      user_base_id: employeeGuid,
-      limit: 2000,
-      offset: 0,
-    },
-    querySettings: {
-      enabled: Boolean(employeeGuid),
-    },
-  });
-
-  const createRequestMutation = useCreateAbsence();
-  const updateRequestMutation = useUpdateAbsence();
-  const createBalanceTransactionMutation = useCreateAbsenceBalanceTransaction();
-  const uploadFileMutation = useUploadFile({ folder: "Media" });
-
-  const policies = useMemo(
-    () => ((policiesData?.response || []) as AbsencePolicyItem[]),
-    [policiesData?.response]
+  const isSummaryLoading = summaryQuery.isLoading;
+  const policies: EmployeeAbsencePolicy[] = useMemo(
+    () => summaryQuery.data?.policies ?? [],
+    [summaryQuery.data?.policies]
   );
 
   const policiesById = useMemo(() => {
-    const map = new Map<string, AbsencePolicyItem>();
+    const map = new Map<string, EmployeeAbsencePolicy>();
     for (const policy of policies) {
       map.set(policy.guid, policy);
     }
     return map;
   }, [policies]);
 
-  const allRequests = useMemo(() => {
-    const source = (requestsData?.response || []) as Absence[];
-    return source.map(normalizeRequest).sort(byNewest);
-  }, [requestsData?.response]);
+  const allRequests: EmployeeAbsenceRequest[] = useMemo(
+    () => summaryQuery.data?.requests ?? [],
+    [summaryQuery.data?.requests]
+  );
 
-  const balanceTransactions = useMemo(() => {
-    const source = (balanceTransactionsData?.response || []) as AbsenceBalanceTransaction[];
-    return source.map(normalizeBalanceTransaction);
-  }, [balanceTransactionsData?.response]);
+  const historySummary = summaryQuery.data?.history;
 
-  const balanceByPolicy = useMemo(() => {
-    const map = new Map<string, number>();
-    const now = new Date();
-
-    for (const policy of policies) {
-      const period = getPeriodSlug(policy.period);
-      const range = getPeriodRangeBySlug(period, now);
-
-      const periodBalance = balanceTransactions.reduce((sum, transaction) => {
-        if (!transaction.policyId || transaction.policyId !== policy.guid) return sum;
-        const sourceDate = parseFlexibleDate(transaction.sourceDate);
-        if (!sourceDate) return sum;
-        const sourceDateIso = toIsoDate(sourceDate);
-        if (sourceDateIso < range.from || sourceDateIso > range.to) return sum;
-        return sum + transaction.amount;
-      }, 0);
-
-      map.set(policy.guid, periodBalance);
-    }
-
-    return map;
-  }, [balanceTransactions, policies]);
+  const createRequestMutation = useCreateAbsence();
+  const updateRequestMutation = useUpdateAbsence();
+  const deleteRequestMutation = useDeleteAbsence();
+  const uploadFileMutation = useUploadFile({ folder: "Media" });
 
   const filteredRequests = useMemo(() => {
     if (requestsFilter === "all") return allRequests;
-    return allRequests.filter((request) => request.policyId === requestsFilter);
+    return allRequests.filter(
+      (request) => request.absence_policies_id === requestsFilter
+    );
   }, [allRequests, requestsFilter]);
 
   const historyRequests = useMemo(() => {
-    return allRequests
-      .filter((request) => request.status === "approved")
-      .filter((request) => {
-        if (historyPolicyFilter !== "all" && request.policyId !== historyPolicyFilter) {
-          return false;
-        }
-
-        const sourceDate = parseIsoDate(request.dateFrom);
-        if (!sourceDate) return false;
-
-        return sourceDate.getFullYear() === historyYear;
-      })
-      .sort(byNewest);
-  }, [allRequests, historyPolicyFilter, historyYear]);
-
-  const historyTransactions = useMemo(() => {
-    return balanceTransactions.filter((transaction) => {
-      if (historyPolicyFilter !== "all" && transaction.policyId !== historyPolicyFilter) {
-        return false;
-      }
-
-      const sourceDate = parseFlexibleDate(transaction.sourceDate);
-      if (!sourceDate) return false;
-
-      return sourceDate.getFullYear() === historyYear;
-    });
-  }, [balanceTransactions, historyPolicyFilter, historyYear]);
+    const list = historySummary?.approved ?? [];
+    if (historyPolicyFilter === "all") return list;
+    return list.filter(
+      (request) => request.absence_policies_id === historyPolicyFilter
+    );
+  }, [historySummary?.approved, historyPolicyFilter]);
 
   const totalUsedDays = useMemo(() => {
-    const usedFromTransactions = historyTransactions
-      .filter((transaction) => transaction.amount < 0)
-      .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
-
-    if (usedFromTransactions > 0) {
-      return usedFromTransactions;
+    if (historyPolicyFilter === "all") {
+      return historySummary?.total_used_days ?? 0;
     }
-
-    return historyRequests.reduce((sum, request) => sum + request.requestedDays, 0);
-  }, [historyRequests, historyTransactions]);
-
-  const totalAdjustments = useMemo(() => {
-    return historyTransactions
-      .filter((transaction) => transaction.type.includes("adjust"))
-      .reduce((sum, transaction) => sum + transaction.amount, 0);
-  }, [historyTransactions]);
+    return historyRequests.reduce(
+      (sum, request) => sum + (request.requested_days || 0),
+      0
+    );
+  }, [historyPolicyFilter, historyRequests, historySummary?.total_used_days]);
 
   const selectedPolicy = useMemo(
     () => (modalPolicyId ? policiesById.get(modalPolicyId) || null : null),
@@ -578,22 +291,16 @@ export default function AbsencesSection({
   );
 
   const modalRequestedDays = modalBreakdown.length;
-
-  const modalAvailable = useMemo(() => {
-    if (!selectedPolicy) return 0;
-    const limit = resolveNumericValue(selectedPolicy.value, 0);
-    const balance = balanceByPolicy.get(selectedPolicy.guid) || 0;
-    return Math.max(0, limit + balance);
-  }, [balanceByPolicy, selectedPolicy]);
-
+  const modalAvailable = selectedPolicy ? selectedPolicy.available : 0;
   const modalForecast = modalAvailable - modalRequestedDays;
+
+  const invalidateSummary = () => {
+    queryClient.invalidateQueries(["employee-absence-summary", employeeGuid]);
+  };
 
   const openCreateModal = (policyGuid?: string) => {
     const fallbackPolicyId =
-      policyGuid ||
-      modalPolicyId ||
-      policies[0]?.guid ||
-      "";
+      policyGuid || modalPolicyId || policies[0]?.guid || "";
 
     setModalPolicyId(fallbackPolicyId);
     setModalDateFrom(todayIso);
@@ -709,6 +416,7 @@ export default function AbsencesSection({
         status: ["pending"],
       });
 
+      invalidateSummary();
       toast.success("Запрос на отсутствие создан.");
       closeCreateModal();
     } catch (error) {
@@ -718,7 +426,7 @@ export default function AbsencesSection({
   };
 
   const handleReviewRequest = async (
-    request: NormalizedAbsenceRequest,
+    request: EmployeeAbsenceRequest,
     status: AbsenceRequestStatus
   ) => {
     if (request.status !== "pending") return;
@@ -737,16 +445,7 @@ export default function AbsencesSection({
         },
       });
 
-      if (status === "approved") {
-        await createBalanceTransactionMutation.mutateAsync({
-          user_base_id: employeeGuid,
-          absence_policies_id: request.policyId || null,
-          absences_id: request.guid,
-          amount: -Math.abs(request.requestedDays),
-          transaction_type: ["absence_approved"],
-          date: request.dateFrom || toIsoDate(new Date()),
-        });
-      }
+      invalidateSummary();
 
       if (status === "approved") {
         toast.success("Запрос подтвержден.");
@@ -761,11 +460,24 @@ export default function AbsencesSection({
     }
   };
 
+  const confirmDeleteRequest = async () => {
+    if (!deletingRequest) return;
+    try {
+      await deleteRequestMutation.mutateAsync(deletingRequest.guid);
+      invalidateSummary();
+      toast.success("Запрос удалён.");
+      setDeletingRequest(null);
+    } catch (error) {
+      console.error("Failed to delete absence request:", error);
+      toast.error("Не удалось удалить запрос.");
+    }
+  };
+
   return (
     <>
       <div className="space-y-3.5">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {isPoliciesLoading
+          {isSummaryLoading
             ? Array.from({ length: 3 }).map((_, index) => (
                 <div
                   key={`employee-absence-policy-skeleton-${index}`}
@@ -778,9 +490,6 @@ export default function AbsencesSection({
                 </div>
               ))
             : policies.map((policy) => {
-                const policyLimit = resolveNumericValue(policy.value, 0);
-                const policyBalance = balanceByPolicy.get(policy.guid) || 0;
-                const available = Math.max(0, policyLimit + policyBalance);
                 const iconValue =
                   typeof policy.icon === "string" && policy.icon
                     ? policy.icon
@@ -797,18 +506,35 @@ export default function AbsencesSection({
                         <Icon icon={iconValue} width={18} height={18} color={iconColor} />
                       </span>
                       <p className="m-0 truncate text-[14px] font-bold text-slate-900">
-                        {String(policy.title || "Без названия")}
+                        {policy.title}
                       </p>
                     </div>
 
                     <div className="mt-3">
                       <p className="m-0 text-[12px] text-slate-400">Доступно</p>
                       <div className="mt-1 flex items-end gap-1.5">
-                        <span className="text-[28px] font-semibold leading-none" style={{ color: brandColor }}>
-                          {available.toFixed(1)}
+                        <span
+                          className="text-[28px] font-semibold leading-none"
+                          style={{ color: brandColor }}
+                        >
+                          {policy.available.toFixed(1)}
                         </span>
-                        <span className="text-[16px] font-semibold leading-none text-slate-700">д</span>
+                        <span className="text-[16px] font-semibold leading-none text-slate-700">
+                          д
+                        </span>
                       </div>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Лимит: {policy.limit.toFixed(1)} · Использовано:{" "}
+                        {policy.used_days.toFixed(1)}
+                        {policy.pending_days > 0 ? (
+                          <>
+                            {" · "}
+                            <span className="text-amber-600">
+                              Ожидает: {policy.pending_days.toFixed(1)}
+                            </span>
+                          </>
+                        ) : null}
+                      </p>
                     </div>
 
                     <div className="mt-4 flex items-center justify-between gap-2">
@@ -832,7 +558,9 @@ export default function AbsencesSection({
 
                       <button
                         type="button"
-                        onClick={() => toast.info("Дополнительные действия будут доступны позже.")}
+                        onClick={() =>
+                          toast.info("Дополнительные действия будут доступны позже.")
+                        }
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200"
                         aria-label="Действия"
                       >
@@ -844,7 +572,7 @@ export default function AbsencesSection({
               })}
         </div>
 
-        {!isPoliciesLoading && policies.length === 0 ? (
+        {!isSummaryLoading && policies.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center text-[14px] text-slate-500">
             Политики отсутствий не найдены.
           </div>
@@ -852,7 +580,9 @@ export default function AbsencesSection({
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-3.5">
-            <h3 className="m-0 text-[15px] font-bold leading-none text-slate-900">Запросы</h3>
+            <h3 className="m-0 text-[15px] font-bold leading-none text-slate-900">
+              Запросы
+            </h3>
 
             <div className="flex items-center gap-2">
               <select
@@ -863,7 +593,7 @@ export default function AbsencesSection({
                 <option value="all">Все</option>
                 {policies.map((policy) => (
                   <option key={`requests-filter-${policy.guid}`} value={policy.guid}>
-                    {String(policy.title || "Без названия")}
+                    {policy.title}
                   </option>
                 ))}
               </select>
@@ -879,7 +609,7 @@ export default function AbsencesSection({
           </div>
 
           <div className="px-6 py-5">
-            {isRequestsLoading ? (
+            {isSummaryLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
@@ -893,20 +623,23 @@ export default function AbsencesSection({
             ) : (
               <div className="space-y-2">
                 {filteredRequests.map((request) => {
-                  const policy = policiesById.get(request.policyId);
-                  const policyTitle = String(
-                    policy?.title ||
-                      request.policyId ||
-                      "Без типа"
-                  );
+                  const policyTitle =
+                    request.policy?.title ||
+                    policiesById.get(request.absence_policies_id || "")?.title ||
+                    "Без типа";
                   const policyIcon =
-                    typeof policy?.icon === "string" && policy.icon
-                      ? policy.icon
-                      : DEFAULT_POLICY_ICON;
-                  const policyColor = resolveHexColor(policy?.color, brandColor);
+                    (request.policy?.icon ||
+                      policiesById.get(request.absence_policies_id || "")?.icon) ??
+                    DEFAULT_POLICY_ICON;
+                  const policyColor = resolveHexColor(
+                    request.policy?.color ??
+                      policiesById.get(request.absence_policies_id || "")?.color,
+                    brandColor
+                  );
                   const isReviewing =
                     reviewingRequestId === request.guid &&
                     updateRequestMutation.isLoading;
+                  const attachments = parseAttachmentsField(request.attachments);
 
                   return (
                     <div
@@ -917,27 +650,37 @@ export default function AbsencesSection({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-slate-100">
-                              <Icon icon={policyIcon} width={14} height={14} color={policyColor} />
+                              <Icon
+                                icon={policyIcon}
+                                width={14}
+                                height={14}
+                                color={policyColor}
+                              />
                             </span>
                             <p className="m-0 truncate text-[13px] font-semibold text-slate-900">
                               {policyTitle}
                             </p>
-                            <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE_CLASSNAME[request.status]}`}>
+                            <span
+                              className={`rounded px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE_CLASSNAME[request.status]}`}
+                            >
                               {STATUS_LABELS[request.status]}
                             </span>
                           </div>
 
                           <p className="mt-1 text-[12px] text-slate-500">
-                            {formatDateRange(request.dateFrom, request.dateTo)} • {request.requestedDays.toFixed(1)} д.
+                            {formatDateRange(request.date_from, request.date_to)} •{" "}
+                            {(request.requested_days || 0).toFixed(1)} д.
                           </p>
 
                           {request.note ? (
-                            <p className="mt-1 text-[12px] text-slate-500 line-clamp-2">{request.note}</p>
+                            <p className="mt-1 text-[12px] text-slate-500 line-clamp-2">
+                              {request.note}
+                            </p>
                           ) : null}
 
-                          {request.attachments.length > 0 ? (
+                          {attachments.length > 0 ? (
                             <div className="mt-1.5 flex flex-wrap gap-2">
-                              {request.attachments.map((attachment) => (
+                              {attachments.map((attachment) => (
                                 <a
                                   key={`${request.guid}-${attachment.url}`}
                                   href={attachment.url}
@@ -958,7 +701,9 @@ export default function AbsencesSection({
                             <>
                               <button
                                 type="button"
-                                onClick={() => void handleReviewRequest(request, "approved")}
+                                onClick={() =>
+                                  void handleReviewRequest(request, "approved")
+                                }
                                 disabled={isReviewing}
                                 className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                               >
@@ -966,7 +711,9 @@ export default function AbsencesSection({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void handleReviewRequest(request, "rejected")}
+                                onClick={() =>
+                                  void handleReviewRequest(request, "rejected")
+                                }
                                 disabled={isReviewing}
                                 className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[12px] font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
                               >
@@ -974,6 +721,39 @@ export default function AbsencesSection({
                               </button>
                             </>
                           ) : null}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenMenuRequestId((current) =>
+                                  current === request.guid ? null : request.guid
+                                )
+                              }
+                              className="dropdown-toggle inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                              aria-label="Действия"
+                              aria-haspopup="menu"
+                              aria-expanded={openMenuRequestId === request.guid}
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+
+                            <Dropdown
+                              isOpen={openMenuRequestId === request.guid}
+                              onClose={() => setOpenMenuRequestId(null)}
+                              className="min-w-[160px] py-1"
+                            >
+                              <DropdownItem
+                                onItemClick={() => {
+                                  setOpenMenuRequestId(null);
+                                  setDeletingRequest(request);
+                                }}
+                                baseClassName="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-rose-600 hover:bg-rose-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Удалить
+                              </DropdownItem>
+                            </Dropdown>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -986,7 +766,9 @@ export default function AbsencesSection({
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-3.5">
-            <h3 className="m-0 text-[15px] font-bold leading-none text-slate-900">История</h3>
+            <h3 className="m-0 text-[15px] font-bold leading-none text-slate-900">
+              История
+            </h3>
 
             <div className="flex items-center gap-2">
               <div className="inline-flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
@@ -1019,7 +801,7 @@ export default function AbsencesSection({
                 <option value="all">Все</option>
                 {policies.map((policy) => (
                   <option key={`history-filter-${policy.guid}`} value={policy.guid}>
-                    {String(policy.title || "Без названия")}
+                    {policy.title}
                   </option>
                 ))}
               </select>
@@ -1044,19 +826,24 @@ export default function AbsencesSection({
             </div>
             <div>
               <p className="m-0 text-[24px] font-semibold leading-none text-slate-900">
-                {totalAdjustments}
+                {historyRequests.length}
               </p>
-              <p className="mt-1.5 text-[12px] text-slate-400">Итого корректировок</p>
+              <p className="mt-1.5 text-[12px] text-slate-400">Заявок одобрено</p>
             </div>
           </div>
 
           <div className="border-t border-slate-200 px-6 py-4">
             {historyRequests.length === 0 ? (
-              <p className="m-0 text-[12px] text-slate-400">За выбранный период записей нет.</p>
+              <p className="m-0 text-[12px] text-slate-400">
+                За выбранный период записей нет.
+              </p>
             ) : (
               <div className="space-y-2">
                 {historyRequests.map((request) => {
-                  const policy = policiesById.get(request.policyId);
+                  const policyTitle =
+                    request.policy?.title ||
+                    policiesById.get(request.absence_policies_id || "")?.title ||
+                    "Без названия";
                   return (
                     <div
                       key={`history-${request.guid}`}
@@ -1064,14 +851,14 @@ export default function AbsencesSection({
                     >
                       <div className="min-w-0">
                         <p className="m-0 truncate text-[12px] font-semibold text-slate-800">
-                          {String(policy?.title || "Без названия")}
+                          {policyTitle}
                         </p>
                         <p className="mt-0.5 text-[11px] text-slate-500">
-                          {formatDateRange(request.dateFrom, request.dateTo)}
+                          {formatDateRange(request.date_from, request.date_to)}
                         </p>
                       </div>
                       <p className="m-0 text-[12px] font-semibold text-slate-900">
-                        {request.requestedDays.toFixed(1)} д.
+                        {(request.requested_days || 0).toFixed(1)} д.
                       </p>
                     </div>
                   );
@@ -1087,7 +874,7 @@ export default function AbsencesSection({
         onClose={closeCreateModal}
         policies={policies.map((policy) => ({
           guid: policy.guid,
-          title: String(policy.title || "Без названия"),
+          title: policy.title,
           icon: typeof policy.icon === "string" ? policy.icon : undefined,
           color: typeof policy.color === "string" ? policy.color : undefined,
         }))}
@@ -1119,6 +906,84 @@ export default function AbsencesSection({
         }
         onSubmit={() => void submitRequest()}
       />
+
+      <Modal
+        isOpen={Boolean(deletingRequest)}
+        onClose={() => {
+          if (deleteRequestMutation.isLoading) return;
+          setDeletingRequest(null);
+        }}
+        showCloseButton={false}
+        className="max-w-md mx-auto p-6"
+      >
+        {deletingRequest ? (
+          <div>
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-50">
+                <Trash2 className="h-5 w-5 text-rose-600" />
+              </span>
+              <div className="min-w-0">
+                <h4 className="m-0 text-[16px] font-bold text-slate-900">
+                  Удалить запрос?
+                </h4>
+                <p className="mt-1 text-[13px] text-slate-500 leading-relaxed">
+                  Будет удалена заявка{" "}
+                  <span className="font-semibold text-slate-700">
+                    {deletingRequest.policy?.title ||
+                      policiesById.get(deletingRequest.absence_policies_id || "")
+                        ?.title ||
+                      "Без типа"}
+                  </span>{" "}
+                  на период{" "}
+                  <span className="font-semibold text-slate-700">
+                    {formatDateRange(
+                      deletingRequest.date_from,
+                      deletingRequest.date_to
+                    )}
+                  </span>
+                  {deletingRequest.status === "approved" ? (
+                    <>
+                      {" "}— подтверждённый отпуск ({(deletingRequest.requested_days || 0).toFixed(1)} д.)
+                      будет вычтен из использованных дней.
+                    </>
+                  ) : (
+                    <>. Действие нельзя отменить.</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeletingRequest(null)}
+                disabled={deleteRequestMutation.isLoading}
+                className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteRequest()}
+                disabled={deleteRequestMutation.isLoading}
+                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-rose-600 bg-rose-600 px-4 text-[13px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+              >
+                {deleteRequestMutation.isLoading ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                    Удаление…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Удалить
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </>
   );
 }

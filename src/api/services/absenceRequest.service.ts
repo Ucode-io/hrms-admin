@@ -327,6 +327,16 @@ const absenceService = {
       });
     }
   },
+
+  delete: async (guid: string) => {
+    try {
+      return await httpRequest.delete(`/v2/items/${ABSENCES_COLLECTION}`, {
+        data: { ids: [guid] },
+      });
+    } catch {
+      return httpRequest.delete(`/v2/items/${ABSENCES_COLLECTION}/${guid}`);
+    }
+  },
 };
 
 export const useAbsencesQuery = ({
@@ -383,6 +393,20 @@ export const useUpdateAbsence = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(["absences"]);
       queryClient.invalidateQueries(["absences-by-user"]);
+    },
+  });
+};
+
+export const useDeleteAbsence = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (guid: string) => absenceService.delete(guid),
+    onSuccess: () => {
+      queryClient.invalidateQueries(["absences"]);
+      queryClient.invalidateQueries(["absences-by-user"]);
+      queryClient.invalidateQueries(["calendar-absences"]);
+      queryClient.invalidateQueries(["employee-absence-summary"]);
     },
   });
 };

@@ -18,10 +18,7 @@ import {
 } from "../../api/services/absenceRequest.service";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
 import { useSettingsDirectoryQuery } from "../../api/services/settingsDirectory.service";
-import {
-  useAbsenceBalanceTransactionsQuery,
-  useCreateAbsenceBalanceTransaction,
-} from "../../api/services/absenceBalanceTransaction.service";
+import { useEmployeeAbsenceSummaryQuery } from "../../api/services/employeeAbsenceSummary.service";
 import { useUploadFile } from "../../api/services/file-upload.service";
 
 const PAGE_SIZE = 20;
@@ -500,7 +497,6 @@ export default function CalendarModule() {
   });
   const updateAbsenceMutation = useUpdateAbsence();
   const createAbsenceMutation = useCreateAbsence();
-  const createBalanceTransactionMutation = useCreateAbsenceBalanceTransaction();
   const uploadFileMutation = useUploadFile({ folder: "Media" });
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
   const isNextPageRequestedRef = useRef(false);
@@ -606,12 +602,9 @@ export default function CalendarModule() {
       .filter((item): item is { guid: string; title: string } => Boolean(item));
   }, [policiesData?.response]);
 
-  const { data: createBalanceTransactionsData } = useAbsenceBalanceTransactionsQuery({
-    data: {
-      user_base_id: createEmployeeId,
-      limit: 2000,
-      offset: 0,
-    },
+  const { data: createEmployeeSummary } = useEmployeeAbsenceSummaryQuery({
+    userBaseId: createEmployeeId,
+    asOfDate: todayIso,
     querySettings: {
       enabled: Boolean(createEmployeeId) && isCreateModalOpen,
     },
@@ -696,40 +689,17 @@ export default function CalendarModule() {
   const monthLabel = useMemo(() => formatMonthLabel(currentMonth), [currentMonth]);
   const isLoading = isInitialLoading;
   const companyMainColor = "var(--color-brand-500)";
-  const isReviewing = updateAbsenceMutation.isLoading || createBalanceTransactionMutation.isLoading;
+  const isReviewing = updateAbsenceMutation.isLoading;
   const createBreakdown = useMemo(() => getDateBreakdown(createDateFrom, createDateTo), [createDateFrom, createDateTo]);
   const createRequestedDays = createBreakdown.length;
-  const createBalanceByPolicy = useMemo(() => {
-    const map = new Map<string, number>();
-    const source = (createBalanceTransactionsData?.response || []) as Array<{
-      absence_policies_id?: unknown;
-      amount?: unknown;
-      value?: unknown;
-      days?: unknown;
-    }>;
-
-    for (const item of source) {
-      const policyId = typeof item.absence_policies_id === "string" ? item.absence_policies_id : "";
-      if (!policyId) continue;
-
-      const amount = resolveNumericValue(item.amount ?? item.value ?? item.days, 0);
-      map.set(policyId, (map.get(policyId) || 0) + amount);
-    }
-
-    return map;
-  }, [createBalanceTransactionsData?.response]);
-
-  const createSelectedPolicy = useMemo(() => {
-    if (!createPolicyId) return null;
-    return policiesById.get(createPolicyId) || null;
-  }, [createPolicyId, policiesById]);
 
   const createAvailableDays = useMemo(() => {
-    if (!createSelectedPolicy || !createPolicyId) return 0;
-    const limit = resolveNumericValue(createSelectedPolicy.value, 0);
-    const balance = createBalanceByPolicy.get(createPolicyId) || 0;
-    return limit + balance;
-  }, [createBalanceByPolicy, createPolicyId, createSelectedPolicy]);
+    if (!createPolicyId || !createEmployeeSummary) return 0;
+    const policy = createEmployeeSummary.policies.find(
+      (item) => item.guid === createPolicyId
+    );
+    return policy ? policy.available : 0;
+  }, [createEmployeeSummary, createPolicyId]);
 
   const createForecastDays = createAvailableDays - createRequestedDays;
   const selectedCreateEmployeeName = useMemo(() => {
@@ -860,6 +830,7 @@ export default function CalendarModule() {
       });
 
       await queryClient.invalidateQueries(["calendar-absences"]);
+      await queryClient.invalidateQueries(["employee-absence-summary"]);
       toast.success("Запрос на отсутствие создан.");
       closeCreateModal();
     } catch (error) {
@@ -885,18 +856,8 @@ export default function CalendarModule() {
         },
       });
 
-      if (status === "approved") {
-        await createBalanceTransactionMutation.mutateAsync({
-          user_base_id: selectedAbsence.userBaseId,
-          absence_policies_id: selectedAbsence.absencePolicyId || null,
-          absences_id: selectedAbsence.guid,
-          amount: -Math.abs(selectedAbsence.requestedDays || 0),
-          transaction_type: ["absence_approved"],
-          date: selectedAbsence.dateFrom || toIsoDate(new Date()),
-        });
-      }
-
       await queryClient.invalidateQueries(["calendar-absences"]);
+      await queryClient.invalidateQueries(["employee-absence-summary"]);
 
       toast.success(status === "approved" ? "Запрос подтвержден." : "Запрос отклонен.");
       closeReviewModal();
