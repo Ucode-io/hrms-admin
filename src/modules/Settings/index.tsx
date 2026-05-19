@@ -91,12 +91,6 @@ const settingsSections: SettingsSection[] = [
           icon: FileOutput,
           subtitle: "Выгрузка отчетов",
         },
-        {
-          id: "integrations",
-          title: "Интеграции",
-          icon: Link2,
-          subtitle: "Внешние сервисы",
-        },
       ],
     ],
   },
@@ -206,6 +200,24 @@ const settingsSections: SettingsSection[] = [
           subtitle: "Смены и часы",
         },
       ],
+    ],
+  },
+  {
+    id: "integrations",
+    title: "Интеграции",
+    columns: [
+      [
+        {
+          id: "hickvision",
+          title: "Hickvision",
+          icon: Link2,
+          path: "/settings/integrations/hickvision",
+          subtitle: "Пользователи и записи",
+          keywords: ["hikvision", "hickvision", "integration", "attendance"],
+        },
+      ],
+      [],
+      [],
     ],
   },
   {

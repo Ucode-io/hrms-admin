@@ -45,6 +45,7 @@ import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
 import DismissalTypesSettingsPage from "./modules/Settings/DismissalTypes";
 import EmployeeWorkChangeReasonsSettingsPage from "./modules/Settings/EmployeeWorkChangeReasons";
 import PropertyCategoriesSettingsPage from "./modules/Settings/PropertyCategories";
+import HickvisionIntegrationSettingsPage from "./modules/Settings/Integrations/Hickvision";
 import TariffsList from "./modules/Settings/Tariffs/List";
 import TariffForm from "./modules/Settings/Tariffs/Form";
 import ProductCategoriesList from "./modules/Settings/ProductCategories/List";
@@ -210,6 +211,7 @@ function App() {
               <Route path="/settings/dismissal-types" element={<DismissalTypesSettingsPage />} />
               <Route path="/settings/employee-work-reasons" element={<EmployeeWorkChangeReasonsSettingsPage />} />
               <Route path="/settings/property-categories" element={<PropertyCategoriesSettingsPage />} />
+              <Route path="/settings/integrations/hickvision" element={<HickvisionIntegrationSettingsPage />} />
               <Route path="/settings/tariffs" element={<TariffsList />} />
               <Route path="/settings/tariffs/new" element={<TariffForm />} />
               <Route path="/settings/tariffs/:id" element={<TariffForm />} />

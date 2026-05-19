@@ -25,6 +25,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   payroll: "ФОТ",
   "bonus-deductions": "Бонусы и удержания",
   settings: "Настройки",
+  integrations: "Интеграции",
+  hickvision: "Hickvision",
   finance: "Финансы",
   salary: "Зарплата",
   time: "Время",

@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
-import type { StylesConfig } from "react-select";
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import Select, { type SingleValue, type StylesConfig } from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
 import { Modal } from "../../../components/ui/modal";
 import EmployeeInfiniteSelect from "../../../components/autocomplete/EmployeeInfiniteSelect";
+import EmployeesPaginationFooter from "../../Employees/List/components/EmployeesPaginationFooter";
 import companyStore from "../../../store/company.store";
 import {
   COMPANY_ID,
@@ -25,6 +26,7 @@ type AttendanceItem = {
   delay_time?: string | null;
   status?: string[] | string | null;
   action_status?: string[] | string | null;
+  source_type?: string[] | string | null;
   created_at?: string | null;
   user_base_id?: string | null;
   user_base_id_data?: {
@@ -39,6 +41,7 @@ type AttendanceItem = {
 
 type AttendanceWorkflowStatus = "accepted" | "rejected" | "requested" | "unknown";
 type AttendanceActionStatus = "present" | "late" | "absent" | "unknown";
+type AttendanceSourceType = "manual" | "integration" | "unknown";
 
 type AttendanceRecord = {
   guid: string;
@@ -48,6 +51,7 @@ type AttendanceRecord = {
   delayTime: string;
   requestStatus: AttendanceWorkflowStatus;
   actionStatus: AttendanceActionStatus;
+  sourceType: AttendanceSourceType;
   createdAt: string;
   employeeGuid: string;
   employeeName: string;
@@ -64,9 +68,11 @@ type SelectOption = {
   value: string;
   label: string;
 };
+type PaginationItem = number | string;
 
 const ATTENDANCE_SLUG = "attendance";
 const PAGE_SIZE = 20;
+const FILTER_SELECT_MAX_WIDTH = 280;
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -108,6 +114,45 @@ const getEmployeeSelectStyles = (): StylesConfig<SelectOption, false> => ({
   singleValue: (base) => ({ ...base, fontSize: "13px" }),
   placeholder: (base) => ({ ...base, fontSize: "13px", color: "#94a3b8" }),
 });
+
+const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 1);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 3);
+  }
+
+  const sortedPages = [...pages]
+    .filter((pageNumber) => pageNumber >= 1 && pageNumber <= totalPages)
+    .sort((left, right) => left - right);
+
+  const result: PaginationItem[] = [];
+
+  for (let i = 0; i < sortedPages.length; i += 1) {
+    const pageNumber = sortedPages[i];
+    const previousPage = sortedPages[i - 1];
+
+    if (previousPage && pageNumber - previousPage > 1) {
+      result.push(`ellipsis-${previousPage}-${pageNumber}`);
+    }
+
+    result.push(pageNumber);
+  }
+
+  return result;
+};
 
 const normalizeDelayTime = (value: string | null | undefined): string => {
   if (typeof value === "string" && DELAY_TIME_PATTERN.test(value.trim())) {
@@ -178,33 +223,10 @@ const toDateValue = (value: string | null | undefined): Date | null => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const toUtcDayRangeFilter = (isoDate: string): { $gte: string; $lte: string } => {
-  const baseDate = parseIsoDate(isoDate) || new Date();
-
-  const start = new Date(
-    baseDate.getFullYear(),
-    baseDate.getMonth(),
-    baseDate.getDate(),
-    0,
-    0,
-    0,
-    0
-  );
-  const end = new Date(
-    baseDate.getFullYear(),
-    baseDate.getMonth(),
-    baseDate.getDate(),
-    23,
-    59,
-    59,
-    0
-  );
-
-  return {
-    $gte: start.toISOString(),
-    $lte: end.toISOString(),
-  };
-};
+const toExactDateRangeFilter = (isoDate: string): { $gte: string; $lte: string } => ({
+  $gte: isoDate,
+  $lte: isoDate,
+});
 
 const normalizeDateKey = (value: string | null | undefined, fallback: string | null | undefined): string => {
   if (typeof value === "string") {
@@ -302,6 +324,16 @@ const normalizeAttendanceActionStatus = (value: unknown): AttendanceActionStatus
   return "unknown";
 };
 
+const normalizeAttendanceSourceType = (value: unknown): AttendanceSourceType => {
+  const normalized = Array.isArray(value)
+    ? String(value[0] || "").trim().toLowerCase()
+    : String(value || "").trim().toLowerCase();
+
+  if (normalized === "manual") return "manual";
+  if (normalized === "integration") return "integration";
+  return "unknown";
+};
+
 const resolveActionStatusFromTime = (
   checkInTime: string
 ): Exclude<AttendanceActionStatus, "unknown"> => {
@@ -370,6 +402,29 @@ const getWorkflowStatusTag = (
   };
 };
 
+const getSourceTypeTag = (
+  sourceType: AttendanceSourceType
+): { label: string; className: string } => {
+  if (sourceType === "manual") {
+    return {
+      label: "Ручной",
+      className: "border-blue-200 bg-blue-50 text-blue-700",
+    };
+  }
+
+  if (sourceType === "integration") {
+    return {
+      label: "Интеграция",
+      className: "border-violet-200 bg-violet-50 text-violet-700",
+    };
+  }
+
+  return {
+    label: "—",
+    className: "border-slate-200 bg-slate-100 text-slate-500",
+  };
+};
+
 const getDelayLabel = (delayTime: string, status: AttendanceActionStatus): string => {
   if (status === "late" || hasDelayValue(delayTime)) {
     return hasDelayValue(delayTime) ? delayTime : "00:00";
@@ -415,6 +470,10 @@ const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
 export default function TimeAttendancePage() {
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => toIsoDate(new Date()));
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [employeeFilter, setEmployeeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<AttendanceActionStatus | "">("");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<AttendanceSourceType | "">("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGuid, setEditingGuid] = useState<string | null>(null);
   const [draft, setDraft] = useState<AttendanceDraft>(() => getDefaultDraft(toIsoDate(new Date())));
@@ -424,18 +483,60 @@ export default function TimeAttendancePage() {
   const [toDelete, setToDelete] = useState<AttendanceRecord | null>(null);
 
   const brandColor = companyStore.mainColor;
-  const dateRangeFilter = useMemo(() => toUtcDayRangeFilter(dateFilter), [dateFilter]);
+  const normalizedDateFilter = useMemo(() => {
+    const parsed = parseIsoDate(dateFilter);
+    return parsed ? toIsoDate(parsed) : toIsoDate(new Date());
+  }, [dateFilter]);
   const menuPortalTarget = typeof document !== "undefined" ? document.body : undefined;
+  const filterSelectStyles = useMemo(() => getEmployeeSelectStyles(), []);
 
-  const { data, isLoading, isError, refetch } = useSettingsDirectoryQuery({
+  const typeFilterOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "present", label: "Присутствует" },
+      { value: "late", label: "Опоздал" },
+      { value: "absent", label: "Отсутствует" },
+    ],
+    []
+  );
+
+  const sourceTypeFilterOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "manual", label: "Ручной" },
+      { value: "integration", label: "Интеграция" },
+    ],
+    []
+  );
+
+  const backendQueryData = useMemo(() => {
+    const payload: Record<string, unknown> = {
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+      date: toExactDateRangeFilter(normalizedDateFilter),
+    };
+
+    if (employeeFilter) {
+      payload.user_base_id = employeeFilter;
+    }
+
+    if (typeFilter) {
+      payload.action_status = [typeFilter];
+    }
+
+    if (sourceTypeFilter) {
+      payload.source_type = [sourceTypeFilter];
+    }
+
+    return payload;
+  }, [page, normalizedDateFilter, employeeFilter, typeFilter, sourceTypeFilter]);
+
+  const { data, isLoading, isFetching, isError, refetch } = useSettingsDirectoryQuery({
     slug: ATTENDANCE_SLUG,
     params: {
       with_relations: true,
-      data: encodeJsonToUrlParam({
-        limit: 500,
-        offset: 0,
-        date: dateRangeFilter,
-      }),
+      data: encodeJsonToUrlParam(backendQueryData),
+    },
+    querySettings: {
+      keepPreviousData: true,
     },
   });
 
@@ -460,6 +561,7 @@ export default function TimeAttendancePage() {
         delayTime,
         requestStatus: normalizeAttendanceWorkflowStatus(item.status),
         actionStatus: normalizeAttendanceActionStatus(item.action_status),
+        sourceType: normalizeAttendanceSourceType(item.source_type),
         createdAt: typeof item.created_at === "string" ? item.created_at : "",
         employeeGuid: employeeInfo.employeeGuid,
         employeeName: employeeInfo.employeeName,
@@ -484,16 +586,14 @@ export default function TimeAttendancePage() {
     });
   }, [data?.response]);
 
-  const filteredRecords = useMemo(
-    () => records.filter((item) => item.date === dateFilter),
-    [records, dateFilter]
-  );
-
-  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
+  const activeFiltersCount = [employeeFilter, typeFilter, sourceTypeFilter].filter(Boolean).length;
+  const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
+  const totalCount = Number(data?.count || 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   useEffect(() => {
     setPage(1);
-  }, [dateFilter]);
+  }, [dateFilter, employeeFilter, typeFilter, sourceTypeFilter]);
 
   const dateFilterLabel = useMemo(() => {
     return formatDateLabel(dateFilter);
@@ -508,13 +608,25 @@ export default function TimeAttendancePage() {
   };
 
   useEffect(() => {
+    if (typeof data?.count !== "number") return;
+
     if (page > totalPages) {
       setPage(totalPages);
     }
-  }, [page, totalPages]);
+  }, [data?.count, page, totalPages]);
 
-  const pageStart = (page - 1) * PAGE_SIZE;
-  const pageItems = filteredRecords.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageItems = records;
+  const visibleFrom = totalCount > 0 ? (page - 1) * PAGE_SIZE + 1 : 0;
+  const visibleTo = totalCount > 0 ? Math.min(page * PAGE_SIZE, totalCount) : 0;
+  const visibleRangeLabel =
+    totalCount > 0
+      ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
+      : "Нет данных";
+  const paginationItems = useMemo(() => buildPaginationItems(page, totalPages), [page, totalPages]);
+  const editingRecord = useMemo(
+    () => records.find((item) => item.guid === editingGuid) || null,
+    [records, editingGuid]
+  );
 
   const closeModal = () => {
     if (isSaving) return;
@@ -578,6 +690,7 @@ export default function TimeAttendancePage() {
       delay_time: normalizeDelayTimeForPayload(delayTime),
       status: ["accepted"],
       action_status: [actionStatus],
+      source_type: [editingRecord?.sourceType === "integration" ? "integration" : "manual"],
     };
 
     try {
@@ -625,6 +738,7 @@ export default function TimeAttendancePage() {
           delay_time: normalizeDelayTimeForPayload(record.delayTime),
           status: ["accepted"],
           action_status: [record.actionStatus === "unknown" ? resolveActionStatusFromTime(record.checkInTime) : record.actionStatus],
+          source_type: [record.sourceType === "integration" ? "integration" : "manual"],
         },
       });
     } catch (confirmError) {
@@ -685,6 +799,20 @@ export default function TimeAttendancePage() {
 
           <button
             type="button"
+            onClick={() => setIsFiltersOpen((open) => !open)}
+            className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border px-4 text-[13px] font-semibold transition"
+            style={{
+              color: isFilterButtonActive ? "#2563eb" : "#334155",
+              backgroundColor: isFilterButtonActive ? "#eff6ff" : "#fff",
+              borderColor: isFilterButtonActive ? "#bfdbfe" : "#e2e8f0",
+            }}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+          </button>
+
+          <button
+            type="button"
             onClick={openCreate}
             className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90"
             style={{ backgroundColor: brandColor }}
@@ -693,6 +821,125 @@ export default function TimeAttendancePage() {
             Добавить
           </button>
         </div>
+
+        {isFiltersOpen ? (
+          <div
+            className="px-4 lg:px-6 py-2"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+              background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+              border: "1px solid #e2e8f0",
+              borderTop: "1px solid #dbe4ee",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+            }}
+          >
+            <div
+              style={{
+                minWidth: "220px",
+                width: "100%",
+                maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+              }}
+            >
+              <EmployeeInfiniteSelect
+                value={employeeFilter}
+                onChange={(value) => {
+                  setEmployeeFilter(value);
+                  setPage(1);
+                }}
+                placeholder="Сотрудник"
+                styles={filterSelectStyles}
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="attendance-filter-employee-select"
+              />
+            </div>
+
+            <div
+              style={{
+                minWidth: "180px",
+                width: "100%",
+                maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+              }}
+            >
+              <Select<SelectOption, false>
+                inputId="attendance-filter-type"
+                value={typeFilterOptions.find((option) => option.value === typeFilter) || null}
+                onChange={(option: SingleValue<SelectOption>) => {
+                  setTypeFilter((option?.value || "") as AttendanceActionStatus | "");
+                  setPage(1);
+                }}
+                options={typeFilterOptions}
+                placeholder="Тип"
+                isSearchable={false}
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={menuPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
+
+            <div
+              style={{
+                minWidth: "180px",
+                width: "100%",
+                maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+              }}
+            >
+              <Select<SelectOption, false>
+                inputId="attendance-filter-source-type"
+                value={sourceTypeFilterOptions.find((option) => option.value === sourceTypeFilter) || null}
+                onChange={(option: SingleValue<SelectOption>) => {
+                  setSourceTypeFilter((option?.value || "") as AttendanceSourceType | "");
+                  setPage(1);
+                }}
+                options={sourceTypeFilterOptions}
+                placeholder="Источник"
+                isSearchable={false}
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={menuPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
+
+            {activeFiltersCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEmployeeFilter("");
+                  setTypeFilter("");
+                  setSourceTypeFilter("");
+                  setPage(1);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "38px",
+                  padding: "0 12px",
+                  borderRadius: "10px",
+                  border: "1px solid #bfdbfe",
+                  backgroundColor: "#eff6ff",
+                  color: "#2563eb",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  marginLeft: "auto",
+                }}
+              >
+                Сбросить
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="px-4 lg:px-6 py-5">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -714,12 +961,23 @@ export default function TimeAttendancePage() {
                     Повторить
                   </button>
                 </div>
-              ) : filteredRecords.length === 0 ? (
+              ) : records.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
                   <p className="m-0 text-[13px] text-slate-500">Записей по посещаемости пока нет</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="relative space-y-3">
+                  {isFetching ? (
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end rounded-xl bg-white/45 p-3">
+                      <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-600 shadow-sm">
+                        <span
+                          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300"
+                          style={{ borderTopColor: brandColor }}
+                        />
+                        Загрузка...
+                      </div>
+                    </div>
+                  ) : null}
                   {actionError ? (
                     <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-600">
                       {actionError}
@@ -737,6 +995,7 @@ export default function TimeAttendancePage() {
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Опоздание</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Статус действия</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Статус заявки</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">Источник</th>
                           <th className="py-2 text-right text-[12px] font-semibold text-slate-500">Действия</th>
                         </tr>
                       </thead>
@@ -744,6 +1003,7 @@ export default function TimeAttendancePage() {
                         {pageItems.map((record) => {
                           const actionTag = getActionStatusTag(record.actionStatus);
                           const requestTag = getWorkflowStatusTag(record.requestStatus);
+                          const sourceTag = getSourceTypeTag(record.sourceType);
 
                           return (
                             <tr key={record.guid} className="border-b border-slate-100">
@@ -781,6 +1041,13 @@ export default function TimeAttendancePage() {
                                   className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${requestTag.className}`}
                                 >
                                   {requestTag.label}
+                                </span>
+                              </td>
+                              <td className="py-3 text-[13px] text-slate-700">
+                                <span
+                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${sourceTag.className}`}
+                                >
+                                  {sourceTag.label}
                                 </span>
                               </td>
                               <td className="py-3">
@@ -824,32 +1091,16 @@ export default function TimeAttendancePage() {
                   </div>
 
                   {totalPages > 1 ? (
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                      <p className="text-[12px] text-slate-500">
-                        Показано {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filteredRecords.length)} из {filteredRecords.length}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                          disabled={page <= 1}
-                          className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Назад
-                        </button>
-                        <span className="text-[12px] font-semibold text-slate-600">
-                          {page} / {totalPages}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                          disabled={page >= totalPages}
-                          className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Вперед
-                        </button>
-                      </div>
-                    </div>
+                    <EmployeesPaginationFooter
+                      visibleRangeLabel={visibleRangeLabel}
+                      paginationItems={paginationItems}
+                      currentPage={page}
+                      totalPages={totalPages}
+                      brandColor={brandColor}
+                      onPrevious={() => setPage((prev) => Math.max(1, prev - 1))}
+                      onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                      onPageChange={(newPage) => setPage(newPage)}
+                    />
                   ) : null}
                 </div>
               )}
