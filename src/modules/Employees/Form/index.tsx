@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Pencil, Trash2, User, ChevronLeft } from "lucide-react";
 import DatePicker from "react-datepicker";
@@ -7,6 +7,7 @@ import { observer } from "mobx-react-lite";
 import { useForm, Controller } from "react-hook-form";
 import PageMeta from "../../../components/common/PageMeta";
 import SearchableSelect from "../../../components/ui/searchable-select";
+import RemoteSingleSelect, { type RemoteSelectOption } from "../../../components/autocomplete/RemoteSingleSelect";
 import companyStore from "../../../store/company.store";
 import {
   type Employee,
@@ -25,11 +26,13 @@ import { useDepartmentsSettingsQuery } from "../../../api/services/department.se
 import { useDepartmentExperienceLevelsSummaryQuery } from "../../../api/services/departmentExperienceLevel.service";
 import { usePositionsQuery } from "../../../api/services/position.service";
 import { useCreateEmployeeWork } from "../../../api/services/employeeWork.service";
-import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
+import settingsDirectoryService, { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
+import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 import type { EmployeeFormValues, SelectOption } from "./types";
 import { employeeFormDefaults } from "./types";
 
 const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
+const UNIQUE_USERS_SLUG = "unique_users";
 
 /* ── Constants ── */
 const GENDER_OPTIONS: SelectOption[] = [
@@ -95,7 +98,6 @@ function EmployeeForm() {
     slug: EMPLOYEE_WORK_REASON_SLUG,
     params: { limit: 200, offset: 0 },
   });
-
   const departments = departmentsData?.response ?? [];
   const positions = positionsData?.response ?? [];
   const employmentTypes = employmentTypesData?.response ?? [];
@@ -135,6 +137,45 @@ function EmployeeForm() {
     value: item.guid,
     label: String(item.title || "Без названия"),
   }));
+  const [hikvisionFallbackOption, setHikvisionFallbackOption] = useState<RemoteSelectOption | null>(null);
+
+  const loadHikvisionOptions = useCallback(
+    async ({
+      search,
+      limit,
+      offset,
+    }: {
+      search: string;
+      limit: number;
+      offset: number;
+    }): Promise<{ count: number; options: RemoteSelectOption[] }> => {
+      const response = await settingsDirectoryService.getList(UNIQUE_USERS_SLUG, {
+        data: encodeJsonToUrlParam({
+          limit,
+          offset,
+          ...(search.trim() ? { search: search.trim() } : {}),
+        }),
+      });
+
+      const options = (response.response || [])
+        .map((item) => {
+          const hikvisionId = String(item.hikvision_id || "").trim();
+          if (!hikvisionId) return null;
+          const fullName = String(item.full_name || "").trim();
+          return {
+            value: hikvisionId,
+            label: fullName ? `${fullName} (${hikvisionId})` : hikvisionId,
+          };
+        })
+        .filter((option): option is RemoteSelectOption => Boolean(option));
+
+      return {
+        count: Number(response.count || 0),
+        options,
+      };
+    },
+    []
+  );
 
   useEffect(() => {
     if (!selectedExperienceLevelId) {
@@ -163,6 +204,7 @@ function EmployeeForm() {
         work_phone: employee.work_phone || "",
         telegram: employee.telegram || "",
         gender: Array.isArray(employee.gender) ? employee.gender[0] || "" : employee.gender || "",
+        hikvision_id: typeof employee.hikvision_id === "string" ? employee.hikvision_id : "",
         departments_id: employee.departments_id || "",
         positions_id: employee.positions_id || "",
         date_hire: employee.date_hire ? new Date(employee.date_hire) : null,
@@ -176,6 +218,12 @@ function EmployeeForm() {
         employee_work_reason_id: "",
         salary: "",
       });
+      const hikvisionId = typeof employee.hikvision_id === "string" ? employee.hikvision_id.trim() : "";
+      setHikvisionFallbackOption(
+        hikvisionId
+          ? { value: hikvisionId, label: hikvisionId }
+          : null
+      );
     }
   }, [employee, isEdit, reset]);
 
@@ -267,6 +315,7 @@ function EmployeeForm() {
       work_phone: normalizePhoneForBackend(data.work_phone),
       telegram: data.telegram || null,
       gender: data.gender ? [data.gender] : [],
+      hikvision_id: data.hikvision_id || null,
       departments_id: data.departments_id || null,
       positions_id: data.positions_id || null,
       date_hire: toISODate(data.date_hire),
@@ -499,6 +548,28 @@ function EmployeeForm() {
                           onChange={field.onChange}
                           placeholder="Выберите пол"
                           brandColor={brandColor}
+                        />
+                      )}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Hikvision ID</label>
+                    <Controller
+                      control={control}
+                      name="hikvision_id"
+                      render={({ field }) => (
+                        <RemoteSingleSelect
+                          value={field.value}
+                          onChange={field.onChange}
+                          loadOptions={loadHikvisionOptions}
+                          fallbackOption={
+                            field.value && (!hikvisionFallbackOption || hikvisionFallbackOption.value !== field.value)
+                              ? { value: field.value, label: field.value }
+                              : hikvisionFallbackOption
+                          }
+                          placeholder="Выберите Hikvision ID"
+                          classNamePrefix="employee-hikvision-id-select"
                         />
                       )}
                     />

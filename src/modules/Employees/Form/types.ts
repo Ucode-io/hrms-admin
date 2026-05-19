@@ -11,6 +11,7 @@ export interface EmployeeFormValues {
   work_phone: string;
   telegram: string;
   gender: string;
+  hikvision_id: string;
   departments_id: string;
   positions_id: string;
   date_hire: Date | null;
@@ -34,6 +35,7 @@ export const employeeFormDefaults: EmployeeFormValues = {
   work_phone: "",
   telegram: "",
   gender: "",
+  hikvision_id: "",
   departments_id: "",
   positions_id: "",
   date_hire: null,

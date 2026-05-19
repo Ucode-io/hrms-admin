@@ -664,6 +664,7 @@ function EmployeeDetail() {
               <InfoRow label="Отчество" value={emp.middle_name} />
               <InfoRow label="Дата рождения" value={formatDate(emp.birth_date)} />
               <InfoRow label="Пол" value={genderLabel} />
+              <InfoRow label="Hikvision ID" value={emp.hikvision_id || "—"} />
               <InfoRow label="Статус" value={statusLabel} isStatus />
               {isDismissed ? (
                 <>

@@ -36,6 +36,7 @@ export interface Employee {
   personal_email: string | null;
   photo: string | null;
   login: string | null;
+  hikvision_id?: string | null;
   status: string[];          // ["active"]
   language: string[];
 
