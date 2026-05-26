@@ -285,6 +285,14 @@ function AttendancePage() {
               <div className="space-y-4 xl:col-span-4">
                 <MetricCard title="Сотрудники" value={Number(cards.employees_count || 0)} />
                 <MetricCard title="Опоздания (мин)" value={Number(cards.total_late_time || 0)} />
+                <MetricCard
+                  title="Оплачиваемые отсутствия (дни)"
+                  value={Number(cards.paid_absence_days || 0)}
+                />
+                <MetricCard
+                  title="Неоплачиваемые отсутствия (дни)"
+                  value={Number(cards.unpaid_absence_days || 0)}
+                />
               </div>
             </section>
           </div>
@@ -369,6 +377,8 @@ function AttendancePage() {
                     "Опоздания (мин)",
                     "Больничные",
                     "Отпуск",
+                    "Оплач. отсутствия",
+                    "Неоплач. отсутствия",
                   ].map((column) => (
                     <th
                       key={column}
@@ -383,7 +393,7 @@ function AttendancePage() {
                 {isTableLoading ? (
                   Array.from({ length: 10 }).map((_, rowIndex) => (
                     <tr key={`table-skeleton-${rowIndex}`} className="animate-pulse">
-                      {Array.from({ length: 9 }).map((__, cellIndex) => (
+                      {Array.from({ length: 11 }).map((__, cellIndex) => (
                         <td
                           key={`table-skeleton-cell-${rowIndex}-${cellIndex}`}
                           className="border-b border-gray-100 px-4 py-3"
@@ -395,7 +405,7 @@ function AttendancePage() {
                   ))
                 ) : isTableError ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-sm text-error-600">
+                    <td colSpan={11} className="px-4 py-6 text-center text-sm text-error-600">
                       {getErrorMessage(tableError)}{" "}
                       <button
                         type="button"
@@ -410,7 +420,7 @@ function AttendancePage() {
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={11} className="px-4 py-6 text-center text-sm text-gray-500">
                       Нет сотрудников по выбранным параметрам
                     </td>
                   </tr>
@@ -430,6 +440,8 @@ function AttendancePage() {
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.total_late_time}</td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.hospital_count}</td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.vacation_count}</td>
+                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.paid_absence_days ?? 0}</td>
+                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.unpaid_absence_days ?? 0}</td>
                     </tr>
                   ))
                 )}

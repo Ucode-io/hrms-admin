@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import httpRequest from "../httpRequest";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import { COMPANY_ID } from "./settingsDirectory.service";
+import reportsService from "./reports.service";
 
 const ABSENCES_COLLECTION = "absences";
 
@@ -106,10 +107,12 @@ const buildCalendarWhereClause = ({
   userBaseColumn = "user_base_id",
   dateFromColumn = "date_from",
   dateToColumn = "date_to",
+  deletedAtColumn = "deleted_at",
 }: CalendarAbsencesParams & {
   userBaseColumn?: string;
   dateFromColumn?: string;
   dateToColumn?: string;
+  deletedAtColumn?: string;
 }): string => {
   const sanitizedIds = employeeIds
     .map((id) => id.trim())
@@ -122,6 +125,7 @@ const buildCalendarWhereClause = ({
   const safeDateTo = escapeSqlValue(dateTo);
 
   return [
+    `${deletedAtColumn} IS NULL`,
     `${userBaseColumn} IN (${sanitizedIds.join(",")})`,
     `${dateFromColumn} <= '${safeDateTo}'`,
     `${dateToColumn} >= '${safeDateFrom}'`,
@@ -216,6 +220,7 @@ const absenceService = {
       userBaseColumn: "a.user_base_id",
       dateFromColumn: "a.date_from",
       dateToColumn: "a.date_to",
+      deletedAtColumn: "a.deleted_at",
     });
 
     for (let requestIndex = 0; requestIndex < maxRequests; requestIndex += 1) {
@@ -407,6 +412,50 @@ export const useDeleteAbsence = () => {
       queryClient.invalidateQueries(["absences-by-user"]);
       queryClient.invalidateQueries(["calendar-absences"]);
       queryClient.invalidateQueries(["employee-absence-summary"]);
+    },
+  });
+};
+
+const invalidateAbsenceAndAttendanceQueries = (queryClient: ReturnType<typeof useQueryClient>) => {
+  queryClient.invalidateQueries(["absences"]);
+  queryClient.invalidateQueries(["absences-by-user"]);
+  queryClient.invalidateQueries(["calendar-absences"]);
+  queryClient.invalidateQueries(["employee-absence-summary"]);
+  queryClient.invalidateQueries(["attendance"]);
+  queryClient.invalidateQueries(["SETTINGS_DIRECTORY", "attendance"]);
+  queryClient.invalidateQueries(["get_attendance"]);
+  queryClient.invalidateQueries(["get_attendance_table"]);
+};
+
+export const useApproveAbsence = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      guid,
+      reviewedBy,
+    }: {
+      guid: string;
+      reviewedBy?: string | null;
+    }) =>
+      reportsService.approveAbsence({
+        absences_id: guid,
+        reviewed_by: reviewedBy ?? null,
+      }),
+    onSuccess: () => {
+      invalidateAbsenceAndAttendanceQueries(queryClient);
+    },
+  });
+};
+
+export const useDeleteAbsenceWithAttendance = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (guid: string) =>
+      reportsService.deleteAbsence({ absences_id: guid }),
+    onSuccess: () => {
+      invalidateAbsenceAndAttendanceQueries(queryClient);
     },
   });
 };

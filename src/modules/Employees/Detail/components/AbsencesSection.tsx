@@ -18,8 +18,9 @@ import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
 import {
   type AbsenceRequestStatus,
+  useApproveAbsence,
   useCreateAbsence,
-  useDeleteAbsence,
+  useDeleteAbsenceWithAttendance,
   useUpdateAbsence,
 } from "../../../../api/services/absenceRequest.service";
 import {
@@ -252,7 +253,8 @@ export default function AbsencesSection({
 
   const createRequestMutation = useCreateAbsence();
   const updateRequestMutation = useUpdateAbsence();
-  const deleteRequestMutation = useDeleteAbsence();
+  const approveRequestMutation = useApproveAbsence();
+  const deleteRequestMutation = useDeleteAbsenceWithAttendance();
   const uploadFileMutation = useUploadFile({ folder: "Media" });
 
   const filteredRequests = useMemo(() => {
@@ -437,13 +439,17 @@ export default function AbsencesSection({
 
     try {
       setReviewingRequestId(request.guid);
-      await updateRequestMutation.mutateAsync({
-        guid: request.guid,
-        data: {
-          status: [status],
-          reviewed_at: new Date().toISOString(),
-        },
-      });
+      if (status === "approved") {
+        await approveRequestMutation.mutateAsync({ guid: request.guid });
+      } else {
+        await updateRequestMutation.mutateAsync({
+          guid: request.guid,
+          data: {
+            status: [status],
+            reviewed_at: new Date().toISOString(),
+          },
+        });
+      }
 
       invalidateSummary();
 
@@ -638,7 +644,8 @@ export default function AbsencesSection({
                   );
                   const isReviewing =
                     reviewingRequestId === request.guid &&
-                    updateRequestMutation.isLoading;
+                    (updateRequestMutation.isLoading ||
+                      approveRequestMutation.isLoading);
                   const attachments = parseAttachmentsField(request.attachments);
 
                   return (

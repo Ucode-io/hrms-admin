@@ -12,6 +12,7 @@ import {
   useUpdateSettingsDirectoryItem,
 } from "../../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
+import { dedupeAttendanceByPriority } from "../../../../utils/attendanceSourcePriority";
 
 type AttendanceSectionProps = {
   employeeGuid: string;
@@ -319,7 +320,14 @@ export default function AttendanceSection({
     createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading;
 
   const records = useMemo<AttendanceRecord[]>(() => {
-    const rows = ((data?.response || []) as AttendanceItem[]).map((item) => ({
+    const rawRows = (data?.response || []) as AttendanceItem[];
+    const rowsWithUser = rawRows.map((item) => ({
+      ...item,
+      user_base_id:
+        typeof item.user_base_id === "string" ? item.user_base_id : employeeGuid,
+    }));
+    const deduped = dedupeAttendanceByPriority(rowsWithUser);
+    const rows = deduped.map((item) => ({
       guid: item.guid,
       date: typeof item.date === "string" ? item.date : "",
       checkInTime: normalizeTimeValue(item.check_in_time),
@@ -331,7 +339,7 @@ export default function AttendanceSection({
     }));
 
     return rows.sort((left, right) => toSortTimestamp(right) - toSortTimestamp(left));
-  }, [data?.response]);
+  }, [data?.response, employeeGuid]);
 
   const closeModal = () => {
     if (isSaving) return;

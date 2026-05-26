@@ -6,10 +6,8 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   FileText,
   Home,
-  ListOrdered,
   Settings,
   Target,
   UserRoundCheck,
@@ -36,13 +34,6 @@ const mainNavItems: NavItem[] = [
 ];
 
 const moduleSections: ModuleSection[] = [
-  {
-    title: "Задачи",
-    items: [
-      { name: "Задачи", path: "/tasks", icon: <ClipboardList size={18} /> },
-      { name: "Привички", path: "/habits", icon: <ListOrdered size={18} /> },
-    ],
-  },
   {
     title: "Люди",
     items: [

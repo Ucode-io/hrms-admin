@@ -17,6 +17,7 @@ import {
   useUpdateSettingsDirectoryItem,
 } from "../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
+import { dedupeAttendanceByPriority } from "../../../utils/attendanceSourcePriority";
 
 type AttendanceItem = {
   guid: string;
@@ -41,7 +42,7 @@ type AttendanceItem = {
 
 type AttendanceWorkflowStatus = "accepted" | "rejected" | "requested" | "unknown";
 type AttendanceActionStatus = "present" | "late" | "absent" | "unknown";
-type AttendanceSourceType = "manual" | "integration" | "unknown";
+type AttendanceSourceType = "manual" | "integration" | "absences" | "unknown";
 
 type AttendanceRecord = {
   guid: string;
@@ -331,6 +332,7 @@ const normalizeAttendanceSourceType = (value: unknown): AttendanceSourceType => 
 
   if (normalized === "manual") return "manual";
   if (normalized === "integration") return "integration";
+  if (normalized === "absences") return "absences";
   return "unknown";
 };
 
@@ -419,6 +421,13 @@ const getSourceTypeTag = (
     };
   }
 
+  if (sourceType === "absences") {
+    return {
+      label: "Отсутствие",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
   return {
     label: "—",
     className: "border-slate-200 bg-slate-100 text-slate-500",
@@ -503,6 +512,7 @@ export default function TimeAttendancePage() {
     () => [
       { value: "manual", label: "Ручной" },
       { value: "integration", label: "Интеграция" },
+      { value: "absences", label: "Отсутствие" },
     ],
     []
   );
@@ -546,7 +556,13 @@ export default function TimeAttendancePage() {
   const isSaving = createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading;
 
   const records = useMemo<AttendanceRecord[]>(() => {
-    const rows = ((data?.response || []) as AttendanceItem[]).map((item) => {
+    const rawRows = (data?.response || []) as AttendanceItem[];
+    // Per (user, date) keep only the row with the highest source priority:
+    // absences > manual > integration. Lower-priority duplicates stay in DB
+    // but are hidden from this listing so the dominant row is what the user
+    // sees and edits.
+    const deduped = dedupeAttendanceByPriority(rawRows);
+    const rows = deduped.map((item) => {
       const date = normalizeDateKey(item.date, item.created_at);
       const checkInTime = normalizeTime(item.check_in_time);
       const checkOutTime = normalizeTime(item.check_out_time);

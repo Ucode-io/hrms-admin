@@ -36,6 +36,30 @@ const GET_KPI_TABLE_METHOD = "get_kpi_table";
 const SAVE_KPI_METHOD = "save_kpi";
 const DELETE_KPI_METHOD = "delete_kpi";
 const UPDATE_KPI_VALUE_METHOD = "update_kpi_value";
+const APPROVE_ABSENCE_METHOD = "approve_absence";
+const DELETE_ABSENCE_METHOD = "delete_absence";
+
+export type ApproveAbsenceResult = {
+  absences_id: string;
+  status: string[];
+  created_attendance_count: number;
+  created_attendance_dates: string[];
+};
+
+export type ApproveAbsenceInvokeResponse = {
+  method: typeof APPROVE_ABSENCE_METHOD;
+  result: ApproveAbsenceResult;
+};
+
+export type DeleteAbsenceResult = {
+  absences_id: string;
+  deleted_attendance_count: number;
+};
+
+export type DeleteAbsenceInvokeResponse = {
+  method: typeof DELETE_ABSENCE_METHOD;
+  result: DeleteAbsenceResult;
+};
 
 type JsonRecord = Record<string, unknown>;
 
@@ -484,6 +508,8 @@ export type AttendanceReportResult = {
     on_time_count?: number;
     total_late_time?: number;
     late_arrivals_count?: number;
+    paid_absence_days?: number;
+    unpaid_absence_days?: number;
   };
   charts?: {
     absence_counts?: AttendanceChartCountItem[];
@@ -511,6 +537,8 @@ export type AttendanceTableItem = {
   total_late_time: number;
   hospital_count: number;
   vacation_count: number;
+  paid_absence_days: number;
+  unpaid_absence_days: number;
 };
 
 export type AttendanceTablePagination = {
@@ -632,6 +660,8 @@ export type PayrollPeriodMetrics = {
   bonus: number | null;
   work_days: number | null;
   actual_work_days: number | null;
+  paid_absence_days?: number;
+  unpaid_absence_days?: number;
   total: number | null;
 };
 
@@ -2314,6 +2344,38 @@ const normalizeUpdateKpiValueResponse = (
   throw new Error("Unexpected response format for update_kpi_value");
 };
 
+const normalizeGatewayResponse = <T extends { method: string; result: unknown }>(
+  raw: unknown,
+  expectedMethod: string
+): T => {
+  const matches = (value: unknown): value is T =>
+    isRecord(value) &&
+    value.method === expectedMethod &&
+    isRecord(value.result);
+
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [raw];
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (!isRecord(node) || visited.has(node)) continue;
+    visited.add(node);
+
+    if (typeof node.server_error === "string" && node.server_error) {
+      throw new Error(node.server_error);
+    }
+
+    if (matches(node)) {
+      return node;
+    }
+
+    if (isRecord(node.data)) queue.push(node.data);
+    if (isRecord(node.result)) queue.push(node.result);
+    if (isRecord(node.response)) queue.push(node.response);
+  }
+
+  throw new Error(`Unexpected response format for ${expectedMethod}`);
+};
+
 const reportsService = {
   getKpi: async (
     requestData: JsonRecord = {}
@@ -2374,6 +2436,36 @@ const reportsService = {
     });
 
     return normalizeUpdateKpiValueResponse(response.data);
+  },
+  approveAbsence: async (
+    requestData: { absences_id: string; reviewed_by?: string | null }
+  ): Promise<ApproveAbsenceInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: APPROVE_ABSENCE_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<ApproveAbsenceInvokeResponse>(
+      response.data,
+      APPROVE_ABSENCE_METHOD
+    );
+  },
+  deleteAbsence: async (
+    requestData: { absences_id: string }
+  ): Promise<DeleteAbsenceInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: DELETE_ABSENCE_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<DeleteAbsenceInvokeResponse>(
+      response.data,
+      DELETE_ABSENCE_METHOD
+    );
   },
   getAgeDistribution: async (
     requestData: JsonRecord = {}

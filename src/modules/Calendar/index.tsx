@@ -12,10 +12,19 @@ import { useHeaderBreadcrumbItems } from "../../context/HeaderBreadcrumbContext"
 import {
   type Absence,
   type AbsenceRequestStatus,
+  useApproveAbsence,
   useCalendarAbsencesQuery,
   useCreateAbsence,
   useUpdateAbsence,
 } from "../../api/services/absenceRequest.service";
+import {
+  type CalendarAttendanceRow,
+  useCalendarAttendanceQuery,
+} from "../../api/services/attendanceCalendar.service";
+import {
+  dedupeAttendanceByPriority,
+  getAttendanceSourceKind,
+} from "../../utils/attendanceSourcePriority";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
 import { useSettingsDirectoryQuery } from "../../api/services/settingsDirectory.service";
 import { useEmployeeAbsenceSummaryQuery } from "../../api/services/employeeAbsenceSummary.service";
@@ -340,16 +349,137 @@ const normalizeAbsence = (
   };
 };
 
+type AttendanceDotKind = "present" | "late" | "absent";
+
+const ATTENDANCE_CELL_BG: Record<AttendanceDotKind, string> = {
+  present: "#D1FAE5",
+  late: "#FEF3C7",
+  absent: "#FEE2E2",
+};
+
+const ATTENDANCE_CELL_HOVER_BG: Record<AttendanceDotKind, string> = {
+  present: "#A7F3D0",
+  late: "#FDE68A",
+  absent: "#FECACA",
+};
+
+const ATTENDANCE_DOT_LABEL: Record<AttendanceDotKind, string> = {
+  present: "Присутствует",
+  late: "Опоздание",
+  absent: "Отсутствует",
+};
+
+type AttendanceCellInfo = {
+  kind: AttendanceDotKind;
+  guid: string;
+  checkInTime: string;
+  checkOutTime: string;
+  delayTime: string;
+  sourceLabel: string;
+};
+
+const normalizeAttendanceDotKind = (value: unknown): AttendanceDotKind | null => {
+  const candidates: string[] = [];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === "string") candidates.push(item.trim().toLowerCase());
+    }
+  } else if (typeof value === "string") {
+    candidates.push(value.trim().toLowerCase());
+  }
+  if (candidates.includes("present")) return "present";
+  if (candidates.includes("late")) return "late";
+  if (candidates.includes("absent")) return "absent";
+  return null;
+};
+
+type AttendanceClickPayload = AttendanceCellInfo & {
+  dateKey: string;
+  employeeGuid: string;
+  anchorRect: { left: number; top: number; right: number; bottom: number; width: number };
+};
+
+const renderEmptyOrAttendanceCell = ({
+  day,
+  info,
+  employeeGuid,
+  onAttendanceClick,
+  keyPrefix,
+}: {
+  day: DayColumn;
+  info: AttendanceCellInfo | null;
+  employeeGuid: string;
+  onAttendanceClick: (payload: AttendanceClickPayload) => void;
+  keyPrefix: string;
+}): ReactNode => {
+  if (!info) {
+    return (
+      <td
+        key={`${keyPrefix}-${day.dateKey}`}
+        className={`h-14 min-w-[44px] border-b border-r border-gray-100 ${
+          day.isWeekend ? "bg-gray-50/70" : "bg-white"
+        }`}
+      />
+    );
+  }
+
+  const background = ATTENDANCE_CELL_BG[info.kind];
+  const hoverBg = ATTENDANCE_CELL_HOVER_BG[info.kind];
+  const tooltip = ATTENDANCE_DOT_LABEL[info.kind];
+
+  return (
+    <td
+      key={`${keyPrefix}-${day.dateKey}`}
+      className="h-14 min-w-[44px] border-b border-r border-gray-100 p-0"
+    >
+      <button
+        type="button"
+        title={tooltip}
+        aria-label={tooltip}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          onAttendanceClick({
+            ...info,
+            dateKey: day.dateKey,
+            employeeGuid,
+            anchorRect: {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              width: rect.width,
+            },
+          });
+        }}
+        className="h-full w-full cursor-pointer transition-colors"
+        style={{ backgroundColor: background }}
+        onMouseEnter={(event) => {
+          event.currentTarget.style.backgroundColor = hoverBg;
+        }}
+        onMouseLeave={(event) => {
+          event.currentTarget.style.backgroundColor = background;
+        }}
+      />
+    </td>
+  );
+};
+
 const buildTimelineCells = ({
   absences,
+  attendanceByDate,
   days,
   monthStart,
+  employeeGuid,
   onSegmentClick,
+  onAttendanceClick,
 }: {
   absences: NormalizedAbsence[];
+  attendanceByDate: Map<string, AttendanceCellInfo>;
   days: DayColumn[];
   monthStart: Date;
+  employeeGuid: string;
   onSegmentClick: (absence: Segment) => void;
+  onAttendanceClick: (payload: AttendanceClickPayload) => void;
 }): ReactNode[] => {
   const lastDayIndex = days.length - 1;
   const segments: Segment[] = absences
@@ -393,13 +523,15 @@ const buildTimelineCells = ({
 
     for (let dayIndex = cursor; dayIndex < startIndex; dayIndex += 1) {
       const day = days[dayIndex];
+      const info = attendanceByDate.get(day.dateKey) || null;
       cells.push(
-        <td
-          key={`empty-${day.dateKey}`}
-          className={`h-14 min-w-[44px] border-b border-r border-gray-100 ${
-            day.isWeekend ? "bg-gray-50/70" : "bg-white"
-          }`}
-        />
+        renderEmptyOrAttendanceCell({
+          day,
+          info,
+          employeeGuid,
+          onAttendanceClick,
+          keyPrefix: "empty",
+        })
       );
     }
 
@@ -454,13 +586,15 @@ const buildTimelineCells = ({
 
   for (let dayIndex = cursor; dayIndex < days.length; dayIndex += 1) {
     const day = days[dayIndex];
+    const info = attendanceByDate.get(day.dateKey) || null;
     cells.push(
-      <td
-        key={`tail-${day.dateKey}`}
-        className={`h-14 min-w-[44px] border-b border-r border-gray-100 ${
-          day.isWeekend ? "bg-gray-50/70" : "bg-white"
-        }`}
-      />
+      renderEmptyOrAttendanceCell({
+        day,
+        info,
+        employeeGuid,
+        onAttendanceClick,
+        keyPrefix: "tail",
+      })
     );
   }
 
@@ -482,6 +616,9 @@ export default function CalendarModule() {
   const [createAttachments, setCreateAttachments] = useState<AttachmentItem[]>([]);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [selectedAbsence, setSelectedAbsence] = useState<SelectedAbsence | null>(null);
+  const [selectedAttendance, setSelectedAttendance] = useState<
+    (AttendanceClickPayload & { employeeName: string }) | null
+  >(null);
   const [reviewStatusInProgress, setReviewStatusInProgress] = useState<AbsenceRequestStatus | null>(null);
   const breadcrumbItems = useMemo(
     () => [
@@ -496,6 +633,7 @@ export default function CalendarModule() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const updateAbsenceMutation = useUpdateAbsence();
+  const approveAbsenceMutation = useApproveAbsence();
   const createAbsenceMutation = useCreateAbsence();
   const uploadFileMutation = useUploadFile({ folder: "Media" });
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
@@ -629,6 +767,66 @@ export default function CalendarModule() {
       .filter((absence): absence is NormalizedAbsence => Boolean(absence));
   }, [absencesData?.response, policiesById]);
 
+  const { data: attendanceData } = useCalendarAttendanceQuery({
+    params: {
+      employeeIds,
+      dateFrom: monthStartIso,
+      dateTo: monthEndIso,
+    },
+    querySettings: {
+      enabled: employeeIds.length > 0 && Boolean(monthStartIso) && Boolean(monthEndIso),
+      keepPreviousData: true,
+    },
+  });
+
+  // Map<userBaseId, Map<dateKey, AttendanceCellInfo>> with priority-based dedup
+  // (absences > manual > integration) applied per (user, date). Absences-source
+  // rows are skipped — those days are already drawn as coloured absence segments.
+  const attendanceByEmployee = useMemo(() => {
+    const rows = (attendanceData?.response || []) as CalendarAttendanceRow[];
+    const deduped = dedupeAttendanceByPriority(rows);
+    const map = new Map<string, Map<string, AttendanceCellInfo>>();
+
+    for (const row of deduped) {
+      const userId = typeof row.user_base_id === "string" ? row.user_base_id : "";
+      const dateKey =
+        typeof row.date === "string" ? row.date.slice(0, 10) : "";
+      if (!userId || !dateKey) continue;
+
+      const sourceKind = getAttendanceSourceKind(row.source_type);
+      if (sourceKind === "absences") continue;
+
+      const kind = normalizeAttendanceDotKind(row.action_status);
+      if (!kind) continue;
+
+      const sourceLabel =
+        sourceKind === "manual"
+          ? "Ручной"
+          : sourceKind === "integration"
+            ? "Интеграция"
+            : "Источник не указан";
+
+      const info: AttendanceCellInfo = {
+        kind,
+        guid: row.guid,
+        checkInTime: typeof row.check_in_time === "string" ? row.check_in_time : "",
+        checkOutTime:
+          typeof row.check_out_time === "string" ? row.check_out_time : "",
+        delayTime: typeof row.delay_time === "string" ? row.delay_time : "",
+        sourceLabel,
+      };
+
+      let userMap = map.get(userId);
+      if (!userMap) {
+        userMap = new Map();
+        map.set(userId, userMap);
+      }
+      userMap.set(dateKey, info);
+    }
+
+    return map;
+  }, [attendanceData?.response]);
+
   if (typeof employeesData?.count === "number" && Number.isFinite(employeesData.count)) {
     lastKnownTotalCountRef.current = employeesData.count;
   }
@@ -689,7 +887,7 @@ export default function CalendarModule() {
   const monthLabel = useMemo(() => formatMonthLabel(currentMonth), [currentMonth]);
   const isLoading = isInitialLoading;
   const companyMainColor = "var(--color-brand-500)";
-  const isReviewing = updateAbsenceMutation.isLoading;
+  const isReviewing = updateAbsenceMutation.isLoading || approveAbsenceMutation.isLoading;
   const createBreakdown = useMemo(() => getDateBreakdown(createDateFrom, createDateTo), [createDateFrom, createDateTo]);
   const createRequestedDays = createBreakdown.length;
 
@@ -848,13 +1046,17 @@ export default function CalendarModule() {
 
     try {
       setReviewStatusInProgress(status);
-      await updateAbsenceMutation.mutateAsync({
-        guid: selectedAbsence.guid,
-        data: {
-          status: [status],
-          reviewed_at: new Date().toISOString(),
-        },
-      });
+      if (status === "approved") {
+        await approveAbsenceMutation.mutateAsync({ guid: selectedAbsence.guid });
+      } else {
+        await updateAbsenceMutation.mutateAsync({
+          guid: selectedAbsence.guid,
+          data: {
+            status: [status],
+            reviewed_at: new Date().toISOString(),
+          },
+        });
+      }
 
       await queryClient.invalidateQueries(["calendar-absences"]);
       await queryClient.invalidateQueries(["employee-absence-summary"]);
@@ -1017,10 +1219,20 @@ export default function CalendarModule() {
                         const fullName = buildEmployeeName(employee);
                         const subtitle = buildEmployeeSubtitle(employee);
                         const rowAbsences = absencesByEmployee.get(employee.guid) || [];
+                        const rowAttendance =
+                          attendanceByEmployee.get(employee.guid) ||
+                          new Map<string, AttendanceCellInfo>();
                         const timelineCells = buildTimelineCells({
                           absences: rowAbsences,
+                          attendanceByDate: rowAttendance,
                           days: monthDays,
                           monthStart: currentMonth,
+                          employeeGuid: employee.guid,
+                          onAttendanceClick: (payload) =>
+                            setSelectedAttendance({
+                              ...payload,
+                              employeeName: buildEmployeeName(employee),
+                            }),
                           onSegmentClick: (absence) =>
                             setSelectedAbsence({
                               guid: absence.guid,
@@ -1225,6 +1437,121 @@ export default function CalendarModule() {
           </button>
         </div>
       </Modal>
+
+      <AttendanceTooltip
+        data={selectedAttendance}
+        onClose={() => setSelectedAttendance(null)}
+      />
     </>
+  );
+}
+
+const TOOLTIP_WIDTH = 280;
+const TOOLTIP_GAP = 8;
+
+function AttendanceTooltip({
+  data,
+  onClose,
+}: {
+  data: (AttendanceClickPayload & { employeeName: string }) | null;
+  onClose: () => void;
+}) {
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!data) return undefined;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!tooltipRef.current) return;
+      if (!tooltipRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    // Defer to next tick so the click that opened the tooltip doesn't close it.
+    const id = window.setTimeout(() => {
+      window.addEventListener("mousedown", handleClickOutside);
+    }, 0);
+    window.addEventListener("keydown", handleKey);
+
+    return () => {
+      window.clearTimeout(id);
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [data, onClose]);
+
+  if (!data) return null;
+
+  const viewportWidth =
+    typeof window !== "undefined" ? window.innerWidth : data.anchorRect.right;
+  const viewportHeight =
+    typeof window !== "undefined" ? window.innerHeight : data.anchorRect.bottom;
+
+  // Center horizontally over the cell, clamp into viewport.
+  let left = data.anchorRect.left + data.anchorRect.width / 2 - TOOLTIP_WIDTH / 2;
+  left = Math.max(8, Math.min(left, viewportWidth - TOOLTIP_WIDTH - 8));
+
+  // Prefer below; flip above if there is no room.
+  let top = data.anchorRect.bottom + TOOLTIP_GAP;
+  const estimatedHeight = 220;
+  if (top + estimatedHeight > viewportHeight - 8) {
+    top = data.anchorRect.top - TOOLTIP_GAP - estimatedHeight;
+    if (top < 8) top = 8;
+  }
+
+  const statusColor =
+    data.kind === "present"
+      ? "#047857"
+      : data.kind === "late"
+        ? "#B45309"
+        : "#B91C1C";
+
+  return (
+    <div
+      ref={tooltipRef}
+      role="dialog"
+      aria-label="Детали посещаемости"
+      className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl"
+      style={{ left, top, width: TOOLTIP_WIDTH }}
+    >
+      <div className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-2.5">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-gray-900">
+            {data.employeeName}
+          </p>
+          <p className="text-xs text-gray-500">{formatDateRu(data.dateKey)}</p>
+        </div>
+        <span
+          className="inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+          style={{ backgroundColor: ATTENDANCE_CELL_BG[data.kind], color: statusColor }}
+        >
+          {ATTENDANCE_DOT_LABEL[data.kind]}
+        </span>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-3 text-sm">
+        <div>
+          <dt className="text-[11px] text-gray-500">Приход</dt>
+          <dd className="font-semibold text-gray-900">{data.checkInTime || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] text-gray-500">Уход</dt>
+          <dd className="font-semibold text-gray-900">{data.checkOutTime || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] text-gray-500">Опоздание</dt>
+          <dd className="font-semibold text-gray-900">{data.delayTime || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] text-gray-500">Источник</dt>
+          <dd className="font-semibold text-gray-900">{data.sourceLabel}</dd>
+        </div>
+      </dl>
+    </div>
   );
 }
