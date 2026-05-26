@@ -1,11 +1,19 @@
-import { type ChangeEvent, type ReactNode, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  type UIEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Icon } from "@iconify/react";
-import { ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock3, Plus, X } from "lucide-react";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
 import Button from "../../components/ui/button/Button";
-import { Modal } from "../../components/ui/modal";
 import ExpandableSearchInput from "../../components/form/ExpandableSearchInput";
 import AbsenceRequestModal from "../../components/absences/AbsenceRequestModal";
 import { useHeaderBreadcrumbItems } from "../../context/HeaderBreadcrumbContext";
@@ -103,6 +111,7 @@ type Segment = {
 
 type SelectedAbsence = NormalizedAbsence & {
   employeeName: string;
+  anchorRect?: { left: number; top: number; right: number; bottom: number; width: number };
 };
 
 type AttachmentItem = {
@@ -351,22 +360,31 @@ const normalizeAbsence = (
 
 type AttendanceDotKind = "present" | "late" | "absent";
 
+// Base brand colour per attendance type. Pill uses this colour for the icon
+// and as a low-opacity background, matching the visual language of absence
+// segments (e.g. "Vocation" cell).
+const ATTENDANCE_PILL_COLOR: Record<AttendanceDotKind, string> = {
+  present: "#10B981",
+  late: "#F59E0B",
+  absent: "#EF4444",
+};
+
 const ATTENDANCE_CELL_BG: Record<AttendanceDotKind, string> = {
   present: "#D1FAE5",
   late: "#FEF3C7",
   absent: "#FEE2E2",
 };
 
-const ATTENDANCE_CELL_HOVER_BG: Record<AttendanceDotKind, string> = {
-  present: "#A7F3D0",
-  late: "#FDE68A",
-  absent: "#FECACA",
-};
-
 const ATTENDANCE_DOT_LABEL: Record<AttendanceDotKind, string> = {
   present: "Присутствует",
   late: "Опоздание",
   absent: "Отсутствует",
+};
+
+const AttendanceIcon = ({ kind, className }: { kind: AttendanceDotKind; className?: string }) => {
+  if (kind === "late") return <Clock3 className={className} />;
+  if (kind === "absent") return <X className={className} />;
+  return <Check className={className} />;
 };
 
 type AttendanceCellInfo = {
@@ -423,19 +441,22 @@ const renderEmptyOrAttendanceCell = ({
     );
   }
 
-  const background = ATTENDANCE_CELL_BG[info.kind];
-  const hoverBg = ATTENDANCE_CELL_HOVER_BG[info.kind];
+  const pillColor = ATTENDANCE_PILL_COLOR[info.kind];
+  const pillBg = ATTENDANCE_CELL_BG[info.kind];
   const tooltip = ATTENDANCE_DOT_LABEL[info.kind];
 
   return (
     <td
       key={`${keyPrefix}-${day.dateKey}`}
-      className="h-14 min-w-[44px] border-b border-r border-gray-100 p-0"
+      className={`h-14 min-w-[44px] border-b border-r border-gray-100 px-1 ${
+        day.isWeekend ? "bg-gray-50/70" : "bg-white"
+      }`}
+      title={tooltip}
     >
       <button
         type="button"
-        title={tooltip}
         aria-label={tooltip}
+        title={tooltip}
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
           onAttendanceClick({
@@ -451,15 +472,11 @@ const renderEmptyOrAttendanceCell = ({
             },
           });
         }}
-        className="h-full w-full cursor-pointer transition-colors"
-        style={{ backgroundColor: background }}
-        onMouseEnter={(event) => {
-          event.currentTarget.style.backgroundColor = hoverBg;
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.backgroundColor = background;
-        }}
-      />
+        className="flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] font-semibold transition hover:ring-2 hover:ring-brand-500/20"
+        style={{ color: pillColor, backgroundColor: pillBg }}
+      >
+        <AttendanceIcon kind={info.kind} className="h-[18px] w-[18px]" />
+      </button>
     </td>
   );
 };
@@ -478,7 +495,10 @@ const buildTimelineCells = ({
   days: DayColumn[];
   monthStart: Date;
   employeeGuid: string;
-  onSegmentClick: (absence: Segment) => void;
+  onSegmentClick: (
+    absence: Segment,
+    anchorRect: { left: number; top: number; right: number; bottom: number; width: number }
+  ) => void;
   onAttendanceClick: (payload: AttendanceClickPayload) => void;
 }): ReactNode[] => {
   const lastDayIndex = days.length - 1;
@@ -555,7 +575,16 @@ const buildTimelineCells = ({
       >
         <button
           type="button"
-          onClick={() => onSegmentClick(segment)}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            onSegmentClick(segment, {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              width: rect.width,
+            });
+          }}
           className={`flex h-8 w-full rounded-md text-[12px] font-semibold ${
             canReview ? "cursor-pointer" : "cursor-default"
           } ${showIconOnly ? "items-center justify-center px-0" : "items-center gap-1 px-2"} ${
@@ -1233,7 +1262,7 @@ export default function CalendarModule() {
                               ...payload,
                               employeeName: buildEmployeeName(employee),
                             }),
-                          onSegmentClick: (absence) =>
+                          onSegmentClick: (absence, anchorRect) =>
                             setSelectedAbsence({
                               guid: absence.guid,
                               userBaseId: absence.userBaseId,
@@ -1246,6 +1275,7 @@ export default function CalendarModule() {
                               dateTo: absence.dateTo,
                               requestedDays: absence.requestedDays,
                               employeeName: fullName,
+                              anchorRect,
                             }),
                         });
 
@@ -1344,99 +1374,14 @@ export default function CalendarModule() {
         }}
       />
 
-      <Modal
-        isOpen={Boolean(selectedAbsence)}
+      <AbsenceTooltip
+        data={selectedAbsence}
         onClose={closeReviewModal}
-        className="max-w-[520px] p-0"
-      >
-        <div className="border-b border-gray-100 px-6 py-4">
-          <h3 className="text-xl font-semibold text-gray-900">Рассмотреть отсутствие</h3>
-        </div>
-
-        {selectedAbsence ? (
-          <div className="space-y-4 px-6 py-5">
-            <div className="space-y-1">
-              <p className="text-sm text-gray-500">Сотрудник</p>
-              <p className="text-base font-semibold text-gray-900">{selectedAbsence.employeeName}</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm text-gray-500">Тип отсутствия</p>
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md"
-                  style={{ backgroundColor: withOpacity(selectedAbsence.color, 0.14) }}
-                >
-                  <Icon icon={selectedAbsence.icon} className="h-4 w-4" color={selectedAbsence.color} />
-                </span>
-                <span className="text-sm font-semibold text-gray-900">{selectedAbsence.title}</span>
-                <span
-                  className={`rounded px-2 py-0.5 text-[11px] font-semibold ${
-                    STATUS_BADGE_CLASSNAME[selectedAbsence.status]
-                  }`}
-                >
-                  {STATUS_LABELS[selectedAbsence.status]}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-                <p className="text-xs text-gray-500">Дата начала</p>
-                <p className="mt-0.5 text-sm font-semibold text-gray-900">
-                  {formatDateRu(selectedAbsence.dateFrom)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-                <p className="text-xs text-gray-500">Дата окончания</p>
-                <p className="mt-0.5 text-sm font-semibold text-gray-900">
-                  {formatDateRu(selectedAbsence.dateTo)}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-              <p className="text-xs text-gray-500">Запрошено дней</p>
-              <p className="mt-0.5 text-sm font-semibold text-gray-900">{selectedAbsence.requestedDays}</p>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
-          <Button
-            variant="outline"
-            className="h-10 px-4"
-            onClick={closeReviewModal}
-            disabled={isReviewing}
-          >
-            Отмена
-          </Button>
-          <button
-            type="button"
-            onClick={() => handleReviewAbsence("rejected")}
-            disabled={
-              isReviewing ||
-              !selectedAbsence ||
-              selectedAbsence.status !== "pending"
-            }
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {reviewStatusInProgress === "rejected" ? "Отклонение..." : "Отклонить"}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleReviewAbsence("approved")}
-            disabled={
-              isReviewing ||
-              !selectedAbsence ||
-              selectedAbsence.status !== "pending"
-            }
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {reviewStatusInProgress === "approved" ? "Подтверждение..." : "Подтвердить"}
-          </button>
-        </div>
-      </Modal>
+        onReject={() => void handleReviewAbsence("rejected")}
+        onApprove={() => void handleReviewAbsence("approved")}
+        isReviewing={isReviewing}
+        reviewStatusInProgress={reviewStatusInProgress}
+      />
 
       <AttendanceTooltip
         data={selectedAttendance}
@@ -1448,6 +1393,75 @@ export default function CalendarModule() {
 
 const TOOLTIP_WIDTH = 280;
 const TOOLTIP_GAP = 8;
+
+type AnchorRect = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+};
+
+/**
+ * Resolve the {left, top} of a floating popover so it sits directly below the
+ * anchor when possible, flipping above when below would overflow the viewport.
+ * Measures the actual tooltip height via a ref instead of guessing.
+ */
+function useTooltipPosition(
+  anchor: AnchorRect | undefined | null,
+  tooltipRef: React.RefObject<HTMLDivElement | null>,
+  width: number
+): { left: number; top: number; ready: boolean } {
+  const [position, setPosition] = useState<{ left: number; top: number; ready: boolean }>({
+    left: 0,
+    top: 0,
+    ready: false,
+  });
+
+  useLayoutEffect(() => {
+    if (!anchor || !tooltipRef.current) {
+      setPosition((prev) => ({ ...prev, ready: false }));
+      return undefined;
+    }
+
+    const compute = () => {
+      const el = tooltipRef.current;
+      if (!el) return;
+      const height = el.offsetHeight;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      let left = anchor.left + anchor.width / 2 - width / 2;
+      left = Math.max(8, Math.min(left, viewportWidth - width - 8));
+
+      let top = anchor.bottom + TOOLTIP_GAP;
+      const overflowsBelow = top + height > viewportHeight - 8;
+      if (overflowsBelow) {
+        const aboveTop = anchor.top - TOOLTIP_GAP - height;
+        if (aboveTop >= 8) {
+          top = aboveTop;
+        } else {
+          // Neither full fits — pick whichever side has more room.
+          const roomBelow = viewportHeight - anchor.bottom - TOOLTIP_GAP - 8;
+          const roomAbove = anchor.top - TOOLTIP_GAP - 8;
+          top = roomAbove > roomBelow ? Math.max(8, aboveTop) : top;
+        }
+      }
+
+      setPosition({ left, top, ready: true });
+    };
+
+    compute();
+    window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, true);
+    return () => {
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
+    };
+  }, [anchor, tooltipRef, width]);
+
+  return position;
+}
 
 function AttendanceTooltip({
   data,
@@ -1485,24 +1499,9 @@ function AttendanceTooltip({
     };
   }, [data, onClose]);
 
+  const position = useTooltipPosition(data?.anchorRect, tooltipRef, TOOLTIP_WIDTH);
+
   if (!data) return null;
-
-  const viewportWidth =
-    typeof window !== "undefined" ? window.innerWidth : data.anchorRect.right;
-  const viewportHeight =
-    typeof window !== "undefined" ? window.innerHeight : data.anchorRect.bottom;
-
-  // Center horizontally over the cell, clamp into viewport.
-  let left = data.anchorRect.left + data.anchorRect.width / 2 - TOOLTIP_WIDTH / 2;
-  left = Math.max(8, Math.min(left, viewportWidth - TOOLTIP_WIDTH - 8));
-
-  // Prefer below; flip above if there is no room.
-  let top = data.anchorRect.bottom + TOOLTIP_GAP;
-  const estimatedHeight = 220;
-  if (top + estimatedHeight > viewportHeight - 8) {
-    top = data.anchorRect.top - TOOLTIP_GAP - estimatedHeight;
-    if (top < 8) top = 8;
-  }
 
   const statusColor =
     data.kind === "present"
@@ -1517,7 +1516,12 @@ function AttendanceTooltip({
       role="dialog"
       aria-label="Детали посещаемости"
       className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl"
-      style={{ left, top, width: TOOLTIP_WIDTH }}
+      style={{
+        left: position.left,
+        top: position.top,
+        width: TOOLTIP_WIDTH,
+        visibility: position.ready ? "visible" : "hidden",
+      }}
     >
       <div className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-2.5">
         <div className="min-w-0">
@@ -1552,6 +1556,144 @@ function AttendanceTooltip({
           <dd className="font-semibold text-gray-900">{data.sourceLabel}</dd>
         </div>
       </dl>
+    </div>
+  );
+}
+
+const ABSENCE_TOOLTIP_WIDTH = 360;
+
+function AbsenceTooltip({
+  data,
+  onClose,
+  onReject,
+  onApprove,
+  isReviewing,
+  reviewStatusInProgress,
+}: {
+  data: SelectedAbsence | null;
+  onClose: () => void;
+  onReject: () => void;
+  onApprove: () => void;
+  isReviewing: boolean;
+  reviewStatusInProgress: AbsenceRequestStatus | null;
+}) {
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!data) return undefined;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!tooltipRef.current) return;
+      if (!tooltipRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    // Defer subscription so the click that opened the tooltip doesn't close it.
+    const id = window.setTimeout(() => {
+      window.addEventListener("mousedown", handleClickOutside);
+    }, 0);
+    window.addEventListener("keydown", handleKey);
+
+    return () => {
+      window.clearTimeout(id);
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [data, onClose]);
+
+  const position = useTooltipPosition(data?.anchorRect, tooltipRef, ABSENCE_TOOLTIP_WIDTH);
+
+  if (!data) return null;
+
+  const canReview = data.status === "pending";
+
+  return (
+    <div
+      ref={tooltipRef}
+      role="dialog"
+      aria-label="Детали отсутствия"
+      className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl"
+      style={{
+        left: position.left,
+        top: position.top,
+        width: ABSENCE_TOOLTIP_WIDTH,
+        visibility: position.ready ? "visible" : "hidden",
+      }}
+    >
+      <div className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-gray-900">{data.employeeName}</p>
+          <p className="text-xs text-gray-500">
+            {formatDateRu(data.dateFrom)} – {formatDateRu(data.dateTo)} • {data.requestedDays} дн.
+          </p>
+        </div>
+        <span
+          className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold ${
+            STATUS_BADGE_CLASSNAME[data.status]
+          }`}
+        >
+          {STATUS_LABELS[data.status]}
+        </span>
+      </div>
+
+      <div className="space-y-3 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md"
+            style={{ backgroundColor: withOpacity(data.color, 0.14) }}
+          >
+            <Icon icon={data.icon} className="h-4 w-4" color={data.color} />
+          </span>
+          <span className="text-sm font-semibold text-gray-900">{data.title}</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5">
+            <p className="text-[11px] text-gray-500">Дата начала</p>
+            <p className="text-sm font-semibold text-gray-900">{formatDateRu(data.dateFrom)}</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5">
+            <p className="text-[11px] text-gray-500">Дата окончания</p>
+            <p className="text-sm font-semibold text-gray-900">{formatDateRu(data.dateTo)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-4 py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isReviewing}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Отмена
+        </button>
+        {canReview ? (
+          <>
+            <button
+              type="button"
+              onClick={onReject}
+              disabled={isReviewing}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {reviewStatusInProgress === "rejected" ? "Отклонение..." : "Отклонить"}
+            </button>
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={isReviewing}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {reviewStatusInProgress === "approved" ? "Подтверждение..." : "Подтвердить"}
+            </button>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
