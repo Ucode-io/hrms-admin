@@ -56,8 +56,7 @@ import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
 import EmployeeGenerateDocumentFromTemplatePage from "./modules/Employees/Detail/components/document-generation/GenerateFromTemplatePage";
 import DocumentsPage from "./modules/Documents";
-import CalendarModule from "./modules/Calendar";
-import TimeAttendancePage from "./modules/Time/Attendance";
+import TimeModule from "./modules/Time";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
 import GenderDistributionPage from "./modules/Reports/GenderDistribution";
@@ -227,8 +226,9 @@ function App() {
               <Route path="/employees/:id/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
-              <Route path="/calendar" element={<CalendarModule />} />
-              <Route path="/time/attendance" element={<TimeAttendancePage />} />
+              <Route path="/time" element={<TimeModule />} />
+              <Route path="/calendar" element={<Navigate to="/time?view=calendar" replace />} />
+              <Route path="/time/attendance" element={<Navigate to="/time?view=attendance" replace />} />
               <Route path="/reports" element={<ReportsHomePage />} />
               <Route path="/reports/age-distribution" element={<AgeDistributionPage />} />
               <Route path="/reports/gender-distribution" element={<GenderDistributionPage />} />

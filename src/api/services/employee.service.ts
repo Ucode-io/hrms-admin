@@ -6,6 +6,7 @@ import { injectCompaniesIdIntoItemsRequest } from "../httpRequest";
 const BASE_URL = "https://api.admin.u-code.io";
 const PROJECT_ID = "84f1983d-5095-490e-ba9c-d2618b164c99";
 const SLUG = "user_base";
+export type EmployeeStatus = "active" | "dismissed";
 
 const instance = axios.create({
   baseURL: BASE_URL,
@@ -125,7 +126,13 @@ const EMPLOYEE_ROLE_ID = import.meta.env.VITE_EMPLOYEE_ROLE_ID || "";
 
 // ───── List employees ─────
 export const useEmployeesQuery = (
-  params: { limit?: number; offset?: number; search?: string; enabled?: boolean } = {}
+  params: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    status?: EmployeeStatus;
+    enabled?: boolean;
+  } = {}
 ) => {
   return useQuery(["employees", params], async () => {
     const dataObj: Record<string, any> = {
@@ -139,6 +146,10 @@ export const useEmployeesQuery = (
 
     if (params.search) {
       dataObj.search = params.search;
+    }
+
+    if (params.status) {
+      dataObj.status = [params.status];
     }
 
     const res = await instance.get(`/v2/items/${SLUG}`, {

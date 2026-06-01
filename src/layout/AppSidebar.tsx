@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router";
 import {
   BarChart3,
   CalendarCheck,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -35,6 +34,10 @@ const mainNavItems: NavItem[] = [
 
 const moduleSections: ModuleSection[] = [
   {
+    title: "Задачи и KPI",
+    items: [{ name: "KPI", path: "/kpi", icon: <Target size={18} /> }],
+  },
+  {
     title: "Люди",
     items: [
       { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
@@ -42,31 +45,24 @@ const moduleSections: ModuleSection[] = [
     ],
   },
   {
-    title: "Документы",
-    items: [{ name: "Документы", path: "/documents", icon: <FileText size={18} /> }],
+    title: "Время",
+    items: [{ name: "Посешаемость", path: "/time", icon: <CalendarCheck size={18} /> }],
   },
   {
-    title: "Время",
-    items: [
-      { name: "Посешаемость", path: "/time/attendance", icon: <CalendarCheck size={18} /> },
-      { name: "Отсутствие", path: "/calendar", icon: <CalendarDays size={18} /> },
-    ],
+    title: "Документы",
+    items: [{ name: "Документы", path: "/documents", icon: <FileText size={18} /> }],
   },
   {
     title: "Финансы",
     items: [{ name: "Зарплата", path: "/finance/salary", icon: <WalletCards size={18} /> }],
   },
   {
-    title: "Отчеты",
+    title: "Система",
     items: [
       { name: "Отчеты", path: "/reports", icon: <BarChart3 size={18} /> },
-      { name: "KPI", path: "/kpi", icon: <Target size={18} /> },
+      { name: "Настройки", path: "/settings", icon: <Settings size={18} /> },
     ],
   },
-  // {
-  //   title: "Документы",
-  //   items: [{ name: "Документы", path: "/settings/documents", icon: <FileText size={18} /> }],
-  // },
 ];
 
 const ENABLED_PATHS = new Set([
@@ -74,12 +70,14 @@ const ENABLED_PATHS = new Set([
   "/employees",
   "/documents",
   "/reports",
+  "/time",
   "/time/attendance",
   "/reports/attendance",
   "/reports/absence-balance",
   "/calendar",
   "/finance/salary",
   "/kpi",
+  "/settings",
   "/settings/compensation",
   "/settings/news",
 ]);
@@ -257,29 +255,6 @@ const AppSidebar: React.FC = () => {
           </ul>
         )}
       </nav>
-
-      {/* Bottom Section */}
-      <div className="mt-auto border-t border-gray-100 px-3 py-3">
-        {/* Settings */}
-        <Link
-          to="/settings"
-          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors
-            ${
-              isActive("/settings")
-                ? "bg-brand-50 text-brand-500"
-                : "text-gray-700 hover:bg-gray-100"
-            }
-            ${!sidebarOpen ? "justify-center" : ""}
-          `}
-        >
-          <span
-            className={`shrink-0 ${isActive("/settings") ? "text-brand-500" : "text-gray-500"}`}
-          >
-            <Settings size={20} />
-          </span>
-          {sidebarOpen && <span>Настройки</span>}
-        </Link>
-      </div>
     </aside>
   );
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -476,7 +476,7 @@ const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
   };
 };
 
-export default function TimeAttendancePage() {
+export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => toIsoDate(new Date()));
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -781,6 +781,7 @@ export default function TimeAttendancePage() {
             borderTop: "none",
           }}
         >
+          {leftSlot && <div className="mr-auto flex items-center">{leftSlot}</div>}
           <div
             style={{
               display: "inline-flex",

@@ -630,7 +630,7 @@ const buildTimelineCells = ({
   return cells;
 };
 
-export default function CalendarModule() {
+export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   const queryClient = useQueryClient();
   const [employeesPage, setEmployeesPage] = useState(1);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -700,6 +700,7 @@ export default function CalendarModule() {
     limit: PAGE_SIZE,
     offset: (employeesPage - 1) * PAGE_SIZE,
     search: debouncedSearch || undefined,
+    status: "active",
   });
 
   const employeesChunk = useMemo(() => {
@@ -1118,6 +1119,7 @@ export default function CalendarModule() {
             borderTop: "none",
           }}
         >
+          {leftSlot}
           <div className="ml-auto flex min-w-0 items-center gap-2">
             <div
               style={{

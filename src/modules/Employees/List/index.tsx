@@ -5,16 +5,27 @@ import Select from "react-select";
 import { observer } from "mobx-react-lite";
 import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
-import { useEmployeesQuery, type Employee } from "../../../api/services/employee.service";
+import {
+  useEmployeesQuery,
+  type Employee,
+  type EmployeeStatus,
+} from "../../../api/services/employee.service";
 import EmployeesPaginationFooter from "./components/EmployeesPaginationFooter";
 import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
 import OrganizationStructureModule from "../../Organization/Structure";
 
 const PAGE_SIZE = 24;
 const FILTER_SELECT_MAX_WIDTH = 260;
+const DEFAULT_EMPLOYEE_STATUS: EmployeeStatus = "active";
 
 type PaginationItem = number | string;
 type FilterOption = { value: string; label: string };
+type StatusFilterOption = { value: EmployeeStatus; label: string };
+
+const STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
+  { value: "active", label: "Активные" },
+  { value: "dismissed", label: "Уволенные" },
+];
 
 const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
   if (totalPages <= 7) {
@@ -85,6 +96,7 @@ function EmployeesList() {
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<EmployeeStatus | "">(DEFAULT_EMPLOYEE_STATUS);
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
   const [orgFiltersOpen, setOrgFiltersOpen] = useState(false);
   const [orgActiveFiltersCount, setOrgActiveFiltersCount] = useState(0);
@@ -97,6 +109,7 @@ function EmployeesList() {
     limit: PAGE_SIZE,
     offset: (currentPage - 1) * PAGE_SIZE,
     search: searchQuery || undefined,
+    status: statusFilter || undefined,
   });
 
   const employees: Employee[] = useMemo(() => {
@@ -167,6 +180,7 @@ function EmployeesList() {
     employmentTypeFilter,
     locationFilter,
     positionFilter,
+    statusFilter,
   ].filter(Boolean).length;
   const isFilterButtonActive = isOrgView
     ? orgFiltersOpen || orgActiveFiltersCount > 0
@@ -638,6 +652,32 @@ function EmployeesList() {
                 />
               </div>
 
+              <div
+                style={{
+                  minWidth: "180px",
+                  width: "100%",
+                  maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`,
+                  flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`,
+                }}
+              >
+                <Select
+                  inputId="employees-filter-status"
+                  value={STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter) || null}
+                  onChange={(option: any) => {
+                    setStatusFilter(option?.value || "");
+                    setCurrentPage(1);
+                  }}
+                  options={STATUS_FILTER_OPTIONS}
+                  placeholder="Статус"
+                  isSearchable={false}
+                  isClearable
+                  styles={filterSelectStyles}
+                  menuPortalTarget={selectPortalTarget}
+                  menuPosition="fixed"
+                  noOptionsMessage={() => "Ничего не найдено"}
+                />
+              </div>
+
               {activeFiltersCount > 0 ? (
                 <button
                   type="button"
@@ -646,6 +686,7 @@ function EmployeesList() {
                     setEmploymentTypeFilter("");
                     setLocationFilter("");
                     setPositionFilter("");
+                    setStatusFilter("");
                     setCurrentPage(1);
                   }}
                   style={{
