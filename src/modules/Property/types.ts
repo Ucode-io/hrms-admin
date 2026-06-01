@@ -89,7 +89,7 @@ export const PROPERTY_STATUS_CONFIG: Record<
 
 export const formatCurrency = (value: number): string => {
   if (!Number.isFinite(value)) return "—";
-  return `$${value.toLocaleString("ru-RU")}`;
+  return value.toLocaleString("ru-RU");
 };
 
 export const formatDate = (iso: string | null): string => {

@@ -159,7 +159,7 @@ export default function PropertyFormModal({
             {/* Cost + Purchase date */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Стоимость, $</label>
+                <label className={labelCls}>Стоимость</label>
                 <input type="number" min={0} className={inputCls} placeholder="0"
                   value={draft.cost || ""}
                   onChange={(e) => update("cost", Number(e.target.value) || 0)} />
