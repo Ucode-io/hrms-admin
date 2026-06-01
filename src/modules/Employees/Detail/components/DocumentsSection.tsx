@@ -46,6 +46,15 @@ type EmployeeDocumentItem = {
   name?: string;
   file?: string;
   type?: string[] | string;
+  user_base_id?: string | null;
+  user_base_id_data?: {
+    first_name?: string | null;
+    second_name?: string | null;
+    middle_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    [key: string]: unknown;
+  } | null;
   document_folders_id?: string | null;
   document_folders_id_data?: {
     guid?: string;
@@ -191,6 +200,40 @@ const getDocumentName = (doc: EmployeeDocumentItem): string => {
   return "Без названия";
 };
 
+const getDocumentEmployeeLabel = (doc: EmployeeDocumentItem): string => {
+  const employee = doc.user_base_id_data;
+  if (!employee || typeof employee !== "object") return "";
+
+  const fullName = [
+    employee.second_name,
+    employee.first_name,
+    employee.middle_name,
+  ]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean)
+    .join(" ");
+
+  if (fullName) return fullName;
+  if (typeof employee.email === "string" && employee.email.trim()) return employee.email.trim();
+  if (typeof employee.phone === "string" && employee.phone.trim()) return employee.phone.trim();
+  return "";
+};
+
+const getDocumentEmployeePhoto = (doc: EmployeeDocumentItem): string => {
+  const employee = doc.user_base_id_data as { photo?: unknown } | null;
+  const photo = employee?.photo;
+  return typeof photo === "string" && photo.trim() ? photo.trim() : "";
+};
+
+const getEmployeeInitials = (label: string): string =>
+  label
+    .split(" ")
+    .map((part) => part.charAt(0))
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
 const getTypeBadgeColor = (type: string): string => {
   switch (type) {
     case "image":
@@ -235,9 +278,12 @@ export default function EmployeeDocumentsSection({
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const [activeFolder, setActiveFolder] = useState<DocumentFolderItem | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isUploadEmployeeModalOpen, setIsUploadEmployeeModalOpen] = useState(false);
   const [selectedTemplateGuid, setSelectedTemplateGuid] = useState("");
   const [templateSearch, setTemplateSearch] = useState("");
   const [selectedGenerateEmployeeGuid, setSelectedGenerateEmployeeGuid] = useState("");
+  const [selectedUploadEmployeeGuid, setSelectedUploadEmployeeGuid] = useState("");
+  const [pendingUploadFolder, setPendingUploadFolder] = useState<DocumentFolderItem | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const activeFolderUploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -329,13 +375,65 @@ export default function EmployeeDocumentsSection({
     return documentsByFolder.get(activeFolder.guid) || [];
   }, [activeFolder, documentsByFolder]);
 
-  const openUploadDialog = (folderGuid: string) => {
-    const input = fileInputRefs.current[folderGuid];
+  const openUploadDialog = (folder: DocumentFolderItem) => {
+    if (isGlobalMode) {
+      setPendingUploadFolder(folder);
+      setSelectedUploadEmployeeGuid("");
+      setIsUploadEmployeeModalOpen(true);
+      return;
+    }
+
+    const input = fileInputRefs.current[folder.guid];
     if (!input) return;
     input.click();
   };
 
+  const openActiveFolderUploadDialog = () => {
+    if (!activeFolder) return;
+
+    if (isGlobalMode) {
+      setPendingUploadFolder(activeFolder);
+      setSelectedUploadEmployeeGuid("");
+      setIsUploadEmployeeModalOpen(true);
+      return;
+    }
+
+    activeFolderUploadInputRef.current?.click();
+  };
+
+  const closeUploadEmployeeModal = () => {
+    setIsUploadEmployeeModalOpen(false);
+    setPendingUploadFolder(null);
+    setSelectedUploadEmployeeGuid("");
+  };
+
+  const continueUploadWithEmployee = () => {
+    if (!pendingUploadFolder?.guid) return;
+    if (!selectedUploadEmployeeGuid) {
+      toast.error("Выберите сотрудника для документа.");
+      return;
+    }
+
+    const input =
+      activeFolder?.guid === pendingUploadFolder.guid
+        ? activeFolderUploadInputRef.current
+        : fileInputRefs.current[pendingUploadFolder.guid];
+
+    if (!input) return;
+
+    setIsUploadEmployeeModalOpen(false);
+    input.click();
+  };
+
+  const getUploadEmployeeGuid = () => normalizedEmployeeGuid || selectedUploadEmployeeGuid;
+
   const uploadDocumentToFolder = async (folder: DocumentFolderItem, selectedFile: File) => {
+    const uploadEmployeeGuid = getUploadEmployeeGuid();
+    if (isGlobalMode && !uploadEmployeeGuid) {
+      toast.error("Выберите сотрудника для документа.");
+      return;
+    }
+
     try {
       setUploadingFolderId(folder.guid);
       const uploadedUrl = await uploadMutation.mutateAsync(selectedFile);
@@ -345,7 +443,7 @@ export default function EmployeeDocumentsSection({
         name: selectedFile.name,
         file: uploadedUrl,
         type: [detectedType],
-        ...(normalizedEmployeeGuid ? { user_base_id: normalizedEmployeeGuid } : {}),
+        ...(uploadEmployeeGuid ? { user_base_id: uploadEmployeeGuid } : {}),
         document_folders_id: folder.guid,
       });
 
@@ -355,6 +453,7 @@ export default function EmployeeDocumentsSection({
       toast.error("Не удалось загрузить документ.");
     } finally {
       setUploadingFolderId(null);
+      closeUploadEmployeeModal();
     }
   };
 
@@ -364,7 +463,10 @@ export default function EmployeeDocumentsSection({
   ) => {
     const selectedFile = event.target.files?.[0];
     event.target.value = "";
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      if (isGlobalMode) closeUploadEmployeeModal();
+      return;
+    }
 
     await uploadDocumentToFolder(folder, selectedFile);
   };
@@ -372,7 +474,10 @@ export default function EmployeeDocumentsSection({
   const handleUploadToActiveFolder = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     event.target.value = "";
-    if (!selectedFile || !activeFolder) return;
+    if (!selectedFile || !activeFolder) {
+      if (isGlobalMode) closeUploadEmployeeModal();
+      return;
+    }
 
     await uploadDocumentToFolder(activeFolder, selectedFile);
   };
@@ -532,12 +637,14 @@ export default function EmployeeDocumentsSection({
                 {activeFolderDocuments.map((doc) => {
                   const type = normalizeDocumentType(doc.type);
                   const docName = getDocumentName(doc);
+                  const employeeLabel = getDocumentEmployeeLabel(doc);
+                  const employeePhoto = getDocumentEmployeePhoto(doc);
                   const deleting = deletingDocumentId === doc.guid;
 
                   return (
                     <div
                       key={doc.guid}
-                      className="flex h-[220px] w-full flex-col rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 sm:w-[360px]"
+                      className="flex h-[240px] w-full flex-col rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 sm:w-[360px]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
@@ -550,6 +657,27 @@ export default function EmployeeDocumentsSection({
 
                       <p className="m-0 mt-3 truncate text-[14px] font-semibold text-slate-900">{docName}</p>
                       <p className="mt-1 truncate text-[12px] text-slate-500">{doc.file || "—"}</p>
+                      {employeeLabel ? (
+                        <div className="mt-2.5 inline-flex max-w-full items-center gap-2 self-start rounded-full border border-slate-200 bg-slate-50 py-1 pl-1 pr-2.5">
+                          {employeePhoto ? (
+                            <img
+                              src={employeePhoto}
+                              alt={employeeLabel}
+                              className="h-6 w-6 shrink-0 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span
+                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                              style={{ backgroundColor: brandColor }}
+                            >
+                              {getEmployeeInitials(employeeLabel)}
+                            </span>
+                          )}
+                          <span className="truncate text-[12px] font-medium text-slate-700">
+                            {employeeLabel}
+                          </span>
+                        </div>
+                      ) : null}
 
                       <div className="mt-auto pt-4 flex items-center gap-2">
                         <button
@@ -582,10 +710,10 @@ export default function EmployeeDocumentsSection({
                   );
                 })}
 
-                <div className="flex h-[220px] w-[210px] shrink-0 flex-col gap-3">
+                <div className="flex h-[240px] w-[210px] shrink-0 flex-col gap-3">
                   <button
                     type="button"
-                    onClick={() => activeFolderUploadInputRef.current?.click()}
+                    onClick={openActiveFolderUploadDialog}
                     disabled={uploadingFolderId === activeFolder.guid}
                     className="min-h-0 flex-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-default disabled:opacity-70"
                   >
@@ -683,7 +811,7 @@ export default function EmployeeDocumentsSection({
                         className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-medium text-slate-700"
                         onClick={(event) => {
                           event.stopPropagation();
-                          openUploadDialog(folder.guid);
+                          openUploadDialog(folder);
                         }}
                       >
                         <Upload className="h-4 w-4" style={{ color: brandColor }} />
@@ -709,6 +837,45 @@ export default function EmployeeDocumentsSection({
           </>
         )}
       </div>
+
+      <Modal
+        isOpen={isUploadEmployeeModalOpen}
+        onClose={closeUploadEmployeeModal}
+        className="mx-4 w-full max-w-md p-6"
+      >
+        <div className="space-y-4">
+          <div className="pr-14">
+            <h3 className="text-xl font-semibold text-slate-900">Выбор сотрудника</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Выберите сотрудника, к которому будет прикреплен файл
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-700">Сотрудник</p>
+            <EmployeeInfiniteSelect
+              value={selectedUploadEmployeeGuid}
+              onChange={setSelectedUploadEmployeeGuid}
+              placeholder="Выберите сотрудника"
+              styles={getGenerateEmployeeSelectStyles()}
+              classNamePrefix="documents-upload-employee-select"
+              menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={closeUploadEmployeeModal}>
+              Отмена
+            </Button>
+            <Button
+              onClick={continueUploadWithEmployee}
+              disabled={!pendingUploadFolder || !selectedUploadEmployeeGuid}
+            >
+              Выбрать файл
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={isTemplateModalOpen} onClose={closeTemplateModal} className="mx-4 w-full max-w-2xl p-6">
         <div className="space-y-4">

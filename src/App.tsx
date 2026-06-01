@@ -56,6 +56,7 @@ import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
 import EmployeeGenerateDocumentFromTemplatePage from "./modules/Employees/Detail/components/document-generation/GenerateFromTemplatePage";
 import DocumentsPage from "./modules/Documents";
+import PropertyList from "./modules/Property/List";
 import TimeModule from "./modules/Time";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
@@ -225,6 +226,7 @@ function App() {
               <Route path="/employees/:id/edit" element={<EmployeeForm />} />
               <Route path="/employees/:id/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/property" element={<PropertyList />} />
               <Route path="/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/time" element={<TimeModule />} />
               <Route path="/calendar" element={<Navigate to="/time?view=calendar" replace />} />

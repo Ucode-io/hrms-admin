@@ -7,6 +7,7 @@ import {
   ChevronRight,
   FileText,
   Home,
+  Package,
   Settings,
   Target,
   UserRoundCheck,
@@ -50,7 +51,10 @@ const moduleSections: ModuleSection[] = [
   },
   {
     title: "Документы",
-    items: [{ name: "Документы", path: "/documents", icon: <FileText size={18} /> }],
+    items: [
+      { name: "Документы", path: "/documents", icon: <FileText size={18} /> },
+      { name: "Имущество", path: "/property", icon: <Package size={18} /> },
+    ],
   },
   {
     title: "Финансы",
@@ -69,6 +73,7 @@ const ENABLED_PATHS = new Set([
   "/dashboard",
   "/employees",
   "/documents",
+  "/property",
   "/reports",
   "/time",
   "/time/attendance",
