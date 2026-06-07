@@ -114,8 +114,6 @@ export const injectCompaniesIdIntoInvokeFunctionRequest = (
   const requestBody = isRecord(config.data) ? { ...config.data } : {};
   const gatewayPayload = isRecord(requestBody.data) ? { ...requestBody.data } : {};
 
-  gatewayPayload.companies_id = companiesId;
-
   if (isRecord(gatewayPayload.data)) {
     gatewayPayload.data = withCompaniesId(gatewayPayload.data, companiesId);
   } else if (Array.isArray(gatewayPayload.data)) {
@@ -127,7 +125,6 @@ export const injectCompaniesIdIntoInvokeFunctionRequest = (
   }
 
   requestBody.data = gatewayPayload;
-  requestBody.companies_id = companiesId;
   config.data = requestBody;
   return config;
 };

@@ -2797,7 +2797,7 @@ const reportsService = {
     pagination: { page?: number; limit?: number } = {}
   ): Promise<BonusDeductionsTableInvokeResponse> => {
     const page = Number.isFinite(Number(pagination.page)) ? Number(pagination.page) : 1;
-    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 20;
+    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 200;
 
     const payloadData = {
       ...requestData,
@@ -3120,7 +3120,7 @@ export const useBonusDeductionsReportQuery = (
 export const useBonusDeductionsTableQuery = ({
   requestData = {},
   page = 1,
-  limit = 20,
+  limit = 200,
 }: {
   requestData?: JsonRecord;
   page?: number;
