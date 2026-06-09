@@ -1,7 +1,13 @@
+import axios from "axios";
 import { useQuery } from "react-query";
-import httpRequest from "../httpRequest";
+import authStore from "../../store/auth.store";
+import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
+import { handleUnauthorizedError } from "../unauthorizedHandler";
 
-const ATTENDANCE_COLLECTION = "attendance";
+const REPORTS_BASE_URL = "https://api.admin.u-code.io";
+const REPORTS_FUNCTION_PATH =
+  "/v2/invoke_function/udevs-hrms-reports?project-id=9a462573-ce11-4288-928a-a6ba754b6998";
+const METHOD = "get_calendar_attendance";
 
 export type CalendarAttendanceParams = {
   employeeIds: string[];
@@ -28,124 +34,87 @@ type AttendanceListResponse = {
   response: CalendarAttendanceRow[];
 };
 
-const escapeSqlValue = (value: string): string => value.replace(/'/g, "''");
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
-const buildWhereClause = ({
-  employeeIds,
-  dateFrom,
-  dateTo,
-  userBaseColumn = "user_base_id",
-  dateColumn = "date",
-}: CalendarAttendanceParams & {
-  userBaseColumn?: string;
-  dateColumn?: string;
-}): string => {
-  const sanitizedIds = employeeIds
-    .map((id) => id.trim())
-    .filter(Boolean)
-    .map((id) => `'${escapeSqlValue(id)}'`);
+const reportsRequest = axios.create({
+  baseURL: REPORTS_BASE_URL,
+  timeout: 100_000,
+  headers: { "Content-Type": "application/json" },
+});
 
-  if (sanitizedIds.length === 0) return "1 = 0";
-
-  const safeDateFrom = escapeSqlValue(dateFrom);
-  const safeDateTo = escapeSqlValue(dateTo);
-
-  return [
-    "deleted_at IS NULL",
-    `${userBaseColumn} IN (${sanitizedIds.join(",")})`,
-    `${dateColumn} >= '${safeDateFrom}'`,
-    `${dateColumn} <= '${safeDateTo}'`,
-  ].join(" AND ");
-};
-
-const extractRows = (res: unknown): CalendarAttendanceRow[] => {
-  if (Array.isArray(res)) return res as CalendarAttendanceRow[];
-  const obj = (res && typeof res === "object") ? (res as Record<string, unknown>) : {};
-  if (Array.isArray(obj.response)) return obj.response as CalendarAttendanceRow[];
-  if (Array.isArray(obj.data)) return obj.data as CalendarAttendanceRow[];
-  const nestedData = obj.data;
-  if (nestedData && typeof nestedData === "object") {
-    const nested = nestedData as Record<string, unknown>;
-    if (Array.isArray(nested.data)) return nested.data as CalendarAttendanceRow[];
+reportsRequest.interceptors.request.use((config) => {
+  const token = authStore.token ?? localStorage.getItem("auth_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-  return [];
+  return injectCompaniesIdIntoInvokeFunctionRequest(config);
+});
+
+reportsRequest.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    handleUnauthorizedError(error);
+    return Promise.reject(error);
+  }
+);
+
+const normalizeListResult = (result: Record<string, unknown>): AttendanceListResponse => {
+  const response = Array.isArray(result.response)
+    ? (result.response as CalendarAttendanceRow[])
+    : [];
+  const safeCount = Number(result.count || 0);
+  return {
+    count: Number.isFinite(safeCount) && safeCount > 0 ? safeCount : response.length,
+    response,
+  };
 };
 
-const normalizeListResponse = (res: unknown): AttendanceListResponse => {
-  const obj = (res && typeof res === "object") ? (res as Record<string, unknown>) : {};
-  const rows = extractRows(res);
-  const safeCount = Number(obj.count || 0);
-  return {
-    count: Number.isFinite(safeCount) && safeCount > 0 ? safeCount : rows.length,
-    response: rows,
-  };
+// The invoke_function response nests the gateway result under a few possible
+// envelopes ({ data: { data: { method, result } } }, etc.). Walk down until we
+// find the node carrying our method's result and pull out its `response` array.
+const findCalendarResult = (raw: unknown, depth = 0): AttendanceListResponse | null => {
+  if (depth > 6 || !isRecord(raw)) return null;
+
+  const result = isRecord(raw.result) ? raw.result : null;
+  if (raw.method === METHOD && result) {
+    return normalizeListResult(result);
+  }
+
+  if (result && Array.isArray((result as Record<string, unknown>).response)) {
+    return normalizeListResult(result);
+  }
+
+  if (Array.isArray((raw as Record<string, unknown>).response)) {
+    return normalizeListResult(raw);
+  }
+
+  return findCalendarResult(raw.data, depth + 1);
 };
 
 const fetchCalendarAttendance = async (
   params: CalendarAttendanceParams
 ): Promise<AttendanceListResponse> => {
-  const normalizedIds = Array.from(
+  const employeeIds = Array.from(
     new Set(params.employeeIds.map((id) => id.trim()).filter(Boolean))
   );
 
-  if (normalizedIds.length === 0 || !params.dateFrom || !params.dateTo) {
+  if (employeeIds.length === 0 || !params.dateFrom || !params.dateTo) {
     return { count: 0, response: [] };
   }
 
-  const limit = 500;
-  const maxRequests = 100;
-  let offset = 0;
-  let totalCount = 0;
-  const response: CalendarAttendanceRow[] = [];
-
-  const where = buildWhereClause({
-    employeeIds: normalizedIds,
-    dateFrom: params.dateFrom,
-    dateTo: params.dateTo,
+  const res = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+    data: {
+      method: METHOD,
+      data: {
+        employee_ids: employeeIds,
+        date_from: params.dateFrom,
+        date_to: params.dateTo,
+      },
+    },
   });
 
-  for (let requestIndex = 0; requestIndex < maxRequests; requestIndex += 1) {
-    const res = await httpRequest.post(
-      `/v2/items/${ATTENDANCE_COLLECTION}/aggregation`,
-      {
-        data: {
-          operation: "SELECT",
-          table: ATTENDANCE_COLLECTION,
-          columns: [
-            "guid",
-            "user_base_id",
-            "date",
-            "check_in_time",
-            "check_out_time",
-            "delay_time",
-            "action_status",
-            "status",
-            "source_type",
-            "absences_id",
-            "created_at",
-          ],
-          where,
-          order_by: ["user_base_id ASC", "date ASC", "created_at DESC"],
-          limit,
-          offset,
-        },
-        is_cached: true,
-      }
-    );
-
-    const chunk = normalizeListResponse(res);
-    if (chunk.count > 0) {
-      totalCount = chunk.count;
-    }
-
-    if (chunk.response.length === 0) break;
-    response.push(...chunk.response);
-    offset += chunk.response.length;
-    if (totalCount > 0 && response.length >= totalCount) break;
-    if (chunk.response.length < limit) break;
-  }
-
-  return { count: totalCount || response.length, response };
+  return findCalendarResult(res.data) || { count: 0, response: [] };
 };
 
 export const useCalendarAttendanceQuery = ({

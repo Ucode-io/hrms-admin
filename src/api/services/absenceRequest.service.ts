@@ -1,10 +1,20 @@
+import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import httpRequest from "../httpRequest";
+import httpRequest, {
+  injectCompaniesIdIntoInvokeFunctionRequest,
+} from "../httpRequest";
+import authStore from "../../store/auth.store";
+import { handleUnauthorizedError } from "../unauthorizedHandler";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import { COMPANY_ID } from "./settingsDirectory.service";
 import reportsService from "./reports.service";
 
 const ABSENCES_COLLECTION = "absences";
+
+const REPORTS_BASE_URL = "https://api.admin.u-code.io";
+const REPORTS_FUNCTION_PATH =
+  "/v2/invoke_function/udevs-hrms-reports?project-id=9a462573-ce11-4288-928a-a6ba754b6998";
+const CALENDAR_ABSENCES_METHOD = "get_calendar_absences";
 
 export type AbsenceRequestStatus = "pending" | "approved" | "rejected";
 
@@ -98,38 +108,67 @@ const normalizeListResponse = (res: unknown): AbsenceListResponse => {
   };
 };
 
-const escapeSqlValue = (value: string): string => value.replace(/'/g, "''");
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
-const buildCalendarWhereClause = ({
-  employeeIds,
-  dateFrom,
-  dateTo,
-  userBaseColumn = "user_base_id",
-  dateFromColumn = "date_from",
-  dateToColumn = "date_to",
-  deletedAtColumn = "deleted_at",
-}: CalendarAbsencesParams & {
-  userBaseColumn?: string;
-  dateFromColumn?: string;
-  dateToColumn?: string;
-  deletedAtColumn?: string;
-}): string => {
-  const sanitizedIds = employeeIds
-    .map((id) => id.trim())
-    .filter(Boolean)
-    .map((id) => `'${escapeSqlValue(id)}'`);
+const reportsRequest = axios.create({
+  baseURL: REPORTS_BASE_URL,
+  timeout: 100_000,
+  headers: { "Content-Type": "application/json" },
+});
 
-  if (sanitizedIds.length === 0) return "1 = 0";
+reportsRequest.interceptors.request.use((config) => {
+  const token = authStore.token ?? localStorage.getItem("auth_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return injectCompaniesIdIntoInvokeFunctionRequest(config);
+});
 
-  const safeDateFrom = escapeSqlValue(dateFrom);
-  const safeDateTo = escapeSqlValue(dateTo);
+reportsRequest.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    handleUnauthorizedError(error);
+    return Promise.reject(error);
+  }
+);
 
-  return [
-    `${deletedAtColumn} IS NULL`,
-    `${userBaseColumn} IN (${sanitizedIds.join(",")})`,
-    `${dateFromColumn} <= '${safeDateTo}'`,
-    `${dateToColumn} >= '${safeDateFrom}'`,
-  ].join(" AND ");
+const normalizeReportsListResult = (
+  result: Record<string, unknown>
+): AbsenceListResponse => {
+  const response = Array.isArray(result.response)
+    ? (result.response as Absence[])
+    : [];
+  const safeCount = Number(result.count || 0);
+  return {
+    count: Number.isFinite(safeCount) && safeCount > 0 ? safeCount : response.length,
+    response,
+  };
+};
+
+// The invoke_function response nests the gateway result under a few possible
+// envelopes ({ data: { data: { method, result } } }, etc.). Walk down until we
+// find the node carrying our method's result and pull out its `response` array.
+const findCalendarAbsencesResult = (
+  raw: unknown,
+  depth = 0
+): AbsenceListResponse | null => {
+  if (depth > 6 || !isRecord(raw)) return null;
+
+  const result = isRecord(raw.result) ? raw.result : null;
+  if (raw.method === CALENDAR_ABSENCES_METHOD && result) {
+    return normalizeReportsListResult(result);
+  }
+
+  if (result && Array.isArray((result as Record<string, unknown>).response)) {
+    return normalizeReportsListResult(result);
+  }
+
+  if (Array.isArray((raw as Record<string, unknown>).response)) {
+    return normalizeReportsListResult(raw);
+  }
+
+  return findCalendarAbsencesResult(raw.data, depth + 1);
 };
 
 const absenceService = {
@@ -196,112 +235,28 @@ const absenceService = {
       new Set(employeeIds.map((id) => id.trim()).filter(Boolean))
     );
 
-    if (normalizedIds.length === 0) {
+    if (normalizedIds.length === 0 || !dateFrom || !dateTo) {
       return {
         count: 0,
         response: [],
       };
     }
 
-    const limit = 200;
-    const maxRequests = 100;
-    let offset = 0;
-    let totalCount = 0;
-    const response: Absence[] = [];
-    const where = buildCalendarWhereClause({
-      employeeIds: normalizedIds,
-      dateFrom,
-      dateTo,
-    });
-    const whereWithAlias = buildCalendarWhereClause({
-      employeeIds: normalizedIds,
-      dateFrom,
-      dateTo,
-      userBaseColumn: "a.user_base_id",
-      dateFromColumn: "a.date_from",
-      dateToColumn: "a.date_to",
-      deletedAtColumn: "a.deleted_at",
+    // Server-side join + filter in a single round trip (udevs-hrms-reports
+    // get_calendar_absences). Replaces the old limit/offset aggregation that
+    // silently dropped late-dated absences once a month exceeded the row cap.
+    const res = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: CALENDAR_ABSENCES_METHOD,
+        data: {
+          employee_ids: normalizedIds,
+          date_from: dateFrom,
+          date_to: dateTo,
+        },
+      },
     });
 
-    for (let requestIndex = 0; requestIndex < maxRequests; requestIndex += 1) {
-      let res: unknown;
-
-      try {
-        res = await httpRequest.post("/v2/items/store/aggregation", {
-          data: {
-            operation: "SELECT",
-            table: "absences a LEFT JOIN absence_policies ap ON ap.guid = a.absence_policies_id",
-            columns: [
-              "a.guid",
-              "a.user_base_id",
-              "a.absence_policies_id",
-              "a.date_from",
-              "a.date_to",
-              "a.requested_days",
-              "a.status",
-              "a.created_at",
-              "a.updated_at",
-              "ap.title AS absence_policy_title",
-              "ap.icon AS absence_policy_icon",
-              "ap.color AS absence_policy_color",
-            ],
-            where: whereWithAlias,
-            order_by: ["a.date_from ASC", "a.created_at DESC"],
-            limit,
-            offset,
-          },
-          is_cached: true,
-        });
-      } catch {
-        res = await httpRequest.post(`/v2/items/${ABSENCES_COLLECTION}/aggregation`, {
-          data: {
-            operation: "SELECT",
-            table: ABSENCES_COLLECTION,
-            columns: [
-              "guid",
-              "user_base_id",
-              "absence_policies_id",
-              "date_from",
-              "date_to",
-              "requested_days",
-              "status",
-              "created_at",
-              "updated_at",
-            ],
-            where,
-            order_by: ["date_from ASC", "created_at DESC"],
-            limit,
-            offset,
-          },
-          is_cached: true,
-        });
-      }
-
-      const normalizedChunk = normalizeListResponse(res);
-      if (normalizedChunk.count > 0) {
-        totalCount = normalizedChunk.count;
-      }
-
-      if (normalizedChunk.response.length === 0) {
-        break;
-      }
-
-      response.push(...normalizedChunk.response);
-      offset += normalizedChunk.response.length;
-
-      if (totalCount > 0 && response.length >= totalCount) {
-        break;
-      }
-
-      if (normalizedChunk.response.length < limit) {
-        break;
-      }
-    }
-
-    return {
-      count: totalCount || response.length,
-      response,
-    };
+    return findCalendarAbsencesResult(res.data) || { count: 0, response: [] };
   },
 
   create: (data: Partial<Absence>) =>

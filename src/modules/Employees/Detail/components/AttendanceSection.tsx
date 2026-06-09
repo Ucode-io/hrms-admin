@@ -168,7 +168,8 @@ const resolveActionStatusFromTime = (
 };
 
 const getActionStatusTag = (
-  status: AttendanceActionStatus
+  status: AttendanceActionStatus,
+  delayTime: string
 ): { label: string; className: string } => {
   if (status === "absent") {
     return {
@@ -504,7 +505,7 @@ export default function AttendanceSection({
                 </thead>
                 <tbody>
                   {records.map((record) => {
-                    const actionTag = getActionStatusTag(record.actionStatus);
+                    const actionTag = getActionStatusTag(record.actionStatus, record.delayTime);
                     const requestTag = getWorkflowStatusTag(record.requestStatus);
 
                     return (

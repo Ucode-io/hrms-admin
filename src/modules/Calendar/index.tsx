@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { Icon } from "@iconify/react";
-import { Check, ChevronLeft, ChevronRight, Clock3, Plus, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, X } from "lucide-react";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
@@ -864,7 +864,10 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
   const totalCount = employeesData?.count ?? lastKnownTotalCountRef.current;
   const hasMoreEmployees = employees.length < totalCount;
   const isInitialEmployeesLoading = isEmployeesLoading && employees.length === 0;
-  const isLoadingMoreEmployees = isEmployeesLoading && employees.length > 0;
+  // useEmployeesQuery uses keepPreviousData, so paginating keeps isLoading false
+  // and only flips isFetching. Drive the "load more" indicator off isFetching so
+  // it actually shows while the next page streams in.
+  const isLoadingMoreEmployees = isEmployeesFetching && employees.length > 0;
   const isInitialLoading = (isInitialEmployeesLoading || isAbsencesLoading) && employees.length === 0;
 
   useEffect(() => {
@@ -1314,7 +1317,10 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                         colSpan={monthDays.length + 1}
                         className="px-4 py-5 text-center text-sm text-gray-500"
                       >
-                        Загружаем ещё сотрудников...
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Загружаем ещё сотрудников...
+                        </span>
                       </td>
                     </tr>
                   ) : null}
@@ -1330,7 +1336,12 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                     ? "Сотрудники не найдены"
                     : ""}
               </span>
-              {isLoadingMoreEmployees ? <span className="text-gray-500">Загрузка...</span> : null}
+              {isLoadingMoreEmployees ? (
+                <span className="inline-flex items-center gap-2 text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Загрузка...
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
