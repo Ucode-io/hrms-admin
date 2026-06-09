@@ -67,6 +67,12 @@ export interface EmployeeWork {
     title?: string;
     [key: string]: unknown;
   } | null;
+  work_schedule_id?: string | null;
+  work_schedule_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: unknown;
+  } | null;
   salary?: number | string | null;
   date_from?: string | null;
   date_to?: string | null;

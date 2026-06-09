@@ -5,6 +5,7 @@ import Select from "react-select";
 import { observer } from "mobx-react-lite";
 import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
+import pageSessionStore from "../../../store/pageSession.store";
 import {
   useEmployeesQuery,
   type Employee,
@@ -21,6 +22,26 @@ const DEFAULT_EMPLOYEE_STATUS: EmployeeStatus = "active";
 type PaginationItem = number | string;
 type FilterOption = { value: string; label: string };
 type StatusFilterOption = { value: EmployeeStatus; label: string };
+type EmployeesListSessionState = {
+  searchQuery: string;
+  currentPage: number;
+  departmentFilter: string;
+  employmentTypeFilter: string;
+  locationFilter: string;
+  positionFilter: string;
+  statusFilter: EmployeeStatus | "";
+};
+
+const EMPLOYEES_LIST_SESSION_KEY = "employees.list";
+const EMPLOYEES_LIST_SESSION_DEFAULTS: EmployeesListSessionState = {
+  searchQuery: "",
+  currentPage: 1,
+  departmentFilter: "",
+  employmentTypeFilter: "",
+  locationFilter: "",
+  positionFilter: "",
+  statusFilter: DEFAULT_EMPLOYEE_STATUS,
+};
 
 const STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
   { value: "active", label: "Активные" },
@@ -88,15 +109,44 @@ const buildUniqueOptions = (
 };
 
 function EmployeesList() {
-  const [searchQuery, setSearchQuery] = useState("");
+  if (!pageSessionStore.isHydrated) {
+    return (
+      <>
+        <PageMeta title="Сотрудники | HRMS" description="Список сотрудников" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
+          <div
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              border: "3px solid #e2e8f0",
+              borderTopColor: companyStore.mainColor,
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+        </div>
+      </>
+    );
+  }
+
+  return <EmployeesListContent />;
+}
+
+const EmployeesListContent = observer(function EmployeesListContent() {
+  const {
+    searchQuery,
+    currentPage,
+    departmentFilter,
+    employmentTypeFilter,
+    locationFilter,
+    positionFilter,
+    statusFilter,
+  } = pageSessionStore.getState(
+    EMPLOYEES_LIST_SESSION_KEY,
+    EMPLOYEES_LIST_SESSION_DEFAULTS
+  );
   const [viewMode, setViewMode] = useState<"grid" | "list" | "org">("grid");
-  const [currentPage, setCurrentPage] = useState(1);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [employmentTypeFilter, setEmploymentTypeFilter] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
-  const [positionFilter, setPositionFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<EmployeeStatus | "">(DEFAULT_EMPLOYEE_STATUS);
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
   const [orgFiltersOpen, setOrgFiltersOpen] = useState(false);
   const [orgActiveFiltersCount, setOrgActiveFiltersCount] = useState(0);
@@ -104,8 +154,15 @@ function EmployeesList() {
 
   const brandColor = companyStore.mainColor;
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
+  const updateListSessionState = (patch: Partial<EmployeesListSessionState>) => {
+    pageSessionStore.patchState(
+      EMPLOYEES_LIST_SESSION_KEY,
+      EMPLOYEES_LIST_SESSION_DEFAULTS,
+      patch
+    );
+  };
 
-  const { data: apiData, isLoading } = useEmployeesQuery({
+  const { data: apiData, isLoading, isFetching } = useEmployeesQuery({
     limit: PAGE_SIZE,
     offset: (currentPage - 1) * PAGE_SIZE,
     search: searchQuery || undefined,
@@ -282,6 +339,12 @@ function EmployeesList() {
     }
   }, [isOrgView, orgFiltersOpen]);
 
+  useEffect(() => {
+    if (apiData && currentPage > totalPages) {
+      updateListSessionState({ currentPage: totalPages });
+    }
+  }, [apiData, currentPage, totalPages]);
+
   const paginationItems = useMemo(
     () => buildPaginationItems(currentPage, totalPages),
     [currentPage, totalPages]
@@ -449,8 +512,7 @@ function EmployeesList() {
                   setOrgSearchQuery(value);
                   return;
                 }
-                setSearchQuery(value);
-                setCurrentPage(1);
+                updateListSessionState({ searchQuery: value, currentPage: 1 });
               }}
               inputId="employees-search"
               placeholder={
@@ -560,8 +622,10 @@ function EmployeesList() {
                   inputId="employees-filter-department"
                   value={departmentOptions.find((option) => option.value === departmentFilter) || null}
                   onChange={(option: any) => {
-                    setDepartmentFilter(option?.value || "");
-                    setCurrentPage(1);
+                    updateListSessionState({
+                      departmentFilter: option?.value || "",
+                      currentPage: 1,
+                    });
                   }}
                   options={departmentOptions}
                   placeholder="Департамент"
@@ -586,8 +650,10 @@ function EmployeesList() {
                   inputId="employees-filter-employment-type"
                   value={employmentTypeOptions.find((option) => option.value === employmentTypeFilter) || null}
                   onChange={(option: any) => {
-                    setEmploymentTypeFilter(option?.value || "");
-                    setCurrentPage(1);
+                    updateListSessionState({
+                      employmentTypeFilter: option?.value || "",
+                      currentPage: 1,
+                    });
                   }}
                   options={employmentTypeOptions}
                   placeholder="Тип работы"
@@ -612,8 +678,10 @@ function EmployeesList() {
                   inputId="employees-filter-location"
                   value={locationOptions.find((option) => option.value === locationFilter) || null}
                   onChange={(option: any) => {
-                    setLocationFilter(option?.value || "");
-                    setCurrentPage(1);
+                    updateListSessionState({
+                      locationFilter: option?.value || "",
+                      currentPage: 1,
+                    });
                   }}
                   options={locationOptions}
                   placeholder="Локация"
@@ -638,8 +706,10 @@ function EmployeesList() {
                   inputId="employees-filter-position"
                   value={positionOptions.find((option) => option.value === positionFilter) || null}
                   onChange={(option: any) => {
-                    setPositionFilter(option?.value || "");
-                    setCurrentPage(1);
+                    updateListSessionState({
+                      positionFilter: option?.value || "",
+                      currentPage: 1,
+                    });
                   }}
                   options={positionOptions}
                   placeholder="Должность"
@@ -664,8 +734,10 @@ function EmployeesList() {
                   inputId="employees-filter-status"
                   value={STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter) || null}
                   onChange={(option: any) => {
-                    setStatusFilter(option?.value || "");
-                    setCurrentPage(1);
+                    updateListSessionState({
+                      statusFilter: option?.value || "",
+                      currentPage: 1,
+                    });
                   }}
                   options={STATUS_FILTER_OPTIONS}
                   placeholder="Статус"
@@ -682,12 +754,14 @@ function EmployeesList() {
                 <button
                   type="button"
                   onClick={() => {
-                    setDepartmentFilter("");
-                    setEmploymentTypeFilter("");
-                    setLocationFilter("");
-                    setPositionFilter("");
-                    setStatusFilter("");
-                    setCurrentPage(1);
+                    updateListSessionState({
+                      departmentFilter: "",
+                      employmentTypeFilter: "",
+                      locationFilter: "",
+                      positionFilter: "",
+                      statusFilter: "",
+                      currentPage: 1,
+                    });
                   }}
                   style={{
                     display: "inline-flex",
@@ -728,7 +802,7 @@ function EmployeesList() {
               filtersOpen={orgFiltersOpen}
               onActiveFiltersCountChange={setOrgActiveFiltersCount}
             />
-          ) : isLoading ? (
+          ) : isLoading || isFetching ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
               <div
                 style={{
@@ -913,14 +987,14 @@ function EmployeesList() {
           currentPage={currentPage}
           totalPages={totalPages}
           brandColor={brandColor}
-          onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
-          onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-          onPageChange={(page) => setCurrentPage(page)}
+          onPrevious={() => updateListSessionState({ currentPage: Math.max(1, currentPage - 1) })}
+          onNext={() => updateListSessionState({ currentPage: Math.min(totalPages, currentPage + 1) })}
+          onPageChange={(page) => updateListSessionState({ currentPage: page })}
         />
       ) : null}
     </>
   );
-}
+});
 
 export default observer(EmployeesList);
 

@@ -46,6 +46,7 @@ type UniqueUserItem = {
   full_name?: string | null;
   hikvision_id?: string | null;
   mac_address?: string | null;
+  picture?: string | null;
   created_at?: string | null;
 };
 
@@ -113,6 +114,27 @@ const resolveEmployeeName = (item: AttendanceRecordItem): string => {
   if (fullName) return fullName;
   if (typeof relation.name === "string" && relation.name.trim()) return relation.name.trim();
   return "—";
+};
+
+const resolvePictureSrc = (picture: string | null | undefined): string => {
+  const value = String(picture || "").trim();
+  if (!value) return "";
+  if (/^(data:image\/|https?:\/\/|blob:|\/)/i.test(value)) return value;
+  if (/^[A-Za-z0-9+/]+={0,2}$/.test(value) && value.length > 120) {
+    return `data:image/jpeg;base64,${value}`;
+  }
+  return value;
+};
+
+const buildInitials = (name: string | null | undefined): string => {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return (parts[0]?.charAt(0) || "?")
+    .concat(parts[1]?.charAt(0) || "")
+    .toUpperCase();
 };
 
 export default function HickvisionIntegrationSettingsPage() {
@@ -486,6 +508,9 @@ export default function HickvisionIntegrationSettingsPage() {
                 <Table>
                   <TableHeader className="border-b border-gray-100">
                     <TableRow>
+                      <TableCell isHeader className="w-20 px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                        Фото
+                      </TableCell>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                         Full name
                       </TableCell>
@@ -505,6 +530,9 @@ export default function HickvisionIntegrationSettingsPage() {
                       Array.from({ length: 6 }).map((_, index) => (
                         <TableRow key={`users-skeleton-${index}`}>
                           <TableCell className="px-4 py-4">
+                            <div className="h-14 w-14 animate-pulse rounded-lg bg-gray-200" />
+                          </TableCell>
+                          <TableCell className="px-4 py-4">
                             <div className="h-4 w-36 animate-pulse rounded bg-gray-200" />
                           </TableCell>
                           <TableCell className="px-4 py-4">
@@ -520,13 +548,19 @@ export default function HickvisionIntegrationSettingsPage() {
                       ))
                     ) : users.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
+                        <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
                           Пользователи не найдены.
                         </TableCell>
                       </TableRow>
                     ) : (
                       users.map((item) => (
                         <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
+                          <TableCell className="px-4 py-3">
+                            <HickvisionUserPicture
+                              picture={item.picture}
+                              name={item.full_name}
+                            />
+                          </TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-800">{item.full_name || "—"}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.hikvision_id || "—"}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.mac_address || "—"}</TableCell>
@@ -755,5 +789,34 @@ export default function HickvisionIntegrationSettingsPage() {
         </div>
       </Modal>
     </>
+  );
+}
+
+function HickvisionUserPicture({
+  picture,
+  name,
+}: {
+  picture?: string | null;
+  name?: string | null;
+}) {
+  const [hasImageError, setHasImageError] = useState(false);
+  const pictureSrc = resolvePictureSrc(picture);
+
+  if (pictureSrc && !hasImageError) {
+    return (
+      <img
+        src={pictureSrc}
+        alt={name || "Hickvision user"}
+        className="h-14 w-14 rounded-lg border border-gray-200 bg-gray-50 object-contain"
+        loading="lazy"
+        onError={() => setHasImageError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-[13px] font-semibold text-gray-500">
+      {buildInitials(name)}
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BriefcaseBusiness,
   ChevronDown,
@@ -36,6 +36,8 @@ import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
 type WorkSectionProps = {
   employeeGuid: string;
   brandColor: string;
+  returnRequestKey?: number;
+  onEmployeeReturned?: () => Promise<void> | void;
 };
 
 type WorkRecord = {
@@ -47,6 +49,7 @@ type WorkRecord = {
   positionTitle: string;
   experienceLevelTitle: string;
   reasonTitle: string;
+  workScheduleTitle: string;
   salary: number | null;
   dateFrom: string;
   dateTo: string;
@@ -60,14 +63,16 @@ type WorkFormState = {
   positionsId: string;
   experienceLevelId: string;
   employeeWorkReasonId: string;
+  workScheduleId: string;
   salary: string;
   dateFrom: string;
   dateTo: string;
 };
 
-type WorkModalMode = "create" | "edit";
+type WorkModalMode = "create" | "edit" | "return";
 
 const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
+const RETURN_WORK_REASON_TITLE = "Прием на работу";
 
 const INPUT_CLASSNAME =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
@@ -80,6 +85,7 @@ const createEmptyFormState = (): WorkFormState => ({
   positionsId: "",
   experienceLevelId: "",
   employeeWorkReasonId: "",
+  workScheduleId: "",
   salary: "",
   dateFrom: "",
   dateTo: "",
@@ -263,6 +269,10 @@ const normalizeRecord = (row: EmployeeWork): WorkRecord => {
       (typeof row.employee_work_reason_id_data?.title === "string" &&
         row.employee_work_reason_id_data.title) ||
       "—",
+    workScheduleTitle:
+      (typeof row.work_schedule_id_data?.title === "string" &&
+        row.work_schedule_id_data.title) ||
+      "—",
     salary: parseSalary(row.salary),
     dateFrom: readString(row.date_from),
     dateTo: readString(row.date_to),
@@ -277,12 +287,13 @@ const buildFormState = (record: EmployeeWork | null, mode: WorkModalMode): WorkF
   positionsId: readString(record?.positions_id),
   experienceLevelId: readString(record?.experience_levels_id),
   employeeWorkReasonId: readString(record?.employee_work_reason_id),
+  workScheduleId: readString(record?.work_schedule_id),
   salary:
     record?.salary === null || record?.salary === undefined ? "" : String(record.salary),
   dateFrom:
-    mode === "create"
-      ? todayIso
-      : readString(record?.date_from) || todayIso,
+    mode === "edit"
+      ? readString(record?.date_from) || todayIso
+      : todayIso,
   dateTo: mode === "edit" ? readString(record?.date_to) : "",
 });
 
@@ -347,7 +358,10 @@ function WorkTimelineCard({
   const primaryMeta = [record.departmentTitle, record.divisionTitle, record.locationTitle].filter(
     (item) => item && item !== "—"
   );
-  const secondaryMeta = [record.experienceLevelTitle].filter((item) => item && item !== "—");
+  const secondaryMeta = [
+    record.experienceLevelTitle,
+    record.workScheduleTitle !== "—" ? `График: ${record.workScheduleTitle}` : "",
+  ].filter((item) => item && item !== "—");
   const salaryValue = formatSalary(record.salary);
   const durationLabel = getDurationLabel(record.dateFrom, record.dateTo);
 
@@ -449,7 +463,12 @@ function WorkTimelineCard({
   );
 }
 
-export default function WorkSection({ employeeGuid, brandColor }: WorkSectionProps) {
+export default function WorkSection({
+  employeeGuid,
+  brandColor,
+  returnRequestKey = 0,
+  onEmployeeReturned,
+}: WorkSectionProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
@@ -459,8 +478,10 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
   const [modalSourceGuid, setModalSourceGuid] = useState<string | null>(null);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const [form, setForm] = useState<WorkFormState>(createEmptyFormState());
+  const [returnWorkReasonId, setReturnWorkReasonId] = useState("");
 
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const lastReturnRequestKeyRef = useRef(0);
 
   const { data, isLoading } = useEmployeeWorksQuery({
     userBaseId: employeeGuid,
@@ -652,6 +673,15 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     );
   }, [form.employeeWorkReasonId, modalSourceRecord]);
 
+  const workScheduleFallbackOption = useMemo<RemoteSelectOption | null>(() => {
+    return buildFallbackOption(
+      form.workScheduleId,
+      typeof modalSourceRecord?.work_schedule_id_data?.title === "string"
+        ? modalSourceRecord.work_schedule_id_data.title
+        : ""
+    );
+  }, [form.workScheduleId, modalSourceRecord]);
+
   const resetEditModal = () => {
     setIsEditModalOpen(false);
     setModalMode("create");
@@ -667,6 +697,15 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     setForm(buildFormState(currentRaw, "create"));
     setIsEditModalOpen(true);
   };
+
+  const openReturnModal = useCallback(() => {
+    setModalMode("return");
+    setEditingRecordGuid(null);
+    setModalSourceGuid(currentRaw?.guid || null);
+    setForm(buildFormState(currentRaw, "return"));
+    setOpenActionsFor(null);
+    setIsEditModalOpen(true);
+  }, [currentRaw]);
 
   const openEditModal = (guid: string) => {
     const selectedRecord = recordByGuid.get(guid);
@@ -684,6 +723,49 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     if (isSaving) return;
     resetEditModal();
   };
+
+  useEffect(() => {
+    if (!returnRequestKey || returnRequestKey <= lastReturnRequestKeyRef.current) {
+      return;
+    }
+
+    lastReturnRequestKeyRef.current = returnRequestKey;
+    openReturnModal();
+  }, [returnRequestKey, openReturnModal]);
+
+  useEffect(() => {
+    if (!isEditModalOpen || modalMode !== "return" || returnWorkReasonId) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    void loadRemoteOptionsBySlug({
+      slug: EMPLOYEE_WORK_REASON_SLUG,
+      search: RETURN_WORK_REASON_TITLE,
+      limit: 20,
+      offset: 0,
+    })
+      .then((result) => {
+        if (isCancelled) return;
+
+        const exactMatch = result.options.find(
+          (option) =>
+            option.label.trim().toLowerCase() === RETURN_WORK_REASON_TITLE.toLowerCase()
+        );
+        const nextReason = exactMatch || result.options[0] || null;
+        setReturnWorkReasonId(nextReason?.value || "");
+      })
+      .catch((error) => {
+        if (!isCancelled) {
+          console.error("Load return work reason error:", error);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isEditModalOpen, modalMode, returnWorkReasonId]);
 
   const toggleActionsMenu = (guid: string) => {
     setOpenActionsFor((prev) => (prev === guid ? null : guid));
@@ -745,8 +827,16 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
     }
 
     const currentStartDate = readString(currentRaw?.date_from);
-    if (modalMode === "create" && currentStartDate && form.dateFrom < currentStartDate) {
+    if (modalMode !== "edit" && currentStartDate && form.dateFrom < currentStartDate) {
       toast.error("Дата начала новой должности не может быть раньше текущей записи");
+      return;
+    }
+
+    const employeeWorkReasonId =
+      modalMode === "return" ? returnWorkReasonId : form.employeeWorkReasonId;
+
+    if (modalMode === "return" && !employeeWorkReasonId) {
+      toast.error(`Не найдена причина "${RETURN_WORK_REASON_TITLE}"`);
       return;
     }
 
@@ -768,7 +858,8 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
       locations_id: form.locationId || null,
       positions_id: form.positionsId || null,
       experience_levels_id: form.experienceLevelId || null,
-      employee_work_reason_id: form.employeeWorkReasonId || null,
+      employee_work_reason_id: employeeWorkReasonId || null,
+      work_schedule_id: form.workScheduleId || null,
       salary: salaryValue,
       date_from: form.dateFrom,
       date_to: modalMode === "edit" ? form.dateTo || null : null,
@@ -800,8 +891,9 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
 
       const previousGuid = currentRaw?.guid || "";
       const previousDateTo = currentRaw ? readString(currentRaw.date_to) || null : null;
+      const shouldClosePrevious = Boolean(previousGuid && !previousDateTo);
 
-      if (previousGuid) {
+      if (shouldClosePrevious) {
         await updateEmployeeWork.mutateAsync({
           guid: previousGuid,
           data: {
@@ -817,7 +909,7 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
           date_to: null,
         });
       } catch (createError) {
-        if (previousGuid) {
+        if (shouldClosePrevious) {
           try {
             await updateEmployeeWork.mutateAsync({
               guid: previousGuid,
@@ -839,13 +931,21 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
         toast.error("Должность добавлена, но профиль сотрудника не синхронизирован.");
       }
 
-      toast.success("Новая должность добавлена");
+      if (modalMode === "return" && onEmployeeReturned) {
+        await onEmployeeReturned();
+      }
+
+      toast.success(
+        modalMode === "return" ? "Сотрудник возвращен" : "Новая должность добавлена"
+      );
       resetEditModal();
     } catch {
       toast.error(
         modalMode === "edit"
           ? "Не удалось сохранить изменения"
-          : "Не удалось добавить должность"
+          : modalMode === "return"
+            ? "Не удалось вернуть сотрудника"
+            : "Не удалось добавить должность"
       );
     }
   };
@@ -1058,12 +1158,18 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
       >
         <div className="border-b border-slate-200 px-6 py-5">
           <h4 className="m-0 text-[24px] font-bold text-slate-900">
-            {modalMode === "create" ? "Добавить должность" : "Редактировать должность"}
+            {modalMode === "return"
+              ? "Вернуть сотрудника"
+              : modalMode === "create"
+                ? "Добавить должность"
+                : "Редактировать должность"}
           </h4>
           <p className="m-0 mt-1 text-[13px] text-slate-500">
-            {modalMode === "create"
-              ? "Новая запись станет текущей, а предыдущая должность завершится выбранной датой."
-              : "Обновите данные по выбранной записи в истории работы."}
+            {modalMode === "return"
+              ? "Новая запись станет текущей, а статус сотрудника изменится на активный."
+              : modalMode === "create"
+                ? "Новая запись станет текущей, а предыдущая должность завершится выбранной датой."
+                : "Обновите данные по выбранной записи в истории работы."}
           </p>
         </div>
 
@@ -1222,28 +1328,55 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
             </div>
           </div>
 
+          {modalMode !== "return" ? (
+            <div>
+              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                Причина изменения
+              </label>
+              <RemoteSingleSelect
+                value={form.employeeWorkReasonId}
+                loadOptions={({ search, limit, offset }) =>
+                  loadRemoteOptionsBySlug({
+                    slug: EMPLOYEE_WORK_REASON_SLUG,
+                    search,
+                    limit,
+                    offset,
+                  })
+                }
+                fallbackOption={workReasonFallbackOption}
+                onChange={(value) =>
+                  setForm((prev) => ({ ...prev, employeeWorkReasonId: value }))
+                }
+                placeholder="Выберите причину"
+                disabled={isSaving}
+                menuPortalTarget={menuPortalTarget}
+                classNamePrefix="work-reason-select"
+              />
+            </div>
+          ) : null}
+
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Причина изменения
+              График работы
             </label>
             <RemoteSingleSelect
-              value={form.employeeWorkReasonId}
+              value={form.workScheduleId}
               loadOptions={({ search, limit, offset }) =>
                 loadRemoteOptionsBySlug({
-                  slug: EMPLOYEE_WORK_REASON_SLUG,
+                  slug: "work_schedule",
                   search,
                   limit,
                   offset,
                 })
               }
-              fallbackOption={workReasonFallbackOption}
+              fallbackOption={workScheduleFallbackOption}
               onChange={(value) =>
-                setForm((prev) => ({ ...prev, employeeWorkReasonId: value }))
+                setForm((prev) => ({ ...prev, workScheduleId: value }))
               }
-              placeholder="Выберите причину"
+              placeholder="Выберите график"
               disabled={isSaving}
               menuPortalTarget={menuPortalTarget}
-              classNamePrefix="work-reason-select"
+              classNamePrefix="work-schedule-select"
             />
           </div>
 
@@ -1340,10 +1473,14 @@ export default function WorkSection({ employeeGuid, brandColor }: WorkSectionPro
             style={{ backgroundColor: brandColor }}
           >
             {isSaving
-              ? modalMode === "create"
+              ? modalMode === "return"
+                ? "Возврат..."
+                : modalMode === "create"
                 ? "Добавление..."
                 : "Сохранение..."
-              : modalMode === "create"
+              : modalMode === "return"
+                ? "Вернуть"
+                : modalMode === "create"
                 ? "Добавить"
                 : "Сохранить"}
           </button>

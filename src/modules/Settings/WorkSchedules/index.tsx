@@ -48,9 +48,6 @@ type DaySchedule = {
 type WorkScheduleItem = SettingsDirectoryItem & {
   total_work_hours?: number;
   total_break_hours?: number;
-  employees_count?: number;
-  employee_count?: number;
-  employees?: number;
   is_default?: boolean;
   default?: boolean;
 };
@@ -116,11 +113,6 @@ const sumWorkHours = (days: DaySchedule[]): number => {
 
 const isDefaultSchedule = (item: WorkScheduleItem): boolean => {
   return Boolean(item.is_default ?? item.default ?? (item as UnknownRecord).by_default);
-};
-
-const resolveEmployeesCount = (item: WorkScheduleItem): number => {
-  const candidate = item.employees_count ?? item.employee_count ?? item.employees ?? 0;
-  return Number.isFinite(Number(candidate)) ? Number(candidate) : 0;
 };
 
 const normalizeDayCode = (value: unknown): string => {
@@ -236,7 +228,7 @@ export default function WorkSchedulesSettingsPage() {
   const [itemToDelete, setItemToDelete] = useState<WorkScheduleItem | null>(null);
   const [title, setTitle] = useState("");
   const [days, setDays] = useState<DaySchedule[]>(buildDefaultDays());
-  const [useTimeRange, setUseTimeRange] = useState(false);
+  const [isRemote, setIsRemote] = useState(false);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
 
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -283,7 +275,7 @@ export default function WorkSchedulesSettingsPage() {
   const resetForm = () => {
     setTitle("");
     setDays(buildDefaultDays());
-    setUseTimeRange(false);
+    setIsRemote(false);
     setIsModalLoading(false);
   };
 
@@ -312,9 +304,10 @@ export default function WorkSchedulesSettingsPage() {
 
       setEditingItem(scheduleItem);
       setTitle(String(scheduleItem.title || ""));
-      setUseTimeRange(
+      setIsRemote(
         Boolean(
-          (scheduleItem as UnknownRecord).use_workday_time ??
+          (scheduleItem as UnknownRecord).is_remote ??
+            (scheduleItem as UnknownRecord).use_workday_time ??
             (scheduleItem as UnknownRecord).use_time_range ??
             (scheduleItem as UnknownRecord).has_time_range
         )
@@ -326,7 +319,7 @@ export default function WorkSchedulesSettingsPage() {
       setEditingItem(item);
       setTitle(String(item.title || ""));
       setDays(buildDefaultDays());
-      setUseTimeRange(false);
+      setIsRemote(false);
     } finally {
       setIsModalLoading(false);
     }
@@ -381,14 +374,14 @@ export default function WorkSchedulesSettingsPage() {
           title: preparedTitle,
           total_work_hours: totalWorkHours,
           total_break_hours: totalBreakHours,
-          use_workday_time: useTimeRange,
+          is_remote: isRemote,
         });
       } else {
         const createResponse = await settingsDirectoryService.create(WORK_SCHEDULE_SLUG, {
           title: preparedTitle,
           total_work_hours: totalWorkHours,
           total_break_hours: totalBreakHours,
-          use_workday_time: useTimeRange,
+          is_remote: isRemote,
         });
 
         const createdGuid = extractGuidFromResponse(createResponse);
@@ -521,9 +514,6 @@ export default function WorkSchedulesSettingsPage() {
                   <TableCell isHeader className="min-w-[240px] px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
                     Работает еженедельно (часов)
                   </TableCell>
-                  <TableCell isHeader className="min-w-[130px] px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Сотрудники
-                  </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
                     Действия
                   </TableCell>
@@ -544,16 +534,13 @@ export default function WorkSchedulesSettingsPage() {
                         <div className="ml-auto h-4 w-14 animate-pulse rounded bg-gray-200" />
                       </TableCell>
                       <TableCell className="px-4 py-4 text-right">
-                        <div className="ml-auto h-4 w-10 animate-pulse rounded bg-gray-200" />
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-right">
                         <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-200" />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                    <TableCell colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
                       Графики работы не найдены
                     </TableCell>
                   </TableRow>
@@ -561,7 +548,6 @@ export default function WorkSchedulesSettingsPage() {
                   items.map((item) => {
                     const weeklyBreaks = toNumber(item.total_break_hours, 0);
                     const weeklyWorked = toNumber(item.total_work_hours, 0);
-                    const employeesCount = resolveEmployeesCount(item);
 
                     return (
                       <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
@@ -580,9 +566,6 @@ export default function WorkSchedulesSettingsPage() {
                         </TableCell>
                         <TableCell className="px-4 py-3 text-right text-sm font-semibold text-gray-700">
                           {formatHours(weeklyWorked)}
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-right text-sm font-semibold text-brand-600">
-                          {employeesCount}
                         </TableCell>
                         <TableCell className="px-4 py-3">
                           <div className="relative flex items-center justify-end">
@@ -686,18 +669,18 @@ export default function WorkSchedulesSettingsPage() {
 
                   <button
                     type="button"
-                    onClick={() => setUseTimeRange((prev) => !prev)}
+                    onClick={() => setIsRemote((prev) => !prev)}
                     className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700"
                   >
-                    Время начала и окончания рабочего дня
+                    Удаленно
                     <span
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
-                        useTimeRange ? "bg-brand-500" : "bg-gray-200"
+                        isRemote ? "bg-brand-500" : "bg-gray-200"
                       }`}
                     >
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                          useTimeRange ? "translate-x-4" : "translate-x-1"
+                          isRemote ? "translate-x-4" : "translate-x-1"
                         }`}
                       />
                     </span>

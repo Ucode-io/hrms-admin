@@ -76,6 +76,10 @@ import OrganizationClientForm from "./modules/Clients/Form";
 import AgreementsList from "./modules/Agreements/List";
 import AgreementForm from "./modules/Agreements/Form";
 import OrganizationStructureModule from "./modules/Organization/Structure";
+import VacanciesList from "./modules/Recruiting/Vacancies/List";
+import VacancyForm from "./modules/Recruiting/Vacancies/Form";
+import CandidatesList from "./modules/Recruiting/Candidates/List";
+import CandidateForm from "./modules/Recruiting/Candidates/Form";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import AuthTokenSyncWrapper from "./components/common/AuthTokenSyncWrapper";
@@ -255,6 +259,14 @@ function App() {
               <Route path="/organization/agreements/new" element={<AgreementForm />} />
               <Route path="/organization/agreements/:id" element={<AgreementForm />} />
               <Route path="/organization/structure" element={<OrganizationStructureModule />} />
+
+              <Route path="/recruiting" element={<Navigate to="/recruiting/vacancies" replace />} />
+              <Route path="/recruiting/vacancies" element={<VacanciesList />} />
+              <Route path="/recruiting/vacancies/new" element={<VacancyForm />} />
+              <Route path="/recruiting/vacancies/:id/edit" element={<VacancyForm />} />
+              <Route path="/recruiting/candidates" element={<CandidatesList />} />
+              <Route path="/recruiting/candidates/new" element={<CandidateForm />} />
+              <Route path="/recruiting/candidates/:id/edit" element={<CandidateForm />} />
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
 

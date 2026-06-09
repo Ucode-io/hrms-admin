@@ -161,6 +161,7 @@ export const useEmployeesQuery = (
     return res.data?.data?.data;
   }, {
     enabled: params.enabled ?? true,
+    keepPreviousData: true,
   });
 };
 

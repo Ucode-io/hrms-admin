@@ -1,19 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router";
 import {
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Pencil,
   KeyRound,
   Copy,
   Check,
   Phone,
+  Search,
   MapPin,
   Briefcase,
   Users,
   Building2,
   UserX,
+  UserCheck,
 } from "lucide-react";
 import { observer } from "mobx-react-lite";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ import SkillsSection from "./components/SkillsSection";
 import WorkSection from "./components/WorkSection";
 import CompensationSection from "./components/CompensationSection";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
+import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 
 const PRIMARY_TABS = [
   "Личное",
@@ -53,8 +54,16 @@ const DISMISSAL_TYPES_SLUG = "dismissal_types";
 const DISMISSAL_REASONS_SLUG = "dismissal_reasons";
 const DISMISSIAL_TYPES_SLUG = "dismissial_types";
 const DISMISSIAL_REASONS_SLUG = "dismissial_reasons";
+const UNIQUE_USERS_SLUG = "unique_users";
 
 type Tab = (typeof PRIMARY_TABS)[number] | (typeof MORE_TABS)[number];
+
+type UniqueHikvisionUserItem = {
+  guid: string;
+  full_name?: string | null;
+  hikvision_id?: string | null;
+  picture?: string | null;
+};
 
 /* ── helpers ── */
 const GENDER_MAP: Record<string, string> = {
@@ -187,6 +196,35 @@ function generateStrongPassword(length = 12): string {
   return chars.join("");
 }
 
+const resolveHikvisionPictureSrc = (picture: string | null | undefined): string => {
+  const value = String(picture || "").trim();
+  if (!value) return "";
+  if (/^(data:image\/|https?:\/\/|blob:|\/)/i.test(value)) return value;
+  if (/^[A-Za-z0-9+/]+={0,2}$/.test(value) && value.length > 120) {
+    return `data:image/jpeg;base64,${value}`;
+  }
+  return value;
+};
+
+const buildHikvisionInitials = (name: string | null | undefined): string => {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return (parts[0]?.charAt(0) || "?")
+    .concat(parts[1]?.charAt(0) || "")
+    .toUpperCase();
+};
+
+const getHikvisionUserName = (item: UniqueHikvisionUserItem): string => {
+  return String(item.full_name || "").trim() || "Без имени";
+};
+
+const getHikvisionUserId = (item: UniqueHikvisionUserItem): string => {
+  return String(item.hikvision_id || "").trim();
+};
+
 /* ────────────────────────────────────────────────
  *  Main component
  * ──────────────────────────────────────────────── */
@@ -202,10 +240,15 @@ function EmployeeDetail() {
   const [isDismissModalOpen, setIsDismissModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [isPasswordResultModalOpen, setIsPasswordResultModalOpen] = useState(false);
+  const [isHikvisionModalOpen, setIsHikvisionModalOpen] = useState(false);
+  const [selectedHikvisionId, setSelectedHikvisionId] = useState("");
+  const [hikvisionSearch, setHikvisionSearch] = useState("");
   const [generatedPassword, setGeneratedPassword] = useState("");
   const [isPasswordCopied, setIsPasswordCopied] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
   const [isGeneratingPassword, setIsGeneratingPassword] = useState(false);
+  const [isSavingHikvisionId, setIsSavingHikvisionId] = useState(false);
+  const [returnEmployeeRequestKey, setReturnEmployeeRequestKey] = useState(0);
   const [dismissalDate, setDismissalDate] = useState<Date | null>(new Date());
   const [dismissalTypeId, setDismissalTypeId] = useState<string>("");
   const [dismissalReasonId, setDismissalReasonId] = useState<string>("");
@@ -244,6 +287,24 @@ function EmployeeDetail() {
     params: { limit: 200, offset: 0 },
   });
   const updateEmployeeMutation = useUpdateEmployee();
+  const hikvisionUsersQueryParams = useMemo(
+    () => ({
+      data: encodeJsonToUrlParam({
+        limit: 200,
+        offset: 0,
+        ...(hikvisionSearch.trim() ? { search: hikvisionSearch.trim() } : {}),
+      }),
+    }),
+    [hikvisionSearch]
+  );
+  const hikvisionUsersQuery = useSettingsDirectoryQuery({
+    slug: UNIQUE_USERS_SLUG,
+    params: hikvisionUsersQueryParams,
+    querySettings: {
+      enabled: isHikvisionModalOpen,
+      keepPreviousData: true,
+    },
+  });
 
   useEffect(() => {
     if (location.state?.activeTab === "Документы") {
@@ -336,6 +397,41 @@ function EmployeeDetail() {
     value: item.guid,
     label: String(item.title || "Без названия"),
   }));
+  const hikvisionUsers = ((hikvisionUsersQuery.data?.response || []) as UniqueHikvisionUserItem[])
+    .filter((item) => getHikvisionUserId(item));
+  const selectedHikvisionUser = hikvisionUsers.find(
+    (item) => getHikvisionUserId(item) === selectedHikvisionId
+  );
+
+  const openHikvisionModal = () => {
+    setSelectedHikvisionId(typeof emp.hikvision_id === "string" ? emp.hikvision_id : "");
+    setHikvisionSearch("");
+    setIsHikvisionModalOpen(true);
+  };
+
+  const closeHikvisionModal = () => {
+    if (isSavingHikvisionId) return;
+    setSelectedHikvisionId(typeof emp.hikvision_id === "string" ? emp.hikvision_id : "");
+    setHikvisionSearch("");
+    setIsHikvisionModalOpen(false);
+  };
+
+  const handleSaveHikvisionId = async () => {
+    try {
+      setIsSavingHikvisionId(true);
+      await updateEmployeeMutation.mutateAsync({
+        guid: emp.guid,
+        hikvision_id: selectedHikvisionId || null,
+      });
+      setIsHikvisionModalOpen(false);
+      toast.success("Hikvision ID обновлен.");
+    } catch (error) {
+      console.error("Update Hikvision ID error:", error);
+      toast.error("Не удалось обновить Hikvision ID.");
+    } finally {
+      setIsSavingHikvisionId(false);
+    }
+  };
 
   const handleDismissEmployee = async () => {
     const nextDismissalDate = toIsoDate(dismissalDate);
@@ -373,6 +469,19 @@ function EmployeeDetail() {
     } finally {
       setIsDismissing(false);
     }
+  };
+
+  const handleEmployeeReturned = async () => {
+    const dismissalTypeFieldKey = getDismissalTypeFieldKey(emp as Record<string, unknown>);
+    const dismissalReasonFieldKey = getDismissalReasonFieldKey(emp as Record<string, unknown>);
+
+    await updateEmployeeMutation.mutateAsync({
+      guid: emp.guid,
+      status: ["active"],
+      dismissal_date: null,
+      [dismissalTypeFieldKey]: null,
+      [dismissalReasonFieldKey]: null,
+    });
   };
 
   const handleGeneratePassword = async () => {
@@ -504,17 +613,6 @@ function EmployeeDetail() {
             {/* Actions */}
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate(-1)}
-                className="flex items-center justify-center w-9 h-9 border border-slate-200 rounded-lg bg-white text-slate-600 cursor-pointer transition-colors hover:bg-slate-50"
-              >
-                <ChevronLeft className="w-[18px] h-[18px]" />
-              </button>
-              <button
-                className="flex items-center justify-center w-9 h-9 border border-slate-200 rounded-lg bg-white text-slate-600 cursor-pointer transition-colors hover:bg-slate-50"
-              >
-                <ChevronRight className="w-[18px] h-[18px]" />
-              </button>
-              <button
                 onClick={() => navigate(`/employees/${id}/edit`)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg border-none text-white text-[13px] font-semibold cursor-pointer transition-opacity hover:opacity-90"
                 style={{ backgroundColor: brandColor }}
@@ -582,6 +680,23 @@ function EmployeeDetail() {
                     </span>
                     <span className="block font-medium">Уволить сотрудника</span>
                   </button>
+
+                  {isDismissed ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsActionMenuOpen(false);
+                        setActiveTab("Работа");
+                        setReturnEmployeeRequestKey((prev) => prev + 1);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-emerald-600 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    >
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                        <UserCheck className="h-4 w-4" />
+                      </span>
+                      <span className="block font-medium">Вернуть сотрудника</span>
+                    </button>
+                  ) : null}
                 </Dropdown>
               </div>
             </div>
@@ -664,7 +779,21 @@ function EmployeeDetail() {
               <InfoRow label="Отчество" value={emp.middle_name} />
               <InfoRow label="Дата рождения" value={formatDate(emp.birth_date)} />
               <InfoRow label="Пол" value={genderLabel} />
-              <InfoRow label="Hikvision ID" value={emp.hikvision_id || "—"} />
+              <InfoRow
+                label="Hikvision ID"
+                value={emp.hikvision_id || "—"}
+                action={
+                  <button
+                    type="button"
+                    onClick={openHikvisionModal}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
+                    title="Редактировать Hikvision ID"
+                    aria-label="Редактировать Hikvision ID"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                }
+              />
               <InfoRow label="Статус" value={statusLabel} isStatus />
               {isDismissed ? (
                 <>
@@ -805,7 +934,12 @@ function EmployeeDetail() {
           brandColor={brandColor}
         />
       ) : activeTab === "Работа" ? (
-        <WorkSection employeeGuid={emp.guid} brandColor={brandColor} />
+        <WorkSection
+          employeeGuid={emp.guid}
+          brandColor={brandColor}
+          returnRequestKey={returnEmployeeRequestKey}
+          onEmployeeReturned={handleEmployeeReturned}
+        />
       ) : activeTab === "Компенсация" ? (
         <CompensationSection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : activeTab === "Отсутствия" ? (
@@ -843,6 +977,124 @@ function EmployeeDetail() {
           </p>
         </div>
       )}
+
+      <Modal
+        isOpen={isHikvisionModalOpen}
+        onClose={closeHikvisionModal}
+        className="max-w-2xl w-full p-6"
+        showCloseButton={false}
+      >
+        <h4 className="m-0 text-[18px] font-bold text-slate-900">
+          Изменить Hikvision ID
+        </h4>
+        <p className="mb-6 mt-2 text-[13px] text-slate-500">
+          Выберите пользователя Hikvision, который будет связан с этим сотрудником.
+        </p>
+        <div className="mb-5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={hikvisionSearch}
+              onChange={(event) => setHikvisionSearch(event.target.value)}
+              placeholder="Поиск по имени или Hikvision ID"
+              disabled={isSavingHikvisionId}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+
+          {selectedHikvisionId ? (
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+              <div className="min-w-0 text-[12px] font-medium text-blue-700">
+                Выбран:{" "}
+                <span className="font-semibold">
+                  {selectedHikvisionUser
+                    ? `${getHikvisionUserName(selectedHikvisionUser)} (${selectedHikvisionId})`
+                    : selectedHikvisionId}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedHikvisionId("")}
+                disabled={isSavingHikvisionId}
+                className="ml-3 shrink-0 text-[12px] font-semibold text-blue-700 transition hover:text-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Очистить
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mb-6 max-h-[420px] overflow-y-auto rounded-xl border border-slate-200 bg-white">
+          {hikvisionUsersQuery.isLoading ? (
+            Array.from({ length: 5 }).map((_, index) => (
+              <div key={`hikvision-user-skeleton-${index}`} className="flex items-center gap-3 border-b border-slate-100 px-3 py-3 last:border-b-0">
+                <div className="h-14 w-14 animate-pulse rounded-lg bg-slate-200" />
+                <div className="min-w-0 flex-1">
+                  <div className="h-4 w-40 animate-pulse rounded bg-slate-200" />
+                  <div className="mt-2 h-3 w-24 animate-pulse rounded bg-slate-100" />
+                </div>
+              </div>
+            ))
+          ) : hikvisionUsers.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[13px] text-slate-500">
+              Пользователи Hikvision не найдены.
+            </div>
+          ) : (
+            hikvisionUsers.map((user) => {
+              const hikvisionId = getHikvisionUserId(user);
+              const userName = getHikvisionUserName(user);
+              const isSelected = selectedHikvisionId === hikvisionId;
+
+              return (
+                <button
+                  key={user.guid || hikvisionId}
+                  type="button"
+                  onClick={() => setSelectedHikvisionId(hikvisionId)}
+                  disabled={isSavingHikvisionId}
+                  className={`flex w-full items-center gap-3 border-b px-3 py-3 text-left transition last:border-b-0 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isSelected
+                      ? "border-blue-100 bg-blue-50"
+                      : "border-slate-100 bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  <HikvisionUserPicture picture={user.picture} name={userName} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-semibold text-slate-900">
+                      {userName}
+                    </div>
+                    <div className="mt-0.5 text-[12px] font-medium text-slate-500">
+                      Hikvision ID: {hikvisionId}
+                    </div>
+                  </div>
+                  {isSelected ? (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                      <Check className="h-4 w-4" />
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })
+          )}
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={closeHikvisionModal}
+            disabled={isSavingHikvisionId}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Отмена
+          </button>
+          <Button
+            size="sm"
+            className="!h-9 !px-4 !py-2 text-[13px]"
+            onClick={() => void handleSaveHikvisionId()}
+            disabled={isSavingHikvisionId}
+          >
+            {isSavingHikvisionId ? "Сохранение..." : "Сохранить"}
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={isDismissModalOpen}
@@ -1032,6 +1284,35 @@ export default observer(EmployeeDetail);
  *  Sub-components
  * ──────────────────────────────────────────────── */
 
+function HikvisionUserPicture({
+  picture,
+  name,
+}: {
+  picture?: string | null;
+  name?: string | null;
+}) {
+  const [hasImageError, setHasImageError] = useState(false);
+  const pictureSrc = resolveHikvisionPictureSrc(picture);
+
+  if (pictureSrc && !hasImageError) {
+    return (
+      <img
+        src={pictureSrc}
+        alt={name || "Hikvision user"}
+        className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 bg-slate-50 object-contain"
+        loading="lazy"
+        onError={() => setHasImageError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-semibold text-slate-500">
+      {buildHikvisionInitials(name)}
+    </div>
+  );
+}
+
 function InfoSection({
   title,
   icon,
@@ -1079,6 +1360,7 @@ function InfoRow({
   linkType,
   isStatus,
   icon,
+  action,
 }: {
   label: string;
   value?: string;
@@ -1086,6 +1368,7 @@ function InfoRow({
   linkType?: "email" | "phone" | "url";
   isStatus?: boolean;
   icon?: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   const brandColor = companyStore.mainColor;
 
@@ -1105,24 +1388,27 @@ function InfoRow({
       <span className="text-[13px] text-slate-400 min-w-[160px] shrink-0">
         {label}
       </span>
-      <Wrapper
-        {...(href ? { href, className: "text-[13px] flex-1 break-words hover:underline" } : { className: "text-[13px] flex-1 break-words" })}
-        style={{
-          fontWeight: value ? 500 : 400,
-          color:
-            isLinked && value
-              ? brandColor
-              : isStatus && value === "Активный"
-                ? "#16a34a"
-                : isStatus && value === "Уволен"
-                  ? "#dc2626"
-                  : value
-                    ? "#1e293b"
-                    : "#cbd5e1",
-        }}
-      >
-        {value || "—"}
-      </Wrapper>
+      <div className="flex flex-1 items-center gap-2">
+        <Wrapper
+          {...(href ? { href, className: "text-[13px] break-words hover:underline" } : { className: "text-[13px] break-words" })}
+          style={{
+            fontWeight: value ? 500 : 400,
+            color:
+              isLinked && value
+                ? brandColor
+                : isStatus && value === "Активный"
+                  ? "#16a34a"
+                  : isStatus && value === "Уволен"
+                    ? "#dc2626"
+                    : value
+                      ? "#1e293b"
+                      : "#cbd5e1",
+          }}
+        >
+          {value || "—"}
+        </Wrapper>
+        {action}
+      </div>
     </div>
   );
 }

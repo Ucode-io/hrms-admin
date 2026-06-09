@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useSidebar } from "../context/SidebarContext";
 import { type HeaderBreadcrumbItem, useHeaderBreadcrumb } from "../context/HeaderBreadcrumbContext";
 import UserDropdown from "../components/header/UserDropdown";
 import companyStore from "../store/company.store";
 import { observer } from "mobx-react-lite";
-import { Bell, Menu, X } from "lucide-react";
+import { ArrowLeft, Bell, Menu, X } from "lucide-react";
 
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: "Главная страница",
@@ -97,6 +97,7 @@ const buildHeaderBreadcrumbs = (
 const AppHeader: React.FC = () => {
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const location = useLocation();
+  const navigate = useNavigate();
   const { getBreadcrumbLabel, getBreadcrumbItems } = useHeaderBreadcrumb();
 
   const handleToggle = () => {
@@ -110,6 +111,16 @@ const AppHeader: React.FC = () => {
   const breadcrumbs = useMemo(() => {
     return buildHeaderBreadcrumbs(location.pathname, getBreadcrumbLabel, getBreadcrumbItems);
   }, [getBreadcrumbItems, getBreadcrumbLabel, location.pathname]);
+  const isEmployeeDetailPage = /^\/employees\/[^/]+$/.test(location.pathname);
+
+  const handleBack = () => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/employees");
+  };
 
   return (
     <header className="sticky top-0 flex items-center justify-between w-full h-16 bg-white border-b border-gray-200 px-4 lg:px-6 z-40">
@@ -132,6 +143,20 @@ const AppHeader: React.FC = () => {
 
         <div className="hidden lg:flex min-w-0 items-center">
           <div className="inline-flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm">
+            {isEmployeeDetailPage ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="-ml-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-gray-800"
+                  aria-label="Назад"
+                  title="Назад"
+                >
+                  <ArrowLeft size={16} />
+                </button>
+                <span className="text-gray-300">|</span>
+              </>
+            ) : null}
             {breadcrumbs.map((crumb, index) => {
               const isLast = index === breadcrumbs.length - 1;
               return (

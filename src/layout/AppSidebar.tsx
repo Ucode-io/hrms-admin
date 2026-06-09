@@ -11,6 +11,8 @@ import {
   Settings,
   Target,
   UserRoundCheck,
+  UserSearch,
+  Users,
   WalletCards,
 } from "lucide-react";
 import { useSidebar } from "../context/SidebarContext";
@@ -42,7 +44,13 @@ const moduleSections: ModuleSection[] = [
     title: "Люди",
     items: [
       { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
-      // { name: "Рекртутинг", path: "/recruiting/vacancies", icon: <Users size={18} /> },
+    ],
+  },
+  {
+    title: "Рекрутинг",
+    items: [
+      { name: "Вакансии", path: "/recruiting/vacancies", icon: <UserSearch size={18} /> },
+      { name: "Кандидаты", path: "/recruiting/candidates", icon: <Users size={18} /> },
     ],
   },
   {
@@ -72,6 +80,8 @@ const moduleSections: ModuleSection[] = [
 const ENABLED_PATHS = new Set([
   "/dashboard",
   "/employees",
+  "/recruiting/vacancies",
+  "/recruiting/candidates",
   "/documents",
   "/property",
   "/reports",
