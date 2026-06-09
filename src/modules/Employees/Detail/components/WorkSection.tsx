@@ -72,7 +72,7 @@ type WorkFormState = {
 type WorkModalMode = "create" | "edit" | "return";
 
 const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
-const RETURN_WORK_REASON_TITLE = "Прием на работу";
+const RETURN_WORK_REASON_TITLE = "Обратный прием";
 
 const INPUT_CLASSNAME =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
