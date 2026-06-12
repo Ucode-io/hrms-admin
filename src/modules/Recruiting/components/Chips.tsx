@@ -1,5 +1,4 @@
-import { Star } from "lucide-react";
-import { levelColor, tagColor } from "../types";
+import { levelColor, scoreTone, tagColor } from "../types";
 
 export const TagChip = ({ tag }: { tag: string }) => {
   if (!tag) return null;
@@ -27,29 +26,33 @@ export const LevelChip = ({ level }: { level: string }) => {
   );
 };
 
-export const RatingStars = ({
-  value,
-  size = 14,
-  onChange,
+/** Compact "n/10" badge colored by the score (10-point scale). */
+export const ScoreBadge = ({
+  score,
+  size = "sm",
 }: {
-  value: number;
-  size?: number;
-  onChange?: (value: number) => void;
-}) => (
-  <div className="inline-flex items-center gap-0.5">
-    {[1, 2, 3, 4, 5].map((i) => (
-      <button
-        key={i}
-        type="button"
-        disabled={!onChange}
-        onClick={() => onChange?.(i === value ? 0 : i)}
-        className={onChange ? "cursor-pointer" : "cursor-default"}
+  score: number | null;
+  size?: "sm" | "md";
+}) => {
+  if (score === null) {
+    return (
+      <span
+        className={`inline-flex items-center rounded-md bg-gray-100 font-medium text-gray-400 ${
+          size === "md" ? "px-2.5 py-1 text-sm" : "px-1.5 py-0.5 text-[11px]"
+        }`}
       >
-        <Star
-          size={size}
-          className={i <= value ? "fill-amber-400 text-amber-400" : "text-gray-300"}
-        />
-      </button>
-    ))}
-  </div>
-);
+        —/10
+      </span>
+    );
+  }
+  const tone = scoreTone(score);
+  return (
+    <span
+      className={`inline-flex items-center rounded-md font-semibold ${tone.badgeClassName} ${
+        size === "md" ? "px-2.5 py-1 text-sm" : "px-1.5 py-0.5 text-[11px]"
+      }`}
+    >
+      {score}/10
+    </span>
+  );
+};

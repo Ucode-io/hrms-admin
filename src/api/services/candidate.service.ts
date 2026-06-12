@@ -2,71 +2,108 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import httpRequest from "../httpRequest";
 import { COMPANY_ID } from "./settingsDirectory.service";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
+import authStore from "../../store/auth.store";
 import { RECRUITING_USE_MOCK } from "../../modules/Recruiting/mock/mockConfig";
 import {
+  mockAddCandidateDocument,
+  mockAddStageComment,
   mockCreateCandidate,
   mockDeleteCandidate,
+  mockDeleteCandidateDocument,
+  mockEvaluateCandidateStage,
   mockGetCandidate,
   mockListCandidates,
+  mockMoveCandidateStage,
+  mockSetCandidateOutcome,
   mockUpdateCandidate,
-  mockUpdateCandidateStage,
-} from "../../modules/Recruiting/mock/mockStore";
+  type MockActor,
+} from "../../modules/Recruiting/mock/mockApi";
 import {
+  averageScore,
+  CANDIDATE_REJECTION_REASON_ORDER,
+  CANDIDATE_SOURCE_ORDER,
+  DOCUMENT_TYPE_ORDER,
+  OUTCOME_ORDER,
   type Candidate,
+  type CandidateDocument,
+  type CandidateDocumentType,
   type CandidateDraft,
+  type CandidateOutcome,
   type CandidateRejectionReason,
   type CandidateSource,
-  type CandidateStage,
+  type StageComment,
+  type StageEvaluation,
+  type StageHistoryEntry,
 } from "../../modules/Recruiting/types";
 
 const CANDIDATES_SLUG = "candidates";
 
 // ───── Raw API row shape ─────
 
+interface StageCommentApiRow {
+  id?: string;
+  text?: string | null;
+  author_id?: string | null;
+  author_name?: string | null;
+  created_at?: string | null;
+}
+
+interface StageEvaluationApiRow {
+  stage_id?: string | null;
+  score?: number | string | null;
+  comments?: StageCommentApiRow[] | null;
+}
+
+interface CandidateDocumentApiRow {
+  id?: string;
+  name?: string | null;
+  type?: string[] | string | null;
+  url?: string | null;
+  size?: number | string | null;
+  uploaded_at?: string | null;
+  uploaded_by_name?: string | null;
+}
+
+interface StageHistoryApiRow {
+  id?: string;
+  from_stage_id?: string | null;
+  to_stage_id?: string | null;
+  to_outcome?: string[] | string | null;
+  at?: string | null;
+  by_id?: string | null;
+  by_name?: string | null;
+}
+
 export interface CandidateApiRow {
   guid: string;
   first_name?: string | null;
   last_name?: string | null;
   photo?: string | null;
-  vacancies_id?: string | null;
-  vacancies_id_data?: { guid?: string; title?: string; tag?: string } | null;
-  position_title?: string | null;
-  tag?: string | null;
-  level?: string | null;
-  stage?: string[] | string | null;
-  source?: string[] | string | null;
-  rejection_reason?: string[] | string | null;
-  applied_date?: string | null;
   email?: string | null;
   phone?: string | null;
-  date_of_birth?: string | null;
-  gender?: string[] | string | null;
+  source?: string[] | string | null;
   links?: string[] | string | null;
   skills?: string[] | string | null;
-  resume_url?: string | null;
-  cover_letter?: string | null;
-  rating?: number | string | null;
+  level?: string | null;
   salary_expectation?: number | string | null;
   salary_currency?: string | null;
+  applied_date?: string | null;
+  resume_url?: string | null;
   notes?: string | null;
   recruiter_id?: string | null;
   recruiter_name?: string | null;
-  added_by_id?: string | null;
-  added_by_name?: string | null;
-  stage_changed_at?: string | null;
+  vacancies_id?: string | null;
+  vacancies_id_data?: { guid?: string; title?: string; tag?: string } | null;
+  current_stage_id?: string | null;
+  outcome?: string[] | string | null;
+  rejection_reason?: string[] | string | null;
   hired_at?: string | null;
+  stage_changed_at?: string | null;
+  stage_evaluations?: StageEvaluationApiRow[] | null;
   stage_history?: StageHistoryApiRow[] | null;
+  documents?: CandidateDocumentApiRow[] | null;
   created_at?: string | null;
   [key: string]: unknown;
-}
-
-interface StageHistoryApiRow {
-  id?: string;
-  from_stage?: string[] | string | null;
-  to_stage?: string[] | string | null;
-  at?: string | null;
-  by_name?: string | null;
-  comment?: string | null;
 }
 
 interface ListResponse<T> {
@@ -76,58 +113,9 @@ interface ListResponse<T> {
 
 // ───── Mappers ─────
 
-const VALID_STAGES: CandidateStage[] = [
-  "new",
-  "resume_reviewed",
-  "screening_call",
-  "interview",
-  "test_task",
-  "tech_interview",
-  "offer_sent",
-  "offer_considering",
-  "offer_accepted",
-  "hired",
-  "passed_probation",
-  "reserve",
-  "rejected",
-  "failed_probation",
-  "fired",
-];
-const VALID_SOURCES: CandidateSource[] = [
-  "headhunter",
-  "career_site",
-  "linkedin",
-  "telegram",
-  "networking",
-  "applications",
-  "referral",
-  "external_recruiter",
-  "other",
-];
-const VALID_REJECTION_REASONS: CandidateRejectionReason[] = [
-  "resume_rejected",
-  "not_relevant",
-  "insufficient_qualification",
-  "experience_mismatch",
-  "grade_mismatch",
-  "age_restriction",
-  "vacancy_closed_other",
-  "self_not_interested",
-  "language_barrier",
-  "location_mismatch",
-  "not_interested",
-  "culture_mismatch",
-  "salary_expectations",
-  "soft_skills_mismatch",
-  "no_show",
-  "found_job",
-  "not_finished_studies",
-  "no_russian",
-];
-
 const pickEnum = <T extends string>(
   value: string[] | string | null | undefined,
-  valid: T[],
+  valid: readonly T[],
   fallback: T
 ): T => {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -147,70 +135,110 @@ const toStrArray = (value: unknown): string[] => {
   return [];
 };
 
-const mapStageHistory = (rows: StageHistoryApiRow[] | null | undefined) => {
+const mapComments = (rows: StageCommentApiRow[] | null | undefined): StageComment[] => {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((r, i) => ({
+      id: r.id || `cm-${i}`,
+      text: r.text || "",
+      authorId: r.author_id ?? null,
+      authorName: r.author_name || "Рекрутер",
+      createdAt: r.created_at || "",
+    }))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+};
+
+const mapEvaluations = (rows: StageEvaluationApiRow[] | null | undefined): StageEvaluation[] => {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((r) => r.stage_id)
+    .map((r) => {
+      const score = toNum(r.score);
+      return {
+        stageId: String(r.stage_id),
+        score: score && score >= 1 && score <= 10 ? Math.round(score) : null,
+        comments: mapComments(r.comments),
+      };
+    });
+};
+
+const mapHistory = (rows: StageHistoryApiRow[] | null | undefined): StageHistoryEntry[] => {
   if (!Array.isArray(rows)) return [];
   return rows
     .map((r, i) => {
-      const from = Array.isArray(r.from_stage) ? r.from_stage[0] : r.from_stage;
-      const to = Array.isArray(r.to_stage) ? r.to_stage[0] : r.to_stage;
+      const outcome = Array.isArray(r.to_outcome) ? r.to_outcome[0] : r.to_outcome;
       return {
         id: r.id || `h-${i}`,
-        fromStage: VALID_STAGES.includes(from as CandidateStage) ? (from as CandidateStage) : null,
-        toStage: VALID_STAGES.includes(to as CandidateStage) ? (to as CandidateStage) : "new",
+        fromStageId: r.from_stage_id ?? null,
+        toStageId: r.to_stage_id ?? null,
+        toOutcome: OUTCOME_ORDER.includes(outcome as CandidateOutcome)
+          ? (outcome as CandidateOutcome)
+          : null,
         at: r.at || "",
-        byName: r.by_name ?? null,
-        comment: r.comment || "",
+        byId: r.by_id ?? null,
+        byName: r.by_name || "Рекрутер",
       };
     })
-    .sort((a, b) => b.at.localeCompare(a.at));
+    .sort((a, b) => a.at.localeCompare(b.at));
+};
+
+const mapDocuments = (rows: CandidateDocumentApiRow[] | null | undefined): CandidateDocument[] => {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((r) => r.url)
+    .map((r, i) => ({
+      id: r.id || `doc-${i}`,
+      name: r.name || "Документ",
+      type: pickEnum(r.type, DOCUMENT_TYPE_ORDER, "other"),
+      url: String(r.url),
+      size: toNum(r.size),
+      uploadedAt: r.uploaded_at || "",
+      uploadedByName: r.uploaded_by_name || "Рекрутер",
+    }))
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
 };
 
 export const mapCandidateRow = (row: CandidateApiRow): Candidate => {
   const firstName = (row.first_name || "").trim();
   const lastName = (row.last_name || "").trim();
   const fullName = [lastName, firstName].filter(Boolean).join(" ") || "Без имени";
+  const evaluations = mapEvaluations(row.stage_evaluations);
   return {
     id: row.guid,
     firstName,
     lastName,
     fullName,
     photo: row.photo || null,
-    vacancyId: row.vacancies_id ?? null,
-    vacancyTitle: row.vacancies_id_data?.title || "",
-    positionTitle: row.position_title || row.vacancies_id_data?.title || "—",
-    tag: row.tag || row.vacancies_id_data?.tag || "",
-    level: row.level || "",
-    stage: pickEnum(row.stage, VALID_STAGES, "new"),
-    source: pickEnum(row.source, VALID_SOURCES, "other"),
-    rejectionReason: (() => {
-      const raw = Array.isArray(row.rejection_reason) ? row.rejection_reason[0] : row.rejection_reason;
-      return VALID_REJECTION_REASONS.includes(raw as CandidateRejectionReason)
-        ? (raw as CandidateRejectionReason)
-        : null;
-    })(),
-    appliedDate: row.applied_date || null,
     email: row.email || "",
     phone: row.phone || "",
-    dateOfBirth: row.date_of_birth || null,
-    gender: (() => {
-      const raw = Array.isArray(row.gender) ? row.gender[0] : row.gender;
-      return raw === "male" || raw === "female" ? raw : null;
-    })(),
+    source: pickEnum(row.source, CANDIDATE_SOURCE_ORDER, "other"),
     links: toStrArray(row.links),
     skills: toStrArray(row.skills),
-    resumeUrl: row.resume_url || null,
-    coverLetter: row.cover_letter || "",
-    rating: Number(row.rating) || 0,
+    level: row.level || "",
     salaryExpectation: toNum(row.salary_expectation),
     salaryCurrency: row.salary_currency || "UZS",
+    appliedDate: row.applied_date || null,
+    resumeUrl: row.resume_url || null,
     notes: row.notes || "",
     recruiterId: row.recruiter_id ?? null,
     recruiterName: row.recruiter_name ?? null,
-    addedById: row.added_by_id ?? null,
-    addedByName: row.added_by_name ?? null,
-    stageChangedAt: row.stage_changed_at || null,
+    vacancyId: row.vacancies_id || "",
+    vacancyTitle: row.vacancies_id_data?.title || "",
+    vacancyTag: row.vacancies_id_data?.tag || "",
+    currentStageId: row.current_stage_id ?? null,
+    outcome: pickEnum(row.outcome, OUTCOME_ORDER, "active"),
+    rejectionReason: (() => {
+      const raw = Array.isArray(row.rejection_reason) ? row.rejection_reason[0] : row.rejection_reason;
+      return CANDIDATE_REJECTION_REASON_ORDER.includes(raw as CandidateRejectionReason)
+        ? (raw as CandidateRejectionReason)
+        : null;
+    })(),
     hiredAt: row.hired_at || null,
-    stageHistory: mapStageHistory(row.stage_history),
+    stageChangedAt: row.stage_changed_at || null,
+    evaluations,
+    history: mapHistory(row.stage_history),
+    documents: mapDocuments(row.documents),
+    avgScore: averageScore(evaluations),
     createdAt: row.created_at || "",
   };
 };
@@ -219,31 +247,28 @@ const draftToPayload = (draft: CandidateDraft): Record<string, unknown> => ({
   first_name: draft.firstName,
   last_name: draft.lastName,
   photo: draft.photo,
-  vacancies_id: draft.vacancyId,
-  position_title: draft.positionTitle,
-  tag: draft.tag,
-  level: draft.level,
-  stage: [draft.stage],
-  source: [draft.source],
-  rejection_reason: draft.rejectionReason ? [draft.rejectionReason] : null,
-  applied_date: draft.appliedDate,
   email: draft.email,
   phone: draft.phone,
-  date_of_birth: draft.dateOfBirth,
-  gender: draft.gender ? [draft.gender] : null,
+  source: [draft.source],
   links: draft.links,
   skills: draft.skills,
-  resume_url: draft.resumeUrl,
-  cover_letter: draft.coverLetter,
-  rating: draft.rating,
+  level: draft.level,
   salary_expectation: draft.salaryExpectation,
   salary_currency: draft.salaryCurrency,
+  applied_date: draft.appliedDate,
+  resume_url: draft.resumeUrl,
   notes: draft.notes,
   recruiter_id: draft.recruiterId,
   recruiter_name: draft.recruiterName,
-  added_by_id: draft.addedById,
-  added_by_name: draft.addedByName,
+  vacancies_id: draft.vacancyId,
 });
+
+/** Current user as the author of comments / pipeline moves. */
+const currentActor = (): MockActor => {
+  const user = authStore.user_data;
+  const name = [user?.first_name, user?.second_name].filter(Boolean).join(" ").trim();
+  return { id: null, name: name || "Рекрутер" };
+};
 
 // ───── Items API CRUD ─────
 
@@ -252,7 +277,9 @@ export interface CandidatesQueryParams {
   offset: number;
   search?: string;
   vacancyId?: string;
-  stage?: CandidateStage | "";
+  outcome?: CandidateOutcome | "";
+  stageId?: string;
+  source?: CandidateSource | "";
 }
 
 const candidateService = {
@@ -262,7 +289,9 @@ const candidateService = {
     const data: Record<string, unknown> = { limit: params.limit, offset: params.offset };
     if (params.search) data.search = params.search;
     if (params.vacancyId) data.vacancies_id = params.vacancyId;
-    if (params.stage) data.stage = [params.stage];
+    if (params.outcome) data.outcome = [params.outcome];
+    if (params.stageId) data.current_stage_id = params.stageId;
+    if (params.source) data.source = [params.source];
     return httpRequest.get(`/v2/items/${CANDIDATES_SLUG}`, {
       params: { with_relations: true, data: encodeJsonToUrlParam(data) },
     }) as unknown as Promise<ListResponse<CandidateApiRow>>;
@@ -277,10 +306,13 @@ const candidateService = {
   },
 
   create: (draft: CandidateDraft) => {
-    if (RECRUITING_USE_MOCK) return mockCreateCandidate(draftToPayload(draft));
+    if (RECRUITING_USE_MOCK) return mockCreateCandidate(draftToPayload(draft), currentActor());
+    // Real API: the backend (or a u-code function) seeds current_stage_id,
+    // outcome and the first history entry from the vacancy's stages.
     return httpRequest.post(`/v2/items/${CANDIDATES_SLUG}`, {
       data: {
         companies_id: COMPANY_ID,
+        outcome: ["active"],
         stage_changed_at: new Date().toISOString(),
         ...draftToPayload(draft),
       },
@@ -294,11 +326,66 @@ const candidateService = {
     });
   },
 
-  // Pipeline move (kanban drag / stage select).
-  updateStage: (guid: string, stage: CandidateStage) => {
-    if (RECRUITING_USE_MOCK) return mockUpdateCandidateStage(guid, stage);
+  moveStage: (guid: string, toStageId: string) => {
+    if (RECRUITING_USE_MOCK) return mockMoveCandidateStage(guid, toStageId, currentActor());
     return httpRequest.put(`/v2/items/${CANDIDATES_SLUG}/${guid}`, {
-      data: { stage: [stage], stage_changed_at: new Date().toISOString(), guid },
+      data: {
+        current_stage_id: toStageId,
+        outcome: ["active"],
+        stage_changed_at: new Date().toISOString(),
+        guid,
+      },
+    });
+  },
+
+  setOutcome: (guid: string, outcome: CandidateOutcome, rejectionReason: CandidateRejectionReason | null) => {
+    if (RECRUITING_USE_MOCK)
+      return mockSetCandidateOutcome(guid, outcome, rejectionReason, currentActor());
+    return httpRequest.put(`/v2/items/${CANDIDATES_SLUG}/${guid}`, {
+      data: {
+        outcome: [outcome],
+        current_stage_id: null,
+        rejection_reason: rejectionReason ? [rejectionReason] : null,
+        stage_changed_at: new Date().toISOString(),
+        guid,
+      },
+    });
+  },
+
+  evaluateStage: (guid: string, stageId: string, score: number | null) => {
+    if (RECRUITING_USE_MOCK) return mockEvaluateCandidateStage(guid, stageId, score);
+    // Real API: stage_evaluations is a jsonb column — read-modify-write will be
+    // handled by a u-code function on the next stage.
+    return httpRequest.put(`/v2/items/${CANDIDATES_SLUG}/${guid}`, {
+      data: { stage_evaluation_patch: { stage_id: stageId, score }, guid },
+    });
+  },
+
+  addComment: (guid: string, stageId: string, text: string) => {
+    if (RECRUITING_USE_MOCK) return mockAddStageComment(guid, stageId, text, currentActor());
+    return httpRequest.put(`/v2/items/${CANDIDATES_SLUG}/${guid}`, {
+      data: { stage_comment_patch: { stage_id: stageId, text }, guid },
+    });
+  },
+
+  addDocument: (guid: string, doc: NewCandidateDocument) => {
+    const payload = {
+      name: doc.name,
+      type: [doc.type],
+      url: doc.url,
+      size: doc.size,
+    };
+    if (RECRUITING_USE_MOCK) return mockAddCandidateDocument(guid, payload, currentActor());
+    // Real API: documents is a jsonb column — append handled by a u-code function.
+    return httpRequest.put(`/v2/items/${CANDIDATES_SLUG}/${guid}`, {
+      data: { document_patch: payload, guid },
+    });
+  },
+
+  deleteDocument: (guid: string, documentId: string) => {
+    if (RECRUITING_USE_MOCK) return mockDeleteCandidateDocument(guid, documentId);
+    return httpRequest.put(`/v2/items/${CANDIDATES_SLUG}/${guid}`, {
+      data: { document_delete: documentId, guid },
     });
   },
 
@@ -314,11 +401,21 @@ const candidateService = {
 
 // ───── React Query hooks ─────
 
-export const useCandidatesQuery = (params: CandidatesQueryParams) =>
+const invalidateCandidateQueries = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  guid?: string
+) => {
+  queryClient.invalidateQueries(["candidates"]);
+  queryClient.invalidateQueries(["vacancy-candidate-counts"]);
+  if (guid) queryClient.invalidateQueries(["candidate", guid]);
+};
+
+export const useCandidatesQuery = (params: CandidatesQueryParams, enabled = true) =>
   useQuery({
     queryKey: ["candidates", params],
     queryFn: () => candidateService.getList(params),
     keepPreviousData: true,
+    enabled,
   });
 
 export const useCandidateQuery = (guid: string | undefined) =>
@@ -332,10 +429,7 @@ export const useCreateCandidate = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (draft: CandidateDraft) => candidateService.create(draft),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["candidates"]);
-      queryClient.invalidateQueries(["vacancy-candidate-counts"]);
-    },
+    onSuccess: () => invalidateCandidateQueries(queryClient),
   });
 };
 
@@ -344,22 +438,99 @@ export const useUpdateCandidate = () => {
   return useMutation({
     mutationFn: ({ guid, draft }: { guid: string; draft: CandidateDraft }) =>
       candidateService.update(guid, draft),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["candidates"]);
-      queryClient.invalidateQueries(["vacancy-candidate-counts"]);
-    },
+    onSuccess: (_, { guid }) => invalidateCandidateQueries(queryClient, guid),
   });
 };
 
-export const useUpdateCandidateStage = () => {
+/** Kanban drag / "следующий этап" — optimistic so the board feels instant. */
+export const useMoveCandidateStage = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ guid, stage }: { guid: string; stage: CandidateStage }) =>
-      candidateService.updateStage(guid, stage),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["candidates"]);
-      queryClient.invalidateQueries(["vacancy-candidate-counts"]);
+    mutationFn: ({ guid, toStageId }: { guid: string; toStageId: string }) =>
+      candidateService.moveStage(guid, toStageId),
+    onMutate: async ({ guid, toStageId }) => {
+      await queryClient.cancelQueries(["candidates"]);
+      const snapshots = queryClient.getQueriesData(["candidates"]);
+      queryClient.setQueriesData(["candidates"], (old: unknown) => {
+        const list = old as ListResponse<CandidateApiRow> | undefined;
+        if (!list?.response) return old;
+        return {
+          ...list,
+          response: list.response.map((row) =>
+            row.guid === guid
+              ? { ...row, current_stage_id: toStageId, outcome: ["active"] }
+              : row
+          ),
+        };
+      });
+      return { snapshots };
     },
+    onError: (_err, _vars, context) => {
+      const snapshots = (context as { snapshots?: Array<[unknown, unknown]> })?.snapshots ?? [];
+      snapshots.forEach(([key, data]) =>
+        queryClient.setQueryData(key as Parameters<typeof queryClient.setQueryData>[0], data)
+      );
+    },
+    onSettled: (_data, _err, { guid }) => invalidateCandidateQueries(queryClient, guid),
+  });
+};
+
+export const useSetCandidateOutcome = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      guid,
+      outcome,
+      rejectionReason = null,
+    }: {
+      guid: string;
+      outcome: CandidateOutcome;
+      rejectionReason?: CandidateRejectionReason | null;
+    }) => candidateService.setOutcome(guid, outcome, rejectionReason),
+    onSuccess: (_, { guid }) => invalidateCandidateQueries(queryClient, guid),
+  });
+};
+
+export const useEvaluateCandidateStage = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guid, stageId, score }: { guid: string; stageId: string; score: number | null }) =>
+      candidateService.evaluateStage(guid, stageId, score),
+    onSuccess: (_, { guid }) => invalidateCandidateQueries(queryClient, guid),
+  });
+};
+
+export const useAddStageComment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guid, stageId, text }: { guid: string; stageId: string; text: string }) =>
+      candidateService.addComment(guid, stageId, text),
+    onSuccess: (_, { guid }) => invalidateCandidateQueries(queryClient, guid),
+  });
+};
+
+export interface NewCandidateDocument {
+  name: string;
+  type: CandidateDocumentType;
+  url: string;
+  size: number | null;
+}
+
+export const useAddCandidateDocument = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guid, doc }: { guid: string; doc: NewCandidateDocument }) =>
+      candidateService.addDocument(guid, doc),
+    onSuccess: (_, { guid }) => invalidateCandidateQueries(queryClient, guid),
+  });
+};
+
+export const useDeleteCandidateDocument = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guid, documentId }: { guid: string; documentId: string }) =>
+      candidateService.deleteDocument(guid, documentId),
+    onSuccess: (_, { guid }) => invalidateCandidateQueries(queryClient, guid),
   });
 };
 
@@ -367,10 +538,7 @@ export const useDeleteCandidate = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (guid: string) => candidateService.delete(guid),
-    onSuccess: () => {
-      queryClient.invalidateQueries(["candidates"]);
-      queryClient.invalidateQueries(["vacancy-candidate-counts"]);
-    },
+    onSuccess: () => invalidateCandidateQueries(queryClient),
   });
 };
 

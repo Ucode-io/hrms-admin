@@ -9,10 +9,18 @@ import {
   mockGetVacancy,
   mockListVacancies,
   mockUpdateVacancy,
+  mockUpdateVacancyStages,
   mockUpdateVacancyStatus,
   mockVacancyCandidateCounts,
-} from "../../modules/Recruiting/mock/mockStore";
+  type VacancyCounts,
+} from "../../modules/Recruiting/mock/mockApi";
 import {
+  mapStageDefs,
+  stageDefsToPayload,
+  type StageDefApiRow,
+} from "./stageTemplate.service";
+import {
+  type StageDef,
   type Vacancy,
   type VacancyDraft,
   type VacancyPriority,
@@ -23,6 +31,8 @@ import {
 const VACANCIES_SLUG = "vacancies";
 const CANDIDATES_SLUG = "candidates";
 
+export type { VacancyCounts };
+
 // ───── Raw API row shape ─────
 
 export interface VacancyApiRow {
@@ -30,8 +40,6 @@ export interface VacancyApiRow {
   title?: string | null;
   departments_id?: string | null;
   departments_id_data?: { guid?: string; title?: string } | null;
-  divisions_id?: string | null;
-  divisions_id_data?: { guid?: string; title?: string } | null;
   positions_id?: string | null;
   positions_id_data?: { guid?: string; title?: string } | null;
   tag?: string | null;
@@ -60,6 +68,8 @@ export interface VacancyApiRow {
   opened_at?: string | null;
   closed_at?: string | null;
   created_at?: string | null;
+  stage_template_id?: string | null;
+  stages?: StageDefApiRow[] | null;
   [key: string]: unknown;
 }
 
@@ -96,16 +106,11 @@ const toStrArray = (value: unknown): string[] => {
   return [];
 };
 
-export const mapVacancyRow = (
-  row: VacancyApiRow,
-  counts?: { total: number; hired: number }
-): Vacancy => ({
+export const mapVacancyRow = (row: VacancyApiRow, counts?: VacancyCounts): Vacancy => ({
   id: row.guid,
   title: row.title || "Без названия",
   departmentId: row.departments_id ?? null,
   departmentTitle: row.departments_id_data?.title || "—",
-  divisionId: row.divisions_id ?? null,
-  divisionTitle: row.divisions_id_data?.title || "",
   positionId: row.positions_id ?? null,
   positionTitle: row.positions_id_data?.title || row.title || "",
   tag: row.tag || "",
@@ -133,6 +138,8 @@ export const mapVacancyRow = (
   openedAt: row.opened_at || row.created_at || null,
   closedAt: row.closed_at || null,
   createdAt: row.created_at || "",
+  stageTemplateId: row.stage_template_id ?? null,
+  stages: mapStageDefs(row.stages),
   candidatesCount: counts?.total ?? 0,
   hiredCount: counts?.hired ?? 0,
 });
@@ -140,7 +147,6 @@ export const mapVacancyRow = (
 const draftToPayload = (draft: VacancyDraft): Record<string, unknown> => ({
   title: draft.title,
   departments_id: draft.departmentId,
-  divisions_id: draft.divisionId,
   positions_id: draft.positionId,
   tag: draft.tag,
   locations_id: draft.locationId,
@@ -165,6 +171,8 @@ const draftToPayload = (draft: VacancyDraft): Record<string, unknown> => ({
   skills: draft.skills,
   deadline: draft.deadline,
   opened_at: draft.openedAt,
+  stage_template_id: draft.stageTemplateId,
+  stages: stageDefsToPayload(draft.stages),
 });
 
 // ───── Items API CRUD ─────
@@ -197,34 +205,38 @@ const vacancyService = {
     }) as unknown as Promise<VacancyApiRow>;
   },
 
-  // Candidate counts per vacancy via aggregation (total + hired), so the
-  // vacancy cards/table can show real pipeline numbers without N requests.
-  getCandidateCounts: async (): Promise<Record<string, { total: number; hired: number }>> => {
+  // Candidate counts per vacancy (total / hired / per-stage) — powers the
+  // vacancy cards' mini pipeline bar and the kanban headers.
+  getCandidateCounts: async (): Promise<Record<string, VacancyCounts>> => {
     if (RECRUITING_USE_MOCK) return mockVacancyCandidateCounts();
     try {
       const res = (await httpRequest.post(`/v2/items/${CANDIDATES_SLUG}/aggregation`, {
         data: {
           operation: "SELECT",
           table: CANDIDATES_SLUG,
-          columns: ["vacancies_id", "stage", "COUNT(*) AS cnt"],
+          columns: ["vacancies_id", "outcome", "current_stage_id", "COUNT(*) AS cnt"],
           where: "deleted_at IS NULL",
-          group_by: ["vacancies_id", "stage"],
-          limit: 1000,
+          group_by: ["vacancies_id", "outcome", "current_stage_id"],
+          limit: 2000,
           offset: 0,
         },
         is_cached: false,
       })) as unknown;
 
       const rows = extractRows(res);
-      const map: Record<string, { total: number; hired: number }> = {};
+      const map: Record<string, VacancyCounts> = {};
       for (const row of rows) {
         const vacancyId = String(row.vacancies_id ?? "");
         if (!vacancyId) continue;
-        const stage = Array.isArray(row.stage) ? row.stage[0] : row.stage;
+        const outcome = Array.isArray(row.outcome) ? row.outcome[0] : row.outcome;
         const cnt = Number(row.cnt) || 0;
-        if (!map[vacancyId]) map[vacancyId] = { total: 0, hired: 0 };
+        if (!map[vacancyId]) map[vacancyId] = { total: 0, hired: 0, byStage: {} };
         map[vacancyId].total += cnt;
-        if (stage === "hired") map[vacancyId].hired += cnt;
+        if (outcome === "hired") map[vacancyId].hired += cnt;
+        if ((outcome === "active" || !outcome) && row.current_stage_id) {
+          const sid = String(row.current_stage_id);
+          map[vacancyId].byStage[sid] = (map[vacancyId].byStage[sid] ?? 0) + cnt;
+        }
       }
       return map;
     } catch {
@@ -243,6 +255,13 @@ const vacancyService = {
     if (RECRUITING_USE_MOCK) return mockUpdateVacancy(guid, draftToPayload(draft));
     return httpRequest.put(`/v2/items/${VACANCIES_SLUG}/${guid}`, {
       data: { ...draftToPayload(draft), guid },
+    });
+  },
+
+  updateStages: (guid: string, stages: StageDef[]) => {
+    if (RECRUITING_USE_MOCK) return mockUpdateVacancyStages(guid, stageDefsToPayload(stages));
+    return httpRequest.put(`/v2/items/${VACANCIES_SLUG}/${guid}`, {
+      data: { stages: stageDefsToPayload(stages), guid },
     });
   },
 
@@ -312,7 +331,24 @@ export const useUpdateVacancy = () => {
   return useMutation({
     mutationFn: ({ guid, draft }: { guid: string; draft: VacancyDraft }) =>
       vacancyService.update(guid, draft),
-    onSuccess: () => queryClient.invalidateQueries(["vacancies"]),
+    onSuccess: (_, { guid }) => {
+      queryClient.invalidateQueries(["vacancies"]);
+      queryClient.invalidateQueries(["vacancy", guid]);
+      queryClient.invalidateQueries(["candidates"]);
+    },
+  });
+};
+
+export const useUpdateVacancyStages = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guid, stages }: { guid: string; stages: StageDef[] }) =>
+      vacancyService.updateStages(guid, stages),
+    onSuccess: (_, { guid }) => {
+      queryClient.invalidateQueries(["vacancies"]);
+      queryClient.invalidateQueries(["vacancy", guid]);
+      queryClient.invalidateQueries(["vacancy-candidate-counts"]);
+    },
   });
 };
 
@@ -321,7 +357,10 @@ export const useUpdateVacancyStatus = () => {
   return useMutation({
     mutationFn: ({ guid, status }: { guid: string; status: VacancyStatus }) =>
       vacancyService.updateStatus(guid, status),
-    onSuccess: () => queryClient.invalidateQueries(["vacancies"]),
+    onSuccess: (_, { guid }) => {
+      queryClient.invalidateQueries(["vacancies"]);
+      queryClient.invalidateQueries(["vacancy", guid]);
+    },
   });
 };
 
@@ -329,7 +368,11 @@ export const useDeleteVacancy = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (guid: string) => vacancyService.delete(guid),
-    onSuccess: () => queryClient.invalidateQueries(["vacancies"]),
+    onSuccess: () => {
+      queryClient.invalidateQueries(["vacancies"]);
+      queryClient.invalidateQueries(["candidates"]);
+      queryClient.invalidateQueries(["vacancy-candidate-counts"]);
+    },
   });
 };
 

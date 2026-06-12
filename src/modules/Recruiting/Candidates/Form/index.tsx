@@ -1,41 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { ChevronLeft, Loader2, Paperclip } from "lucide-react";
+import { ChevronLeft, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
 import SidebarAwareFixedFooter from "../../../../components/layout/SidebarAwareFixedFooter";
 import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbContext";
-import Avatar from "../../components/Avatar";
-import { RatingStars } from "../../components/Chips";
 import FormSelect from "../../components/FormSelect";
 import FormDatePicker from "../../components/FormDatePicker";
 import TagsInput from "../../components/TagsInput";
-import { MOCK_EMPLOYEES } from "../../mock/mockStore";
-import { RECRUITING_USE_MOCK } from "../../mock/mockConfig";
+import { MOCK_EMPLOYEES } from "../../mock/mockApi";
 import {
   mapCandidateRow,
   useCandidateQuery,
   useCreateCandidate,
   useUpdateCandidate,
 } from "../../../../api/services/candidate.service";
-import { mapVacancyRow, useVacanciesQuery } from "../../../../api/services/vacancy.service";
+import { useVacanciesQuery } from "../../../../api/services/vacancy.service";
 import {
-  CANDIDATE_REJECTION_REASON_CONFIG,
-  CANDIDATE_REJECTION_REASON_ORDER,
   CANDIDATE_SOURCE_CONFIG,
   CANDIDATE_SOURCE_ORDER,
-  CANDIDATE_STAGE_CONFIG,
-  CANDIDATE_STAGE_ORDER,
-  GENDER_CONFIG,
-  NEGATIVE_STAGES,
   createEmptyCandidateDraft,
   candidateDraftFromItem,
   type CandidateDraft,
-  type CandidateRejectionReason,
   type CandidateSource,
-  type CandidateStage,
-  type Gender,
 } from "../../types";
 
 const inputCls =
@@ -43,17 +31,14 @@ const inputCls =
 const labelCls = "mb-1.5 block text-sm font-medium text-gray-700";
 
 const LEVELS = ["Junior", "Middle", "Senior", "Lead"].map((v) => ({ value: v, label: v }));
-const STAGE_OPTIONS = CANDIDATE_STAGE_ORDER.map((v) => ({ value: v, label: CANDIDATE_STAGE_CONFIG[v].label }));
-const SOURCE_OPTIONS = CANDIDATE_SOURCE_ORDER.map((v) => ({ value: v, label: CANDIDATE_SOURCE_CONFIG[v].label }));
-const REASON_OPTIONS = CANDIDATE_REJECTION_REASON_ORDER.map((v) => ({
-  value: v,
-  label: CANDIDATE_REJECTION_REASON_CONFIG[v].label,
+const SOURCE_OPTIONS = CANDIDATE_SOURCE_ORDER.map((s) => ({
+  value: s,
+  label: CANDIDATE_SOURCE_CONFIG[s].label,
 }));
 const CURRENCY_OPTIONS = [
   { value: "UZS", label: "UZS" },
   { value: "USD", label: "USD" },
 ];
-const GENDER_OPTIONS = (["male", "female"] as Gender[]).map((v) => ({ value: v, label: GENDER_CONFIG[v].label }));
 
 const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div className="rounded-2xl border border-gray-200 bg-white">
@@ -86,7 +71,7 @@ export default function CandidateForm() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
-  const presetVacancyId = searchParams.get("vacancy") || "";
+  const presetVacancyId = searchParams.get("vacancyId");
 
   useHeaderBreadcrumbItems([
     { label: "Рекрутинг", to: "/recruiting/vacancies" },
@@ -95,73 +80,52 @@ export default function CandidateForm() {
   ]);
 
   const { data: candidateRow, isLoading } = useCandidateQuery(isEdit ? id : undefined);
-  const { data: vacanciesData } = useVacanciesQuery({ limit: 100, offset: 0 });
+  const { data: vacanciesData } = useVacanciesQuery({ limit: 200, offset: 0 });
   const createMutation = useCreateCandidate();
   const updateMutation = useUpdateCandidate();
 
-  const [draft, setDraft] = useState<CandidateDraft>(createEmptyCandidateDraft);
+  const [draft, setDraft] = useState<CandidateDraft>(() =>
+    createEmptyCandidateDraft(presetVacancyId)
+  );
   const [error, setError] = useState("");
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [resumeUploading, setResumeUploading] = useState(false);
 
-  const vacancyOptions = useMemo(() => {
-    return (vacanciesData?.response ?? []).map((row) => {
-      const v = mapVacancyRow(row);
-      return { value: v.id, label: v.title, tag: v.tag, level: v.experienceLevel };
-    });
-  }, [vacanciesData]);
+  const candidate = useMemo(
+    () => (candidateRow ? mapCandidateRow(candidateRow) : null),
+    [candidateRow]
+  );
 
   useEffect(() => {
-    if (isEdit && candidateRow) {
-      setDraft(candidateDraftFromItem(mapCandidateRow(candidateRow)));
-    } else if (!isEdit && presetVacancyId) {
-      setDraft((prev) => ({ ...prev, vacancyId: presetVacancyId }));
-    }
-  }, [isEdit, candidateRow, presetVacancyId]);
+    if (isEdit && candidate) setDraft(candidateDraftFromItem(candidate));
+  }, [isEdit, candidate]);
+
+  const vacancyOptions = useMemo(
+    () =>
+      (vacanciesData?.response ?? [])
+        .filter((row) => {
+          const status = Array.isArray(row.status) ? row.status[0] : row.status;
+          // В выборе — только активные вакансии (текущая вакансия кандидата остаётся).
+          return status === "open" || status === "paused" || row.guid === draft.vacancyId;
+        })
+        .map((row) => ({ value: row.guid, label: String(row.title ?? "Без названия") })),
+    [vacanciesData, draft.vacancyId]
+  );
+
+  // Смена вакансии заблокирована, если кандидат уже двигался по этапам.
+  const vacancyLocked = isEdit && (candidate?.history.length ?? 0) > 1;
 
   const set = <K extends keyof CandidateDraft>(key: K, value: CandidateDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
-  const setEmployee = (
-    idKey: "recruiterId" | "addedById",
-    nameKey: "recruiterName" | "addedByName",
-    value: string
-  ) => {
-    const name = MOCK_EMPLOYEES.find((e) => e.value === value)?.label ?? null;
-    setDraft((prev) => ({ ...prev, [idKey]: value || null, [nameKey]: name }));
-  };
-
-  const handleVacancyChange = (vacancyId: string) => {
-    const vac = vacancyOptions.find((o) => o.value === vacancyId);
-    setDraft((prev) => ({
-      ...prev,
-      vacancyId: vacancyId || null,
-      positionTitle: vac?.label ?? prev.positionTitle,
-      tag: vac?.tag || prev.tag,
-      level: vac?.level || prev.level,
-    }));
-  };
-
-  // While mocking, files become local object URLs (no upload API call).
-  const handleFile = (
-    file: File | undefined,
-    field: "photo" | "resumeUrl",
-    setUploading: (v: boolean) => void
-  ) => {
-    if (!file) return;
-    if (RECRUITING_USE_MOCK) {
-      set(field, URL.createObjectURL(file));
-      return;
-    }
-    setUploading(true); // real upload wired in the API stage
-  };
-
   const isSaving = createMutation.isLoading || updateMutation.isLoading;
-  const showReason = NEGATIVE_STAGES.includes(draft.stage);
 
   const handleSubmit = async () => {
-    if (!draft.firstName.trim() && !draft.lastName.trim()) {
-      setError("Укажите имя кандидата");
+    if (!draft.firstName.trim() || !draft.lastName.trim()) {
+      setError("Укажите имя и фамилию кандидата");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (!draft.vacancyId) {
+      setError("Выберите вакансию — кандидат всегда привязан к вакансии");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -170,16 +134,18 @@ export default function CandidateForm() {
         ...draft,
         firstName: draft.firstName.trim(),
         lastName: draft.lastName.trim(),
-        rejectionReason: showReason ? draft.rejectionReason : null,
       };
       if (isEdit && id) {
         await updateMutation.mutateAsync({ guid: id, draft: payload });
         toast.success("Кандидат обновлён");
+        navigate(`/recruiting/candidates/${id}`);
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Кандидат добавлен");
+        toast.success("Кандидат добавлен в воронку");
+        navigate(
+          presetVacancyId ? `/recruiting/vacancies/${presetVacancyId}` : "/recruiting/candidates"
+        );
       }
-      navigate(presetVacancyId ? `/recruiting/candidates?vacancy=${presetVacancyId}` : "/recruiting/candidates");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Не удалось сохранить");
     }
@@ -197,7 +163,7 @@ export default function CandidateForm() {
     <>
       <PageMeta
         title={isEdit ? "Редактировать кандидата | Рекрутинг" : "Новый кандидат | Рекрутинг"}
-        description="Форма кандидата"
+        description="Анкета кандидата"
       />
 
       {/* Back + breadcrumb */}
@@ -210,173 +176,59 @@ export default function CandidateForm() {
           <ChevronLeft size={18} />
         </button>
         <div className="flex items-center gap-2 text-sm">
-          <span className="cursor-pointer text-brand-600" onClick={() => navigate("/recruiting/candidates")}>
+          <span
+            className="cursor-pointer text-brand-600"
+            onClick={() => navigate("/recruiting/candidates")}
+          >
             Кандидаты
           </span>
           <span className="text-gray-300">/</span>
-          <span className="font-medium text-gray-800">{isEdit ? "Редактировать" : "Новый кандидат"}</span>
+          <span className="font-medium text-gray-800">
+            {isEdit ? "Редактировать" : "Новый кандидат"}
+          </span>
         </div>
       </div>
 
       <div className="mx-auto max-w-[920px] space-y-5 pb-24">
         {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</p>}
 
-        <Card title="Кандидат">
+        {/* Header banner */}
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-6 py-4">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+            <UserRound size={20} />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {isEdit ? "Редактирование кандидата" : "Новый кандидат"}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {isEdit
+                ? "Анкета — оценки и комментарии ставятся в профиле кандидата"
+                : "Кандидат попадёт на первый этап воронки выбранной вакансии"}
+            </p>
+          </div>
+        </div>
+
+        <Card title="Личные данные">
           <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <label className="group relative cursor-pointer">
-                <Avatar firstName={draft.firstName} lastName={draft.lastName} photo={draft.photo} size={64} />
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-[10px] font-medium text-white opacity-0 transition group-hover:opacity-100">
-                  {photoUploading ? <Loader2 size={16} className="animate-spin" /> : "Фото"}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleFile(e.target.files?.[0], "photo", setPhotoUploading)}
-                />
-              </label>
-              <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Фамилия">
-                  <input
-                    className={inputCls}
-                    value={draft.lastName}
-                    onChange={(e) => set("lastName", e.target.value)}
-                    placeholder="Петров"
-                  />
-                </Field>
-                <Field label="Имя">
-                  <input
-                    className={inputCls}
-                    value={draft.firstName}
-                    onChange={(e) => set("firstName", e.target.value)}
-                    placeholder="Алексей"
-                  />
-                </Field>
-              </div>
-            </div>
-
-            <Field label="Вакансия">
-              <FormSelect
-                options={vacancyOptions}
-                value={draft.vacancyId}
-                onChange={handleVacancyChange}
-                placeholder="Без привязки к вакансии"
-                isClearable
-                menuPortal
-              />
-            </Field>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_160px_160px]">
-              <Field label="Должность">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Фамилия" required>
                 <input
                   className={inputCls}
-                  value={draft.positionTitle}
-                  onChange={(e) => set("positionTitle", e.target.value)}
-                  placeholder="Backend Developer"
+                  value={draft.lastName}
+                  onChange={(e) => set("lastName", e.target.value)}
+                  placeholder="Фамилия"
                 />
               </Field>
-              <Field label="Тег">
+              <Field label="Имя" required>
                 <input
-                  className={`${inputCls} uppercase`}
-                  value={draft.tag}
-                  onChange={(e) => set("tag", e.target.value.toUpperCase())}
-                  placeholder="BACKEND"
-                />
-              </Field>
-              <Field label="Уровень">
-                <FormSelect
-                  options={LEVELS}
-                  value={draft.level}
-                  onChange={(v) => set("level", v)}
-                  isSearchable={false}
-                  menuPortal
+                  className={inputCls}
+                  value={draft.firstName}
+                  onChange={(e) => set("firstName", e.target.value)}
+                  placeholder="Имя"
                 />
               </Field>
             </div>
-
-            <Field label="Навыки">
-              <TagsInput
-                value={draft.skills}
-                onChange={(v) => set("skills", v)}
-                placeholder="Введите навык и нажмите Enter"
-              />
-            </Field>
-            <Field label="Ссылки (hh.ru, LinkedIn, GitHub)">
-              <TagsInput
-                value={draft.links}
-                onChange={(v) => set("links", v)}
-                placeholder="Вставьте ссылку и нажмите Enter"
-              />
-            </Field>
-          </div>
-        </Card>
-
-        <Card title="Воронка и источник">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Этап">
-                <FormSelect
-                  options={STAGE_OPTIONS}
-                  value={draft.stage}
-                  onChange={(v) => set("stage", v as CandidateStage)}
-                  isSearchable={false}
-                  menuPortal
-                />
-              </Field>
-              <Field label="Источник">
-                <FormSelect
-                  options={SOURCE_OPTIONS}
-                  value={draft.source}
-                  onChange={(v) => set("source", v as CandidateSource)}
-                  menuPortal
-                />
-              </Field>
-              <Field label="Дата отклика">
-                <FormDatePicker value={draft.appliedDate} onChange={(v) => set("appliedDate", v)} />
-              </Field>
-            </div>
-
-            {showReason && (
-              <Field label="Причина отказа">
-                <FormSelect
-                  options={REASON_OPTIONS}
-                  value={draft.rejectionReason}
-                  onChange={(v) => set("rejectionReason", (v || null) as CandidateRejectionReason | null)}
-                  placeholder="Выберите причину"
-                  isClearable
-                  menuPortal
-                />
-              </Field>
-            )}
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Ответственный рекрутер">
-                <FormSelect
-                  options={MOCK_EMPLOYEES}
-                  value={draft.recruiterId}
-                  onChange={(v) => setEmployee("recruiterId", "recruiterName", v)}
-                  placeholder="Выберите рекрутера"
-                  isClearable
-                  menuPortal
-                />
-              </Field>
-              <Field label="Кем добавлен">
-                <FormSelect
-                  options={MOCK_EMPLOYEES}
-                  value={draft.addedById}
-                  onChange={(v) => setEmployee("addedById", "addedByName", v)}
-                  placeholder="Выберите сотрудника"
-                  isClearable
-                  menuPortal
-                />
-              </Field>
-            </div>
-          </div>
-        </Card>
-
-        <Card title="Контакты и условия">
-          <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Email">
                 <input
@@ -384,7 +236,7 @@ export default function CandidateForm() {
                   className={inputCls}
                   value={draft.email}
                   onChange={(e) => set("email", e.target.value)}
-                  placeholder="name@mail.com"
+                  placeholder="email@example.com"
                 />
               </Field>
               <Field label="Телефон">
@@ -396,31 +248,74 @@ export default function CandidateForm() {
                 />
               </Field>
             </div>
-
+            <Field label="Ссылки (LinkedIn, hh.uz, GitHub…)">
+              <TagsInput
+                value={draft.links}
+                onChange={(v) => set("links", v)}
+                placeholder="Вставьте ссылку и нажмите Enter"
+              />
+            </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Дата рождения">
-                <FormDatePicker value={draft.dateOfBirth} onChange={(v) => set("dateOfBirth", v)} />
-              </Field>
-              <Field label="Пол">
+              <Field label="Уровень">
                 <FormSelect
-                  options={GENDER_OPTIONS}
-                  value={draft.gender}
-                  onChange={(v) => set("gender", (v || null) as Gender | null)}
-                  placeholder="Не указан"
+                  options={LEVELS}
+                  value={draft.level}
+                  onChange={(v) => set("level", v)}
                   isSearchable={false}
-                  isClearable
                   menuPortal
                 />
               </Field>
+              <Field label="Навыки">
+                <TagsInput
+                  value={draft.skills}
+                  onChange={(v) => set("skills", v)}
+                  placeholder="Навык + Enter"
+                />
+              </Field>
             </div>
+          </div>
+        </Card>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px_220px]">
-              <Field label="Зарплатные ожидания">
+        <Card title="Отклик">
+          <div className="space-y-4">
+            <Field label="Вакансия" required>
+              <FormSelect
+                options={vacancyOptions}
+                value={draft.vacancyId}
+                onChange={(v) => set("vacancyId", v || null)}
+                placeholder="Выберите вакансию"
+                isDisabled={vacancyLocked}
+                menuPortal
+              />
+              {vacancyLocked && (
+                <p className="mt-1.5 text-xs text-gray-400">
+                  Кандидат уже двигался по этапам — смена вакансии недоступна.
+                </p>
+              )}
+            </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Источник">
+                <FormSelect
+                  options={SOURCE_OPTIONS}
+                  value={draft.source}
+                  onChange={(v) => set("source", v as CandidateSource)}
+                  isSearchable={false}
+                  menuPortal
+                />
+              </Field>
+              <Field label="Дата отклика">
+                <FormDatePicker value={draft.appliedDate} onChange={(v) => set("appliedDate", v)} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px_1fr]">
+              <Field label="Ожидания по ЗП">
                 <input
                   type="number"
                   className={inputCls}
                   value={draft.salaryExpectation ?? ""}
-                  onChange={(e) => set("salaryExpectation", e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) =>
+                    set("salaryExpectation", e.target.value ? Number(e.target.value) : null)
+                  }
                   placeholder="Сумма"
                 />
               </Field>
@@ -433,53 +328,35 @@ export default function CandidateForm() {
                   menuPortal
                 />
               </Field>
-              <Field label="Оценка">
-                <div className="flex h-11 items-center">
-                  <RatingStars value={draft.rating} size={22} onChange={(v) => set("rating", v)} />
-                </div>
+              <Field label="Рекрутер">
+                <FormSelect
+                  options={MOCK_EMPLOYEES}
+                  value={draft.recruiterId}
+                  onChange={(v) => {
+                    const name = MOCK_EMPLOYEES.find((e) => e.value === v)?.label ?? null;
+                    setDraft((prev) => ({ ...prev, recruiterId: v || null, recruiterName: name }));
+                  }}
+                  placeholder="Рекрутер"
+                  isClearable
+                  menuPortal
+                />
               </Field>
             </div>
-
-            <Field label="Резюме (CV)">
-              <label className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-gray-300 px-3.5 text-sm text-gray-500 transition hover:border-brand-300 hover:text-brand-600">
-                {resumeUploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
-                {draft.resumeUrl ? "Файл загружен — заменить" : "Загрузить PDF / DOCX"}
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  className="hidden"
-                  onChange={(e) => handleFile(e.target.files?.[0], "resumeUrl", setResumeUploading)}
-                />
-              </label>
-              {draft.resumeUrl && (
-                <a
-                  href={draft.resumeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1.5 inline-block text-xs text-brand-600 underline"
-                >
-                  Открыть текущее резюме
-                </a>
-              )}
-            </Field>
-
-            <Field label="Сопроводительное письмо">
-              <textarea
-                rows={3}
-                className={`${inputCls} h-auto resize-none py-2.5`}
-                value={draft.coverLetter}
-                onChange={(e) => set("coverLetter", e.target.value)}
-                placeholder="Текст сопроводительного письма кандидата..."
+            <Field label="Ссылка на резюме">
+              <input
+                className={inputCls}
+                value={draft.resumeUrl ?? ""}
+                onChange={(e) => set("resumeUrl", e.target.value || null)}
+                placeholder="https://..."
               />
             </Field>
-
             <Field label="Заметки">
               <textarea
                 rows={3}
                 className={`${inputCls} h-auto resize-none py-2.5`}
                 value={draft.notes}
                 onChange={(e) => set("notes", e.target.value)}
-                placeholder="Комментарии рекрутера, итоги интервью..."
+                placeholder="Свободные заметки о кандидате"
               />
             </Field>
           </div>
@@ -488,9 +365,11 @@ export default function CandidateForm() {
 
       {/* Sticky save bar */}
       <SidebarAwareFixedFooter>
-        <span className="text-sm text-gray-500">{isEdit ? "Редактирование кандидата" : "Новый кандидат"}</span>
+        <span className="text-sm text-gray-500">
+          {isEdit ? "Редактирование кандидата" : "Новый кандидат"}
+        </span>
         <div className="ml-auto flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate("/recruiting/candidates")} className="px-5">
+          <Button variant="outline" onClick={() => navigate(-1)} className="px-5">
             Отменить
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="px-6">

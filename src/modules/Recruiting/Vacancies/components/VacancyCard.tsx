@@ -1,179 +1,159 @@
-import { Briefcase, MapPin, Users, Wallet, Clock, MoreVertical, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { CalendarDays, MapPin, Pencil, Trash2, UserCheck, Users } from "lucide-react";
+import Avatar from "../../components/Avatar";
 import { TagChip } from "../../components/Chips";
+import type { VacancyCounts } from "../../../../api/services/vacancy.service";
 import {
-  VACANCY_STATUS_CONFIG,
+  STAGE_COLOR_CONFIG,
   VACANCY_PRIORITY_CONFIG,
-  WORK_MODE_CONFIG,
+  VACANCY_STATUS_CONFIG,
   daysOpenLabel,
   formatSalaryRange,
+  sortStages,
   type Vacancy,
 } from "../../types";
 
 interface VacancyCardProps {
   vacancy: Vacancy;
-  onOpenCandidates: (vacancy: Vacancy) => void;
+  counts?: VacancyCounts;
+  onOpen: (vacancy: Vacancy) => void;
   onEdit: (vacancy: Vacancy) => void;
   onDelete: (vacancy: Vacancy) => void;
-  onOpenDetail: (vacancy: Vacancy) => void;
 }
 
-export default function VacancyCard({
-  vacancy,
-  onOpenCandidates,
-  onEdit,
-  onDelete,
-  onOpenDetail,
-}: VacancyCardProps) {
+export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete }: VacancyCardProps) {
   const status = VACANCY_STATUS_CONFIG[vacancy.status];
   const priority = VACANCY_PRIORITY_CONFIG[vacancy.priority];
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    if (menuOpen) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [menuOpen]);
-
-  const fillPct =
-    vacancy.openings > 0 ? Math.min(100, Math.round((vacancy.hiredCount / vacancy.openings) * 100)) : 0;
+  const stages = sortStages(vacancy.stages);
+  const byStage = counts?.byStage ?? {};
+  const activeTotal = stages.reduce((sum, s) => sum + (byStage[s.id] ?? 0), 0);
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:border-gray-300 hover:shadow-sm">
-      {/* Accent bar */}
-      <span className={`absolute left-0 top-0 h-full w-1 ${status.barClassName}`} />
-
-      <div className="flex flex-col gap-4 p-5 pl-6">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => onOpenDetail(vacancy)}
-            className="min-w-0 flex-1 text-left"
+    <div
+      onClick={() => onOpen(vacancy)}
+      className="group flex cursor-pointer flex-col rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-brand-200 hover:shadow-sm"
+    >
+      {/* Top: tag + badges + actions */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <TagChip tag={vacancy.tag} />
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ${status.badgeClassName}`}
           >
-            <div className="flex items-center gap-2">
-              {vacancy.tag && <TagChip tag={vacancy.tag} />}
-              <h3 className="truncate text-[15px] font-semibold text-gray-900 group-hover:text-brand-600">
-                {vacancy.title}
-              </h3>
-            </div>
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-              <Briefcase size={13} className="shrink-0" />
-              {vacancy.departmentTitle}
-              {vacancy.location && (
-                <>
-                  <span className="text-gray-300">·</span>
-                  <MapPin size={13} className="shrink-0" />
-                  {vacancy.location}
-                </>
-              )}
-            </p>
-          </button>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${status.badgeClassName}`}
-            >
-              {status.label}
-            </span>
-            <div className="relative" ref={menuRef}>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((o) => !o)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              >
-                <MoreVertical size={16} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-8 z-20 w-40 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onEdit(vacancy);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    <Pencil size={14} /> Редактировать
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onDelete(vacancy);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
-                  >
-                    <Trash2 size={14} /> Удалить
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Meta chips */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
-          <span className="inline-flex items-center gap-1.5">
-            <Briefcase size={14} className="text-gray-400" />
-            {WORK_MODE_CONFIG[vacancy.workMode].label} · {vacancy.employmentType}
+            <span className={`h-1.5 w-1.5 rounded-full ${status.dotClassName}`} />
+            {status.label}
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Wallet size={14} className="text-gray-400" />
-            {formatSalaryRange(vacancy.salaryMin, vacancy.salaryMax, vacancy.salaryCurrency)}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Clock size={14} className="text-gray-400" />
-            {daysOpenLabel(vacancy.createdAt)}
-          </span>
-          {vacancy.priority !== "low" && (
-            <span
-              className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${priority.badgeClassName}`}
-            >
-              {priority.label} приоритет
-            </span>
-          )}
-        </div>
-
-        {/* Pipeline progress */}
-        <div>
-          <div className="mb-1.5 flex items-center justify-between text-xs">
-            <span className="inline-flex items-center gap-1.5 font-medium text-gray-700">
-              <Users size={14} className="text-gray-400" />
-              Кандидатов: {vacancy.candidatesCount}
-            </span>
-            <span className="text-gray-400">
-              {vacancy.hiredCount}/{vacancy.openings} закрыто
-            </span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-            <div
-              className={`h-full rounded-full transition-all ${status.barClassName}`}
-              style={{ width: `${fillPct}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Footer actions */}
-        <div className="flex items-center gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => onOpenCandidates(vacancy)}
-            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+          <span
+            className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${priority.badgeClassName}`}
           >
-            <Users size={15} /> Кандидаты ({vacancy.candidatesCount})
-          </button>
+            {priority.label}
+          </span>
+        </div>
+        <div
+          className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             onClick={() => onEdit(vacancy)}
-            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-500 text-sm font-medium text-white transition hover:bg-brand-600"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+            title="Редактировать"
           >
-            <Pencil size={15} /> Редактировать
+            <Pencil size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(vacancy)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-500"
+            title="Удалить"
+          >
+            <Trash2 size={15} />
           </button>
         </div>
+      </div>
+
+      {/* Title + meta */}
+      <h3 className="mt-3 text-[15px] font-semibold text-gray-900 group-hover:text-brand-600">
+        {vacancy.title}
+      </h3>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+        <span>{vacancy.departmentTitle}</span>
+        {vacancy.location && (
+          <span className="inline-flex items-center gap-1">
+            <MapPin size={12} />
+            {vacancy.location}
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1">
+          <CalendarDays size={12} />
+          открыта {daysOpenLabel(vacancy.openedAt)}
+        </span>
+      </div>
+
+      <div className="mt-2.5 text-sm font-semibold text-gray-800">
+        {formatSalaryRange(vacancy.salaryMin, vacancy.salaryMax, vacancy.salaryCurrency)}
+      </div>
+
+      {/* Mini pipeline bar */}
+      <div className="mt-4">
+        <div className="flex h-2 w-full gap-[3px] overflow-hidden rounded-full">
+          {activeTotal === 0 ? (
+            <span className="h-full w-full rounded-full bg-gray-100" />
+          ) : (
+            stages.map((stage) => {
+              const count = byStage[stage.id] ?? 0;
+              if (count === 0) return null;
+              return (
+                <span
+                  key={stage.id}
+                  title={`${stage.name}: ${count}`}
+                  className={`h-full rounded-full ${STAGE_COLOR_CONFIG[stage.color].barClassName}`}
+                  style={{ width: `${(count / activeTotal) * 100}%` }}
+                />
+              );
+            })
+          )}
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+          {activeTotal === 0 ? (
+            <span className="text-[11px] text-gray-400">Нет активных кандидатов</span>
+          ) : (
+            stages.map((stage) => {
+              const count = byStage[stage.id] ?? 0;
+              if (count === 0) return null;
+              return (
+                <span key={stage.id} className="inline-flex items-center gap-1 text-[11px] text-gray-500">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${STAGE_COLOR_CONFIG[stage.color].dotClassName}`}
+                  />
+                  {stage.name} · {count}
+                </span>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+        <div className="flex items-center gap-3 text-xs text-gray-500">
+          <span className="inline-flex items-center gap-1">
+            <Users size={13} />
+            {vacancy.candidatesCount} кандидатов
+          </span>
+          <span className="inline-flex items-center gap-1 text-emerald-600">
+            <UserCheck size={13} />
+            {vacancy.hiredCount} из {vacancy.openings} нанято
+          </span>
+        </div>
+        {vacancy.recruiterName && (
+          <div title={`Рекрутер: ${vacancy.recruiterName}`}>
+            <Avatar
+              firstName={vacancy.recruiterName.split(" ")[1] ?? ""}
+              lastName={vacancy.recruiterName.split(" ")[0] ?? ""}
+              size={24}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

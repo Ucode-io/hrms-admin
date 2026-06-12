@@ -1,10 +1,182 @@
 // Domain types, constants and formatters for the Recruiting (Рекрутинг) module.
-// Two sub-domains: Vacancies (Вакансии) and Candidates (Кандидаты).
 //
-// The data model is intentionally rich so it can power the recruiting reports:
-//   • Воронка цикла вакансии (hiring funnel by stage + rejection reasons)
-//   • Кандидаты по источникам (candidates by source / by date)
-//   • Сроки закрытия вакансий (time-to-fill: opened_at → hired_at)
+// Core model:
+//   • StageTemplate — настраиваемый шаблон этапов (Настройки → Шаблоны этапов)
+//   • Vacancy       — вакансия со СВОЕЙ копией этапов (создаётся из шаблона)
+//   • Candidate     — кандидат привязан к вакансии и движется по её этапам;
+//                     на каждом этапе — оценка 1–10 и ветка комментариев.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stages & templates
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One stage of a hiring pipeline (inside a template or copied into a vacancy). */
+export interface StageDef {
+  /** Stable id — candidate evaluations/history reference it. */
+  id: string;
+  name: string;
+  /** Key into STAGE_COLOR_CONFIG. */
+  color: StageColor;
+  order: number;
+}
+
+export interface StageTemplate {
+  id: string;
+  name: string;
+  description: string;
+  stages: StageDef[];
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface StageTemplateDraft {
+  name: string;
+  description: string;
+  stages: StageDef[];
+  isDefault: boolean;
+}
+
+export type StageColor =
+  | "slate"
+  | "blue"
+  | "violet"
+  | "amber"
+  | "emerald"
+  | "cyan"
+  | "rose"
+  | "indigo"
+  | "teal"
+  | "orange";
+
+export const STAGE_COLOR_ORDER: StageColor[] = [
+  "blue",
+  "violet",
+  "amber",
+  "cyan",
+  "indigo",
+  "teal",
+  "orange",
+  "emerald",
+  "rose",
+  "slate",
+];
+
+export const STAGE_COLOR_CONFIG: Record<
+  StageColor,
+  {
+    /** Solid dot / swatch. */
+    dotClassName: string;
+    /** Pill badge (bg + text). */
+    badgeClassName: string;
+    /** Kanban column header accent. */
+    accentClassName: string;
+    /** Left border accent for kanban cards. */
+    cardAccentClassName: string;
+    /** Segment of the mini pipeline bar. */
+    barClassName: string;
+  }
+> = {
+  slate: {
+    dotClassName: "bg-slate-400",
+    badgeClassName: "bg-slate-100 text-slate-600",
+    accentClassName: "text-slate-600",
+    cardAccentClassName: "border-l-slate-300",
+    barClassName: "bg-slate-400",
+  },
+  blue: {
+    dotClassName: "bg-blue-500",
+    badgeClassName: "bg-blue-50 text-blue-700",
+    accentClassName: "text-blue-600",
+    cardAccentClassName: "border-l-blue-500",
+    barClassName: "bg-blue-500",
+  },
+  violet: {
+    dotClassName: "bg-violet-500",
+    badgeClassName: "bg-violet-50 text-violet-700",
+    accentClassName: "text-violet-600",
+    cardAccentClassName: "border-l-violet-500",
+    barClassName: "bg-violet-500",
+  },
+  amber: {
+    dotClassName: "bg-amber-500",
+    badgeClassName: "bg-amber-50 text-amber-700",
+    accentClassName: "text-amber-600",
+    cardAccentClassName: "border-l-amber-400",
+    barClassName: "bg-amber-500",
+  },
+  emerald: {
+    dotClassName: "bg-emerald-500",
+    badgeClassName: "bg-emerald-50 text-emerald-700",
+    accentClassName: "text-emerald-600",
+    cardAccentClassName: "border-l-emerald-500",
+    barClassName: "bg-emerald-500",
+  },
+  cyan: {
+    dotClassName: "bg-cyan-500",
+    badgeClassName: "bg-cyan-50 text-cyan-700",
+    accentClassName: "text-cyan-600",
+    cardAccentClassName: "border-l-cyan-500",
+    barClassName: "bg-cyan-500",
+  },
+  rose: {
+    dotClassName: "bg-rose-500",
+    badgeClassName: "bg-rose-50 text-rose-700",
+    accentClassName: "text-rose-600",
+    cardAccentClassName: "border-l-rose-400",
+    barClassName: "bg-rose-500",
+  },
+  indigo: {
+    dotClassName: "bg-indigo-500",
+    badgeClassName: "bg-indigo-50 text-indigo-700",
+    accentClassName: "text-indigo-600",
+    cardAccentClassName: "border-l-indigo-500",
+    barClassName: "bg-indigo-500",
+  },
+  teal: {
+    dotClassName: "bg-teal-500",
+    badgeClassName: "bg-teal-50 text-teal-700",
+    accentClassName: "text-teal-600",
+    cardAccentClassName: "border-l-teal-500",
+    barClassName: "bg-teal-500",
+  },
+  orange: {
+    dotClassName: "bg-orange-500",
+    badgeClassName: "bg-orange-50 text-orange-700",
+    accentClassName: "text-orange-600",
+    cardAccentClassName: "border-l-orange-400",
+    barClassName: "bg-orange-500",
+  },
+};
+
+export const VALID_STAGE_COLORS = Object.keys(STAGE_COLOR_CONFIG) as StageColor[];
+
+export const stageColorOf = (value: unknown): StageColor =>
+  VALID_STAGE_COLORS.includes(value as StageColor) ? (value as StageColor) : "slate";
+
+export const newStageId = (): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `stage-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** Fallback stages when no template exists yet. */
+export const DEFAULT_STAGE_PRESET: Array<{ name: string; color: StageColor }> = [
+  { name: "Скрининг", color: "blue" },
+  { name: "Интервью", color: "violet" },
+  { name: "Тех. интервью", color: "indigo" },
+  { name: "Оффер", color: "emerald" },
+];
+
+export const buildStages = (preset: Array<{ name: string; color: StageColor }>): StageDef[] =>
+  preset.map((s, i) => ({ id: newStageId(), name: s.name, color: s.color, order: i }));
+
+/** Fresh ids for stages copied from a template into a vacancy. */
+export const cloneStagesWithNewIds = (stages: StageDef[]): StageDef[] =>
+  [...stages]
+    .sort((a, b) => a.order - b.order)
+    .map((s, i) => ({ ...s, id: newStageId(), order: i }));
+
+export const sortStages = (stages: StageDef[]): StageDef[] =>
+  [...stages].sort((a, b) => a.order - b.order);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vacancies
@@ -19,11 +191,9 @@ export interface Vacancy {
   title: string;
   departmentId: string | null;
   departmentTitle: string;
-  divisionId: string | null;
-  divisionTitle: string;
   positionId: string | null;
   positionTitle: string;
-  /** Short tag derived for the colored chip, e.g. BACKEND, FRONTEND, QA. */
+  /** Short tag for the colored chip, e.g. BACKEND, FRONTEND, QA. */
   tag: string;
   locationId: string | null;
   location: string;
@@ -35,9 +205,7 @@ export interface Vacancy {
   salaryCurrency: string;
   status: VacancyStatus;
   priority: VacancyPriority;
-  /** Number of openings (headcount) for this vacancy. */
   openings: number;
-  /** Responsible recruiter (Ответственный). */
   recruiterId: string | null;
   recruiterName: string | null;
   hiringManagerId: string | null;
@@ -48,12 +216,14 @@ export interface Vacancy {
   conditions: string;
   skills: string[];
   deadline: string | null;
-  /** When the vacancy was opened (used as the start of time-to-fill). */
   openedAt: string | null;
-  /** When the vacancy was closed (for time-to-fill / archive). */
   closedAt: string | null;
   createdAt: string;
-  /** Derived from the candidates collection (counts per stage). */
+  /** Template the stages were copied from (informational). */
+  stageTemplateId: string | null;
+  /** Own, per-vacancy copy of the pipeline stages. */
+  stages: StageDef[];
+  /** Derived from candidates. */
   candidatesCount: number;
   hiredCount: number;
 }
@@ -61,7 +231,6 @@ export interface Vacancy {
 export interface VacancyDraft {
   title: string;
   departmentId: string | null;
-  divisionId: string | null;
   positionId: string | null;
   tag: string;
   locationId: string | null;
@@ -86,37 +255,35 @@ export interface VacancyDraft {
   skills: string[];
   deadline: string | null;
   openedAt: string | null;
+  stageTemplateId: string | null;
+  stages: StageDef[];
 }
 
 export const VACANCY_STATUS_ORDER: VacancyStatus[] = ["open", "paused", "closed", "draft"];
 
 export const VACANCY_STATUS_CONFIG: Record<
   VacancyStatus,
-  { label: string; badgeClassName: string; dotClassName: string; barClassName: string }
+  { label: string; badgeClassName: string; dotClassName: string }
 > = {
   open: {
     label: "Открыта",
     badgeClassName: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
     dotClassName: "bg-emerald-500",
-    barClassName: "bg-emerald-500",
   },
   paused: {
     label: "На паузе",
     badgeClassName: "bg-amber-50 text-amber-700 ring-1 ring-amber-100",
     dotClassName: "bg-amber-500",
-    barClassName: "bg-amber-500",
   },
   closed: {
     label: "Закрыта",
     badgeClassName: "bg-rose-50 text-rose-700 ring-1 ring-rose-100",
     dotClassName: "bg-rose-500",
-    barClassName: "bg-rose-400",
   },
   draft: {
     label: "Черновик",
     badgeClassName: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
     dotClassName: "bg-slate-400",
-    barClassName: "bg-slate-400",
   },
 };
 
@@ -139,23 +306,36 @@ export const WORK_MODE_CONFIG: Record<WorkMode, { label: string }> = {
 // Candidates
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Full ATS funnel — covers every step shown in the "Воронка цикла вакансии" report.
-export type CandidateStage =
-  | "new" // Новые
-  | "resume_reviewed" // Рассмотрено резюме
-  | "screening_call" // Первичный созвон
-  | "interview" // Интервью
-  | "test_task" // Тестовое задание
-  | "tech_interview" // Техническое собеседование
-  | "offer_sent" // Отправлен оффер
-  | "offer_considering" // Рассматривает оффер
-  | "offer_accepted" // Оффер принят
-  | "hired" // Вышел на работу
-  | "passed_probation" // Прошёл испытательный срок
-  | "reserve" // Скамейка (резерв)
-  | "rejected" // Отказ
-  | "failed_probation" // Не прошёл испытательный срок
-  | "fired"; // Уволен
+/** Where the candidate is relative to the pipeline. */
+export type CandidateOutcome = "active" | "hired" | "rejected" | "reserve";
+
+export const OUTCOME_ORDER: CandidateOutcome[] = ["active", "hired", "reserve", "rejected"];
+
+export const OUTCOME_CONFIG: Record<
+  CandidateOutcome,
+  { label: string; badgeClassName: string; dotClassName: string }
+> = {
+  active: {
+    label: "В работе",
+    badgeClassName: "bg-blue-50 text-blue-700 ring-1 ring-blue-100",
+    dotClassName: "bg-blue-500",
+  },
+  hired: {
+    label: "Нанят",
+    badgeClassName: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
+    dotClassName: "bg-emerald-500",
+  },
+  rejected: {
+    label: "Отказ",
+    badgeClassName: "bg-rose-50 text-rose-700 ring-1 ring-rose-100",
+    dotClassName: "bg-rose-500",
+  },
+  reserve: {
+    label: "Резерв",
+    badgeClassName: "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
+    dotClassName: "bg-gray-400",
+  },
+};
 
 export type CandidateSource =
   | "headhunter"
@@ -167,266 +347,6 @@ export type CandidateSource =
   | "referral"
   | "external_recruiter"
   | "other";
-
-// Reasons mirror the "Причины отказа" breakdown in the funnel report.
-export type CandidateRejectionReason =
-  | "resume_rejected"
-  | "not_relevant"
-  | "insufficient_qualification"
-  | "experience_mismatch"
-  | "grade_mismatch"
-  | "age_restriction"
-  | "vacancy_closed_other"
-  | "self_not_interested"
-  | "language_barrier"
-  | "location_mismatch"
-  | "not_interested"
-  | "culture_mismatch"
-  | "salary_expectations"
-  | "soft_skills_mismatch"
-  | "no_show"
-  | "found_job"
-  | "not_finished_studies"
-  | "no_russian";
-
-export interface Candidate {
-  id: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-  photo: string | null;
-  vacancyId: string | null;
-  vacancyTitle: string;
-  positionTitle: string;
-  /** Short colored tag, e.g. BACKEND, FRONTEND, QA, PM, SALES. */
-  tag: string;
-  level: string;
-  stage: CandidateStage;
-  source: CandidateSource;
-  rejectionReason: CandidateRejectionReason | null;
-  appliedDate: string | null;
-  email: string;
-  phone: string;
-  dateOfBirth: string | null;
-  gender: Gender | null;
-  /** External profile links (hh.ru, LinkedIn, GitHub, …). */
-  links: string[];
-  skills: string[];
-  resumeUrl: string | null;
-  coverLetter: string;
-  rating: number; // 0..5
-  salaryExpectation: number | null;
-  salaryCurrency: string;
-  notes: string;
-  /** Responsible recruiter (Рекрутер). */
-  recruiterId: string | null;
-  recruiterName: string | null;
-  /** Who added the candidate (Кем добавлена). */
-  addedById: string | null;
-  addedByName: string | null;
-  stageChangedAt: string | null;
-  /** When the candidate reached "hired" (end of time-to-fill). */
-  hiredAt: string | null;
-  stageHistory: CandidateStageHistoryEntry[];
-  createdAt: string;
-}
-
-export interface CandidateDraft {
-  firstName: string;
-  lastName: string;
-  photo: string | null;
-  vacancyId: string | null;
-  positionTitle: string;
-  tag: string;
-  level: string;
-  stage: CandidateStage;
-  source: CandidateSource;
-  rejectionReason: CandidateRejectionReason | null;
-  appliedDate: string | null;
-  email: string;
-  phone: string;
-  dateOfBirth: string | null;
-  gender: Gender | null;
-  links: string[];
-  skills: string[];
-  resumeUrl: string | null;
-  coverLetter: string;
-  rating: number;
-  salaryExpectation: number | null;
-  salaryCurrency: string;
-  notes: string;
-  recruiterId: string | null;
-  recruiterName: string | null;
-  addedById: string | null;
-  addedByName: string | null;
-}
-
-// Full funnel order (used by the funnel report and the form's stage select).
-export const CANDIDATE_STAGE_ORDER: CandidateStage[] = [
-  "new",
-  "resume_reviewed",
-  "screening_call",
-  "interview",
-  "test_task",
-  "tech_interview",
-  "offer_sent",
-  "offer_considering",
-  "offer_accepted",
-  "hired",
-  "passed_probation",
-  "reserve",
-  "rejected",
-  "failed_probation",
-  "fired",
-];
-
-// Columns shown on the working Kanban board (post-hire/terminal states excluded).
-export const CANDIDATE_KANBAN_STAGES: CandidateStage[] = [
-  "new",
-  "resume_reviewed",
-  "screening_call",
-  "interview",
-  "test_task",
-  "tech_interview",
-  "offer_sent",
-  "offer_considering",
-  "offer_accepted",
-  "hired",
-  "reserve",
-  "rejected",
-];
-
-// In-progress stages (used for "active funnel" metric / conversion).
-export const CANDIDATE_ACTIVE_STAGES: CandidateStage[] = [
-  "new",
-  "resume_reviewed",
-  "screening_call",
-  "interview",
-  "test_task",
-  "tech_interview",
-  "offer_sent",
-  "offer_considering",
-  "offer_accepted",
-];
-
-export const CANDIDATE_STAGE_CONFIG: Record<
-  CandidateStage,
-  {
-    label: string;
-    /** Header accent color for the kanban column. */
-    accentClassName: string;
-    /** Left border accent applied to cards in this stage. */
-    cardAccentClassName: string;
-    badgeClassName: string;
-    dotClassName: string;
-  }
-> = {
-  new: {
-    label: "Новые",
-    accentClassName: "text-slate-600",
-    cardAccentClassName: "border-l-slate-300",
-    badgeClassName: "bg-slate-100 text-slate-600",
-    dotClassName: "bg-slate-400",
-  },
-  resume_reviewed: {
-    label: "Рассмотрено резюме",
-    accentClassName: "text-sky-600",
-    cardAccentClassName: "border-l-sky-400",
-    badgeClassName: "bg-sky-50 text-sky-700",
-    dotClassName: "bg-sky-500",
-  },
-  screening_call: {
-    label: "Первичный созвон",
-    accentClassName: "text-amber-600",
-    cardAccentClassName: "border-l-amber-400",
-    badgeClassName: "bg-amber-50 text-amber-700",
-    dotClassName: "bg-amber-500",
-  },
-  interview: {
-    label: "Интервью",
-    accentClassName: "text-blue-600",
-    cardAccentClassName: "border-l-blue-500",
-    badgeClassName: "bg-blue-50 text-blue-700",
-    dotClassName: "bg-blue-500",
-  },
-  test_task: {
-    label: "Тестовое задание",
-    accentClassName: "text-violet-600",
-    cardAccentClassName: "border-l-violet-500",
-    badgeClassName: "bg-violet-50 text-violet-700",
-    dotClassName: "bg-violet-500",
-  },
-  tech_interview: {
-    label: "Техническое собеседование",
-    accentClassName: "text-indigo-600",
-    cardAccentClassName: "border-l-indigo-500",
-    badgeClassName: "bg-indigo-50 text-indigo-700",
-    dotClassName: "bg-indigo-500",
-  },
-  offer_sent: {
-    label: "Отправлен оффер",
-    accentClassName: "text-teal-600",
-    cardAccentClassName: "border-l-teal-500",
-    badgeClassName: "bg-teal-50 text-teal-700",
-    dotClassName: "bg-teal-500",
-  },
-  offer_considering: {
-    label: "Рассматривает оффер",
-    accentClassName: "text-cyan-600",
-    cardAccentClassName: "border-l-cyan-500",
-    badgeClassName: "bg-cyan-50 text-cyan-700",
-    dotClassName: "bg-cyan-500",
-  },
-  offer_accepted: {
-    label: "Оффер принят",
-    accentClassName: "text-emerald-600",
-    cardAccentClassName: "border-l-emerald-400",
-    badgeClassName: "bg-emerald-50 text-emerald-700",
-    dotClassName: "bg-emerald-400",
-  },
-  hired: {
-    label: "Вышел на работу",
-    accentClassName: "text-emerald-700",
-    cardAccentClassName: "border-l-emerald-600",
-    badgeClassName: "bg-emerald-100 text-emerald-800",
-    dotClassName: "bg-emerald-600",
-  },
-  passed_probation: {
-    label: "Прошёл исп. срок",
-    accentClassName: "text-green-700",
-    cardAccentClassName: "border-l-green-600",
-    badgeClassName: "bg-green-100 text-green-800",
-    dotClassName: "bg-green-600",
-  },
-  reserve: {
-    label: "Скамейка",
-    accentClassName: "text-gray-500",
-    cardAccentClassName: "border-l-gray-300",
-    badgeClassName: "bg-gray-100 text-gray-600",
-    dotClassName: "bg-gray-400",
-  },
-  rejected: {
-    label: "Отказ",
-    accentClassName: "text-rose-600",
-    cardAccentClassName: "border-l-rose-400",
-    badgeClassName: "bg-rose-50 text-rose-700",
-    dotClassName: "bg-rose-500",
-  },
-  failed_probation: {
-    label: "Не прошёл исп. срок",
-    accentClassName: "text-red-600",
-    cardAccentClassName: "border-l-red-400",
-    badgeClassName: "bg-red-50 text-red-700",
-    dotClassName: "bg-red-500",
-  },
-  fired: {
-    label: "Уволен",
-    accentClassName: "text-red-800",
-    cardAccentClassName: "border-l-red-700",
-    badgeClassName: "bg-red-100 text-red-900",
-    dotClassName: "bg-red-700",
-  },
-};
 
 export const CANDIDATE_SOURCE_ORDER: CandidateSource[] = [
   "headhunter",
@@ -445,12 +365,29 @@ export const CANDIDATE_SOURCE_CONFIG: Record<CandidateSource, { label: string }>
   career_site: { label: "Карьерный сайт" },
   linkedin: { label: "LinkedIn" },
   telegram: { label: "Telegram job каналы" },
-  networking: { label: "Самостоятельный поиск (нетворкинг)" },
+  networking: { label: "Нетворкинг" },
   applications: { label: "Отклики" },
   referral: { label: "Реферал" },
   external_recruiter: { label: "Внешний рекрутер" },
   other: { label: "Другое" },
 };
+
+export type CandidateRejectionReason =
+  | "resume_rejected"
+  | "not_relevant"
+  | "insufficient_qualification"
+  | "experience_mismatch"
+  | "grade_mismatch"
+  | "vacancy_closed_other"
+  | "self_not_interested"
+  | "language_barrier"
+  | "location_mismatch"
+  | "culture_mismatch"
+  | "salary_expectations"
+  | "soft_skills_mismatch"
+  | "no_show"
+  | "found_job"
+  | "other";
 
 export const CANDIDATE_REJECTION_REASON_ORDER: CandidateRejectionReason[] = [
   "resume_rejected",
@@ -458,19 +395,16 @@ export const CANDIDATE_REJECTION_REASON_ORDER: CandidateRejectionReason[] = [
   "insufficient_qualification",
   "experience_mismatch",
   "grade_mismatch",
-  "age_restriction",
   "vacancy_closed_other",
   "self_not_interested",
   "language_barrier",
   "location_mismatch",
-  "not_interested",
   "culture_mismatch",
   "salary_expectations",
   "soft_skills_mismatch",
   "no_show",
   "found_job",
-  "not_finished_studies",
-  "no_russian",
+  "other",
 ];
 
 export const CANDIDATE_REJECTION_REASON_CONFIG: Record<CandidateRejectionReason, { label: string }> = {
@@ -479,40 +413,177 @@ export const CANDIDATE_REJECTION_REASON_CONFIG: Record<CandidateRejectionReason,
   insufficient_qualification: { label: "Недостаточная квалификация" },
   experience_mismatch: { label: "Не подходит опыт" },
   grade_mismatch: { label: "Не подходит по грейду" },
-  age_restriction: { label: "Возрастное ограничение" },
   vacancy_closed_other: { label: "Вакансия закрылась другим" },
-  self_not_interested: { label: "Самостоятельно: не интересен" },
+  self_not_interested: { label: "Кандидат не заинтересован" },
   language_barrier: { label: "Языковой барьер" },
   location_mismatch: { label: "Не подходит локация" },
-  not_interested: { label: "Не заинтересован" },
   culture_mismatch: { label: "Не подходит по культуре" },
   salary_expectations: { label: "Завышенные ожидания по ЗП" },
-  soft_skills_mismatch: { label: "Несоответствует Soft Skills" },
+  soft_skills_mismatch: { label: "Не соответствует soft skills" },
   no_show: { label: "Не пришёл на собеседование" },
-  found_job: { label: "Нашёл работу" },
-  not_finished_studies: { label: "Не окончил обучение" },
-  no_russian: { label: "Не разговаривает на русском" },
+  found_job: { label: "Нашёл другую работу" },
+  other: { label: "Другое" },
 };
 
-// Stages that represent a rejection/exit where a reason is relevant.
-export const NEGATIVE_STAGES: CandidateStage[] = ["rejected", "failed_probation", "fired"];
+// ───── Candidate documents (CV, сертификаты и т.д.) ─────
 
-export type Gender = "male" | "female";
+export type CandidateDocumentType = "cv" | "certificate" | "portfolio" | "test_task" | "other";
 
-export const GENDER_CONFIG: Record<Gender, { label: string }> = {
-  male: { label: "Мужчина" },
-  female: { label: "Женщина" },
+export const DOCUMENT_TYPE_ORDER: CandidateDocumentType[] = [
+  "cv",
+  "certificate",
+  "portfolio",
+  "test_task",
+  "other",
+];
+
+export const DOCUMENT_TYPE_CONFIG: Record<
+  CandidateDocumentType,
+  { label: string; badgeClassName: string }
+> = {
+  cv: { label: "Резюме / CV", badgeClassName: "bg-blue-50 text-blue-700" },
+  certificate: { label: "Сертификат", badgeClassName: "bg-emerald-50 text-emerald-700" },
+  portfolio: { label: "Портфолио", badgeClassName: "bg-violet-50 text-violet-700" },
+  test_task: { label: "Тестовое задание", badgeClassName: "bg-amber-50 text-amber-700" },
+  other: { label: "Другое", badgeClassName: "bg-slate-100 text-slate-600" },
 };
 
-// One movement of a candidate through the pipeline (powers the История tab).
-export interface CandidateStageHistoryEntry {
+export interface CandidateDocument {
   id: string;
-  fromStage: CandidateStage | null;
-  toStage: CandidateStage;
-  at: string; // ISO datetime
-  byName: string | null; // who moved the candidate
-  comment: string;
+  name: string;
+  type: CandidateDocumentType;
+  /** Внешняя ссылка или data-URL загруженного файла (мок-режим). */
+  url: string;
+  /** Размер файла в байтах, null для внешних ссылок. */
+  size: number | null;
+  uploadedAt: string;
+  uploadedByName: string;
 }
+
+export const formatFileSize = (bytes: number | null): string => {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+};
+
+/** One comment in a stage evaluation thread. */
+export interface StageComment {
+  id: string;
+  text: string;
+  authorId: string | null;
+  authorName: string;
+  createdAt: string;
+}
+
+/** Score + comment thread for one (candidate, stage) pair. Created lazily. */
+export interface StageEvaluation {
+  stageId: string;
+  /** 1..10, null = ещё не оценён. */
+  score: number | null;
+  comments: StageComment[];
+}
+
+/** One movement through the pipeline (powers История). */
+export interface StageHistoryEntry {
+  id: string;
+  fromStageId: string | null;
+  toStageId: string | null;
+  /** Set when the move is to a terminal outcome (hired/rejected/reserve). */
+  toOutcome: CandidateOutcome | null;
+  at: string;
+  byId: string | null;
+  byName: string;
+}
+
+export interface Candidate {
+  id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  photo: string | null;
+  email: string;
+  phone: string;
+  source: CandidateSource;
+  links: string[];
+  skills: string[];
+  level: string;
+  salaryExpectation: number | null;
+  salaryCurrency: string;
+  appliedDate: string | null;
+  resumeUrl: string | null;
+  notes: string;
+  recruiterId: string | null;
+  recruiterName: string | null;
+  vacancyId: string;
+  vacancyTitle: string;
+  vacancyTag: string;
+  currentStageId: string | null;
+  outcome: CandidateOutcome;
+  rejectionReason: CandidateRejectionReason | null;
+  hiredAt: string | null;
+  stageChangedAt: string | null;
+  evaluations: StageEvaluation[];
+  history: StageHistoryEntry[];
+  documents: CandidateDocument[];
+  /** Average of all stage scores, null when nothing is scored yet. */
+  avgScore: number | null;
+  createdAt: string;
+}
+
+export interface CandidateDraft {
+  firstName: string;
+  lastName: string;
+  photo: string | null;
+  email: string;
+  phone: string;
+  source: CandidateSource;
+  links: string[];
+  skills: string[];
+  level: string;
+  salaryExpectation: number | null;
+  salaryCurrency: string;
+  appliedDate: string | null;
+  resumeUrl: string | null;
+  notes: string;
+  recruiterId: string | null;
+  recruiterName: string | null;
+  vacancyId: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Score helpers (10-point scale)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const scoreTone = (
+  score: number
+): { textClassName: string; badgeClassName: string; barClassName: string } => {
+  if (score < 4)
+    return {
+      textClassName: "text-rose-600",
+      badgeClassName: "bg-rose-50 text-rose-700 ring-1 ring-rose-100",
+      barClassName: "bg-rose-500",
+    };
+  if (score < 8)
+    return {
+      textClassName: "text-amber-600",
+      badgeClassName: "bg-amber-50 text-amber-700 ring-1 ring-amber-100",
+      barClassName: "bg-amber-500",
+    };
+  return {
+    textClassName: "text-emerald-600",
+    badgeClassName: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
+    barClassName: "bg-emerald-500",
+  };
+};
+
+export const averageScore = (evaluations: StageEvaluation[]): number | null => {
+  const scores = evaluations
+    .map((e) => e.score)
+    .filter((s): s is number => typeof s === "number" && s > 0);
+  if (scores.length === 0) return null;
+  return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tag / level palettes
@@ -578,6 +649,15 @@ export const formatDate = (iso: string | null): string => {
   return `${day}.${month}.${date.getFullYear()}`;
 };
 
+export const formatDateTime = (iso: string | null): string => {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${formatDate(iso)} ${hh}:${mm}`;
+};
+
 export const formatDateIso = (iso: string | null): string => {
   if (!iso) return "—";
   const date = new Date(iso);
@@ -595,21 +675,19 @@ export const daysSince = (iso: string | null): number | null => {
   return Math.max(0, Math.floor(diff / 86_400_000));
 };
 
-export const daysBetween = (from: string | null, to: string | null): number | null => {
-  if (!from || !to) return null;
-  const a = new Date(from).getTime();
-  const b = new Date(to).getTime();
-  if (Number.isNaN(a) || Number.isNaN(b)) return null;
-  return Math.max(0, Math.round((b - a) / 86_400_000));
+export const pluralDays = (d: number): string => {
+  const mod10 = d % 10;
+  const mod100 = d % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${d} день`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${d} дня`;
+  return `${d} дней`;
 };
 
 export const daysOpenLabel = (iso: string | null): string => {
   const d = daysSince(iso);
   if (d === null) return "—";
   if (d === 0) return "сегодня";
-  if (d === 1) return "1 день";
-  if (d < 5) return `${d} дня`;
-  return `${d} дней`;
+  return pluralDays(d);
 };
 
 export const initials = (first: string, last: string): string => {
@@ -642,7 +720,6 @@ export const avatarTint = (seed: string): string => {
 export const createEmptyVacancyDraft = (): VacancyDraft => ({
   title: "",
   departmentId: null,
-  divisionId: null,
   positionId: null,
   tag: "",
   locationId: null,
@@ -667,12 +744,13 @@ export const createEmptyVacancyDraft = (): VacancyDraft => ({
   skills: [],
   deadline: null,
   openedAt: formatDateIso(new Date().toISOString()),
+  stageTemplateId: null,
+  stages: [],
 });
 
 export const vacancyDraftFromItem = (v: Vacancy): VacancyDraft => ({
   title: v.title,
   departmentId: v.departmentId,
-  divisionId: v.divisionId,
   positionId: v.positionId,
   tag: v.tag,
   locationId: v.locationId,
@@ -697,64 +775,46 @@ export const vacancyDraftFromItem = (v: Vacancy): VacancyDraft => ({
   skills: v.skills,
   deadline: v.deadline,
   openedAt: v.openedAt,
+  stageTemplateId: v.stageTemplateId,
+  stages: sortStages(v.stages),
 });
 
-export const createEmptyCandidateDraft = (): CandidateDraft => ({
+export const createEmptyCandidateDraft = (vacancyId: string | null = null): CandidateDraft => ({
   firstName: "",
   lastName: "",
   photo: null,
-  vacancyId: null,
-  positionTitle: "",
-  tag: "",
-  level: "Middle",
-  stage: "new",
-  source: "headhunter",
-  rejectionReason: null,
-  appliedDate: formatDateIso(new Date().toISOString()),
   email: "",
   phone: "",
-  dateOfBirth: null,
-  gender: null,
+  source: "headhunter",
   links: [],
   skills: [],
-  resumeUrl: null,
-  coverLetter: "",
-  rating: 0,
+  level: "Middle",
   salaryExpectation: null,
   salaryCurrency: "UZS",
+  appliedDate: formatDateIso(new Date().toISOString()),
+  resumeUrl: null,
   notes: "",
   recruiterId: null,
   recruiterName: null,
-  addedById: null,
-  addedByName: null,
+  vacancyId,
 });
 
 export const candidateDraftFromItem = (c: Candidate): CandidateDraft => ({
   firstName: c.firstName,
   lastName: c.lastName,
   photo: c.photo,
-  vacancyId: c.vacancyId,
-  positionTitle: c.positionTitle,
-  tag: c.tag,
-  level: c.level,
-  stage: c.stage,
-  source: c.source,
-  rejectionReason: c.rejectionReason,
-  appliedDate: c.appliedDate,
   email: c.email,
   phone: c.phone,
-  dateOfBirth: c.dateOfBirth,
-  gender: c.gender,
+  source: c.source,
   links: c.links,
   skills: c.skills,
-  resumeUrl: c.resumeUrl,
-  coverLetter: c.coverLetter,
-  rating: c.rating,
+  level: c.level,
   salaryExpectation: c.salaryExpectation,
   salaryCurrency: c.salaryCurrency,
+  appliedDate: c.appliedDate,
+  resumeUrl: c.resumeUrl,
   notes: c.notes,
   recruiterId: c.recruiterId,
   recruiterName: c.recruiterName,
-  addedById: c.addedById,
-  addedByName: c.addedByName,
+  vacancyId: c.vacancyId,
 });

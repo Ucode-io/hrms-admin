@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Briefcase, CheckCircle2, LayoutGrid, List, PauseCircle, Plus, SlidersHorizontal, Users } from "lucide-react";
+import {
+  Briefcase,
+  CheckCircle2,
+  LayoutGrid,
+  List,
+  PauseCircle,
+  Plus,
+  SlidersHorizontal,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
@@ -9,17 +18,15 @@ import { Modal } from "../../../../components/ui/modal";
 import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbContext";
 import companyStore from "../../../../store/company.store";
 import EmployeesPaginationFooter from "../../../Employees/List/components/EmployeesPaginationFooter";
-import { MOCK_DEPARTMENTS } from "../../mock/mockStore";
+import { MOCK_DEPARTMENTS } from "../../mock/mockApi";
 import {
   mapVacancyRow,
+  useDeleteVacancy,
   useVacanciesQuery,
   useVacancyCandidateCounts,
-  useUpdateVacancyStatus,
-  useDeleteVacancy,
 } from "../../../../api/services/vacancy.service";
 import VacancyCard from "../components/VacancyCard";
 import VacancyTable from "../components/VacancyTable";
-import VacancyDetailDrawer from "../components/VacancyDetailDrawer";
 import {
   VACANCY_STATUS_CONFIG,
   VACANCY_STATUS_ORDER,
@@ -40,11 +47,13 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
   const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
   if (currentPage <= 3) [2, 3, 4].forEach((p) => pages.add(p));
-  if (currentPage >= totalPages - 2) [totalPages - 1, totalPages - 2, totalPages - 3].forEach((p) => pages.add(p));
+  if (currentPage >= totalPages - 2)
+    [totalPages - 1, totalPages - 2, totalPages - 3].forEach((p) => pages.add(p));
   const sorted = [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
   const result: PaginationItem[] = [];
   for (let i = 0; i < sorted.length; i++) {
-    const page = sorted[i], prev = sorted[i - 1];
+    const page = sorted[i],
+      prev = sorted[i - 1];
     if (prev && page - prev > 1) result.push(`ellipsis-${prev}-${page}`);
     result.push(page);
   }
@@ -65,8 +74,6 @@ function VacanciesList() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-
-  const [detailItem, setDetailItem] = useState<Vacancy | null>(null);
   const [deletingItem, setDeletingItem] = useState<Vacancy | null>(null);
 
   const queryParams = useMemo(
@@ -82,25 +89,20 @@ function VacanciesList() {
 
   const { data: vacanciesData, isLoading } = useVacanciesQuery(queryParams);
   const { data: countsMap } = useVacancyCandidateCounts();
-  const statusMutation = useUpdateVacancyStatus();
   const deleteMutation = useDeleteVacancy();
-
-  const departmentOptions = MOCK_DEPARTMENTS;
 
   const vacancies = useMemo(
     () => (vacanciesData?.response ?? []).map((row) => mapVacancyRow(row, countsMap?.[row.guid])),
     [vacanciesData, countsMap]
   );
 
-  const syncedDetailItem = useMemo(
-    () => (detailItem ? vacancies.find((v) => v.id === detailItem.id) ?? detailItem : null),
-    [vacancies, detailItem]
-  );
-
   const totalCount = vacanciesData?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
-  const paginationItems = useMemo(() => buildPaginationItems(safePage, totalPages), [safePage, totalPages]);
+  const paginationItems = useMemo(
+    () => buildPaginationItems(safePage, totalPages),
+    [safePage, totalPages]
+  );
 
   const visibleRangeLabel = useMemo(() => {
     if (totalCount === 0) return isLoading ? "Загрузка..." : "Нет вакансий";
@@ -127,23 +129,13 @@ function VacanciesList() {
   };
 
   const openCreate = () => navigate("/recruiting/vacancies/new");
+  const openDetail = (item: Vacancy) => navigate(`/recruiting/vacancies/${item.id}`);
   const openEdit = (item: Vacancy) => navigate(`/recruiting/vacancies/${item.id}/edit`);
-  const goToCandidates = (item: Vacancy) => navigate(`/recruiting/candidates?vacancy=${item.id}`);
-
-  const handleChangeStatus = async (item: Vacancy, status: VacancyStatus) => {
-    try {
-      await statusMutation.mutateAsync({ guid: item.id, status });
-      toast.success(`Статус изменён: ${VACANCY_STATUS_CONFIG[status].label}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось изменить статус");
-    }
-  };
 
   const confirmDelete = async () => {
     if (!deletingItem) return;
     try {
       await deleteMutation.mutateAsync(deletingItem.id);
-      if (detailItem?.id === deletingItem.id) setDetailItem(null);
       setDeletingItem(null);
       toast.success("Вакансия удалена");
     } catch (err) {
@@ -188,7 +180,17 @@ function VacanciesList() {
                   viewMode === mode ? "bg-white text-brand-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
-                {mode === "cards" ? <><LayoutGrid size={16} />Карточки</> : <><List size={16} />Таблица</>}
+                {mode === "cards" ? (
+                  <>
+                    <LayoutGrid size={16} />
+                    Карточки
+                  </>
+                ) : (
+                  <>
+                    <List size={16} />
+                    Таблица
+                  </>
+                )}
               </button>
             ))}
           </div>
@@ -261,7 +263,7 @@ function VacanciesList() {
               }}
             >
               <option value="">Все отделы</option>
-              {departmentOptions.map((o) => (
+              {MOCK_DEPARTMENTS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -321,10 +323,10 @@ function VacanciesList() {
             <VacancyCard
               key={v.id}
               vacancy={v}
-              onOpenCandidates={goToCandidates}
+              counts={countsMap?.[v.id]}
+              onOpen={openDetail}
               onEdit={openEdit}
               onDelete={setDeletingItem}
-              onOpenDetail={setDetailItem}
             />
           ))}
         </div>
@@ -332,10 +334,9 @@ function VacanciesList() {
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           <VacancyTable
             vacancies={vacancies}
-            onOpenCandidates={goToCandidates}
+            onOpen={openDetail}
             onEdit={openEdit}
             onDelete={setDeletingItem}
-            onOpenDetail={setDetailItem}
           />
         </div>
       )}
@@ -353,17 +354,6 @@ function VacanciesList() {
         />
       )}
 
-      {/* Modals / Drawer */}
-      <VacancyDetailDrawer
-        isOpen={Boolean(syncedDetailItem)}
-        vacancy={syncedDetailItem}
-        onClose={() => setDetailItem(null)}
-        onEdit={openEdit}
-        onDelete={setDeletingItem}
-        onOpenCandidates={goToCandidates}
-        onChangeStatus={handleChangeStatus}
-      />
-
       <Modal
         isOpen={Boolean(deletingItem)}
         onClose={() => setDeletingItem(null)}
@@ -373,8 +363,8 @@ function VacanciesList() {
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900">Удалить вакансию?</h3>
           <p className="mt-2 text-sm text-gray-500">
-            Вакансия <span className="font-medium text-gray-700">«{deletingItem?.title}»</span> будет удалена.
-            Это действие нельзя отменить.
+            Вакансия <span className="font-medium text-gray-700">«{deletingItem?.title}»</span> и все её
+            кандидаты будут удалены. Это действие нельзя отменить.
           </p>
           <div className="mt-6 flex items-center justify-end gap-3">
             <Button variant="outline" onClick={() => setDeletingItem(null)} className="px-5">

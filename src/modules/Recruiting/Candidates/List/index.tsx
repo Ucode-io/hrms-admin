@@ -1,15 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import {
-  CheckCircle2,
-  Columns3,
-  LayoutList,
-  Plus,
-  SlidersHorizontal,
-  Table2,
-  UserRound,
-  Users,
-} from "lucide-react";
+import { Archive, Plus, SlidersHorizontal, ThumbsDown, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
@@ -21,34 +12,25 @@ import EmployeesPaginationFooter from "../../../Employees/List/components/Employ
 import {
   mapCandidateRow,
   useCandidatesQuery,
-  useUpdateCandidateStage,
   useDeleteCandidate,
 } from "../../../../api/services/candidate.service";
 import { mapVacancyRow, useVacanciesQuery } from "../../../../api/services/vacancy.service";
-import CandidateKanban from "../components/CandidateKanban";
+import { mapStageDefs } from "../../../../api/services/stageTemplate.service";
 import CandidateTable from "../components/CandidateTable";
-import CandidateCard from "../components/CandidateCard";
-import CandidateDetailDrawer from "../components/CandidateDetailDrawer";
 import {
-  CANDIDATE_ACTIVE_STAGES,
-  CANDIDATE_STAGE_CONFIG,
-  CANDIDATE_STAGE_ORDER,
+  CANDIDATE_SOURCE_CONFIG,
+  CANDIDATE_SOURCE_ORDER,
+  OUTCOME_CONFIG,
+  OUTCOME_ORDER,
   type Candidate,
-  type CandidateStage,
+  type CandidateOutcome,
+  type CandidateSource,
+  type StageDef,
 } from "../../types";
 
-interface VacancyOption {
-  value: string;
-  label: string;
-  tag: string;
-  level: string;
-}
-
-type ViewMode = "kanban" | "table" | "list";
 type PaginationItem = number | string;
 
 const PAGE_SIZE = 12;
-const FETCH_LIMIT = 200;
 const BREADCRUMBS = [
   { label: "Рекрутинг", to: "/recruiting/vacancies" },
   { label: "Кандидаты", to: "/recruiting/candidates" },
@@ -58,11 +40,13 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
   const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
   if (currentPage <= 3) [2, 3, 4].forEach((p) => pages.add(p));
-  if (currentPage >= totalPages - 2) [totalPages - 1, totalPages - 2, totalPages - 3].forEach((p) => pages.add(p));
+  if (currentPage >= totalPages - 2)
+    [totalPages - 1, totalPages - 2, totalPages - 3].forEach((p) => pages.add(p));
   const sorted = [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
   const result: PaginationItem[] = [];
   for (let i = 0; i < sorted.length; i++) {
-    const page = sorted[i], prev = sorted[i - 1];
+    const page = sorted[i],
+      prev = sorted[i - 1];
     if (prev && page - prev > 1) result.push(`ellipsis-${prev}-${page}`);
     result.push(page);
   }
@@ -72,85 +56,65 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
 const selectCls =
   "h-10 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 transition focus:border-brand-400 focus:outline-none appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')] bg-[right_0.5rem_center] bg-no-repeat";
 
-const VIEW_TABS: { mode: ViewMode; label: string; icon: React.ElementType }[] = [
-  { mode: "kanban", label: "Kanban", icon: Columns3 },
-  { mode: "table", label: "Таблица", icon: Table2 },
-  { mode: "list", label: "Список", icon: LayoutList },
-];
-
 function CandidatesList() {
   useHeaderBreadcrumbItems(BREADCRUMBS);
-  const brandColor = companyStore.mainColor || "#2563eb";
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const vacancyParam = searchParams.get("vacancy") || "";
+  const [searchParams] = useSearchParams();
+  const brandColor = companyStore.mainColor || "#2563eb";
 
-  const [viewMode, setViewMode] = useState<ViewMode>("kanban");
   const [searchQuery, setSearchQuery] = useState("");
-  const [vacancyFilter, setVacancyFilter] = useState(vacancyParam);
-  const [stageFilter, setStageFilter] = useState<CandidateStage | "">("");
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [vacancyFilter, setVacancyFilter] = useState(searchParams.get("vacancy") ?? "");
+  const [outcomeFilter, setOutcomeFilter] = useState<CandidateOutcome | "">("");
+  const [sourceFilter, setSourceFilter] = useState<CandidateSource | "">("");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(Boolean(searchParams.get("vacancy")));
   const [currentPage, setCurrentPage] = useState(1);
-
-  const [detailItem, setDetailItem] = useState<Candidate | null>(null);
   const [deletingItem, setDeletingItem] = useState<Candidate | null>(null);
 
-  // Keep filter in sync if user lands here from a vacancy link.
-  useEffect(() => {
-    setVacancyFilter(vacancyParam);
-  }, [vacancyParam]);
-
-  // ── Data ───────────────────────────────────────────────────────────────────
   const queryParams = useMemo(
     () => ({
-      limit: FETCH_LIMIT,
-      offset: 0,
+      limit: PAGE_SIZE,
+      offset: (currentPage - 1) * PAGE_SIZE,
       ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
       ...(vacancyFilter ? { vacancyId: vacancyFilter } : {}),
+      ...(outcomeFilter ? { outcome: outcomeFilter } : {}),
+      ...(sourceFilter ? { source: sourceFilter } : {}),
     }),
-    [searchQuery, vacancyFilter]
+    [currentPage, searchQuery, vacancyFilter, outcomeFilter, sourceFilter]
   );
 
   const { data: candidatesData, isLoading } = useCandidatesQuery(queryParams);
-  const stageMutation = useUpdateCandidateStage();
+  const { data: vacanciesData } = useVacanciesQuery({ limit: 200, offset: 0 });
   const deleteMutation = useDeleteCandidate();
 
-  const { data: vacanciesData } = useVacanciesQuery({ limit: 100, offset: 0 });
-
-  const vacancyOptions: VacancyOption[] = useMemo(
-    () =>
-      (vacanciesData?.response ?? []).map((row) => {
-        const v = mapVacancyRow(row);
-        return { value: v.id, label: v.title, tag: v.tag, level: v.experienceLevel };
-      }),
-    [vacanciesData]
-  );
-
-  const allCandidates = useMemo(
+  const candidates = useMemo(
     () => (candidatesData?.response ?? []).map(mapCandidateRow),
     [candidatesData]
   );
 
-  // Stage filter only applies to table/list (kanban shows every column).
-  const flatCandidates = useMemo(
-    () => (stageFilter ? allCandidates.filter((c) => c.stage === stageFilter) : allCandidates),
-    [allCandidates, stageFilter]
+  const vacancies = useMemo(
+    () => (vacanciesData?.response ?? []).map((row) => mapVacancyRow(row)),
+    [vacanciesData]
   );
 
-  const syncedDetailItem = useMemo(
-    () => (detailItem ? allCandidates.find((c) => c.id === detailItem.id) ?? detailItem : null),
-    [allCandidates, detailItem]
-  );
+  // vacancyId → stages, to render the candidate's current stage pill.
+  const stagesByVacancy = useMemo(() => {
+    const map = new Map<string, StageDef[]>();
+    for (const row of vacanciesData?.response ?? []) {
+      map.set(row.guid, mapStageDefs(row.stages));
+    }
+    return map;
+  }, [vacanciesData]);
 
-  // ── Client pagination for table / list ──────────────────────────────────────
-  const totalCount = flatCandidates.length;
+  const resolveStage = (candidate: Candidate): StageDef | undefined =>
+    stagesByVacancy.get(candidate.vacancyId)?.find((s) => s.id === candidate.currentStageId);
+
+  const totalCount = candidatesData?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
-  const pagedCandidates = useMemo(
-    () => flatCandidates.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [flatCandidates, safePage]
+  const paginationItems = useMemo(
+    () => buildPaginationItems(safePage, totalPages),
+    [safePage, totalPages]
   );
-  const paginationItems = useMemo(() => buildPaginationItems(safePage, totalPages), [safePage, totalPages]);
 
   const visibleRangeLabel = useMemo(() => {
     if (totalCount === 0) return isLoading ? "Загрузка..." : "Нет кандидатов";
@@ -159,44 +123,29 @@ function CandidatesList() {
     return `Отображение ${start}–${end} из ${totalCount}`;
   }, [safePage, totalCount, isLoading]);
 
-  // ── Summary ──────────────────────────────────────────────────────────────────
   const summary = useMemo(() => {
-    const active = allCandidates.filter((c) => CANDIDATE_ACTIVE_STAGES.includes(c.stage)).length;
-    const interview = allCandidates.filter((c) => c.stage === "interview").length;
-    const hired = allCandidates.filter((c) => c.stage === "hired").length;
-    return { total: allCandidates.length, active, interview, hired };
-  }, [allCandidates]);
+    const active = candidates.filter((c) => c.outcome === "active").length;
+    const hired = candidates.filter((c) => c.outcome === "hired").length;
+    const rejected = candidates.filter((c) => c.outcome === "rejected").length;
+    return { total: totalCount, active, hired, rejected };
+  }, [candidates, totalCount]);
 
-  const hasActiveFilters = Boolean(searchQuery || vacancyFilter || stageFilter);
-  const activeFiltersCount = (vacancyFilter ? 1 : 0) + (stageFilter ? 1 : 0);
+  const hasActiveFilters = Boolean(searchQuery || vacancyFilter || outcomeFilter || sourceFilter);
+  const activeFiltersCount =
+    (vacancyFilter ? 1 : 0) + (outcomeFilter ? 1 : 0) + (sourceFilter ? 1 : 0);
 
   const resetFilters = () => {
     setSearchQuery("");
     setVacancyFilter("");
-    setStageFilter("");
+    setOutcomeFilter("");
+    setSourceFilter("");
     setCurrentPage(1);
-    if (vacancyParam) setSearchParams({});
-  };
-
-  // ── Handlers ──────────────────────────────────────────────────────────────────
-  const openCreate = () =>
-    navigate(vacancyFilter ? `/recruiting/candidates/new?vacancy=${vacancyFilter}` : "/recruiting/candidates/new");
-  const openEdit = (item: Candidate) => navigate(`/recruiting/candidates/${item.id}/edit`);
-
-  const handleMoveStage = async (candidate: Candidate, stage: CandidateStage) => {
-    try {
-      await stageMutation.mutateAsync({ guid: candidate.id, stage });
-      toast.success(`Перемещён: ${CANDIDATE_STAGE_CONFIG[stage].label}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось переместить");
-    }
   };
 
   const confirmDelete = async () => {
     if (!deletingItem) return;
     try {
       await deleteMutation.mutateAsync(deletingItem.id);
-      if (detailItem?.id === deletingItem.id) setDetailItem(null);
       setDeletingItem(null);
       toast.success("Кандидат удалён");
     } catch (err) {
@@ -204,23 +153,16 @@ function CandidatesList() {
     }
   };
 
-  const selectedVacancyTitle = useMemo(
-    () => vacancyOptions.find((o) => o.value === vacancyFilter)?.label,
-    [vacancyOptions, vacancyFilter]
-  );
-
   const summaryCards = [
     { label: "Всего кандидатов", value: String(summary.total), icon: Users, tint: "text-brand-600 bg-brand-50" },
-    { label: "В активной воронке", value: String(summary.active), icon: UserRound, tint: "text-blue-600 bg-blue-50" },
-    { label: "На интервью", value: String(summary.interview), icon: UserRound, tint: "text-violet-600 bg-violet-50" },
-    { label: "Принято", value: String(summary.hired), icon: CheckCircle2, tint: "text-emerald-600 bg-emerald-50" },
+    { label: "В работе", value: String(summary.active), icon: SlidersHorizontal, tint: "text-blue-600 bg-blue-50" },
+    { label: "Нанято", value: String(summary.hired), icon: Trophy, tint: "text-emerald-600 bg-emerald-50" },
+    { label: "Отказов", value: String(summary.rejected), icon: ThumbsDown, tint: "text-rose-600 bg-rose-50" },
   ];
-
-  const showPagination = viewMode !== "kanban" && totalPages > 1;
 
   return (
     <>
-      <PageMeta title="Кандидаты | Рекрутинг" description="Воронка найма и управление кандидатами" />
+      <PageMeta title="Кандидаты | Рекрутинг" description="Все кандидаты по вакансиям" />
 
       {/* Toolbar */}
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
@@ -238,22 +180,10 @@ function CandidatesList() {
             borderBottom: isFiltersOpen ? "none" : "1px solid #e2e8f0",
           }}
         >
-          <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-            {VIEW_TABS.map(({ mode, label, icon: Icon }) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setViewMode(mode)}
-                className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium transition ${
-                  viewMode === mode ? "bg-white text-brand-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <Icon size={16} />
-                {label}
-              </button>
-            ))}
-          </div>
-
+          <span className="text-sm font-medium text-gray-600">
+            <Archive size={15} className="mr-1.5 inline -translate-y-px text-gray-400" />
+            Все кандидаты компании
+          </span>
           <div className="ml-auto flex items-center gap-2">
             <ExpandableSearchInput
               value={searchQuery}
@@ -262,7 +192,7 @@ function CandidatesList() {
                 setCurrentPage(1);
               }}
               inputId="candidate-search"
-              placeholder="Поиск по имени, должности..."
+              placeholder="Поиск по имени, email..."
               expandedWidth={360}
               collapsedSize={40}
               brandColor={brandColor}
@@ -279,7 +209,11 @@ function CandidatesList() {
               <SlidersHorizontal size={16} />
               Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
             </button>
-            <Button startIcon={<Plus size={16} />} onClick={openCreate} className="h-10 rounded-xl px-4">
+            <Button
+              startIcon={<Plus size={16} />}
+              onClick={() => navigate("/recruiting/candidates/new")}
+              className="h-10 rounded-xl px-4"
+            >
               Добавить
             </Button>
           </div>
@@ -304,30 +238,42 @@ function CandidatesList() {
               onChange={(e) => {
                 setVacancyFilter(e.target.value);
                 setCurrentPage(1);
-                if (!e.target.value && vacancyParam) setSearchParams({});
               }}
             >
               <option value="">Все вакансии</option>
-              {vacancyOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
+              {vacancies.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.title}
                 </option>
               ))}
             </select>
             <select
-              value={stageFilter}
+              value={outcomeFilter}
               className={selectCls}
               onChange={(e) => {
-                setStageFilter(e.target.value as CandidateStage | "");
+                setOutcomeFilter(e.target.value as CandidateOutcome | "");
                 setCurrentPage(1);
               }}
-              disabled={viewMode === "kanban"}
-              title={viewMode === "kanban" ? "В Kanban отображаются все этапы" : undefined}
             >
-              <option value="">Все этапы</option>
-              {CANDIDATE_STAGE_ORDER.map((s) => (
+              <option value="">Все статусы</option>
+              {OUTCOME_ORDER.map((o) => (
+                <option key={o} value={o}>
+                  {OUTCOME_CONFIG[o].label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sourceFilter}
+              className={selectCls}
+              onChange={(e) => {
+                setSourceFilter(e.target.value as CandidateSource | "");
+                setCurrentPage(1);
+              }}
+            >
+              <option value="">Все источники</option>
+              {CANDIDATE_SOURCE_ORDER.map((s) => (
                 <option key={s} value={s}>
-                  {CANDIDATE_STAGE_CONFIG[s].label}
+                  {CANDIDATE_SOURCE_CONFIG[s].label}
                 </option>
               ))}
             </select>
@@ -343,24 +289,6 @@ function CandidatesList() {
           </div>
         )}
       </div>
-
-      {/* Vacancy context banner */}
-      {selectedVacancyTitle && (
-        <div className="mt-4 flex items-center gap-2 rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-2.5 text-sm text-brand-700">
-          <Users size={16} />
-          Кандидаты по вакансии: <span className="font-semibold">{selectedVacancyTitle}</span>
-          <button
-            type="button"
-            onClick={() => {
-              setVacancyFilter("");
-              setSearchParams({});
-            }}
-            className="ml-auto text-xs font-medium text-brand-600 underline"
-          >
-            Показать всех
-          </button>
-        </div>
-      )}
 
       {/* Summary cards */}
       <div className="mt-4 mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -389,7 +317,7 @@ function CandidatesList() {
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
           <p className="text-sm text-gray-400">Загрузка...</p>
         </div>
-      ) : allCandidates.length === 0 ? (
+      ) : candidates.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center">
           <Users size={36} className="text-gray-300" />
           <p className="text-sm font-medium text-gray-500">Кандидаты не найдены</p>
@@ -397,26 +325,19 @@ function CandidatesList() {
             {hasActiveFilters ? "Измените фильтры или сбросьте их" : "Добавьте первого кандидата"}
           </p>
         </div>
-      ) : viewMode === "kanban" ? (
-        <CandidateKanban candidates={allCandidates} onOpen={setDetailItem} onMoveStage={handleMoveStage} />
-      ) : viewMode === "table" ? (
+      ) : (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           <CandidateTable
-            candidates={pagedCandidates}
-            onOpen={setDetailItem}
-            onEdit={openEdit}
+            candidates={candidates}
+            resolveStage={resolveStage}
+            onOpen={(c) => navigate(`/recruiting/candidates/${c.id}`)}
+            onEdit={(c) => navigate(`/recruiting/candidates/${c.id}/edit`)}
             onDelete={setDeletingItem}
           />
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {pagedCandidates.map((c) => (
-            <CandidateCard key={c.id} candidate={c} onOpen={setDetailItem} />
-          ))}
-        </div>
       )}
 
-      {showPagination && (
+      {totalPages > 1 && (
         <EmployeesPaginationFooter
           visibleRangeLabel={visibleRangeLabel}
           paginationItems={paginationItems}
@@ -429,16 +350,6 @@ function CandidatesList() {
         />
       )}
 
-      {/* Modals / Drawer */}
-      <CandidateDetailDrawer
-        isOpen={Boolean(syncedDetailItem)}
-        candidate={syncedDetailItem}
-        onClose={() => setDetailItem(null)}
-        onEdit={openEdit}
-        onDelete={setDeletingItem}
-        onMoveStage={handleMoveStage}
-      />
-
       <Modal
         isOpen={Boolean(deletingItem)}
         onClose={() => setDeletingItem(null)}
@@ -448,8 +359,8 @@ function CandidatesList() {
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900">Удалить кандидата?</h3>
           <p className="mt-2 text-sm text-gray-500">
-            Кандидат <span className="font-medium text-gray-700">«{deletingItem?.fullName}»</span> будет удалён.
-            Это действие нельзя отменить.
+            Кандидат <span className="font-medium text-gray-700">{deletingItem?.fullName}</span>, все
+            оценки и комментарии будут удалены. Это действие нельзя отменить.
           </p>
           <div className="mt-6 flex items-center justify-end gap-3">
             <Button variant="outline" onClick={() => setDeletingItem(null)} className="px-5">
