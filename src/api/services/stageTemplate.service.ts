@@ -72,6 +72,9 @@ export const mapStageDefs = (
 export const stageDefsToPayload = (stages: StageDef[]): StageDefApiRow[] =>
   sortStages(stages).map((s, i) => ({ id: s.id, name: s.name, color: s.color, order: i }));
 
+const stageDefsToStoragePayload = (stages: StageDef[]): string =>
+  JSON.stringify(stageDefsToPayload(stages));
+
 export const mapStageTemplateRow = (row: StageTemplateApiRow): StageTemplate => ({
   id: row.guid,
   name: row.name || "Без названия",
@@ -81,10 +84,13 @@ export const mapStageTemplateRow = (row: StageTemplateApiRow): StageTemplate => 
   createdAt: row.created_at || "",
 });
 
-const draftToPayload = (draft: StageTemplateDraft): Record<string, unknown> => ({
+const draftToPayload = (
+  draft: StageTemplateDraft,
+  { serializeStages = true }: { serializeStages?: boolean } = {}
+): Record<string, unknown> => ({
   name: draft.name,
   description: draft.description,
-  stages: stageDefsToPayload(draft.stages),
+  stages: serializeStages ? stageDefsToStoragePayload(draft.stages) : stageDefsToPayload(draft.stages),
   is_default: draft.isDefault,
 });
 
@@ -114,14 +120,16 @@ const stageTemplateService = {
   },
 
   create: (draft: StageTemplateDraft) => {
-    if (RECRUITING_USE_MOCK) return mockCreateStageTemplate(draftToPayload(draft));
+    if (RECRUITING_USE_MOCK)
+      return mockCreateStageTemplate(draftToPayload(draft, { serializeStages: false }));
     return httpRequest.post(`/v2/items/${TEMPLATES_SLUG}`, {
       data: { companies_id: COMPANY_ID, ...draftToPayload(draft) },
     });
   },
 
   update: (guid: string, draft: StageTemplateDraft) => {
-    if (RECRUITING_USE_MOCK) return mockUpdateStageTemplate(guid, draftToPayload(draft));
+    if (RECRUITING_USE_MOCK)
+      return mockUpdateStageTemplate(guid, draftToPayload(draft, { serializeStages: false }));
     return httpRequest.put(`/v2/items/${TEMPLATES_SLUG}/${guid}`, {
       data: { ...draftToPayload(draft), guid },
     });
