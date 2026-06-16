@@ -198,8 +198,6 @@ export default function VacancyDetail() {
                 </span>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-500">
-                {vacancy.recruiterName && <span>Рекрутер: {vacancy.recruiterName}</span>}
-                {vacancy.hiringManagerName && <span>Менеджер: {vacancy.hiringManagerName}</span>}
                 <span className="text-emerald-600">
                   {vacancy.hiredCount} из {vacancy.openings} нанято
                 </span>

@@ -5,7 +5,7 @@ import { LevelChip, ScoreBadge } from "../../../components/Chips";
 import OutcomeBadge from "../../../components/OutcomeBadge";
 import StagePill from "../../../components/StagePill";
 import {
-  CANDIDATE_SOURCE_CONFIG,
+  sourceLabel,
   formatDate,
   type Candidate,
   type Vacancy,
@@ -73,7 +73,6 @@ export default function CandidatesTab({ vacancy, candidates, onOpenCandidate }: 
                 <Th>Оценка</Th>
                 <Th>Источник</Th>
                 <Th>Отклик</Th>
-                <Th>Рекрутер</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -111,10 +110,9 @@ export default function CandidatesTab({ vacancy, candidates, onOpenCandidate }: 
                     <ScoreBadge score={candidate.avgScore} />
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {CANDIDATE_SOURCE_CONFIG[candidate.source].label}
+                    {sourceLabel(candidate.source)}
                   </td>
                   <td className="px-4 py-3 text-gray-500">{formatDate(candidate.appliedDate)}</td>
-                  <td className="px-4 py-3 text-gray-600">{candidate.recruiterName ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

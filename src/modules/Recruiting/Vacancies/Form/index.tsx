@@ -9,18 +9,16 @@ import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbCo
 import FormSelect from "../../components/FormSelect";
 import FormDatePicker from "../../components/FormDatePicker";
 import TagsInput from "../../components/TagsInput";
-import StageListEditor from "../../components/StageListEditor";
-import {
-  MOCK_DEPARTMENTS,
-  MOCK_EMPLOYEES,
-  MOCK_LOCATIONS,
-  MOCK_POSITIONS,
-} from "../../mock/mockApi";
+import RichTextEditor, { sanitizeRichText } from "../../components/RichTextEditor";
+import { MOCK_DEPARTMENTS, MOCK_LOCATIONS, MOCK_POSITIONS } from "../../mock/mockApi";
+import { RECRUITING_USE_MOCK } from "../../mock/mockConfig";
+import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
+import { useLocationsQuery } from "../../../../api/services/location.service";
+import { usePositionsQuery } from "../../../../api/services/position.service";
 import {
   mapVacancyRow,
   useCreateVacancy,
   useUpdateVacancy,
-  useVacancyCandidateCounts,
   useVacancyQuery,
 } from "../../../../api/services/vacancy.service";
 import {
@@ -28,12 +26,11 @@ import {
   useStageTemplatesQuery,
 } from "../../../../api/services/stageTemplate.service";
 import {
-  DEFAULT_STAGE_PRESET,
+  STAGE_COLOR_CONFIG,
   VACANCY_PRIORITY_CONFIG,
   VACANCY_STATUS_CONFIG,
   VACANCY_STATUS_ORDER,
   WORK_MODE_CONFIG,
-  buildStages,
   cloneStagesWithNewIds,
   createEmptyVacancyDraft,
   vacancyDraftFromItem,
@@ -102,15 +99,32 @@ export default function VacancyForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  useHeaderBreadcrumbItems([
-    { label: "Рекрутинг", to: "/recruiting/vacancies" },
-    { label: "Вакансии", to: "/recruiting/vacancies" },
-    { label: isEdit ? "Редактировать" : "Новая вакансия", to: "#" },
-  ]);
+  // Стабильная ссылка — иначе useHeaderBreadcrumbItems зациклит рендер.
+  useHeaderBreadcrumbItems(
+    useMemo(
+      () => [
+        { label: "Рекрутинг", to: "/recruiting/vacancies" },
+        { label: "Вакансии", to: "/recruiting/vacancies" },
+        { label: isEdit ? "Редактировать" : "Новая вакансия", to: "#" },
+      ],
+      [isEdit]
+    )
+  );
 
   const { data: vacancyRow, isLoading } = useVacancyQuery(isEdit ? id : undefined);
   const { data: templatesData } = useStageTemplatesQuery();
-  const { data: countsMap } = useVacancyCandidateCounts();
+  const { data: departmentsData } = useDepartmentsSettingsQuery({
+    params: { limit: 200 },
+    querySettings: { enabled: !RECRUITING_USE_MOCK },
+  });
+  const { data: positionsData } = usePositionsQuery({
+    params: { all: true },
+    querySettings: { enabled: !RECRUITING_USE_MOCK },
+  });
+  const { data: locationsData } = useLocationsQuery({
+    params: { limit: 200 },
+    querySettings: { enabled: !RECRUITING_USE_MOCK },
+  });
   const createMutation = useCreateVacancy();
   const updateMutation = useUpdateVacancy();
 
@@ -121,6 +135,36 @@ export default function VacancyForm() {
   const templates = useMemo(
     () => (templatesData?.response ?? []).map(mapStageTemplateRow),
     [templatesData]
+  );
+  const departmentOptions = useMemo(
+    () =>
+      RECRUITING_USE_MOCK
+        ? MOCK_DEPARTMENTS
+        : (departmentsData?.response ?? []).map((item) => ({
+            value: item.guid,
+            label: item.title || "Без названия",
+          })),
+    [departmentsData?.response]
+  );
+  const positionOptions = useMemo(
+    () =>
+      RECRUITING_USE_MOCK
+        ? MOCK_POSITIONS
+        : (positionsData?.response ?? []).map((item) => ({
+            value: item.guid,
+            label: item.title || "Без названия",
+          })),
+    [positionsData?.response]
+  );
+  const locationOptions = useMemo(
+    () =>
+      RECRUITING_USE_MOCK
+        ? MOCK_LOCATIONS
+        : (locationsData?.response ?? []).map((item) => ({
+            value: item.guid,
+            label: item.title || "Без названия",
+          })),
+    [locationsData?.response]
   );
 
   useEffect(() => {
@@ -145,15 +189,6 @@ export default function VacancyForm() {
   const set = <K extends keyof VacancyDraft>(key: K, value: VacancyDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
-  const setEmployee = (
-    idKey: "recruiterId" | "hiringManagerId",
-    nameKey: "recruiterName" | "hiringManagerName",
-    value: string
-  ) => {
-    const name = MOCK_EMPLOYEES.find((e) => e.value === value)?.label ?? null;
-    setDraft((prev) => ({ ...prev, [idKey]: value || null, [nameKey]: name }));
-  };
-
   const applyTemplate = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
@@ -163,13 +198,6 @@ export default function VacancyForm() {
       stages: cloneStagesWithNewIds(template.stages),
     }));
   };
-
-  // Stages that already hold candidates cannot be removed (edit mode).
-  const lockedStageIds = useMemo(() => {
-    if (!isEdit || !id) return new Set<string>();
-    const byStage = countsMap?.[id]?.byStage ?? {};
-    return new Set(Object.keys(byStage).filter((sid) => (byStage[sid] ?? 0) > 0));
-  }, [isEdit, id, countsMap]);
 
   const templateOptions = useMemo(
     () => templates.map((t) => ({ value: t.id, label: t.isDefault ? `${t.name} (по умолчанию)` : t.name })),
@@ -197,7 +225,14 @@ export default function VacancyForm() {
       return;
     }
     try {
-      const payload = { ...draft, title: draft.title.trim() };
+      const payload = {
+        ...draft,
+        title: draft.title.trim(),
+        description: sanitizeRichText(draft.description),
+        responsibilities: "",
+        requirements: "",
+        conditions: "",
+      };
       if (isEdit && id) {
         await updateMutation.mutateAsync({ guid: id, draft: payload });
         toast.success("Вакансия обновлена");
@@ -274,7 +309,7 @@ export default function VacancyForm() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Департамент">
                 <FormSelect
-                  options={MOCK_DEPARTMENTS}
+                  options={departmentOptions}
                   value={draft.departmentId}
                   onChange={(v) => set("departmentId", v || null)}
                   placeholder="Выберите департамент"
@@ -284,7 +319,7 @@ export default function VacancyForm() {
               </Field>
               <Field label="Должность">
                 <FormSelect
-                  options={MOCK_POSITIONS}
+                  options={positionOptions}
                   value={draft.positionId}
                   onChange={(v) => set("positionId", v || null)}
                   placeholder="Должность"
@@ -331,40 +366,38 @@ export default function VacancyForm() {
           }
         >
           <div className="space-y-4">
-            {!isEdit && (
-              <Field label="Шаблон этапов">
-                <FormSelect
-                  options={templateOptions}
-                  value={draft.stageTemplateId}
-                  onChange={applyTemplate}
-                  placeholder={templates.length ? "Выберите шаблон" : "Шаблонов пока нет"}
-                  isSearchable={false}
-                  isDisabled={templates.length === 0}
-                  menuPortal
-                />
-                <p className="mt-1.5 text-xs text-gray-400">
-                  Этапы копируются из шаблона — ниже их можно настроить под вакансию.
-                </p>
-              </Field>
-            )}
-            {isEdit && lockedStageIds.size > 0 && (
-              <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-700">
-                Этапы, на которых находятся кандидаты, удалить нельзя — сначала переместите кандидатов.
+            <Field label="Шаблон этапов">
+              <FormSelect
+                options={templateOptions}
+                value={draft.stageTemplateId}
+                onChange={applyTemplate}
+                placeholder={templates.length ? "Выберите шаблон" : "Шаблонов пока нет"}
+                isSearchable={false}
+                isDisabled={templates.length === 0}
+                menuPortal
+              />
+              <p className="mt-1.5 text-xs text-gray-400">
+                Этапы берутся из выбранного шаблона. Изменить набор шаблонов можно в разделе
+                «Шаблоны этапов».
               </p>
-            )}
-            <StageListEditor
-              stages={draft.stages}
-              onChange={(stages) => set("stages", stages)}
-              lockedStageIds={lockedStageIds}
-            />
-            {draft.stages.length === 0 && (
-              <button
-                type="button"
-                onClick={() => set("stages", buildStages(DEFAULT_STAGE_PRESET))}
-                className="text-sm font-medium text-brand-600 transition hover:text-brand-700"
-              >
-                Заполнить стандартным набором этапов
-              </button>
+            </Field>
+            {draft.stages.length > 0 && (
+              <ol className="space-y-2">
+                {draft.stages.map((stage, i) => (
+                  <li
+                    key={stage.id}
+                    className="flex items-center gap-2.5 rounded-xl border border-gray-100 px-3 py-2.5"
+                  >
+                    <span className="w-4 text-center text-[11px] font-semibold text-gray-300">
+                      {i + 1}
+                    </span>
+                    <span
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${STAGE_COLOR_CONFIG[stage.color].dotClassName}`}
+                    />
+                    <span className="flex-1 truncate text-sm text-gray-700">{stage.name}</span>
+                  </li>
+                ))}
+              </ol>
             )}
           </div>
         </Card>
@@ -374,12 +407,9 @@ export default function VacancyForm() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Локация">
                 <FormSelect
-                  options={MOCK_LOCATIONS}
+                  options={locationOptions}
                   value={draft.locationId}
-                  onChange={(v) => {
-                    const label = MOCK_LOCATIONS.find((l) => l.value === v)?.label ?? "";
-                    setDraft((prev) => ({ ...prev, locationId: v || null, location: label }));
-                  }}
+                  onChange={(v) => set("locationId", v || null)}
                   placeholder="Локация"
                   isClearable
                   menuPortal
@@ -473,73 +503,20 @@ export default function VacancyForm() {
                 <FormDatePicker value={draft.deadline} onChange={(v) => set("deadline", v)} />
               </Field>
             </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Ответственный рекрутер">
-                <FormSelect
-                  options={MOCK_EMPLOYEES}
-                  value={draft.recruiterId}
-                  onChange={(v) => setEmployee("recruiterId", "recruiterName", v)}
-                  placeholder="Выберите рекрутера"
-                  isClearable
-                  menuPortal
-                />
-              </Field>
-              <Field label="Нанимающий менеджер">
-                <FormSelect
-                  options={MOCK_EMPLOYEES}
-                  value={draft.hiringManagerId}
-                  onChange={(v) => setEmployee("hiringManagerId", "hiringManagerName", v)}
-                  placeholder="Выберите менеджера"
-                  isClearable
-                  menuPortal
-                />
-              </Field>
-            </div>
           </div>
         </Card>
 
         <Card title="Описание">
-          <div className="space-y-4">
-            <Field label="Описание">
-              <textarea
-                rows={3}
-                className={`${inputCls} h-auto resize-none py-2.5`}
-                value={draft.description}
-                onChange={(e) => set("description", e.target.value)}
-                placeholder="Коротко о роли, команде и продукте"
-              />
-            </Field>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Обязанности">
-                <textarea
-                  rows={5}
-                  className={`${inputCls} h-auto resize-none py-2.5`}
-                  value={draft.responsibilities}
-                  onChange={(e) => set("responsibilities", e.target.value)}
-                  placeholder="Каждый пункт с новой строки"
-                />
-              </Field>
-              <Field label="Требования">
-                <textarea
-                  rows={5}
-                  className={`${inputCls} h-auto resize-none py-2.5`}
-                  value={draft.requirements}
-                  onChange={(e) => set("requirements", e.target.value)}
-                  placeholder="Каждый пункт с новой строки"
-                />
-              </Field>
-            </div>
-            <Field label="Условия">
-              <textarea
-                rows={3}
-                className={`${inputCls} h-auto resize-none py-2.5`}
-                value={draft.conditions}
-                onChange={(e) => set("conditions", e.target.value)}
-                placeholder="Оформление, ДМС, график, бонусы..."
-              />
-            </Field>
-          </div>
+          <p className="mb-3 text-xs text-gray-400">
+            Разделы «Описание», «Обязанности», «Требования», «Условия» можно переименовать или
+            дополнить — это обычный текст.
+          </p>
+          <RichTextEditor
+            value={draft.description}
+            onChange={(html) => set("description", html)}
+            disabled={isSaving}
+            minHeight={280}
+          />
         </Card>
       </div>
 

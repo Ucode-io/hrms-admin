@@ -206,14 +206,8 @@ export interface Vacancy {
   status: VacancyStatus;
   priority: VacancyPriority;
   openings: number;
-  recruiterId: string | null;
-  recruiterName: string | null;
-  hiringManagerId: string | null;
-  hiringManagerName: string | null;
+  /** Единое HTML-описание (разделы Описание/Обязанности/Требования/Условия внутри). */
   description: string;
-  responsibilities: string;
-  requirements: string;
-  conditions: string;
   skills: string[];
   deadline: string | null;
   openedAt: string | null;
@@ -234,7 +228,6 @@ export interface VacancyDraft {
   positionId: string | null;
   tag: string;
   locationId: string | null;
-  location: string;
   workMode: WorkMode;
   employmentType: string;
   experienceLevel: string;
@@ -244,14 +237,7 @@ export interface VacancyDraft {
   status: VacancyStatus;
   priority: VacancyPriority;
   openings: number;
-  recruiterId: string | null;
-  recruiterName: string | null;
-  hiringManagerId: string | null;
-  hiringManagerName: string | null;
   description: string;
-  responsibilities: string;
-  requirements: string;
-  conditions: string;
   skills: string[];
   deadline: string | null;
   openedAt: string | null;
@@ -370,6 +356,29 @@ export const CANDIDATE_SOURCE_CONFIG: Record<CandidateSource, { label: string }>
   referral: { label: "Реферал" },
   external_recruiter: { label: "Внешний рекрутер" },
   other: { label: "Другое" },
+};
+
+/**
+ * Sources are a CRUD directory (`candidate_sources`). UI displays the related
+ * title; legacy enum keys still resolve to their label.
+ */
+export const sourceLabel = (source: string | null | undefined): string => {
+  if (!source) return "";
+  return CANDIDATE_SOURCE_CONFIG[source as CandidateSource]?.label ?? source;
+};
+
+/**
+ * Rejection reasons are a CRUD directory (`candidate_rejection_reasons`). UI
+ * displays the related title; legacy enum keys still resolve to their label.
+ */
+export const rejectionReasonLabel = (
+  reason: string | null | undefined
+): string => {
+  if (!reason) return "";
+  return (
+    CANDIDATE_REJECTION_REASON_CONFIG[reason as CandidateRejectionReason]?.label ??
+    reason
+  );
 };
 
 export type CandidateRejectionReason =
@@ -504,7 +513,8 @@ export interface Candidate {
   photo: string | null;
   email: string;
   phone: string;
-  source: CandidateSource;
+  sourceId: string | null;
+  source: string;
   links: string[];
   skills: string[];
   level: string;
@@ -513,14 +523,13 @@ export interface Candidate {
   appliedDate: string | null;
   resumeUrl: string | null;
   notes: string;
-  recruiterId: string | null;
-  recruiterName: string | null;
   vacancyId: string;
   vacancyTitle: string;
   vacancyTag: string;
   currentStageId: string | null;
   outcome: CandidateOutcome;
-  rejectionReason: CandidateRejectionReason | null;
+  rejectionReasonId: string | null;
+  rejectionReason: string | null;
   hiredAt: string | null;
   stageChangedAt: string | null;
   evaluations: StageEvaluation[];
@@ -537,7 +546,7 @@ export interface CandidateDraft {
   photo: string | null;
   email: string;
   phone: string;
-  source: CandidateSource;
+  source: string;
   links: string[];
   skills: string[];
   level: string;
@@ -546,8 +555,6 @@ export interface CandidateDraft {
   appliedDate: string | null;
   resumeUrl: string | null;
   notes: string;
-  recruiterId: string | null;
-  recruiterName: string | null;
   vacancyId: string | null;
 }
 
@@ -717,13 +724,22 @@ export const avatarTint = (seed: string): string => {
 // Draft factories
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ───── Vacancy description (single rich-text field) ─────
+
+/** Разделы по умолчанию для редактора описания вакансии. */
+export const VACANCY_DESCRIPTION_SECTIONS = ["Описание", "Обязанности", "Требования", "Условия"];
+
+/** Пустой каркас описания: 4 редактируемых заголовка с пустыми абзацами. */
+export const DEFAULT_VACANCY_DESCRIPTION_HTML = VACANCY_DESCRIPTION_SECTIONS.map(
+  (label) => `<h3>${label}</h3><p></p>`
+).join("");
+
 export const createEmptyVacancyDraft = (): VacancyDraft => ({
   title: "",
   departmentId: null,
   positionId: null,
   tag: "",
   locationId: null,
-  location: "Офис Ташкент",
   workMode: "office",
   employmentType: "Полная занятость",
   experienceLevel: "Middle",
@@ -733,14 +749,7 @@ export const createEmptyVacancyDraft = (): VacancyDraft => ({
   status: "open",
   priority: "medium",
   openings: 1,
-  recruiterId: null,
-  recruiterName: null,
-  hiringManagerId: null,
-  hiringManagerName: null,
-  description: "",
-  responsibilities: "",
-  requirements: "",
-  conditions: "",
+  description: DEFAULT_VACANCY_DESCRIPTION_HTML,
   skills: [],
   deadline: null,
   openedAt: formatDateIso(new Date().toISOString()),
@@ -754,7 +763,6 @@ export const vacancyDraftFromItem = (v: Vacancy): VacancyDraft => ({
   positionId: v.positionId,
   tag: v.tag,
   locationId: v.locationId,
-  location: v.location,
   workMode: v.workMode,
   employmentType: v.employmentType,
   experienceLevel: v.experienceLevel,
@@ -764,14 +772,7 @@ export const vacancyDraftFromItem = (v: Vacancy): VacancyDraft => ({
   status: v.status,
   priority: v.priority,
   openings: v.openings,
-  recruiterId: v.recruiterId,
-  recruiterName: v.recruiterName,
-  hiringManagerId: v.hiringManagerId,
-  hiringManagerName: v.hiringManagerName,
-  description: v.description,
-  responsibilities: v.responsibilities,
-  requirements: v.requirements,
-  conditions: v.conditions,
+  description: v.description || DEFAULT_VACANCY_DESCRIPTION_HTML,
   skills: v.skills,
   deadline: v.deadline,
   openedAt: v.openedAt,
@@ -785,7 +786,7 @@ export const createEmptyCandidateDraft = (vacancyId: string | null = null): Cand
   photo: null,
   email: "",
   phone: "",
-  source: "headhunter",
+  source: "",
   links: [],
   skills: [],
   level: "Middle",
@@ -794,8 +795,6 @@ export const createEmptyCandidateDraft = (vacancyId: string | null = null): Cand
   appliedDate: formatDateIso(new Date().toISOString()),
   resumeUrl: null,
   notes: "",
-  recruiterId: null,
-  recruiterName: null,
   vacancyId,
 });
 
@@ -805,7 +804,7 @@ export const candidateDraftFromItem = (c: Candidate): CandidateDraft => ({
   photo: c.photo,
   email: c.email,
   phone: c.phone,
-  source: c.source,
+  source: c.sourceId || c.source,
   links: c.links,
   skills: c.skills,
   level: c.level,
@@ -814,7 +813,5 @@ export const candidateDraftFromItem = (c: Candidate): CandidateDraft => ({
   appliedDate: c.appliedDate,
   resumeUrl: c.resumeUrl,
   notes: c.notes,
-  recruiterId: c.recruiterId,
-  recruiterName: c.recruiterName,
   vacancyId: c.vacancyId,
 });

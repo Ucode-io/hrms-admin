@@ -38,6 +38,9 @@ const DELETE_KPI_METHOD = "delete_kpi";
 const UPDATE_KPI_VALUE_METHOD = "update_kpi_value";
 const APPROVE_ABSENCE_METHOD = "approve_absence";
 const DELETE_ABSENCE_METHOD = "delete_absence";
+const GET_RECRUITING_FUNNEL_METHOD = "get_recruiting_funnel";
+const GET_RECRUITING_SOURCES_METHOD = "get_recruiting_sources";
+const GET_RECRUITING_CLOSURE_TIMES_METHOD = "get_recruiting_closure_times";
 
 export type ApproveAbsenceResult = {
   absences_id: string;
@@ -870,6 +873,175 @@ export type OrgStructureResult = {
 export type OrgStructureInvokeResponse = {
   method: typeof GET_ORG_STRUCTURE_METHOD;
   result: OrgStructureResult;
+};
+
+export type RecruitingFunnelCycleOption = {
+  value: string;
+  label: string;
+};
+
+export type RecruitingFunnelStage = {
+  id: string;
+  name: string;
+  color: string | null;
+  order: number;
+};
+
+export type RecruitingFunnelStep = {
+  stage_id: string;
+  label: string;
+  color: string | null;
+  count: number;
+  percentage: number;
+};
+
+export type RecruitingFunnelRejectionItem = {
+  label: string;
+  count: number;
+  percentage: number;
+};
+
+export type RecruitingFunnelTableStage = {
+  id: string;
+  label: string;
+};
+
+export type RecruitingFunnelTableRow = {
+  vacancy_guid: string;
+  vacancy_title: string;
+  counts: Record<string, number>;
+  total: number;
+};
+
+export type RecruitingFunnelTableTotals = {
+  counts: Record<string, number>;
+  total: number;
+};
+
+export type RecruitingFunnelSummary = {
+  total_candidates: number;
+  active: number;
+  hired: number;
+  rejected: number;
+  reserve: number;
+  conversion_rate: number;
+};
+
+export type RecruitingFunnelResult = {
+  filters?: {
+    cycles?: RecruitingFunnelCycleOption[];
+  };
+  summary?: RecruitingFunnelSummary;
+  filters_applied?: {
+    stage_template_id?: string | null;
+  };
+  cycle?: {
+    stage_template_id: string;
+    name: string;
+  } | null;
+  stages?: RecruitingFunnelStage[];
+  funnel?: RecruitingFunnelStep[];
+  rejection_reasons?: RecruitingFunnelRejectionItem[];
+  table?: {
+    stages: RecruitingFunnelTableStage[];
+    rows: RecruitingFunnelTableRow[];
+    totals: RecruitingFunnelTableTotals;
+  };
+};
+
+export type RecruitingFunnelInvokeResponse = {
+  method: typeof GET_RECRUITING_FUNNEL_METHOD;
+  result: RecruitingFunnelResult;
+};
+
+export type RecruitingSourceOption = {
+  value: string;
+  label: string;
+};
+
+export type RecruitingSourcesByDateItem = {
+  date: string;
+  label: string;
+  counts: Record<string, number>;
+};
+
+export type RecruitingSourcesShareItem = {
+  label: string;
+  count: number;
+  percentage: number;
+};
+
+export type RecruitingSourcesResult = {
+  filters?: {
+    sources?: RecruitingSourceOption[];
+  };
+  filters_applied?: {
+    date_from?: string | null;
+    date_to?: string | null;
+  };
+  summary?: {
+    total_candidates: number;
+  };
+  sources?: string[];
+  by_date?: RecruitingSourcesByDateItem[];
+  by_source?: RecruitingSourcesShareItem[];
+};
+
+export type RecruitingSourcesInvokeResponse = {
+  method: typeof GET_RECRUITING_SOURCES_METHOD;
+  result: RecruitingSourcesResult;
+};
+
+export type RecruitingClosureTimesDimension =
+  | "vacancies"
+  | "positions"
+  | "departments"
+  | "locations";
+
+export type RecruitingClosureTimesOption = {
+  value: string;
+  label: string;
+};
+
+export type RecruitingClosureTimesRow = {
+  id: string | null;
+  title: string;
+  opened_at: string | null;
+  vacancies_count: number;
+  candidates_count: number;
+  hired_count: number;
+  hired_percentage: number;
+  min_days_to_fill: number | null;
+  max_days_to_fill: number | null;
+  avg_days_to_fill: number | null;
+};
+
+export type RecruitingClosureTimesSummary = {
+  total_vacancies: number;
+  total_candidates: number;
+  hired_count: number;
+  hired_percentage: number;
+  avg_days_to_fill: number | null;
+};
+
+export type RecruitingClosureTimesResult = {
+  filters?: {
+    dimensions?: RecruitingClosureTimesOption[];
+    levels?: RecruitingClosureTimesOption[];
+  };
+  filters_applied?: {
+    dimension?: RecruitingClosureTimesDimension;
+    date_from?: string | null;
+    date_to?: string | null;
+    level?: string | null;
+  };
+  summary?: RecruitingClosureTimesSummary;
+  rows?: RecruitingClosureTimesRow[];
+};
+
+export type RecruitingClosureTimesInvokeResponse = {
+  method: typeof GET_RECRUITING_CLOSURE_TIMES_METHOD;
+  result: RecruitingClosureTimesResult;
 };
 
 export type SalaryExcelTemplateTypeItem = {
@@ -2838,6 +3010,51 @@ const reportsService = {
 
     return normalizeOrgStructureResponse(response.data);
   },
+  getRecruitingFunnel: async (
+    requestData: JsonRecord = {}
+  ): Promise<RecruitingFunnelInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_RECRUITING_FUNNEL_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<RecruitingFunnelInvokeResponse>(
+      response.data,
+      GET_RECRUITING_FUNNEL_METHOD
+    );
+  },
+  getRecruitingSources: async (
+    requestData: JsonRecord = {}
+  ): Promise<RecruitingSourcesInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_RECRUITING_SOURCES_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<RecruitingSourcesInvokeResponse>(
+      response.data,
+      GET_RECRUITING_SOURCES_METHOD
+    );
+  },
+  getRecruitingClosureTimes: async (
+    requestData: JsonRecord = {}
+  ): Promise<RecruitingClosureTimesInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_RECRUITING_CLOSURE_TIMES_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<RecruitingClosureTimesInvokeResponse>(
+      response.data,
+      GET_RECRUITING_CLOSURE_TIMES_METHOD
+    );
+  },
   getSalaryExcelTemplate: async (
     requestData: JsonRecord = {}
   ): Promise<SalaryExcelTemplateInvokeResponse> => {
@@ -3140,6 +3357,36 @@ export const useOrgStructureReportQuery = (
   return useQuery({
     queryKey: ["REPORTS", "ORG_STRUCTURE", requestData],
     queryFn: () => reportsService.getOrgStructure(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const useRecruitingFunnelReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "RECRUITING_FUNNEL", requestData],
+    queryFn: () => reportsService.getRecruitingFunnel(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const useRecruitingSourcesReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "RECRUITING_SOURCES", requestData],
+    queryFn: () => reportsService.getRecruitingSources(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const useRecruitingClosureTimesReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "RECRUITING_CLOSURE_TIMES", requestData],
+    queryFn: () => reportsService.getRecruitingClosureTimes(requestData),
     staleTime: 60_000,
   });
 };

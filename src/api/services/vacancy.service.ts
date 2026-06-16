@@ -45,7 +45,6 @@ export interface VacancyApiRow {
   tag?: string | null;
   locations_id?: string | null;
   locations_id_data?: { guid?: string; title?: string } | null;
-  location?: string | null;
   work_mode?: string[] | string | null;
   employment_type?: string | null;
   experience_level?: string | null;
@@ -55,21 +54,14 @@ export interface VacancyApiRow {
   status?: string[] | string | null;
   priority?: string[] | string | null;
   openings?: number | string | null;
-  recruiter_id?: string | null;
-  recruiter_name?: string | null;
-  hiring_manager_id?: string | null;
-  hiring_manager_name?: string | null;
   description?: string | null;
-  responsibilities?: string | null;
-  requirements?: string | null;
-  conditions?: string | null;
   skills?: string[] | string | null;
   deadline?: string | null;
   opened_at?: string | null;
   closed_at?: string | null;
   created_at?: string | null;
-  stage_template_id?: string | null;
-  stages?: StageDefApiRow[] | null;
+  recruiting_stage_templates_id?: string | null;
+  stages?: StageDefApiRow[] | string | null;
   [key: string]: unknown;
 }
 
@@ -77,6 +69,16 @@ interface ListResponse<T> {
   count: number;
   response: T[];
 }
+
+// Items API single-item GET wraps the row under `.response`; the list keeps the
+// row at top level. Unwrap so the mappers always get the bare row (with guid).
+const unwrapItem = <T>(res: unknown): T => {
+  if (res && typeof res === "object" && !Array.isArray(res)) {
+    const inner = (res as Record<string, unknown>).response;
+    if (inner && typeof inner === "object" && !Array.isArray(inner)) return inner as T;
+  }
+  return res as T;
+};
 
 // ───── Mappers ─────
 
@@ -106,6 +108,14 @@ const toStrArray = (value: unknown): string[] => {
   return [];
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const toUuidOrNull = (value: string | null): string | null =>
+  value && UUID_RE.test(value) ? value : null;
+
+const vacancyStagesToPayload = (stages: StageDef[]): string =>
+  JSON.stringify(stageDefsToPayload(stages));
+
 export const mapVacancyRow = (row: VacancyApiRow, counts?: VacancyCounts): Vacancy => ({
   id: row.guid,
   title: row.title || "Без названия",
@@ -115,7 +125,7 @@ export const mapVacancyRow = (row: VacancyApiRow, counts?: VacancyCounts): Vacan
   positionTitle: row.positions_id_data?.title || row.title || "",
   tag: row.tag || "",
   locationId: row.locations_id ?? null,
-  location: row.locations_id_data?.title || row.location || "",
+  location: row.locations_id_data?.title || "",
   workMode: pickEnum(row.work_mode, VALID_WORK_MODES, "office"),
   employmentType: row.employment_type || "Полная занятость",
   experienceLevel: row.experience_level || "",
@@ -125,32 +135,27 @@ export const mapVacancyRow = (row: VacancyApiRow, counts?: VacancyCounts): Vacan
   status: pickEnum(row.status, VALID_STATUSES, "open"),
   priority: pickEnum(row.priority, VALID_PRIORITIES, "medium"),
   openings: Number(row.openings) || 1,
-  recruiterId: row.recruiter_id ?? null,
-  recruiterName: row.recruiter_name ?? null,
-  hiringManagerId: row.hiring_manager_id ?? null,
-  hiringManagerName: row.hiring_manager_name ?? null,
   description: row.description || "",
-  responsibilities: row.responsibilities || "",
-  requirements: row.requirements || "",
-  conditions: row.conditions || "",
   skills: toStrArray(row.skills),
   deadline: row.deadline || null,
   openedAt: row.opened_at || row.created_at || null,
   closedAt: row.closed_at || null,
   createdAt: row.created_at || "",
-  stageTemplateId: row.stage_template_id ?? null,
+  stageTemplateId: row.recruiting_stage_templates_id ?? null,
   stages: mapStageDefs(row.stages),
   candidatesCount: counts?.total ?? 0,
   hiredCount: counts?.hired ?? 0,
 });
 
-const draftToPayload = (draft: VacancyDraft): Record<string, unknown> => ({
+const draftToPayload = (
+  draft: VacancyDraft,
+  { serializeStages = true }: { serializeStages?: boolean } = {}
+): Record<string, unknown> => ({
   title: draft.title,
-  departments_id: draft.departmentId,
-  positions_id: draft.positionId,
+  departments_id: toUuidOrNull(draft.departmentId),
+  positions_id: toUuidOrNull(draft.positionId),
   tag: draft.tag,
-  locations_id: draft.locationId,
-  location: draft.location,
+  locations_id: toUuidOrNull(draft.locationId),
   work_mode: [draft.workMode],
   employment_type: draft.employmentType,
   experience_level: draft.experienceLevel,
@@ -160,19 +165,12 @@ const draftToPayload = (draft: VacancyDraft): Record<string, unknown> => ({
   status: [draft.status],
   priority: [draft.priority],
   openings: draft.openings,
-  recruiter_id: draft.recruiterId,
-  recruiter_name: draft.recruiterName,
-  hiring_manager_id: draft.hiringManagerId,
-  hiring_manager_name: draft.hiringManagerName,
   description: draft.description,
-  responsibilities: draft.responsibilities,
-  requirements: draft.requirements,
-  conditions: draft.conditions,
   skills: draft.skills,
   deadline: draft.deadline,
   opened_at: draft.openedAt,
-  stage_template_id: draft.stageTemplateId,
-  stages: stageDefsToPayload(draft.stages),
+  recruiting_stage_templates_id: draft.stageTemplateId,
+  stages: serializeStages ? vacancyStagesToPayload(draft.stages) : stageDefsToPayload(draft.stages),
 });
 
 // ───── Items API CRUD ─────
@@ -198,11 +196,12 @@ const vacancyService = {
     }) as unknown as Promise<ListResponse<VacancyApiRow>>;
   },
 
-  getByGuid: (guid: string) => {
+  getByGuid: async (guid: string) => {
     if (RECRUITING_USE_MOCK) return mockGetVacancy(guid) as unknown as Promise<VacancyApiRow | null>;
-    return httpRequest.get(`/v2/items/${VACANCIES_SLUG}/${guid}`, {
+    const res = await httpRequest.get(`/v2/items/${VACANCIES_SLUG}/${guid}`, {
       params: { with_relations: true },
-    }) as unknown as Promise<VacancyApiRow>;
+    });
+    return unwrapItem<VacancyApiRow>(res);
   },
 
   // Candidate counts per vacancy (total / hired / per-stage) — powers the
@@ -245,14 +244,14 @@ const vacancyService = {
   },
 
   create: (draft: VacancyDraft) => {
-    if (RECRUITING_USE_MOCK) return mockCreateVacancy(draftToPayload(draft));
+    if (RECRUITING_USE_MOCK) return mockCreateVacancy(draftToPayload(draft, { serializeStages: false }));
     return httpRequest.post(`/v2/items/${VACANCIES_SLUG}`, {
       data: { companies_id: COMPANY_ID, ...draftToPayload(draft) },
     });
   },
 
   update: (guid: string, draft: VacancyDraft) => {
-    if (RECRUITING_USE_MOCK) return mockUpdateVacancy(guid, draftToPayload(draft));
+    if (RECRUITING_USE_MOCK) return mockUpdateVacancy(guid, draftToPayload(draft, { serializeStages: false }));
     return httpRequest.put(`/v2/items/${VACANCIES_SLUG}/${guid}`, {
       data: { ...draftToPayload(draft), guid },
     });
@@ -261,7 +260,7 @@ const vacancyService = {
   updateStages: (guid: string, stages: StageDef[]) => {
     if (RECRUITING_USE_MOCK) return mockUpdateVacancyStages(guid, stageDefsToPayload(stages));
     return httpRequest.put(`/v2/items/${VACANCIES_SLUG}/${guid}`, {
-      data: { stages: stageDefsToPayload(stages), guid },
+      data: { stages: vacancyStagesToPayload(stages), guid },
     });
   },
 

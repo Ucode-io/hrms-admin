@@ -1,5 +1,4 @@
 import { CalendarDays, MapPin, Pencil, Trash2, UserCheck, Users } from "lucide-react";
-import Avatar from "../../components/Avatar";
 import { TagChip } from "../../components/Chips";
 import type { VacancyCounts } from "../../../../api/services/vacancy.service";
 import {
@@ -145,15 +144,6 @@ export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete 
             {vacancy.hiredCount} из {vacancy.openings} нанято
           </span>
         </div>
-        {vacancy.recruiterName && (
-          <div title={`Рекрутер: ${vacancy.recruiterName}`}>
-            <Avatar
-              firstName={vacancy.recruiterName.split(" ")[1] ?? ""}
-              lastName={vacancy.recruiterName.split(" ")[0] ?? ""}
-              size={24}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

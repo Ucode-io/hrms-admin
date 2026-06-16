@@ -4,7 +4,7 @@ import Avatar from "../../../components/Avatar";
 import { ScoreBadge } from "../../../components/Chips";
 import OutcomeBadge from "../../../components/OutcomeBadge";
 import {
-  CANDIDATE_REJECTION_REASON_CONFIG,
+  rejectionReasonLabel,
   STAGE_COLOR_CONFIG,
   daysOpenLabel,
   sortStages,
@@ -174,7 +174,7 @@ export default function PipelineKanban({
                       <OutcomeBadge outcome={candidate.outcome} />
                       {candidate.outcome === "rejected" && candidate.rejectionReason && (
                         <span className="truncate text-[11px] text-gray-400">
-                          {CANDIDATE_REJECTION_REASON_CONFIG[candidate.rejectionReason].label}
+                          {rejectionReasonLabel(candidate.rejectionReason)}
                         </span>
                       )}
                     </div>

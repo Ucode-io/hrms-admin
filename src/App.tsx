@@ -42,6 +42,8 @@ import CreateDocumentTemplatePage from "./modules/Settings/Documents/TemplateCre
 import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
 import ProbationPoliciesSettingsPage from "./modules/Settings/ProbationPolicies";
 import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
+import RejectionReasonsSettingsPage from "./modules/Settings/RejectionReasons";
+import CandidateSourcesSettingsPage from "./modules/Settings/CandidateSources";
 import DismissalTypesSettingsPage from "./modules/Settings/DismissalTypes";
 import EmployeeWorkChangeReasonsSettingsPage from "./modules/Settings/EmployeeWorkChangeReasons";
 import PropertyCategoriesSettingsPage from "./modules/Settings/PropertyCategories";
@@ -69,6 +71,9 @@ import AttendancePage from "./modules/Reports/Attendance";
 import SportAttendancePage from "./modules/Reports/SportAttendance";
 import PayrollPage from "./modules/Reports/Payroll";
 import BonusDeductionsPage from "./modules/Reports/BonusDeductions";
+import RecruitingFunnelPage from "./modules/Reports/RecruitingFunnel";
+import RecruitingSourcesPage from "./modules/Reports/RecruitingSources";
+import RecruitingClosureTimesPage from "./modules/Reports/RecruitingClosureTimes";
 import SuppliersList from "./modules/Suppliers/List";
 import SupplierForm from "./modules/Suppliers/Form";
 import OrganizationClientsList from "./modules/Clients/List";
@@ -249,6 +254,9 @@ function App() {
               <Route path="/reports/sport-attendance" element={<SportAttendancePage />} />
               <Route path="/reports/payroll" element={<PayrollPage />} />
               <Route path="/reports/bonus-deductions" element={<BonusDeductionsPage />} />
+              <Route path="/reports/recruiting-funnel" element={<RecruitingFunnelPage />} />
+              <Route path="/reports/recruiting-sources" element={<RecruitingSourcesPage />} />
+              <Route path="/reports/recruiting-closure-times" element={<RecruitingClosureTimesPage />} />
 
               <Route path="/organization/suppliers" element={<SuppliersList />} />
               <Route path="/organization/suppliers/new" element={<SupplierForm />} />
@@ -272,7 +280,10 @@ function App() {
               <Route path="/recruiting/candidates/new" element={<CandidateForm />} />
               <Route path="/recruiting/candidates/:id" element={<CandidateDetail />} />
               <Route path="/recruiting/candidates/:id/edit" element={<CandidateForm />} />
-              <Route path="/recruiting/settings/stage-templates" element={<StageTemplatesPage />} />
+              <Route path="/settings/stage-templates" element={<StageTemplatesPage />} />
+              <Route path="/settings/rejection-reasons" element={<RejectionReasonsSettingsPage />} />
+              <Route path="/settings/candidate-sources" element={<CandidateSourcesSettingsPage />} />
+              <Route path="/recruiting/settings/stage-templates" element={<Navigate to="/settings/stage-templates" replace />} />
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
 

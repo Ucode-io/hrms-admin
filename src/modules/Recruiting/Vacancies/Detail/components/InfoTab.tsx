@@ -5,6 +5,7 @@ import Button from "../../../../../components/ui/button/Button";
 import BottomSheet from "../../../components/BottomSheet";
 import StageListEditor from "../../../components/StageListEditor";
 import { useUpdateVacancyStages } from "../../../../../api/services/vacancy.service";
+import { sanitizeRichText } from "../../../components/RichTextEditor";
 import {
   STAGE_COLOR_CONFIG,
   WORK_MODE_CONFIG,
@@ -29,12 +30,6 @@ const Card = ({ title, action, children }: { title: string; action?: React.React
   </div>
 );
 
-const TextBlock = ({ text }: { text: string }) =>
-  text ? (
-    <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-600">{text}</p>
-  ) : (
-    <p className="text-sm text-gray-300">Не заполнено</p>
-  );
 
 export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
   const updateStagesMutation = useUpdateVacancyStages();
@@ -48,6 +43,8 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
   const lockedStageIds = new Set(
     Object.keys(countsByStage).filter((sid) => (countsByStage[sid] ?? 0) > 0)
   );
+
+  const descriptionHtml = sanitizeRichText(vacancy.description);
 
   const saveStages = async () => {
     if (draftStages.length === 0) {
@@ -71,16 +68,14 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
         <Card title="Описание">
-          <TextBlock text={vacancy.description} />
-        </Card>
-        <Card title="Обязанности">
-          <TextBlock text={vacancy.responsibilities} />
-        </Card>
-        <Card title="Требования">
-          <TextBlock text={vacancy.requirements} />
-        </Card>
-        <Card title="Условия">
-          <TextBlock text={vacancy.conditions} />
+          {descriptionHtml ? (
+            <div
+              className="comment-body text-sm leading-relaxed text-gray-600"
+              dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+            />
+          ) : (
+            <p className="text-sm text-gray-300">Не заполнено</p>
+          )}
         </Card>
       </div>
 
@@ -127,8 +122,6 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
               ["Локация", vacancy.location || "—"],
               ["Открыта", formatDate(vacancy.openedAt)],
               ["Дедлайн", formatDate(vacancy.deadline)],
-              ["Рекрутер", vacancy.recruiterName ?? "—"],
-              ["Менеджер", vacancy.hiringManagerName ?? "—"],
             ].map(([label, value]) => (
               <div key={label} className="flex items-baseline justify-between gap-3">
                 <dt className="shrink-0 text-gray-400">{label}</dt>

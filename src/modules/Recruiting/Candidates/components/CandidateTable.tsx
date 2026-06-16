@@ -4,7 +4,7 @@ import { LevelChip, ScoreBadge } from "../../components/Chips";
 import OutcomeBadge from "../../components/OutcomeBadge";
 import StagePill from "../../components/StagePill";
 import {
-  CANDIDATE_SOURCE_CONFIG,
+  sourceLabel,
   formatDate,
   type Candidate,
   type StageDef,
@@ -45,7 +45,6 @@ export default function CandidateTable({
             <Th>Оценка</Th>
             <Th>Источник</Th>
             <Th>Отклик</Th>
-            <Th>Рекрутер</Th>
             <Th className="w-24" />
           </tr>
         </thead>
@@ -85,10 +84,9 @@ export default function CandidateTable({
                 <ScoreBadge score={candidate.avgScore} />
               </td>
               <td className="px-4 py-3 text-gray-600">
-                {CANDIDATE_SOURCE_CONFIG[candidate.source].label}
+                {sourceLabel(candidate.source)}
               </td>
               <td className="px-4 py-3 text-gray-500">{formatDate(candidate.appliedDate)}</td>
-              <td className="px-4 py-3 text-gray-600">{candidate.recruiterName ?? "—"}</td>
               <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-end gap-1">
                   <button

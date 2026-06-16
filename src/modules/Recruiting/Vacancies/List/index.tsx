@@ -19,6 +19,8 @@ import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbCo
 import companyStore from "../../../../store/company.store";
 import EmployeesPaginationFooter from "../../../Employees/List/components/EmployeesPaginationFooter";
 import { MOCK_DEPARTMENTS } from "../../mock/mockApi";
+import { RECRUITING_USE_MOCK } from "../../mock/mockConfig";
+import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
 import {
   mapVacancyRow,
   useDeleteVacancy,
@@ -75,6 +77,10 @@ function VacanciesList() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [deletingItem, setDeletingItem] = useState<Vacancy | null>(null);
+  const { data: departmentsData } = useDepartmentsSettingsQuery({
+    params: { limit: 200 },
+    querySettings: { enabled: !RECRUITING_USE_MOCK },
+  });
 
   const queryParams = useMemo(
     () => ({
@@ -94,6 +100,16 @@ function VacanciesList() {
   const vacancies = useMemo(
     () => (vacanciesData?.response ?? []).map((row) => mapVacancyRow(row, countsMap?.[row.guid])),
     [vacanciesData, countsMap]
+  );
+  const departmentOptions = useMemo(
+    () =>
+      RECRUITING_USE_MOCK
+        ? MOCK_DEPARTMENTS
+        : (departmentsData?.response ?? []).map((item) => ({
+            value: item.guid,
+            label: item.title || "Без названия",
+          })),
+    [departmentsData?.response]
   );
 
   const totalCount = vacanciesData?.count ?? 0;
@@ -263,7 +279,7 @@ function VacanciesList() {
               }}
             >
               <option value="">Все отделы</option>
-              {MOCK_DEPARTMENTS.map((o) => (
+              {departmentOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>

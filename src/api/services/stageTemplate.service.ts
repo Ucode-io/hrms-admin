@@ -32,7 +32,7 @@ export interface StageTemplateApiRow {
   guid: string;
   name?: string | null;
   description?: string | null;
-  stages?: StageDefApiRow[] | null;
+  stages?: StageDefApiRow[] | string | null;
   is_default?: boolean | null;
   created_at?: string | null;
   [key: string]: unknown;
@@ -45,7 +45,19 @@ interface ListResponse<T> {
 
 // ───── Mappers ─────
 
-export const mapStageDefs = (rows: StageDefApiRow[] | null | undefined): StageDef[] => {
+export const mapStageDefs = (
+  input: StageDefApiRow[] | string | null | undefined
+): StageDef[] => {
+  // `stages` приходит массивом (jsonb-колонка) или JSON-строкой (varchar-колонка).
+  let rows: StageDefApiRow[] | null = Array.isArray(input) ? input : null;
+  if (!rows && typeof input === "string" && input.trim()) {
+    try {
+      const parsed = JSON.parse(input);
+      if (Array.isArray(parsed)) rows = parsed as StageDefApiRow[];
+    } catch {
+      rows = null;
+    }
+  }
   if (!Array.isArray(rows)) return [];
   return sortStages(
     rows.map((r, i) => ({
@@ -87,12 +99,18 @@ const stageTemplateService = {
     }) as unknown as Promise<ListResponse<StageTemplateApiRow>>;
   },
 
-  getByGuid: (guid: string) => {
+  getByGuid: async (guid: string) => {
     if (RECRUITING_USE_MOCK)
       return mockGetStageTemplate(guid) as unknown as Promise<StageTemplateApiRow | null>;
-    return httpRequest.get(
-      `/v2/items/${TEMPLATES_SLUG}/${guid}`
-    ) as unknown as Promise<StageTemplateApiRow>;
+    const res = await httpRequest.get(`/v2/items/${TEMPLATES_SLUG}/${guid}`);
+    // Single-item GET wraps the row under `.response`.
+    if (res && typeof res === "object" && !Array.isArray(res)) {
+      const inner = (res as Record<string, unknown>).response;
+      if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+        return inner as unknown as StageTemplateApiRow;
+      }
+    }
+    return res as unknown as StageTemplateApiRow;
   },
 
   create: (draft: StageTemplateDraft) => {

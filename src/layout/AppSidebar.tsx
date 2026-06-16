@@ -7,7 +7,6 @@ import {
   ChevronRight,
   FileText,
   Home,
-  ListChecks,
   Package,
   Settings,
   Target,
@@ -52,7 +51,6 @@ const moduleSections: ModuleSection[] = [
     items: [
       { name: "Вакансии", path: "/recruiting/vacancies", icon: <UserSearch size={18} /> },
       { name: "Кандидаты", path: "/recruiting/candidates", icon: <Users size={18} /> },
-      { name: "Шаблоны этапов", path: "/recruiting/settings/stage-templates", icon: <ListChecks size={18} /> },
     ],
   },
   {
@@ -84,7 +82,6 @@ const ENABLED_PATHS = new Set([
   "/employees",
   "/recruiting/vacancies",
   "/recruiting/candidates",
-  "/recruiting/settings/stage-templates",
   "/documents",
   "/property",
   "/reports",

@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import FormSelect from "./FormSelect";
+import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 import {
   CANDIDATE_REJECTION_REASON_CONFIG,
   CANDIDATE_REJECTION_REASON_ORDER,
-  type CandidateRejectionReason,
 } from "../types";
 
-const REASON_OPTIONS = CANDIDATE_REJECTION_REASON_ORDER.map((r) => ({
-  value: r,
+export const REJECTION_REASONS_SLUG = "candidate_rejection_reasons";
+
+// Fallback list (used until the directory collection is populated).
+const FALLBACK_OPTIONS = CANDIDATE_REJECTION_REASON_ORDER.map((r) => ({
+  value: CANDIDATE_REJECTION_REASON_CONFIG[r].label,
   label: CANDIDATE_REJECTION_REASON_CONFIG[r].label,
 }));
 
@@ -17,7 +20,7 @@ interface RejectSheetProps {
   isOpen: boolean;
   candidateName: string;
   onClose: () => void;
-  onConfirm: (reason: CandidateRejectionReason) => void;
+  onConfirm: (reason: string) => void;
   isSubmitting?: boolean;
 }
 
@@ -29,7 +32,23 @@ export default function RejectSheet({
   onConfirm,
   isSubmitting = false,
 }: RejectSheetProps) {
-  const [reason, setReason] = useState<CandidateRejectionReason | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
+
+  const { data } = useSettingsDirectoryQuery({
+    slug: REJECTION_REASONS_SLUG,
+    params: { limit: 200 },
+  });
+
+  const options = useMemo(() => {
+    const items = data?.response ?? [];
+    const fromDirectory = items
+      .map((item) => ({
+        value: item.guid,
+        label: String(item.title || "").trim() || "Без названия",
+      }))
+      .filter((item) => item.value);
+    return fromDirectory.length > 0 ? fromDirectory : FALLBACK_OPTIONS;
+  }, [data]);
 
   useEffect(() => {
     if (isOpen) setReason(null);
@@ -45,9 +64,9 @@ export default function RejectSheet({
         </p>
         <div className="mt-4">
           <FormSelect
-            options={REASON_OPTIONS}
+            options={options}
             value={reason}
-            onChange={(v) => setReason((v as CandidateRejectionReason) || null)}
+            onChange={(v) => setReason((v as string) || null)}
             placeholder="Причина отказа"
             menuPortal
           />

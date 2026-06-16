@@ -1,10 +1,11 @@
 import { ChevronDown, MessageSquare } from "lucide-react";
 import ScorePicker from "../../../components/ScorePicker";
-import CommentThread from "../../../components/CommentThread";
+import CommentThread, { type AttachedFile } from "../../../components/CommentThread";
 import { ScoreBadge } from "../../../components/Chips";
 import {
   STAGE_COLOR_CONFIG,
   formatDate,
+  type CandidateDocument,
   type StageDef,
   type StageEvaluation,
 } from "../../../types";
@@ -14,11 +15,14 @@ interface StageEvaluationItemProps {
   evaluation: StageEvaluation;
   /** When the candidate entered this stage (from history). */
   enteredAt: string | null;
+  /** Документы кандидата — для отображения вложений в комментариях. */
+  documents: CandidateDocument[];
   isCurrent: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   onScore: (score: number | null) => void;
   onAddComment: (text: string) => Promise<void> | void;
+  onAttachFile: (file: AttachedFile) => Promise<void> | void;
   isScoring?: boolean;
   isCommenting?: boolean;
 }
@@ -28,11 +32,13 @@ export default function StageEvaluationItem({
   stage,
   evaluation,
   enteredAt,
+  documents,
   isCurrent,
   isExpanded,
   onToggle,
   onScore,
   onAddComment,
+  onAttachFile,
   isScoring = false,
   isCommenting = false,
 }: StageEvaluationItemProps) {
@@ -92,7 +98,9 @@ export default function StageEvaluationItem({
             <span className="mb-2 block text-[13px] font-medium text-gray-600">Комментарии</span>
             <CommentThread
               comments={evaluation.comments}
+              documents={documents}
               onAdd={onAddComment}
+              onAttach={onAttachFile}
               isSubmitting={isCommenting}
             />
           </div>

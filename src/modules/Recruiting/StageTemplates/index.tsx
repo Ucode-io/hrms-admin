@@ -15,8 +15,8 @@ import { STAGE_COLOR_CONFIG, formatDate, type StageTemplate } from "../types";
 import TemplateEditorSheet from "./components/TemplateEditorSheet";
 
 const BREADCRUMBS = [
-  { label: "Рекрутинг", to: "/recruiting/vacancies" },
-  { label: "Шаблоны этапов", to: "/recruiting/settings/stage-templates" },
+  { label: "Настройки", to: "/settings" },
+  { label: "Шаблоны этапов", to: "/settings/stage-templates" },
 ];
 
 export default function StageTemplatesPage() {

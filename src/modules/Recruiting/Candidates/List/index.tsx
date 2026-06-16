@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { Archive, Plus, SlidersHorizontal, ThumbsDown, Trophy, Users } from "lucide-react";
+import { Plus, SlidersHorizontal, ThumbsDown, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
@@ -20,13 +20,17 @@ import CandidateTable from "../components/CandidateTable";
 import {
   CANDIDATE_SOURCE_CONFIG,
   CANDIDATE_SOURCE_ORDER,
-  OUTCOME_CONFIG,
-  OUTCOME_ORDER,
   type Candidate,
   type CandidateOutcome,
-  type CandidateSource,
   type StageDef,
 } from "../../types";
+import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
+
+const CANDIDATE_SOURCES_SLUG = "candidate_sources";
+const FALLBACK_SOURCE_OPTIONS = CANDIDATE_SOURCE_ORDER.map((s) => ({
+  value: CANDIDATE_SOURCE_CONFIG[s].label,
+  label: CANDIDATE_SOURCE_CONFIG[s].label,
+}));
 
 type PaginationItem = number | string;
 
@@ -56,6 +60,13 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
 const selectCls =
   "h-10 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 transition focus:border-brand-400 focus:outline-none appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')] bg-[right_0.5rem_center] bg-no-repeat";
 
+const CANDIDATE_TABS: Array<{ value: CandidateOutcome; label: string }> = [
+  { value: "active", label: "Активные" },
+  { value: "hired", label: "Нанятые" },
+  { value: "rejected", label: "Отказанные" },
+  { value: "reserve", label: "Резервные" },
+];
+
 function CandidatesList() {
   useHeaderBreadcrumbItems(BREADCRUMBS);
   const navigate = useNavigate();
@@ -64,11 +75,25 @@ function CandidatesList() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [vacancyFilter, setVacancyFilter] = useState(searchParams.get("vacancy") ?? "");
-  const [outcomeFilter, setOutcomeFilter] = useState<CandidateOutcome | "">("");
-  const [sourceFilter, setSourceFilter] = useState<CandidateSource | "">("");
+  const [outcomeFilter, setOutcomeFilter] = useState<CandidateOutcome | "">("active");
+  const [sourceFilter, setSourceFilter] = useState<string>("");
   const [isFiltersOpen, setIsFiltersOpen] = useState(Boolean(searchParams.get("vacancy")));
   const [currentPage, setCurrentPage] = useState(1);
   const [deletingItem, setDeletingItem] = useState<Candidate | null>(null);
+
+  const { data: sourcesData } = useSettingsDirectoryQuery({
+    slug: CANDIDATE_SOURCES_SLUG,
+    params: { limit: 200 },
+  });
+  const sourceOptions = useMemo(() => {
+    const fromDirectory = (sourcesData?.response ?? [])
+      .map((item) => ({
+        value: item.guid,
+        label: String(item.title || "").trim() || "Без названия",
+      }))
+      .filter((item) => item.value);
+    return fromDirectory.length > 0 ? fromDirectory : FALLBACK_SOURCE_OPTIONS;
+  }, [sourcesData]);
 
   const queryParams = useMemo(
     () => ({
@@ -123,21 +148,35 @@ function CandidatesList() {
     return `Отображение ${start}–${end} из ${totalCount}`;
   }, [safePage, totalCount, isLoading]);
 
-  const summary = useMemo(() => {
-    const active = candidates.filter((c) => c.outcome === "active").length;
-    const hired = candidates.filter((c) => c.outcome === "hired").length;
-    const rejected = candidates.filter((c) => c.outcome === "rejected").length;
-    return { total: totalCount, active, hired, rejected };
-  }, [candidates, totalCount]);
+  // Summary counts — always global (no outcome filter, just search/vacancy/source).
+  const summaryBase = useMemo(
+    () => ({
+      limit: 1 as const,
+      offset: 0 as const,
+      ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+      ...(vacancyFilter ? { vacancyId: vacancyFilter } : {}),
+      ...(sourceFilter ? { source: sourceFilter } : {}),
+    }),
+    [searchQuery, vacancyFilter, sourceFilter]
+  );
+  const { data: summaryTotalData } = useCandidatesQuery(summaryBase);
+  const { data: summaryActiveData } = useCandidatesQuery({ ...summaryBase, outcome: "active" });
+  const { data: summaryHiredData } = useCandidatesQuery({ ...summaryBase, outcome: "hired" });
+  const { data: summaryRejectedData } = useCandidatesQuery({ ...summaryBase, outcome: "rejected" });
 
-  const hasActiveFilters = Boolean(searchQuery || vacancyFilter || outcomeFilter || sourceFilter);
-  const activeFiltersCount =
-    (vacancyFilter ? 1 : 0) + (outcomeFilter ? 1 : 0) + (sourceFilter ? 1 : 0);
+  const summary = {
+    total: summaryTotalData?.count ?? 0,
+    active: summaryActiveData?.count ?? 0,
+    hired: summaryHiredData?.count ?? 0,
+    rejected: summaryRejectedData?.count ?? 0,
+  };
+
+  const hasActiveFilters = Boolean(searchQuery || vacancyFilter || sourceFilter);
+  const activeFiltersCount = (vacancyFilter ? 1 : 0) + (sourceFilter ? 1 : 0);
 
   const resetFilters = () => {
     setSearchQuery("");
     setVacancyFilter("");
-    setOutcomeFilter("");
     setSourceFilter("");
     setCurrentPage(1);
   };
@@ -180,10 +219,47 @@ function CandidatesList() {
             borderBottom: isFiltersOpen ? "none" : "1px solid #e2e8f0",
           }}
         >
-          <span className="text-sm font-medium text-gray-600">
-            <Archive size={15} className="mr-1.5 inline -translate-y-px text-gray-400" />
-            Все кандидаты компании
-          </span>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "3px",
+              borderRadius: "12px",
+              border: "1px solid #e2e8f0",
+              backgroundColor: "#f8fafc",
+              height: "38px",
+            }}
+          >
+            {CANDIDATE_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => {
+                  setOutcomeFilter(outcomeFilter === tab.value ? "" : tab.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  height: "30px",
+                  padding: "0 12px",
+                  border: outcomeFilter === tab.value ? "1px solid #dbeafe" : "1px solid transparent",
+                  borderRadius: "8px",
+                  backgroundColor: outcomeFilter === tab.value ? "#fff" : "transparent",
+                  color: outcomeFilter === tab.value ? "#2563eb" : "#64748b",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  boxShadow: outcomeFilter === tab.value ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <ExpandableSearchInput
               value={searchQuery}
@@ -248,32 +324,17 @@ function CandidatesList() {
               ))}
             </select>
             <select
-              value={outcomeFilter}
-              className={selectCls}
-              onChange={(e) => {
-                setOutcomeFilter(e.target.value as CandidateOutcome | "");
-                setCurrentPage(1);
-              }}
-            >
-              <option value="">Все статусы</option>
-              {OUTCOME_ORDER.map((o) => (
-                <option key={o} value={o}>
-                  {OUTCOME_CONFIG[o].label}
-                </option>
-              ))}
-            </select>
-            <select
               value={sourceFilter}
               className={selectCls}
               onChange={(e) => {
-                setSourceFilter(e.target.value as CandidateSource | "");
+                setSourceFilter(e.target.value);
                 setCurrentPage(1);
               }}
             >
               <option value="">Все источники</option>
-              {CANDIDATE_SOURCE_ORDER.map((s) => (
-                <option key={s} value={s}>
-                  {CANDIDATE_SOURCE_CONFIG[s].label}
+              {sourceOptions.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </select>

@@ -9,7 +9,6 @@ import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbCo
 import FormSelect from "../../components/FormSelect";
 import FormDatePicker from "../../components/FormDatePicker";
 import TagsInput from "../../components/TagsInput";
-import { MOCK_EMPLOYEES } from "../../mock/mockApi";
 import {
   mapCandidateRow,
   useCandidateQuery,
@@ -23,16 +22,19 @@ import {
   createEmptyCandidateDraft,
   candidateDraftFromItem,
   type CandidateDraft,
-  type CandidateSource,
 } from "../../types";
+import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
+
+const CANDIDATE_SOURCES_SLUG = "candidate_sources";
 
 const inputCls =
   "h-11 w-full rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-800 transition placeholder:text-gray-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100";
 const labelCls = "mb-1.5 block text-sm font-medium text-gray-700";
 
 const LEVELS = ["Junior", "Middle", "Senior", "Lead"].map((v) => ({ value: v, label: v }));
-const SOURCE_OPTIONS = CANDIDATE_SOURCE_ORDER.map((s) => ({
-  value: s,
+// Fallback used until the `candidate_sources` directory is populated.
+const FALLBACK_SOURCE_OPTIONS = CANDIDATE_SOURCE_ORDER.map((s) => ({
+  value: CANDIDATE_SOURCE_CONFIG[s].label,
   label: CANDIDATE_SOURCE_CONFIG[s].label,
 }));
 const CURRENCY_OPTIONS = [
@@ -73,11 +75,17 @@ export default function CandidateForm() {
   const isEdit = Boolean(id);
   const presetVacancyId = searchParams.get("vacancyId");
 
-  useHeaderBreadcrumbItems([
-    { label: "Рекрутинг", to: "/recruiting/vacancies" },
-    { label: "Кандидаты", to: "/recruiting/candidates" },
-    { label: isEdit ? "Редактировать" : "Новый кандидат", to: "#" },
-  ]);
+  // Стабильная ссылка — иначе useHeaderBreadcrumbItems зациклит рендер.
+  useHeaderBreadcrumbItems(
+    useMemo(
+      () => [
+        { label: "Рекрутинг", to: "/recruiting/vacancies" },
+        { label: "Кандидаты", to: "/recruiting/candidates" },
+        { label: isEdit ? "Редактировать" : "Новый кандидат", to: "#" },
+      ],
+      [isEdit]
+    )
+  );
 
   const { data: candidateRow, isLoading } = useCandidateQuery(isEdit ? id : undefined);
   const { data: vacanciesData } = useVacanciesQuery({ limit: 200, offset: 0 });
@@ -88,6 +96,20 @@ export default function CandidateForm() {
     createEmptyCandidateDraft(presetVacancyId)
   );
   const [error, setError] = useState("");
+
+  const { data: sourcesData } = useSettingsDirectoryQuery({
+    slug: CANDIDATE_SOURCES_SLUG,
+    params: { limit: 200 },
+  });
+  const sourceOptions = useMemo(() => {
+    const fromDirectory = (sourcesData?.response ?? [])
+      .map((item) => ({
+        value: item.guid,
+        label: String(item.title || "").trim() || "Без названия",
+      }))
+      .filter((item) => item.value);
+    return fromDirectory.length > 0 ? fromDirectory : FALLBACK_SOURCE_OPTIONS;
+  }, [sourcesData]);
 
   const candidate = useMemo(
     () => (candidateRow ? mapCandidateRow(candidateRow) : null),
@@ -296,9 +318,9 @@ export default function CandidateForm() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Источник">
                 <FormSelect
-                  options={SOURCE_OPTIONS}
+                  options={sourceOptions}
                   value={draft.source}
-                  onChange={(v) => set("source", v as CandidateSource)}
+                  onChange={(v) => set("source", (v as string) || "")}
                   isSearchable={false}
                   menuPortal
                 />
@@ -307,7 +329,7 @@ export default function CandidateForm() {
                 <FormDatePicker value={draft.appliedDate} onChange={(v) => set("appliedDate", v)} />
               </Field>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px_1fr]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px]">
               <Field label="Ожидания по ЗП">
                 <input
                   type="number"
@@ -325,19 +347,6 @@ export default function CandidateForm() {
                   value={draft.salaryCurrency}
                   onChange={(v) => set("salaryCurrency", v)}
                   isSearchable={false}
-                  menuPortal
-                />
-              </Field>
-              <Field label="Рекрутер">
-                <FormSelect
-                  options={MOCK_EMPLOYEES}
-                  value={draft.recruiterId}
-                  onChange={(v) => {
-                    const name = MOCK_EMPLOYEES.find((e) => e.value === v)?.label ?? null;
-                    setDraft((prev) => ({ ...prev, recruiterId: v || null, recruiterName: name }));
-                  }}
-                  placeholder="Рекрутер"
-                  isClearable
                   menuPortal
                 />
               </Field>
