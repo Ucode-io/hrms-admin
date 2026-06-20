@@ -915,42 +915,13 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
           }}
         >
           {leftSlot && <div className="mr-auto flex items-center">{leftSlot}</div>}
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "3px",
-              borderRadius: "12px",
-              border: "1px solid #e2e8f0",
-              backgroundColor: "#f8fafc",
-              height: "38px",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => shiftDateFilter(-1)}
-              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-              aria-label="Предыдущий день"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="min-w-[150px] px-3 text-center text-[13px] font-semibold text-slate-700">
-              {dateFilterLabel}
-            </span>
-            <button
-              type="button"
-              onClick={() => shiftDateFilter(1)}
-              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-              aria-label="Следующий день"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
 
           <button
             type="button"
             onClick={() => setIsFiltersOpen((open) => !open)}
-            className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border px-4 text-[13px] font-semibold transition"
+            aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+            title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+            className="relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border transition"
             style={{
               color: isFilterButtonActive ? "#2563eb" : "#334155",
               backgroundColor: isFilterButtonActive ? "#eff6ff" : "#fff",
@@ -958,7 +929,11 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             }}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+            {activeFiltersCount > 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">
+                {activeFiltersCount}
+              </span>
+            ) : null}
           </button>
 
           <button
@@ -1093,6 +1068,39 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
         <div className="px-4 lg:px-6 py-5">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-end gap-3 border-b border-slate-100 px-4 py-2.5">
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "3px",
+                  borderRadius: "12px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor: "#f8fafc",
+                  height: "38px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => shiftDateFilter(-1)}
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                  aria-label="Предыдущий день"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="min-w-[150px] px-3 text-center text-[13px] font-semibold text-slate-700">
+                  {dateFilterLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => shiftDateFilter(1)}
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                  aria-label="Следующий день"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
             <div className="px-4 py-4">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">

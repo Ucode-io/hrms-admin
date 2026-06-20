@@ -1,6 +1,5 @@
 import { type ChangeEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronLeft,
   Download,
   Eye,
   File,
@@ -8,19 +7,20 @@ import {
   FileSpreadsheet,
   FileText,
   Folder,
-  FolderOpen,
   Image,
+  MoreVertical,
   Search,
   Trash2,
   Upload,
   Video,
 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import type { StylesConfig } from "react-select";
 import Button from "../../../../components/ui/button/Button";
 import { Modal } from "../../../../components/ui/modal";
 import EmployeeInfiniteSelect from "../../../../components/autocomplete/EmployeeInfiniteSelect";
+import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbContext";
 import { useUploadFile } from "../../../../api/services/file-upload.service";
 import {
   useCreateDocument,
@@ -28,6 +28,7 @@ import {
   useDocumentsQuery,
 } from "../../../../api/services/document.service";
 import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
+import DocumentPreviewModal from "../../../Documents/components/DocumentPreviewModal";
 
 type DocumentsSectionProps = {
   employeeGuid?: string;
@@ -274,9 +275,13 @@ export default function EmployeeDocumentsSection({
   const normalizedEmployeeGuid = typeof employeeGuid === "string" ? employeeGuid.trim() : "";
   const isGlobalMode = !normalizedEmployeeGuid;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeFolderIdFromUrl = isGlobalMode ? searchParams.get("folder") || "" : "";
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const [activeFolder, setActiveFolder] = useState<DocumentFolderItem | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<EmployeeDocumentItem | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isUploadEmployeeModalOpen, setIsUploadEmployeeModalOpen] = useState(false);
   const [selectedTemplateGuid, setSelectedTemplateGuid] = useState("");
@@ -351,6 +356,11 @@ export default function EmployeeDocumentsSection({
     setSelectedTemplateGuid(filteredTemplates[0].guid);
   }, [filteredTemplates, isTemplateModalOpen, selectedTemplateGuid]);
 
+  // Clear the selection when navigating between the folder grid and a folder.
+  useEffect(() => {
+    setSelectedItemId(null);
+  }, [activeFolder]);
+
   const documentsByFolder = useMemo(() => {
     const grouped = new Map<string, EmployeeDocumentItem[]>();
 
@@ -374,6 +384,55 @@ export default function EmployeeDocumentsSection({
     if (!activeFolder) return [];
     return documentsByFolder.get(activeFolder.guid) || [];
   }, [activeFolder, documentsByFolder]);
+
+  const folderBreadcrumbItems = useMemo(
+    () =>
+      isGlobalMode && activeFolder
+        ? [
+            { label: "Документы", to: "/documents" },
+            {
+              label: activeFolder.title || "Папка",
+              to: `/documents?folder=${encodeURIComponent(activeFolder.guid)}`,
+            },
+          ]
+        : [],
+    [activeFolder, isGlobalMode]
+  );
+  useHeaderBreadcrumbItems(folderBreadcrumbItems);
+
+  useEffect(() => {
+    if (!isGlobalMode) return;
+
+    if (!activeFolderIdFromUrl) {
+      if (activeFolder) {
+        setActiveFolder(null);
+      }
+      return;
+    }
+
+    const folder = folders.find((item) => item.guid === activeFolderIdFromUrl) || null;
+    if (folder && folder.guid !== activeFolder?.guid) {
+      setActiveFolder(folder);
+    }
+  }, [activeFolder, activeFolderIdFromUrl, folders, isGlobalMode]);
+
+  const openFolder = (folder: DocumentFolderItem) => {
+    setActiveFolder(folder);
+    if (!isGlobalMode) return;
+
+    const next = new URLSearchParams(searchParams);
+    next.set("folder", folder.guid);
+    setSearchParams(next);
+  };
+
+  const closeFolder = () => {
+    setActiveFolder(null);
+    if (!isGlobalMode) return;
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("folder");
+    setSearchParams(next);
+  };
 
   const openUploadDialog = (folder: DocumentFolderItem) => {
     if (isGlobalMode) {
@@ -529,7 +588,7 @@ export default function EmployeeDocumentsSection({
       return;
     }
 
-    window.open(doc.file, "_blank", "noopener,noreferrer");
+    setPreviewDoc(doc);
   };
 
   const handleDownloadFile = (
@@ -593,14 +652,6 @@ export default function EmployeeDocumentsSection({
   if (folders.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-        <div className="border-b border-slate-100 px-6 py-4.5">
-          <div className="flex items-center gap-2">
-            <span style={{ color: brandColor }}>
-              <FileText className="w-4 h-4" />
-            </span>
-            <h3 className="m-0 text-[15px] font-bold text-slate-900">Документы</h3>
-          </div>
-        </div>
         <div className="px-6 py-5 text-[14px] text-slate-400">
           Папки документов не найдены.
         </div>
@@ -613,27 +664,44 @@ export default function EmployeeDocumentsSection({
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         {activeFolder ? (
           <>
-            <div className="border-b border-slate-200 px-6 py-5">
-              <div className="min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveFolder(null)}
-                  className="mb-3 inline-flex items-center gap-1.5 border-none bg-transparent p-0 text-[13px] font-medium text-slate-500 transition hover:text-slate-700"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  К папкам
-                </button>
-                <h3 className="m-0 truncate text-[20px] font-bold leading-none text-slate-900">
-                  {activeFolder.title || "Папка"}
-                </h3>
-                <p className="mt-2 text-[13px] text-slate-500">
-                  {activeFolderDocuments.length} файлов
-                </p>
-              </div>
-            </div>
-
             <div className="px-6 py-5">
-              <div className="flex flex-wrap items-start gap-3">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {!isGlobalMode ? (
+                    <button
+                      type="button"
+                      onClick={closeFolder}
+                      className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      К папкам
+                    </button>
+                  ) : null}
+                  <span className="text-[13px] font-medium text-slate-500">
+                    {activeFolderDocuments.length} файлов
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openActiveFolderUploadDialog}
+                    disabled={uploadingFolderId === activeFolder.guid}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-default disabled:opacity-70"
+                  >
+                    <Upload className="h-4 w-4" style={{ color: brandColor }} />
+                    {uploadingFolderId === activeFolder.guid ? "Загрузка..." : "Добавить"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openGenerateTemplatePicker}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <FilePlus2 className="h-4 w-4" style={{ color: brandColor }} />
+                    Сгенерировать
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {activeFolderDocuments.map((doc) => {
                   const type = normalizeDocumentType(doc.type);
                   const docName = getDocumentName(doc);
@@ -641,22 +709,70 @@ export default function EmployeeDocumentsSection({
                   const employeePhoto = getDocumentEmployeePhoto(doc);
                   const deleting = deletingDocumentId === doc.guid;
 
+                  const isSelected = selectedItemId === doc.guid;
+
                   return (
                     <div
                       key={doc.guid}
-                      className="flex h-[240px] w-full flex-col rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 sm:w-[360px]"
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedItemId(doc.guid)}
+                      onDoubleClick={() => handleOpenFile(doc)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleOpenFile(doc);
+                        }
+                      }}
+                      title="Двойной клик — открыть"
+                      className={`flex min-h-[270px] cursor-pointer select-none flex-col rounded-2xl bg-slate-100/80 p-3 transition ${
+                        isSelected
+                          ? "ring-2 ring-brand-300"
+                          : "hover:bg-slate-100"
+                      }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                          <DocumentTypeIcon type={type} />
-                        </div>
-                        <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${getTypeBadgeColor(type)}`}>
-                          {type.toUpperCase()}
-                        </span>
+                      <div className="mb-3 flex items-center gap-3">
+                        <DocumentTypeIcon type={type} className="h-5 w-5 shrink-0 text-slate-600" />
+                        <p className="m-0 min-w-0 flex-1 truncate text-[15px] font-semibold text-slate-900">
+                          {docName}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={(event) => handleDownloadFile(event, doc)}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-white"
+                          title="Скачать"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
                       </div>
 
-                      <p className="m-0 mt-3 truncate text-[14px] font-semibold text-slate-900">{docName}</p>
-                      <p className="mt-1 truncate text-[12px] text-slate-500">{doc.file || "—"}</p>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleOpenFile(doc);
+                        }}
+                        className="flex h-[150px] items-center justify-center overflow-hidden rounded-lg bg-white text-slate-500 shadow-sm"
+                        title="Открыть"
+                      >
+                        {type === "image" && doc.file ? (
+                          <img
+                            src={String(doc.file)}
+                            alt={docName}
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+                            <DocumentTypeIcon type={type} className="h-10 w-10 text-slate-400" />
+                            <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${getTypeBadgeColor(type)}`}>
+                              {type.toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+
                       {employeeLabel ? (
                         <div className="mt-2.5 inline-flex max-w-full items-center gap-2 self-start rounded-full border border-slate-200 bg-slate-50 py-1 pl-1 pr-2.5">
                           {employeePhoto ? (
@@ -679,10 +795,13 @@ export default function EmployeeDocumentsSection({
                         </div>
                       ) : null}
 
-                      <div className="mt-auto pt-4 flex items-center gap-2">
+                      <div className="mt-auto flex items-center gap-2 pt-3">
                         <button
                           type="button"
-                          onClick={() => handleOpenFile(doc)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleOpenFile(doc);
+                          }}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
                           title="Открыть"
                         >
@@ -709,36 +828,6 @@ export default function EmployeeDocumentsSection({
                     </div>
                   );
                 })}
-
-                <div className="flex h-[240px] w-[210px] shrink-0 flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={openActiveFolderUploadDialog}
-                    disabled={uploadingFolderId === activeFolder.guid}
-                    className="min-h-0 flex-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 transition hover:border-slate-400 hover:bg-slate-100 disabled:cursor-default disabled:opacity-70"
-                  >
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-center">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-500">
-                        <Upload className="h-5 w-5" style={{ color: brandColor }} />
-                      </div>
-                      <p className="m-0 text-[14px] font-semibold text-slate-700">
-                        {uploadingFolderId === activeFolder.guid ? "Загрузка..." : "Добавить файл"}
-                      </p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openGenerateTemplatePicker}
-                    className="min-h-0 flex-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 transition hover:border-slate-400 hover:bg-slate-100"
-                  >
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-center">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white text-slate-500">
-                        <FilePlus2 className="h-5 w-5" style={{ color: brandColor }} />
-                      </div>
-                      <p className="m-0 text-[14px] font-semibold text-slate-700">Сгенерировать файл</p>
-                    </div>
-                  </button>
-                </div>
                 <input
                   ref={activeFolderUploadInputRef}
                   type="file"
@@ -754,82 +843,67 @@ export default function EmployeeDocumentsSection({
           </>
         ) : (
           <>
-            <div className="border-b border-slate-100 px-6 py-4.5">
-              <div className="flex items-center gap-2">
-                <span style={{ color: brandColor }}>
-                  <FileText className="w-4 h-4" />
-                </span>
-                <h3 className="m-0 text-[15px] font-bold text-slate-900">Документы</h3>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 px-6 py-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-3">
               {folders.map((folder) => {
                 const docsInFolder = documentsByFolder.get(folder.guid) || [];
                 const isUploading = uploadingFolderId === folder.guid;
+
+                const isSelected = selectedItemId === folder.guid;
 
                 return (
                   <div
                     key={folder.guid}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setActiveFolder(folder)}
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedItemId(folder.guid)}
+                    onDoubleClick={() => openFolder(folder)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
+                      if (event.key === "Enter") {
                         event.preventDefault();
-                        setActiveFolder(folder);
+                        openFolder(folder);
                       }
                     }}
-                    className="cursor-pointer rounded-xl border border-slate-200 bg-white px-5 py-4 text-left transition hover:border-slate-300"
+                    title="Двойной клик — открыть"
+                    className={`flex h-24 cursor-pointer select-none items-center gap-4 rounded-2xl bg-slate-100/80 px-5 text-left transition ${
+                      isSelected
+                        ? "ring-2 ring-brand-300"
+                        : "hover:bg-slate-100"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="m-0 truncate text-[16px] font-bold text-slate-900">
-                          {folder.title || "Без названия"}
-                        </p>
-                        <p className="mt-2 text-[13px] text-slate-500">
-                          {docsInFolder.length} файлов
-                        </p>
-                      </div>
-                      <Folder className="h-5 w-5 shrink-0 text-slate-400" />
+                    <Folder className="h-8 w-8 shrink-0 fill-slate-700 text-slate-700" />
+                    <div className="min-w-0 flex-1">
+                      <p className="m-0 truncate text-[16px] font-semibold text-slate-900">
+                        {folder.title || "Без названия"}
+                      </p>
+                      <p className="mt-1 text-[12px] font-medium text-slate-500">
+                        {docsInFolder.length} файлов
+                      </p>
                     </div>
-
-                    <div className="mt-4 flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-medium text-slate-700"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setActiveFolder(folder);
-                        }}
-                      >
-                        <FolderOpen className="h-4 w-4" />
-                        Открыть
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-medium text-slate-700"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openUploadDialog(folder);
-                        }}
-                      >
-                        <Upload className="h-4 w-4" style={{ color: brandColor }} />
-                        {isUploading ? "Загрузка..." : "Добавить"}
-                      </button>
-                      <input
-                        ref={(element) => {
-                          fileInputRefs.current[folder.guid] = element;
-                        }}
-                        type="file"
-                        className="hidden"
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={(event) => {
-                          event.stopPropagation();
-                          void handleUploadToFolder(folder, event);
-                        }}
-                      />
-                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-white"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openUploadDialog(folder);
+                      }}
+                      title={isUploading ? "Загрузка..." : "Добавить файл"}
+                      aria-label={isUploading ? "Загрузка..." : "Добавить файл"}
+                    >
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
+                    <input
+                      ref={(element) => {
+                        fileInputRefs.current[folder.guid] = element;
+                      }}
+                      type="file"
+                      className="hidden"
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        void handleUploadToFolder(folder, event);
+                      }}
+                    />
                   </div>
                 );
               })}
@@ -963,6 +1037,13 @@ export default function EmployeeDocumentsSection({
           </div>
         </div>
       </Modal>
+
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        onClose={() => setPreviewDoc(null)}
+        fileUrl={previewDoc?.file ? String(previewDoc.file) : ""}
+        fileName={previewDoc ? getDocumentName(previewDoc) : ""}
+      />
     </>
   );
 }

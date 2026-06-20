@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Briefcase, ChevronLeft, ListChecks } from "lucide-react";
+import { Briefcase, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
@@ -261,24 +261,6 @@ export default function VacancyForm() {
         title={isEdit ? "Редактировать вакансию | Рекрутинг" : "Новая вакансия | Рекрутинг"}
         description="Форма вакансии"
       />
-
-      {/* Back + breadcrumb */}
-      <div className="mb-6 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="cursor-pointer text-brand-600" onClick={() => navigate("/recruiting/vacancies")}>
-            Вакансии
-          </span>
-          <span className="text-gray-300">/</span>
-          <span className="font-medium text-gray-800">{isEdit ? "Редактировать" : "Новая вакансия"}</span>
-        </div>
-      </div>
 
       <div className="mx-auto max-w-[920px] space-y-5 pb-24">
         {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</p>}

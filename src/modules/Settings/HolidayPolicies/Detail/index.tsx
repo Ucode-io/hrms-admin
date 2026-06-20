@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import {
   CalendarDays,
   ChevronLeft,
@@ -336,14 +336,6 @@ export default function HolidayPolicyDetailPage() {
       <PageMeta title="Политика праздников | Настройки" description="Календарь праздничных дней" />
 
       <div className="space-y-4">
-        <Link
-          to="/settings/holiday-policies"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         {isPolicyLoading ? (
           <div className="space-y-2">
             <div className="h-8 w-72 animate-pulse rounded bg-gray-200" />

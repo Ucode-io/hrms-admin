@@ -1,7 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { Link } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
-import { usePlatformSettingsQuery, useUpdatePlatformSetting } from "../../../api/services/platformSetting.service";
+import {
+  usePlatformSettingsQuery,
+  useUpdatePlatformSetting,
+} from "../../../api/services/platformSetting.service";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import Spinner from "../../../components/ui/Spinner";

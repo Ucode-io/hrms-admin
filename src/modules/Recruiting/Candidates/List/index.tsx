@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { Plus, SlidersHorizontal, ThumbsDown, Trophy, Users } from "lucide-react";
+import { Plus, SlidersHorizontal, Users } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
@@ -148,29 +148,6 @@ function CandidatesList() {
     return `Отображение ${start}–${end} из ${totalCount}`;
   }, [safePage, totalCount, isLoading]);
 
-  // Summary counts — always global (no outcome filter, just search/vacancy/source).
-  const summaryBase = useMemo(
-    () => ({
-      limit: 1 as const,
-      offset: 0 as const,
-      ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
-      ...(vacancyFilter ? { vacancyId: vacancyFilter } : {}),
-      ...(sourceFilter ? { source: sourceFilter } : {}),
-    }),
-    [searchQuery, vacancyFilter, sourceFilter]
-  );
-  const { data: summaryTotalData } = useCandidatesQuery(summaryBase);
-  const { data: summaryActiveData } = useCandidatesQuery({ ...summaryBase, outcome: "active" });
-  const { data: summaryHiredData } = useCandidatesQuery({ ...summaryBase, outcome: "hired" });
-  const { data: summaryRejectedData } = useCandidatesQuery({ ...summaryBase, outcome: "rejected" });
-
-  const summary = {
-    total: summaryTotalData?.count ?? 0,
-    active: summaryActiveData?.count ?? 0,
-    hired: summaryHiredData?.count ?? 0,
-    rejected: summaryRejectedData?.count ?? 0,
-  };
-
   const hasActiveFilters = Boolean(searchQuery || vacancyFilter || sourceFilter);
   const activeFiltersCount = (vacancyFilter ? 1 : 0) + (sourceFilter ? 1 : 0);
 
@@ -191,13 +168,6 @@ function CandidatesList() {
       toast.error(err instanceof Error ? err.message : "Не удалось удалить");
     }
   };
-
-  const summaryCards = [
-    { label: "Всего кандидатов", value: String(summary.total), icon: Users, tint: "text-brand-600 bg-brand-50" },
-    { label: "В работе", value: String(summary.active), icon: SlidersHorizontal, tint: "text-blue-600 bg-blue-50" },
-    { label: "Нанято", value: String(summary.hired), icon: Trophy, tint: "text-emerald-600 bg-emerald-50" },
-    { label: "Отказов", value: String(summary.rejected), icon: ThumbsDown, tint: "text-rose-600 bg-rose-50" },
-  ];
 
   return (
     <>
@@ -276,14 +246,20 @@ function CandidatesList() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen((o) => !o)}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${
+              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFiltersOpen || activeFiltersCount > 0
                   ? "border-brand-200 bg-brand-50 text-brand-600"
                   : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
               }`}
             >
               <SlidersHorizontal size={16} />
-              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+              {activeFiltersCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">
+                  {activeFiltersCount}
+                </span>
+              ) : null}
             </button>
             <Button
               startIcon={<Plus size={16} />}
@@ -351,26 +327,7 @@ function CandidatesList() {
         )}
       </div>
 
-      {/* Summary cards */}
-      <div className="mt-4 mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {summaryCards.map((card) => {
-          const CardIcon = card.icon;
-          return (
-            <div
-              key={card.label}
-              className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5"
-            >
-              <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.tint}`}>
-                <CardIcon size={20} />
-              </span>
-              <div className="min-w-0">
-                <div className="truncate text-lg font-semibold text-gray-900">{card.value}</div>
-                <div className="truncate text-xs text-gray-500">{card.label}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <div className="mt-4" />
 
       {/* Content */}
       {isLoading ? (

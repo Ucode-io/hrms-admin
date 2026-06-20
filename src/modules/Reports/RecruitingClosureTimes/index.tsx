@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
-import { Link } from "react-router";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { ArrowLeft, CalendarDays, MoreHorizontal, SlidersHorizontal } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
 import FormSelect from "../../Recruiting/components/FormSelect";
@@ -104,7 +103,6 @@ function TimeCell({ value }: { value: number | null }) {
 
 function RecruitingClosureTimesPage() {
   const [dimension, setDimension] = useState<RecruitingClosureTimesDimension>("vacancies");
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<FilterState>({
     date_from: defaultStartIso(),
     date_to: todayIso(),
@@ -186,30 +184,6 @@ function RecruitingClosureTimesPage() {
 
       <div className="space-y-4">
         <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
-            <div>
-              <Link
-                to="/reports"
-                className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-              >
-                <ArrowLeft size={14} />
-                Назад
-              </Link>
-              <h1 className="text-2xl font-semibold text-gray-900">Сроки закрытия вакансий</h1>
-              <p className="text-xs font-medium text-gray-500">
-                Отчет по вакансиям, которые находились в статусе «Открыта», и срокам найма с момента открытия.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
-              aria-label="Дополнительные действия"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-          </div>
-
           <div className="px-4 py-3">
             <div className="flex flex-wrap gap-2">
               {(Object.keys(DIMENSION_LABELS) as RecruitingClosureTimesDimension[]).map((item) => (
@@ -234,103 +208,88 @@ function RecruitingClosureTimesPage() {
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "flex-start",
               gap: "10px",
               flexWrap: "wrap",
               backgroundColor: "#fff",
-              borderBottom: isFiltersOpen ? "none" : "1px solid #e2e8f0",
+              borderBottom: "1px solid #e2e8f0",
             }}
           >
             <span className="text-sm font-medium text-gray-600">
               {DIMENSION_LABELS[dimension]} · {rows.length} строк
             </span>
-            <button
-              type="button"
-              onClick={() => setIsFiltersOpen((open) => !open)}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${
-                isFiltersOpen || activeFiltersCount > 0
-                  ? "border-brand-200 bg-brand-50 text-brand-600"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <SlidersHorizontal size={16} />
-              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
-            </button>
           </div>
 
-          {isFiltersOpen ? (
-            <div
-              className="px-4 lg:px-6 py-3"
-              style={{
-                display: "flex",
-                alignItems: "end",
-                gap: "10px",
-                flexWrap: "wrap",
-                background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
-                borderTop: "1px solid #dbe4ee",
-              }}
-            >
-              <label className="block min-w-[300px] flex-1">
-                <span className="mb-1.5 block text-xs font-semibold text-gray-600">
-                  Кандидат подал заявку
-                </span>
-                <span className="relative block">
-                  <CalendarDays
-                    size={15}
-                    className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-brand-600"
-                  />
-                  <DatePicker
-                    selected={dateRange[0]}
-                    onChange={(update) => {
-                      const [start, end] = update as [Date | null, Date | null];
-                      setDraftFilters((prev) => ({
-                        ...prev,
-                        date_from: toIsoDate(start),
-                        date_to: toIsoDate(end),
-                      }));
-                    }}
-                    startDate={dateRange[0]}
-                    endDate={dateRange[1]}
-                    selectsRange
-                    isClearable
-                    dateFormat="dd.MM.yyyy"
-                    placeholderText="Выберите период"
-                    className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm font-medium text-gray-700 outline-none transition focus:border-brand-300"
-                  />
-                </span>
-              </label>
-
-              <div className="min-w-[260px] flex-1">
-                <span className="mb-1.5 block text-xs font-semibold text-gray-600">Уровень</span>
-                <FormSelect
-                  options={levels}
-                  value={draftFilters.level}
-                  onChange={(value) => setDraftFilters((prev) => ({ ...prev, level: value }))}
-                  placeholder="Все"
-                  isClearable
-                  menuPortal
+          <div
+            className="px-4 lg:px-6 py-3"
+            style={{
+              display: "flex",
+              alignItems: "end",
+              gap: "10px",
+              flexWrap: "wrap",
+              background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+            }}
+          >
+            <label className="block min-w-[300px] flex-1">
+              <span className="mb-1.5 block text-xs font-semibold text-gray-600">
+                Кандидат подал заявку
+              </span>
+              <span className="relative block">
+                <CalendarDays
+                  size={15}
+                  className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-brand-600"
                 />
-              </div>
+                <DatePicker
+                  selected={dateRange[0]}
+                  onChange={(update) => {
+                    const [start, end] = update as [Date | null, Date | null];
+                    setDraftFilters((prev) => ({
+                      ...prev,
+                      date_from: toIsoDate(start),
+                      date_to: toIsoDate(end),
+                    }));
+                  }}
+                  startDate={dateRange[0]}
+                  endDate={dateRange[1]}
+                  selectsRange
+                  isClearable
+                  dateFormat="dd.MM.yyyy"
+                  placeholderText="Выберите период"
+                  className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm font-medium text-gray-700 outline-none transition focus:border-brand-300"
+                />
+              </span>
+            </label>
 
+            <div className="min-w-[260px] flex-1">
+              <span className="mb-1.5 block text-xs font-semibold text-gray-600">Уровень</span>
+              <FormSelect
+                options={levels}
+                value={draftFilters.level}
+                onChange={(value) => setDraftFilters((prev) => ({ ...prev, level: value }))}
+                placeholder="Все"
+                isClearable
+                menuPortal
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleFilter}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
+            >
+              Применить
+            </button>
+
+            {activeFiltersCount > 0 ? (
               <button
                 type="button"
-                onClick={handleFilter}
-                className="inline-flex h-10 items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
+                onClick={resetFilters}
+                className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
               >
-                Применить
+                Сбросить
               </button>
-
-              {activeFiltersCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
-                >
-                  Сбросить
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </section>
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

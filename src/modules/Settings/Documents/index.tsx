@@ -1,8 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
-import { ChevronLeft, Plus } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router";
+import { Plus } from "lucide-react";
 import PageMeta from "../../../components/common/PageMeta";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../../components/ui/tabs";
 import Button from "../../../components/ui/button/Button";
 import DocumentCardsTab, { type DocumentsCardItem } from "./components/DocumentCardsTab";
 
@@ -49,14 +54,6 @@ export default function DocumentsSettingsPage() {
       <PageMeta title="Документы | Настройки" description="Управление папками и шаблонами документов" />
 
       <div className="space-y-4">
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900">{pageTitle}</h1>

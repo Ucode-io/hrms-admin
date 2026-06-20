@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
 import {
   ChevronDown,
-  ChevronLeft,
   GripVertical,
   MoreHorizontal,
   Plus,
@@ -290,14 +294,6 @@ export default function AbsencePoliciesSettingsPage() {
       <PageMeta title="Политики отсутствий | Настройки" description="Список политик отсутствий" />
 
       <div className="space-y-4">
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-semibold text-gray-900">Политики отсутствий</h1>
           <div className="flex items-center gap-2">
@@ -339,7 +335,6 @@ export default function AbsencePoliciesSettingsPage() {
               />
             </label>
           </div>
-
 
           <div className="border-t border-gray-100 p-4">
             {isLoading ? (

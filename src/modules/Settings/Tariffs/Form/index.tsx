@@ -5,7 +5,11 @@ import Button from "../../../../components/ui/button/Button";
 import Input from "../../../../components/form/input/InputField";
 import Label from "../../../../components/form/Label";
 import Select from "../../../../components/form/Select";
-import { useCreateTariff, useUpdateTariff, useTariffQuery } from "../../../../api/services/tariff.service";
+import {
+  useCreateTariff,
+  useUpdateTariff,
+  useTariffQuery,
+} from "../../../../api/services/tariff.service";
 import { useProductCategoriesQuery } from "../../../../api/services/productCategory.service";
 import { useMerchantsQuery } from "../../../../api/services/merchant.service";
 import Spinner from "../../../../components/ui/Spinner";

@@ -1,4 +1,11 @@
-import { type ChangeEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { MoreHorizontal, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import FileInput from "../../../../components/form/input/FileInput";
@@ -293,7 +300,6 @@ export default function DocumentCardsTab({
             className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
         </label>
-
 
         {isLoading ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

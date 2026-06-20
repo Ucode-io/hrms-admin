@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
-import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  MoreHorizontal,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import Chart from "react-apexcharts";
 import { ApexAxisChartSeries, ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
@@ -221,37 +214,8 @@ function AttendancePage() {
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
-          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
-            <div>
-              <Link
-                to="/reports"
-                className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-              >
-                <ArrowLeft size={14} />
-                Назад
-              </Link>
-              <h1 className="text-2xl font-semibold text-gray-900">Посещаемость</h1>
-              <p className="text-xs text-gray-500">Отчет по посещаемости и опозданиям сотрудников</p>
-            </div>
-
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-          </div>
-
           <div className="space-y-4 px-4 py-3">
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-              >
-                <SlidersHorizontal size={16} />
-                Фильтр
-              </button>
-
               <select
                 value={selectedMonth}
                 onChange={(event) => {

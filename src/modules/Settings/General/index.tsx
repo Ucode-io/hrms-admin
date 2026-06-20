@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type RefObject } from "react";
-import { Link, useNavigate } from "react-router";
-import { ChevronLeft, ImagePlus } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type RefObject,
+} from "react";
+import { useNavigate } from "react-router";
+import { ImagePlus } from "lucide-react";
 import Select, { type StylesConfig } from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
@@ -396,13 +403,6 @@ export default function SettingsGeneralPage() {
 
       <div className="space-y-6">
         <div className="space-y-2">
-          <Link
-            to="/settings"
-            className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-          >
-            <ChevronLeft size={16} />
-            Назад
-          </Link>
           <h1 className="text-3xl font-semibold text-gray-900">Общие</h1>
         </div>
 

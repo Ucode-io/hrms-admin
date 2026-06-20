@@ -1124,45 +1124,6 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
         >
           {leftSlot}
           <div className="ml-auto flex min-w-0 items-center gap-2">
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "3px",
-                borderRadius: "12px",
-                border: "1px solid #e2e8f0",
-                backgroundColor: "#f8fafc",
-                height: "38px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentMonth(
-                    (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-                  )
-                }
-                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label="Предыдущий месяц"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
-                {monthLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentMonth(
-                    (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-                  )
-                }
-                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label="Следующий месяц"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
             <ExpandableSearchInput
               value={searchValue}
               onChange={setSearchValue}
@@ -1185,12 +1146,53 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
         <div className="min-h-0 flex-1 px-4 py-4 lg:px-6">
           <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-gray-100 bg-slate-50/70 px-4 py-3 text-sm text-gray-500">
-              {totalCount > 0
-                ? `Отображено ${Math.min(employees.length, totalCount)} из ${totalCount}`
-                : isInitialEmployeesLoading
-                  ? "Загружаем сотрудников..."
-                  : "Сотрудники не найдены"}
+            <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-slate-50/70 px-4 py-2.5">
+              <span className="text-sm text-gray-500">
+                {totalCount > 0
+                  ? ""
+                  : isInitialEmployeesLoading
+                    ? "Загружаем сотрудников..."
+                    : "Сотрудники не найдены"}
+              </span>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "3px",
+                  borderRadius: "12px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor: "#fff",
+                  height: "38px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentMonth(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                    )
+                  }
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-slate-50 hover:border-slate-200"
+                  aria-label="Предыдущий месяц"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
+                  {monthLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentMonth(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                    )
+                  }
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-slate-50 hover:border-slate-200"
+                  aria-label="Следующий месяц"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
 
             <div

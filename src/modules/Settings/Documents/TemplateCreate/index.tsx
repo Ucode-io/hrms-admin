@@ -1,6 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
-import { ChevronLeft, ExternalLink, FileText, UploadCloud, X } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate, useParams } from "react-router";
+import {
+  ExternalLink,
+  FileText,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { renderAsync } from "docx-preview";
 import { toast } from "sonner";
@@ -278,14 +289,6 @@ export default function CreateDocumentTemplatePage() {
       />
 
       <div className="space-y-4">
-        <Link
-          to="/settings/documents?tab=templates"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-[320px] flex-1 space-y-1">
             <textarea

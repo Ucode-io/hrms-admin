@@ -151,6 +151,11 @@ const propertyService = {
     }) as unknown as Promise<ListResponse<PropertyApiRow>>;
   },
 
+  getOne: (guid: string) =>
+    httpRequest.get(`/v2/items/${PROPERTIES_SLUG}/${guid}`, {
+      params: { with_relations: true },
+    }) as unknown as Promise<{ response?: PropertyApiRow; data?: PropertyApiRow }>,
+
   getHistory: (propertiesId: string) =>
     httpRequest.get(`/v2/items/${PROPERTY_HISTORIES_SLUG}`, {
       params: {
@@ -239,6 +244,13 @@ export const usePropertiesQuery = (params: PropertiesQueryParams) =>
     queryKey: ["properties", params],
     queryFn: () => propertyService.getList(params),
     keepPreviousData: true,
+  });
+
+export const usePropertyQuery = (guid: string | undefined) =>
+  useQuery({
+    queryKey: ["property", guid],
+    queryFn: () => propertyService.getOne(guid as string),
+    enabled: Boolean(guid),
   });
 
 export const usePropertyHistoryQuery = (propertiesId: string | null, enabled: boolean) =>

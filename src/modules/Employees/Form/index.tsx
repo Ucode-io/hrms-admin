@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Pencil, Trash2, User, ChevronLeft } from "lucide-react";
+import { Pencil, Trash2, User } from "lucide-react";
 import DatePicker from "react-datepicker";
 import { InputMask } from "@react-input/mask";
 import { observer } from "mobx-react-lite";
@@ -352,31 +352,6 @@ function EmployeeForm() {
         title={isEdit ? "Редактировать сотрудника | HRMS" : "Добавить сотрудника | HRMS"}
         description={isEdit ? "Редактирование сотрудника" : "Добавление нового сотрудника"}
       />
-
-      {/* Back + Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: "36px", height: "36px",
-            border: "1px solid #e2e8f0", borderRadius: "10px",
-            backgroundColor: "#fff", color: "#475569", cursor: "pointer",
-          }}
-        >
-          <ChevronLeft style={{ width: "18px", height: "18px" }} />
-        </button>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}>
-          <span style={{ color: brandColor, cursor: "pointer" }} onClick={() => navigate("/employees")}>
-            Сотрудники
-          </span>
-          <span style={{ color: "#cbd5e1" }}>/</span>
-          <span style={{ color: "#1e293b", fontWeight: 500 }}>
-            {isEdit ? "Редактировать" : "Добавить сотрудника"}
-          </span>
-        </div>
-      </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div

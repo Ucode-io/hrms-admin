@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
-import { ChevronLeft, ChevronRight, ExternalLink, Minus, Plus } from "lucide-react";
+import { useParams } from "react-router";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Minus,
+  Plus,
+} from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
@@ -79,14 +85,6 @@ export default function DocumentTemplateDetailPage() {
       <PageMeta title="Шаблон документа | Настройки" description="Предпросмотр PDF шаблона документа" />
 
       <div className="space-y-4">
-        <Link
-          to="/settings/documents?tab=templates"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         {isLoading ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-4">
             <div className="h-7 w-80 animate-pulse rounded bg-gray-200" />

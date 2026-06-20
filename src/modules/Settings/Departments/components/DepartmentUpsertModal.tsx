@@ -5,10 +5,7 @@ import Button from "../../../../components/ui/button/Button";
 import { Modal } from "../../../../components/ui/modal";
 import EmployeeInfiniteSelect from "../../../../components/autocomplete/EmployeeInfiniteSelect";
 import type { Option } from "../types";
-import {
-  getDepartmentExperienceLevelsSelectStyles,
-  getDepartmentSelectStyles,
-} from "../utils";
+import { getDepartmentExperienceLevelsSelectStyles, getDepartmentSelectStyles } from "../utils";
 
 interface DepartmentUpsertModalProps {
   isOpen: boolean;

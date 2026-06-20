@@ -535,13 +535,23 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                 }
                 setIsFiltersOpen((open) => !open);
               }}
+              aria-label={`Фильтр${
+                (isOrgView ? orgActiveFiltersCount : activeFiltersCount) > 0
+                  ? ` (${isOrgView ? orgActiveFiltersCount : activeFiltersCount})`
+                  : ""
+              }`}
+              title={`Фильтр${
+                (isOrgView ? orgActiveFiltersCount : activeFiltersCount) > 0
+                  ? ` (${isOrgView ? orgActiveFiltersCount : activeFiltersCount})`
+                  : ""
+              }`}
               style={{
+                position: "relative",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "6px",
-                padding: "8px 14px",
-                fontSize: "14px",
-                fontWeight: 500,
+                justifyContent: "center",
+                width: "40px",
+                height: "40px",
                 color: isFilterButtonActive ? "#2563eb" : "#1e293b",
                 backgroundColor: isFilterButtonActive ? "#eff6ff" : "#fff",
                 border: isFilterButtonActive
@@ -561,10 +571,29 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               }}
             >
               <SlidersHorizontal style={{ width: "16px", height: "16px" }} />
-              Фильтр
-              {(isOrgView ? orgActiveFiltersCount : activeFiltersCount) > 0
-                ? ` (${isOrgView ? orgActiveFiltersCount : activeFiltersCount})`
-                : ""}
+              {(isOrgView ? orgActiveFiltersCount : activeFiltersCount) > 0 ? (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-4px",
+                    right: "-4px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "16px",
+                    minWidth: "16px",
+                    padding: "0 4px",
+                    borderRadius: "9999px",
+                    backgroundColor: "#2563eb",
+                    color: "#fff",
+                    fontSize: "10px",
+                    fontWeight: 600,
+                    lineHeight: 1,
+                  }}
+                >
+                  {isOrgView ? orgActiveFiltersCount : activeFiltersCount}
+                </span>
+              ) : null}
             </button>
 
             <button

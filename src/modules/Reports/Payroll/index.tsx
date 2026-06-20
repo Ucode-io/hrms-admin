@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
-import { ArrowLeft, MoreHorizontal, Search, SlidersHorizontal } from "lucide-react";
+import { Search } from "lucide-react";
 import Select from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
-import {
-  usePayrollReportQuery,
-  usePayrollTableQuery,
-} from "../../../api/services/reports.service";
+import { usePayrollReportQuery, usePayrollTableQuery } from "../../../api/services/reports.service";
 
 const PAYROLL_FIXED_YEAR = "2026";
 const PAYROLL_YEAR_OPTIONS = [
@@ -199,13 +196,11 @@ const getMonthLabel = (period) => {
 function PayrollPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
 
   const [selectedYear, setSelectedYear] = useState("all");
   const [selectedMonthCount, setSelectedMonthCount] = useState("3");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [selectedDepartmentIds, setSelectedDepartmentIds] = useState([]);
-  const advancedFiltersRef = useRef(null);
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
 
   useEffect(() => {
@@ -215,22 +210,6 @@ function PayrollPage() {
 
     return () => clearTimeout(timer);
   }, [searchInput]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (!advancedFiltersRef.current) {
-        return;
-      }
-      if (!advancedFiltersRef.current.contains(event.target)) {
-        setIsAdvancedFiltersOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   const {
     data: payrollData,
@@ -269,7 +248,6 @@ function PayrollPage() {
   const periods = tableData?.result?.periods ?? [];
   const items = tableData?.result?.items ?? [];
   const totals = tableData?.result?.totals ?? [];
-  const activeAdvancedFilterCount = selectedEmployeeIds.length + selectedDepartmentIds.length;
   const hasActiveFilters =
     selectedYear !== "all" ||
     selectedMonthCount !== "3" ||
@@ -284,7 +262,6 @@ function PayrollPage() {
     setSelectedDepartmentIds([]);
     setSearch("");
     setSearchInput("");
-    setIsAdvancedFiltersOpen(false);
   };
 
   if (isPayrollLoading) {
@@ -324,29 +301,6 @@ function PayrollPage() {
 
       <div className="-mx-4 -mt-4 -mb-4 flex h-[calc(100dvh-64px)] min-h-0 flex-col md:-mx-6 md:-mt-6 md:-mb-6 md:h-[calc(100dvh-64px)]">
         <section className="flex h-full min-h-0 flex-col bg-white">
-          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-3 py-2 md:px-4 md:py-2.5">
-            <div className="space-y-0.5">
-              <Link
-                to="/reports"
-                className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition hover:text-gray-700"
-              >
-                <ArrowLeft size={14} />
-                Назад
-              </Link>
-              <h1 className="text-xl font-semibold leading-tight text-gray-900">Payroll</h1>
-              <p className="text-[11px] leading-tight text-gray-500">
-                Отчет по зарплатам, бонусам и рабочим дням сотрудников
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
-            >
-              <MoreHorizontal size={16} />
-            </button>
-          </div>
-
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="border-b border-gray-100 px-3 py-1.5 md:px-4 md:py-2">
               <div className="flex flex-wrap items-end gap-2">
@@ -408,62 +362,40 @@ function PayrollPage() {
                   />
                 </div>
 
-                <div className="relative min-w-[150px]" ref={advancedFiltersRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsAdvancedFiltersOpen((prev) => !prev)}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                  >
-                    <SlidersHorizontal size={16} />
-                    <span>Фильтры</span>
-                    {activeAdvancedFilterCount > 0 ? (
-                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-brand-50 px-1.5 text-xs font-semibold text-brand-600">
-                        {activeAdvancedFilterCount}
-                      </span>
-                    ) : null}
-                  </button>
+                <div className="min-w-[220px] flex-1">
+                  <p className="sr-only">Сотрудник</p>
+                  <Select
+                    isMulti
+                    options={employeeOptions}
+                    value={collectSelectedOptions(employeeOptions, selectedEmployeeIds)}
+                    onChange={(value) => {
+                      const values = Array.isArray(value) ? value : [];
+                      setSelectedEmployeeIds(values.map((item) => String(item.value)));
+                    }}
+                    placeholder={`${employeeOptions.length} вариантов`}
+                    closeMenuOnSelect={false}
+                    menuPosition="fixed"
+                    menuPortalTarget={selectPortalTarget}
+                    styles={selectStyles}
+                  />
+                </div>
 
-                  {isAdvancedFiltersOpen ? (
-                    <div className="absolute right-0 top-12 z-[60] w-[340px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
-                      <div className="space-y-3">
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-gray-600">Сотрудник</p>
-                          <Select
-                            isMulti
-                            options={employeeOptions}
-                            value={collectSelectedOptions(employeeOptions, selectedEmployeeIds)}
-                            onChange={(value) => {
-                              const values = Array.isArray(value) ? value : [];
-                              setSelectedEmployeeIds(values.map((item) => String(item.value)));
-                            }}
-                            placeholder={`${employeeOptions.length} вариантов`}
-                            closeMenuOnSelect={false}
-                            menuPosition="fixed"
-                            menuPortalTarget={selectPortalTarget}
-                            styles={selectStyles}
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-gray-600">Департамент</p>
-                          <Select
-                            isMulti
-                            options={departmentOptions}
-                            value={collectSelectedOptions(departmentOptions, selectedDepartmentIds)}
-                            onChange={(value) => {
-                              const values = Array.isArray(value) ? value : [];
-                              setSelectedDepartmentIds(values.map((item) => String(item.value)));
-                            }}
-                            placeholder={`${departmentOptions.length} вариантов`}
-                            closeMenuOnSelect={false}
-                            menuPosition="fixed"
-                            menuPortalTarget={selectPortalTarget}
-                            styles={selectStyles}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
+                <div className="min-w-[220px] flex-1">
+                  <p className="sr-only">Департамент</p>
+                  <Select
+                    isMulti
+                    options={departmentOptions}
+                    value={collectSelectedOptions(departmentOptions, selectedDepartmentIds)}
+                    onChange={(value) => {
+                      const values = Array.isArray(value) ? value : [];
+                      setSelectedDepartmentIds(values.map((item) => String(item.value)));
+                    }}
+                    placeholder={`${departmentOptions.length} вариантов`}
+                    closeMenuOnSelect={false}
+                    menuPosition="fixed"
+                    menuPortalTarget={selectPortalTarget}
+                    styles={selectStyles}
+                  />
                 </div>
 
                 {hasActiveFilters ? (

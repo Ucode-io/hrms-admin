@@ -113,7 +113,19 @@ const AppHeader: React.FC = () => {
   const breadcrumbs = useMemo(() => {
     return buildHeaderBreadcrumbs(location.pathname, getBreadcrumbLabel, getBreadcrumbItems);
   }, [getBreadcrumbItems, getBreadcrumbLabel, location.pathname]);
-  const isEmployeeDetailPage = /^\/employees\/[^/]+$/.test(location.pathname);
+  const isDocumentsFolderView =
+    location.pathname === "/documents" && new URLSearchParams(location.search).has("folder");
+  // Detail and form (create/edit) pages: back button lives here in the header.
+  const BACK_BUTTON_PAGES: Array<{ pattern: RegExp; listPath: string }> = [
+    { pattern: /^\/employees\/.+/, listPath: "/employees" },
+    { pattern: /^\/recruiting\/vacancies\/.+/, listPath: "/recruiting/vacancies" },
+    { pattern: /^\/recruiting\/candidates\/.+/, listPath: "/recruiting/candidates" },
+    { pattern: /^\/property\/.+/, listPath: "/property" },
+    { pattern: /^\/reports\/.+/, listPath: "/reports" },
+    { pattern: /^\/settings\/.+/, listPath: "/settings" },
+  ];
+  const backButtonPage = BACK_BUTTON_PAGES.find((page) => page.pattern.test(location.pathname));
+  const showBackButton = Boolean(backButtonPage) || isDocumentsFolderView;
 
   const handleBack = () => {
     if (window.history.state && window.history.state.idx > 0) {
@@ -121,7 +133,7 @@ const AppHeader: React.FC = () => {
       return;
     }
 
-    navigate("/employees");
+    navigate(isDocumentsFolderView ? "/documents" : backButtonPage?.listPath ?? "/employees");
   };
 
   return (
@@ -145,7 +157,7 @@ const AppHeader: React.FC = () => {
 
         <div className="hidden lg:flex min-w-0 items-center">
           <div className="inline-flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm">
-            {isEmployeeDetailPage ? (
+            {showBackButton ? (
               <>
                 <button
                   type="button"

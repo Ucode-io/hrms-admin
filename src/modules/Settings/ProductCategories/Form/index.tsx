@@ -4,7 +4,11 @@ import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
 import Input from "../../../../components/form/input/InputField";
 import Label from "../../../../components/form/Label";
-import { useCreateProductCategory, useUpdateProductCategory, useProductCategoryQuery } from "../../../../api/services/productCategory.service";
+import {
+  useCreateProductCategory,
+  useUpdateProductCategory,
+  useProductCategoryQuery,
+} from "../../../../api/services/productCategory.service";
 import Spinner from "../../../../components/ui/Spinner";
 
 export default function ProductCategoryForm() {

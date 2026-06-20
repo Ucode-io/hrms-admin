@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
-import { ArrowLeft, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Chart from "react-apexcharts";
 import { ApexAxisChartSeries, ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
@@ -526,28 +526,6 @@ function TenurePage() {
       <PageMeta title="Стаж | HRMS" description="Отчет по стажу сотрудников" />
 
       <div className="space-y-4">
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
-          <div>
-            <Link
-              to="/reports"
-              className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-            >
-              <ArrowLeft size={14} />
-              Назад
-            </Link>
-            <h1 className="text-xl font-semibold text-gray-900">Стаж</h1>
-            <p className="text-xs text-gray-500">Среднее время трудоустройства сотрудников в вашей компании</p>
-          </div>
-
-          <button
-            type="button"
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-          >
-            <SlidersHorizontal size={16} />
-            Фильтр
-          </button>
-        </section>
-
         <section className="grid gap-4 xl:grid-cols-12">
           <div className="xl:col-span-9">
             <ChartBlock

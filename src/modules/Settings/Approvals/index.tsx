@@ -1,6 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { ChevronLeft, MoreHorizontal, Plus, Search, X } from "lucide-react";
+import {
+  MoreHorizontal,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
 import {
@@ -76,14 +81,6 @@ export default function ApprovalsSettingsPage() {
       />
 
       <div className="space-y-4">
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900">Одобрения</h1>

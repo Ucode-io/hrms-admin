@@ -54,7 +54,7 @@ import TariffsList from "./modules/Settings/Tariffs/List";
 import TariffForm from "./modules/Settings/Tariffs/Form";
 import ProductCategoriesList from "./modules/Settings/ProductCategories/List";
 import ProductCategoryForm from "./modules/Settings/ProductCategories/Form";
-import SettingsPage from "./modules/Settings";
+import SettingsLayout from "./modules/Settings/SettingsLayout";
 import EmployeesList from "./modules/Employees/List";
 import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
@@ -63,6 +63,7 @@ import DocumentsPage from "./modules/Documents";
 import KnowledgeBaseList from "./modules/KnowledgeBase/List";
 import KnowledgeBaseArticle from "./modules/KnowledgeBase/Article";
 import PropertyList from "./modules/Property/List";
+import PropertyForm from "./modules/Property/Form";
 import TimeModule from "./modules/Time";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
@@ -168,9 +169,6 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
 
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/settings/news" element={<NotificationsPage />} />
-              <Route path="/settings/news/new" element={<NewsFormPage />} />
-              <Route path="/settings/news/:id/edit" element={<NewsFormPage />} />
               <Route path="/news" element={<Navigate to="/settings/news" replace />} />
               <Route path="/news/new" element={<NewsFormPage />} />
               <Route path="/news/:id/edit" element={<NewsFormPage />} />
@@ -203,41 +201,48 @@ function App() {
               <Route path="/products/new" element={<ProductFormPage />} />
               <Route path="/products/:id/edit" element={<ProductFormPage />} />
 
-              <Route path="/settings/platform" element={<PlatformSettingsPage />} />
-              <Route path="/settings/home" element={<HomeSettingsPage />} />
-              <Route path="/settings/general" element={<SettingsGeneralPage />} />
-              <Route path="/settings/positions" element={<PositionsSettingsPage />} />
-              <Route path="/settings/experience-levels" element={<ExperienceLevelsSettingsPage />} />
-              <Route path="/settings/locations" element={<LocationsSettingsPage />} />
-              <Route path="/settings/employment-types" element={<EmploymentTypesSettingsPage />} />
-              <Route path="/settings/divisions" element={<DivisionsSettingsPage />} />
-              <Route path="/settings/skills" element={<SkillsSettingsPage />} />
-              <Route path="/settings/departments" element={<DepartmentsSettingsPage />} />
-              <Route path="/settings/compensation" element={<CompensationSettingsPage />} />
-              <Route path="/settings/absence-policies" element={<AbsencePoliciesSettingsPage />} />
-              <Route path="/settings/holiday-policies" element={<HolidayPoliciesSettingsPage />} />
-              <Route path="/settings/holiday-policies/:id" element={<HolidayPolicyDetailPage />} />
-              <Route path="/settings/approvals" element={<ApprovalsSettingsPage />} />
-              <Route path="/settings/approvals/new" element={<ApprovalProcessDetailPage />} />
-              <Route path="/settings/approvals/:id" element={<ApprovalProcessDetailPage />} />
-              <Route path="/settings/documents" element={<DocumentsSettingsPage />} />
-              <Route path="/settings/documents/templates/new" element={<CreateDocumentTemplatePage />} />
-              <Route path="/settings/documents/templates/:id/edit" element={<CreateDocumentTemplatePage />} />
-              <Route path="/settings/documents/templates/:id" element={<CreateDocumentTemplatePage />} />
-              <Route path="/settings/work-schedules" element={<WorkSchedulesSettingsPage />} />
-              <Route path="/settings/probation-policies" element={<ProbationPoliciesSettingsPage />} />
-              <Route path="/settings/dismissal-reasons" element={<DismissalReasonsSettingsPage />} />
-              <Route path="/settings/dismissal-types" element={<DismissalTypesSettingsPage />} />
-              <Route path="/settings/employee-work-reasons" element={<EmployeeWorkChangeReasonsSettingsPage />} />
-              <Route path="/settings/property-categories" element={<PropertyCategoriesSettingsPage />} />
-              <Route path="/settings/integrations/hickvision" element={<HickvisionIntegrationSettingsPage />} />
-              <Route path="/settings/tariffs" element={<TariffsList />} />
-              <Route path="/settings/tariffs/new" element={<TariffForm />} />
-              <Route path="/settings/tariffs/:id" element={<TariffForm />} />
-              <Route path="/settings/product-categories" element={<ProductCategoriesList />} />
-              <Route path="/settings/product-categories/new" element={<ProductCategoryForm />} />
-              <Route path="/settings/product-categories/:id" element={<ProductCategoryForm />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings" element={<SettingsLayout />}>
+                <Route path="platform" element={<PlatformSettingsPage />} />
+                <Route path="home" element={<HomeSettingsPage />} />
+                <Route path="general" element={<SettingsGeneralPage />} />
+                <Route path="positions" element={<PositionsSettingsPage />} />
+                <Route path="experience-levels" element={<ExperienceLevelsSettingsPage />} />
+                <Route path="locations" element={<LocationsSettingsPage />} />
+                <Route path="employment-types" element={<EmploymentTypesSettingsPage />} />
+                <Route path="divisions" element={<DivisionsSettingsPage />} />
+                <Route path="skills" element={<SkillsSettingsPage />} />
+                <Route path="departments" element={<DepartmentsSettingsPage />} />
+                <Route path="compensation" element={<CompensationSettingsPage />} />
+                <Route path="absence-policies" element={<AbsencePoliciesSettingsPage />} />
+                <Route path="holiday-policies" element={<HolidayPoliciesSettingsPage />} />
+                <Route path="holiday-policies/:id" element={<HolidayPolicyDetailPage />} />
+                <Route path="approvals" element={<ApprovalsSettingsPage />} />
+                <Route path="approvals/new" element={<ApprovalProcessDetailPage />} />
+                <Route path="approvals/:id" element={<ApprovalProcessDetailPage />} />
+                <Route path="documents" element={<DocumentsSettingsPage />} />
+                <Route path="documents/templates/new" element={<CreateDocumentTemplatePage />} />
+                <Route path="documents/templates/:id/edit" element={<CreateDocumentTemplatePage />} />
+                <Route path="documents/templates/:id" element={<CreateDocumentTemplatePage />} />
+                <Route path="work-schedules" element={<WorkSchedulesSettingsPage />} />
+                <Route path="probation-policies" element={<ProbationPoliciesSettingsPage />} />
+                <Route path="dismissal-reasons" element={<DismissalReasonsSettingsPage />} />
+                <Route path="dismissal-types" element={<DismissalTypesSettingsPage />} />
+                <Route path="employee-work-reasons" element={<EmployeeWorkChangeReasonsSettingsPage />} />
+                <Route path="property-categories" element={<PropertyCategoriesSettingsPage />} />
+                <Route path="integrations/hickvision" element={<HickvisionIntegrationSettingsPage />} />
+                <Route path="tariffs" element={<TariffsList />} />
+                <Route path="tariffs/new" element={<TariffForm />} />
+                <Route path="tariffs/:id" element={<TariffForm />} />
+                <Route path="product-categories" element={<ProductCategoriesList />} />
+                <Route path="product-categories/new" element={<ProductCategoryForm />} />
+                <Route path="product-categories/:id" element={<ProductCategoryForm />} />
+                <Route path="news" element={<NotificationsPage />} />
+                <Route path="news/new" element={<NewsFormPage />} />
+                <Route path="news/:id/edit" element={<NewsFormPage />} />
+                <Route path="stage-templates" element={<StageTemplatesPage />} />
+                <Route path="rejection-reasons" element={<RejectionReasonsSettingsPage />} />
+                <Route path="candidate-sources" element={<CandidateSourcesSettingsPage />} />
+              </Route>
 
               <Route path="/employees" element={<EmployeesList />} />
               <Route path="/employees/new" element={<EmployeeForm />} />
@@ -248,6 +253,8 @@ function App() {
               <Route path="/knowledge-base" element={<KnowledgeBaseList />} />
               <Route path="/knowledge-base/articles/:articleId" element={<KnowledgeBaseArticle />} />
               <Route path="/property" element={<PropertyList />} />
+              <Route path="/property/new" element={<PropertyForm />} />
+              <Route path="/property/:id/edit" element={<PropertyForm />} />
               <Route path="/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/time" element={<TimeModule />} />
               <Route path="/calendar" element={<Navigate to="/time?view=calendar" replace />} />
@@ -289,9 +296,6 @@ function App() {
               <Route path="/recruiting/candidates/new" element={<CandidateForm />} />
               <Route path="/recruiting/candidates/:id" element={<CandidateDetail />} />
               <Route path="/recruiting/candidates/:id/edit" element={<CandidateForm />} />
-              <Route path="/settings/stage-templates" element={<StageTemplatesPage />} />
-              <Route path="/settings/rejection-reasons" element={<RejectionReasonsSettingsPage />} />
-              <Route path="/settings/candidate-sources" element={<CandidateSourcesSettingsPage />} />
               <Route path="/recruiting/settings/stage-templates" element={<Navigate to="/settings/stage-templates" replace />} />
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

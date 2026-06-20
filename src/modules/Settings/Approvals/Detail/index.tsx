@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate, useParams } from "react-router";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { ChevronLeft, GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import ReactSelect, { type SingleValue, type StylesConfig } from "react-select";
 import PageMeta from "../../../../components/common/PageMeta";
@@ -185,13 +190,6 @@ export default function ApprovalProcessDetailPage() {
   if (!isNew && !existing && isLoading) {
     return (
       <div className="space-y-4">
-        <Link
-          to="/settings/approvals"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
         <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500">
           Загрузка…
         </div>
@@ -202,13 +200,6 @@ export default function ApprovalProcessDetailPage() {
   if (!isNew && !existing) {
     return (
       <div className="space-y-4">
-        <Link
-          to="/settings/approvals"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center">
           <p className="text-base font-medium text-gray-800">Процесс не найден</p>
         </div>
@@ -298,14 +289,6 @@ export default function ApprovalProcessDetailPage() {
       />
 
       <div className="space-y-4">
-        <Link
-          to="/settings/approvals"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-semibold text-gray-900">
             {isNew ? "Новый процесс одобрения" : "Процесс одобрения"}

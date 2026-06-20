@@ -2138,69 +2138,7 @@ function KpiPage() {
             </button>
           </div>
 
-          <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
-            {KPI_PERIOD_TABS.map((tab) => {
-              const isActive = periodMode === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setPeriodMode(tab.key)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    height: "30px",
-                    padding: "0 12px",
-                    border: isActive ? "1px solid #dbeafe" : "1px solid transparent",
-                    borderRadius: "8px",
-                    backgroundColor: isActive ? "#fff" : "transparent",
-                    color: isActive ? "#2563eb" : "#64748b",
-                    fontWeight: 600,
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    boxShadow: isActive ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
-                  }}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
           <div className="ml-auto flex min-w-0 items-center justify-end gap-2 flex-wrap">
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "3px",
-                borderRadius: "12px",
-                border: "1px solid #e2e8f0",
-                backgroundColor: "#f8fafc",
-                height: "38px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => handleMovePeriod("prev")}
-                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label="Предыдущий период"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
-                {currentPeriodLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => handleMovePeriod("next")}
-                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label="Следующий период"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-
             <ExpandableSearchInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -2214,14 +2152,20 @@ function KpiPage() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen((open) => !open)}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition ${
+              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFilterButtonActive
                   ? "border-blue-200 bg-blue-50 text-blue-600"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               <SlidersHorizontal size={16} />
-              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+              {activeFiltersCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                  {activeFiltersCount}
+                </span>
+              ) : null}
             </button>
 
             <button
@@ -2294,6 +2238,70 @@ function KpiPage() {
 
         <div className="px-4 lg:px-6 py-5">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-200 px-4 py-3">
+              <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+                {KPI_PERIOD_TABS.map((tab) => {
+                  const isActive = periodMode === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setPeriodMode(tab.key)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        height: "30px",
+                        padding: "0 12px",
+                        border: isActive ? "1px solid #dbeafe" : "1px solid transparent",
+                        borderRadius: "8px",
+                        backgroundColor: isActive ? "#fff" : "transparent",
+                        color: isActive ? "#2563eb" : "#64748b",
+                        fontWeight: 600,
+                        fontSize: "13px",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        boxShadow: isActive ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "3px",
+                  borderRadius: "12px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor: "#f8fafc",
+                  height: "38px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleMovePeriod("prev")}
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                  aria-label="Предыдущий период"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
+                  {currentPeriodLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleMovePeriod("next")}
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                  aria-label="Следующий период"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
             <div className="px-4 py-4">
               {isLoading ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">

@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { Boxes, LayoutGrid, List, PackageCheck, Plus, SlidersHorizontal, Wallet, Warehouse } from "lucide-react";
+import { useNavigate } from "react-router";
+import { Boxes, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react";
+import Select, { type SingleValue, type StylesConfig } from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -9,7 +11,6 @@ import EmployeesPaginationFooter from "../../Employees/List/components/Employees
 import companyStore from "../../../store/company.store";
 import PropertyTable from "../components/PropertyTable";
 import PropertyGrid from "../components/PropertyGrid";
-import PropertyFormModal from "../components/PropertyFormModal";
 import MovementModal from "../components/MovementModal";
 import PropertyDetailDrawer from "../components/PropertyDetailDrawer";
 import { Modal } from "../../../components/ui/modal";
@@ -17,23 +18,46 @@ import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirecto
 import {
   mapPropertyRow,
   usePropertiesQuery,
-  useCreateProperty,
-  useUpdateProperty,
   useDeleteProperty,
-  type PropertyWritePayload,
 } from "../../../api/services/property.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 import {
   PROPERTY_STATUS_CONFIG,
   PROPERTY_STATUS_ORDER,
-  formatCurrency,
-  type PropertyGeneralDraft,
   type PropertyItem,
   type PropertyStatus,
 } from "../types";
 
 type ViewMode = "table" | "grid";
 type PaginationItem = number | string;
+type FilterSelectOption = { value: string; label: string };
+
+// Shared filter-select styling — matches Attendance/Absence filter selects.
+const getFilterSelectStyles = (): StylesConfig<FilterSelectOption, false> => ({
+  control: (base, state) => ({
+    ...base,
+    minHeight: "40px",
+    borderColor: state.isFocused ? "#cbd5e1" : "#e2e8f0",
+    borderRadius: "0.75rem",
+    boxShadow: "none",
+    "&:hover": { borderColor: "#cbd5e1" },
+  }),
+  valueContainer: (base) => ({ ...base, padding: "0 10px", fontSize: "14px" }),
+  input: (base) => ({ ...base, margin: 0, padding: 0, fontSize: "14px" }),
+  indicatorsContainer: (base) => ({ ...base, height: "38px" }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: "14px",
+    cursor: "pointer",
+    backgroundColor: state.isSelected ? "#e2e8f0" : state.isFocused ? "#f8fafc" : "white",
+    color: "#111827",
+    padding: "8px 12px",
+  }),
+  menu: (base) => ({ ...base, zIndex: 100000, borderRadius: "0.75rem", border: "1px solid #e5e7eb" }),
+  menuPortal: (base) => ({ ...base, zIndex: 100000 }),
+  singleValue: (base) => ({ ...base, fontSize: "14px" }),
+  placeholder: (base) => ({ ...base, fontSize: "14px", color: "#94a3b8" }),
+});
 
 const PAGE_SIZE = 10;
 const PROPERTY_BREADCRUMBS = [{ label: "Имущество", to: "/property" }];
@@ -53,11 +77,9 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
   return result;
 };
 
-const selectCls =
-  "h-10 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 transition focus:border-brand-400 focus:outline-none appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')] bg-[right_0.5rem_center] bg-no-repeat";
-
 function PropertyList() {
   useHeaderBreadcrumbItems(PROPERTY_BREADCRUMBS);
+  const navigate = useNavigate();
   const brandColor = companyStore.mainColor || "#2563eb";
 
   const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -67,9 +89,6 @@ function PropertyList() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [editingItem, setEditingItem] = useState<PropertyItem | null>(null);
   const [movementItem, setMovementItem] = useState<PropertyItem | null>(null);
   const [detailItem, setDetailItem] = useState<PropertyItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<PropertyItem | null>(null);
@@ -84,8 +103,6 @@ function PropertyList() {
   }), [currentPage, searchQuery, categoryFilter, statusFilter]);
 
   const { data: propertiesData, isLoading } = usePropertiesQuery(queryParams);
-  const createMutation = useCreateProperty();
-  const updateMutation = useUpdateProperty();
   const deleteMutation = useDeleteProperty();
 
   const { data: categoriesData } = useSettingsDirectoryQuery({
@@ -135,48 +152,20 @@ function PropertyList() {
   const hasActiveFilters = Boolean(searchQuery || categoryFilter || statusFilter);
   const activeFiltersCount = (categoryFilter ? 1 : 0) + (statusFilter ? 1 : 0);
 
-  // ── Summary (aggregation over loaded page — replaced by /aggregation later) ──
-  const summary = useMemo(() => ({
-    total: totalCount,
-    inStock: items.filter((i) => i.status === "in_stock").length,
-    assigned: items.filter((i) => i.status === "assigned").length,
-    totalValue: items.reduce((s, i) => s + i.cost, 0),
-  }), [items, totalCount]);
+  const filterSelectStyles = useMemo(() => getFilterSelectStyles(), []);
+  const menuPortalTarget = typeof document !== "undefined" ? document.body : null;
+  const statusFilterOptions = useMemo<FilterSelectOption[]>(
+    () => PROPERTY_STATUS_ORDER.map((s) => ({ value: s, label: PROPERTY_STATUS_CONFIG[s].label })),
+    []
+  );
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const resetFilters = () => {
     setSearchQuery(""); setCategoryFilter(""); setStatusFilter(""); setCurrentPage(1);
   };
 
-  const openCreate = () => { setFormMode("create"); setEditingItem(null); setIsFormOpen(true); };
-  const openEdit = (item: PropertyItem) => { setFormMode("edit"); setEditingItem(item); setIsFormOpen(true); };
-
-  const draftToPayload = (draft: PropertyGeneralDraft): PropertyWritePayload => ({
-    name: draft.name,
-    property_categories_id: draft.categoryId,
-    serial_number: draft.serialNumber,
-    cost: draft.cost,
-    photo: draft.photo,
-    purchase_date: draft.purchaseDate,
-    warranty_until: draft.warrantyUntil,
-    description: draft.description,
-  });
-
-  const handleGeneralSubmit = async (draft: PropertyGeneralDraft) => {
-    try {
-      if (formMode === "edit" && editingItem) {
-        await updateMutation.mutateAsync({ guid: editingItem.id, payload: draftToPayload(draft) });
-        toast.success("Сохранено");
-      } else {
-        await createMutation.mutateAsync(draftToPayload(draft));
-        setCurrentPage(1);
-        toast.success("Добавлено");
-      }
-      setIsFormOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить");
-    }
-  };
+  const openCreate = () => navigate("/property/new");
+  const openEdit = (item: PropertyItem) => navigate(`/property/${item.id}/edit`);
 
   const confirmDelete = async () => {
     if (!deletingItem) return;
@@ -189,14 +178,6 @@ function PropertyList() {
       toast.error(err instanceof Error ? err.message : "Не удалось удалить");
     }
   };
-
-  // ── Summary cards ─────────────────────────────────────────────────────────
-  const summaryCards = [
-    { label: "Всего единиц", value: String(summary.total), icon: Boxes, tint: "text-brand-600 bg-brand-50" },
-    { label: "На складе",    value: String(summary.inStock),  icon: Warehouse,    tint: "text-slate-600 bg-slate-100" },
-    { label: "Выдано",       value: String(summary.assigned), icon: PackageCheck, tint: "text-emerald-600 bg-emerald-50" },
-    { label: "Стоимость",    value: formatCurrency(summary.totalValue), icon: Wallet, tint: "text-violet-600 bg-violet-50" },
-  ];
 
   return (
     <>
@@ -237,14 +218,19 @@ function PropertyList() {
               brandColor={brandColor}
             />
             <button type="button" onClick={() => setIsFiltersOpen((o) => !o)}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${
+              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFiltersOpen || activeFiltersCount > 0
                   ? "border-brand-200 bg-brand-50 text-brand-600"
                   : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
               }`}>
               <SlidersHorizontal size={16} />
-              Фильтр
-              {activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+              {activeFiltersCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">
+                  {activeFiltersCount}
+                </span>
+              ) : null}
             </button>
             <Button startIcon={<Plus size={16} />} onClick={openCreate} className="h-10 rounded-xl px-4">
               Добавить
@@ -260,20 +246,41 @@ function PropertyList() {
               background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
               border: "1px solid #e2e8f0", borderTop: "1px solid #dbe4ee",
             }}>
-            <select value={categoryFilter} className={selectCls}
-              onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}>
-              <option value="">Все категории</option>
-              {categoryOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <select value={statusFilter} className={selectCls}
-              onChange={(e) => { setStatusFilter(e.target.value as PropertyStatus | ""); setCurrentPage(1); }}>
-              <option value="">Все статусы</option>
-              {PROPERTY_STATUS_ORDER.map((s) => (
-                <option key={s} value={s}>{PROPERTY_STATUS_CONFIG[s].label}</option>
-              ))}
-            </select>
+            <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
+              <Select<FilterSelectOption, false>
+                inputId="property-filter-category"
+                value={categoryOptions.find((opt) => opt.value === categoryFilter) || null}
+                onChange={(opt: SingleValue<FilterSelectOption>) => {
+                  setCategoryFilter(opt?.value || "");
+                  setCurrentPage(1);
+                }}
+                options={categoryOptions}
+                placeholder="Все категории"
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={menuPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
+            <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
+              <Select<FilterSelectOption, false>
+                inputId="property-filter-status"
+                value={statusFilterOptions.find((opt) => opt.value === statusFilter) || null}
+                onChange={(opt: SingleValue<FilterSelectOption>) => {
+                  setStatusFilter((opt?.value || "") as PropertyStatus | "");
+                  setCurrentPage(1);
+                }}
+                options={statusFilterOptions}
+                placeholder="Все статусы"
+                isSearchable={false}
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={menuPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
             {hasActiveFilters && (
               <button type="button" onClick={resetFilters}
                 className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700">
@@ -284,24 +291,8 @@ function PropertyList() {
         )}
       </div>
 
-      {/* ── Summary cards ────────────────────────────────────────────────── */}
-      <div className="mt-4 mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {summaryCards.map((card) => {
-          const CardIcon = card.icon;
-          return (
-            <div key={card.label} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5">
-              <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.tint}`}><CardIcon size={20} /></span>
-              <div className="min-w-0">
-                <div className="truncate text-lg font-semibold text-gray-900">{card.value}</div>
-                <div className="truncate text-xs text-gray-500">{card.label}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       {/* ── Main card ────────────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
         <div className="border-b border-gray-100 bg-slate-50/60 px-5 py-2.5 text-xs text-gray-500">
           {visibleRangeLabel}
         </div>
@@ -361,14 +352,6 @@ function PropertyList() {
         onDelete={setDeletingItem}
       />
 
-      <PropertyFormModal
-        isOpen={isFormOpen}
-        mode={formMode}
-        initialItem={editingItem}
-        categoryOptions={categoryOptions}
-        onClose={() => setIsFormOpen(false)}
-        onSubmit={handleGeneralSubmit}
-      />
 
       <MovementModal
         isOpen={Boolean(syncedMovementItem)}

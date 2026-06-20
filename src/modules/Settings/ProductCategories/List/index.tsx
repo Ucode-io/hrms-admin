@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import PageMeta from "../../../../components/common/PageMeta";
-import { useProductCategoriesQuery, useDeleteProductCategory } from "../../../../api/services/productCategory.service";
+import {
+  useProductCategoriesQuery,
+  useDeleteProductCategory,
+} from "../../../../api/services/productCategory.service";
 import {
   Table,
   TableBody,

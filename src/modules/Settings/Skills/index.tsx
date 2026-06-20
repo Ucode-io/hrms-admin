@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
 import {
-  ChevronLeft,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
   Download,
   Loader2,
   MoreHorizontal,
@@ -179,14 +183,6 @@ export default function SkillsSettingsPage() {
       <PageMeta title="Навыки | Настройки" description="Список навыков компании" />
 
       <div className="space-y-4">
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-semibold text-gray-900">Навыки</h1>
           <div className="flex items-center gap-2">
@@ -220,7 +216,6 @@ export default function SkillsSettingsPage() {
               />
             </label>
           </div>
-
 
           <div className="relative max-w-full overflow-x-auto border-t border-gray-100">
             <Table>

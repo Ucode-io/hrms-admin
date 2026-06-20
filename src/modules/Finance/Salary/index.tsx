@@ -920,42 +920,6 @@ function FinanceSalaryPage() {
           }}
         >
           <div className="flex items-center gap-2 ml-auto">
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "3px",
-                borderRadius: "12px",
-                border: "1px solid #e2e8f0",
-                backgroundColor: "#f8fafc",
-                height: "38px",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
-                }
-                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label="Предыдущий месяц"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
-                {monthLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
-                }
-                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                aria-label="Следующий месяц"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-
             <ExpandableSearchInput
               value={searchValue}
               onChange={setSearchValue}
@@ -969,14 +933,20 @@ function FinanceSalaryPage() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen((open) => !open)}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition ${
+              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFilterButtonActive
                   ? "border-blue-200 bg-blue-50 text-blue-600"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               <SlidersHorizontal size={16} />
-              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+              {activeFiltersCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                  {activeFiltersCount}
+                </span>
+              ) : null}
             </button>
 
             <button
@@ -1123,45 +1093,82 @@ function FinanceSalaryPage() {
 
         <div className="px-4 lg:px-6 py-5" style={showStickyPagination ? { paddingBottom: "92px" } : undefined}>
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="px-4 py-4">
-            {isPageLoading ? (
-              <div className="py-8 flex items-center justify-center">
-                <div className="w-7 h-7 rounded-full border-2 border-slate-200 animate-spin border-t-slate-500" />
-              </div>
-            ) : isError ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-[13px] text-rose-600">
-                Не удалось загрузить записи по зарплате.
+            <div className="flex items-center justify-end border-b border-slate-100 px-4 py-3">
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "3px",
+                  borderRadius: "12px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor: "#f8fafc",
+                  height: "38px",
+                }}
+              >
                 <button
                   type="button"
-                  onClick={() => {
-                    void refetch();
-                  }}
-                  className="ml-2 inline-flex h-8 items-center rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white transition hover:bg-rose-700"
+                  onClick={() =>
+                    setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+                  }
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                  aria-label="Предыдущий месяц"
                 >
-                  Повторить
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
+                  {monthLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+                  }
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
+                  aria-label="Следующий месяц"
+                >
+                  <ChevronRight size={16} />
                 </button>
               </div>
-            ) : records.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
-                <p className="m-0 text-[13px] text-slate-500">
-                  Записи не найдены
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Сотрудник</th>
-                      <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Дата начисления</th>
-                      <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Тип компенсации</th>
-                      <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Операция</th>
-                      <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Сумма</th>
-                      <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Описание</th>
-                      <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Создано</th>
-                      <th className="py-2 text-right text-[12px] font-semibold text-slate-500">Действия</th>
-                    </tr>
-                  </thead>
+            </div>
+            <div className="px-4 py-4">
+              {isPageLoading ? (
+                <div className="py-8 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full border-2 border-slate-200 animate-spin border-t-slate-500" />
+                </div>
+              ) : isError ? (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-[13px] text-rose-600">
+                  Не удалось загрузить записи по зарплате.
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void refetch();
+                    }}
+                    className="ml-2 inline-flex h-8 items-center rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white transition hover:bg-rose-700"
+                  >
+                    Повторить
+                  </button>
+                </div>
+              ) : records.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
+                  <p className="m-0 text-[13px] text-slate-500">
+                    Записи не найдены
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Сотрудник</th>
+                        <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Дата начисления</th>
+                        <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Тип компенсации</th>
+                        <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Операция</th>
+                        <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Сумма</th>
+                        <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Описание</th>
+                        <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Создано</th>
+                        <th className="py-2 text-right text-[12px] font-semibold text-slate-500">Действия</th>
+                      </tr>
+                    </thead>
                   <tbody>
                     {records.map((record) => (
                       <tr key={record.guid} className="border-b border-slate-100 align-top">

@@ -2,13 +2,10 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   Briefcase,
-  CheckCircle2,
   LayoutGrid,
   List,
-  PauseCircle,
   Plus,
   SlidersHorizontal,
-  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
@@ -127,13 +124,6 @@ function VacanciesList() {
     return `Отображение ${start}–${end} из ${totalCount}`;
   }, [safePage, totalCount, isLoading]);
 
-  const summary = useMemo(() => {
-    const open = vacancies.filter((v) => v.status === "open").length;
-    const paused = vacancies.filter((v) => v.status === "paused").length;
-    const candidates = vacancies.reduce((s, v) => s + v.candidatesCount, 0);
-    return { total: totalCount, open, paused, candidates };
-  }, [vacancies, totalCount]);
-
   const hasActiveFilters = Boolean(searchQuery || statusFilter || departmentFilter);
   const activeFiltersCount = (statusFilter ? 1 : 0) + (departmentFilter ? 1 : 0);
 
@@ -158,13 +148,6 @@ function VacanciesList() {
       toast.error(err instanceof Error ? err.message : "Не удалось удалить");
     }
   };
-
-  const summaryCards = [
-    { label: "Всего вакансий", value: String(summary.total), icon: Briefcase, tint: "text-brand-600 bg-brand-50" },
-    { label: "Открыто", value: String(summary.open), icon: CheckCircle2, tint: "text-emerald-600 bg-emerald-50" },
-    { label: "На паузе", value: String(summary.paused), icon: PauseCircle, tint: "text-amber-600 bg-amber-50" },
-    { label: "Кандидатов", value: String(summary.candidates), icon: Users, tint: "text-violet-600 bg-violet-50" },
-  ];
 
   return (
     <>
@@ -227,14 +210,20 @@ function VacanciesList() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen((o) => !o)}
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${
+              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFiltersOpen || activeFiltersCount > 0
                   ? "border-brand-200 bg-brand-50 text-brand-600"
                   : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
               }`}
             >
               <SlidersHorizontal size={16} />
-              Фильтр{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+              {activeFiltersCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">
+                  {activeFiltersCount}
+                </span>
+              ) : null}
             </button>
             <Button startIcon={<Plus size={16} />} onClick={openCreate} className="h-10 rounded-xl px-4">
               Создать
@@ -298,26 +287,7 @@ function VacanciesList() {
         )}
       </div>
 
-      {/* Summary cards */}
-      <div className="mt-4 mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {summaryCards.map((card) => {
-          const CardIcon = card.icon;
-          return (
-            <div
-              key={card.label}
-              className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5"
-            >
-              <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${card.tint}`}>
-                <CardIcon size={20} />
-              </span>
-              <div className="min-w-0">
-                <div className="truncate text-lg font-semibold text-gray-900">{card.value}</div>
-                <div className="truncate text-xs text-gray-500">{card.label}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <div className="mt-4" />
 
       {/* Content */}
       {isLoading ? (

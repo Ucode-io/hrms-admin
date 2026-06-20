@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreHorizontal, Search, TrendingDown, TrendingUp, X } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  MoreHorizontal,
+  Search,
+  TrendingDown,
+  TrendingUp,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Table,
@@ -214,7 +225,6 @@ export default function CompensationDirectoryTab({
               />
             </label>
           </div>
-
 
           <div className="max-w-full overflow-x-auto border-t border-gray-100">
             <Table>

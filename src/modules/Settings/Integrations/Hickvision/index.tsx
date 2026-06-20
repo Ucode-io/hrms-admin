@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { ChevronLeft, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
 import Button from "../../../../components/ui/button/Button";
@@ -14,7 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../../../components/ui/tabs";
 import Pagination from "../../../../components/pagination";
 import { getCompaniesId } from "../../../../api/httpRequest";
 import hickvisionService from "../../../../api/services/hickvision.service";
@@ -363,14 +368,6 @@ export default function HickvisionIntegrationSettingsPage() {
       <PageMeta title="Hickvision | Настройки" description="Интеграция Hickvision" />
 
       <div className="space-y-4">
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-        >
-          <ChevronLeft size={16} />
-          Назад
-        </Link>
-
         <div>
           <h1 className="text-3xl font-semibold text-gray-900">Hickvision</h1>
           <p className="mt-1 text-base font-medium text-gray-500">Интеграция с системой контроля доступа</p>

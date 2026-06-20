@@ -6,7 +6,6 @@ import {
   Briefcase,
   CalendarDays,
   ChevronDown,
-  ChevronLeft,
   FileText,
   History,
   Link as LinkIcon,
@@ -237,16 +236,9 @@ export default function CandidateDetail() {
     <>
       <PageMeta title={`${candidate.fullName} | Рекрутинг`} description="Профиль кандидата" />
 
-      {/* Back + title bar */}
+      {/* Title bar */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
-          >
-            <ChevronLeft size={18} />
-          </button>
           <h1 className="text-lg font-semibold text-gray-900">{candidate.fullName}</h1>
           <LevelChip level={candidate.level} />
           <OutcomeBadge outcome={candidate.outcome} />

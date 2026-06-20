@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "react-query";
 import { Icon } from "@iconify/react";
+import Select, { type SingleValue, type StylesConfig } from "react-select";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import companyStore from "../../../store/company.store";
@@ -63,11 +64,40 @@ const STATUS_BADGE_CLASSNAME: Record<AbsenceRequestStatus, string> = {
   rejected: "bg-rose-100 text-rose-700",
 };
 
+type SelectOption = { value: string; label: string };
+
 const STATUS_FILTER_OPTIONS: { value: AbsenceRequestStatus; label: string }[] = [
   { value: "pending", label: "Ожидает" },
   { value: "approved", label: "Подтвержден" },
   { value: "rejected", label: "Отклонен" },
 ];
+
+// Shared select styling — matches the attendance tab's filter selects.
+const getFilterSelectStyles = (): StylesConfig<SelectOption, false> => ({
+  control: (base, state) => ({
+    ...base,
+    minHeight: "40px",
+    borderColor: state.isFocused ? "#cbd5e1" : "#e2e8f0",
+    borderRadius: "0.5rem",
+    boxShadow: "none",
+    "&:hover": { borderColor: "#cbd5e1" },
+  }),
+  valueContainer: (base) => ({ ...base, padding: "0 10px", fontSize: "13px" }),
+  input: (base) => ({ ...base, margin: 0, padding: 0, fontSize: "13px" }),
+  indicatorsContainer: (base) => ({ ...base, height: "38px" }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: "13px",
+    cursor: "pointer",
+    backgroundColor: state.isSelected ? "#e2e8f0" : state.isFocused ? "#f8fafc" : "white",
+    color: "#111827",
+    padding: "8px 10px",
+  }),
+  menu: (base) => ({ ...base, zIndex: 100000, borderRadius: "0.5rem", border: "1px solid #e5e7eb" }),
+  menuPortal: (base) => ({ ...base, zIndex: 100000 }),
+  singleValue: (base) => ({ ...base, fontSize: "13px" }),
+  placeholder: (base) => ({ ...base, fontSize: "13px", color: "#94a3b8" }),
+});
 
 const MONTH_NAMES_RU = [
   "Январь",
@@ -165,6 +195,9 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   const [policyFilter, setPolicyFilter] = useState("");
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
   const [approvalRequest, setApprovalRequest] = useState<AbsenceRow | null>(null);
+
+  const filterSelectStyles = useMemo(() => getFilterSelectStyles(), []);
+  const menuPortalTarget = typeof document !== "undefined" ? document.body : null;
 
   const { data: approvalProcesses } = useApprovalProcessesQuery();
   const approveStageMutation = useApproveStage();
@@ -413,78 +446,75 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
           <button
             type="button"
             onClick={() => setIsFiltersOpen((prev) => !prev)}
-            className={`inline-flex h-[38px] items-center gap-2 rounded-xl border px-3 text-sm font-medium transition ${
+            aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+            title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+            className={`relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-xl border transition ${
               isFiltersOpen || activeFiltersCount > 0
                 ? "border-brand-200 bg-brand-50 text-brand-600"
                 : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
             <SlidersHorizontal size={16} />
-            Фильтры
             {activeFiltersCount > 0 && (
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-md bg-brand-500 px-1 text-xs font-semibold text-white">
+              <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">
                 {activeFiltersCount}
               </span>
             )}
           </button>
-
-          <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-            <button
-              type="button"
-              onClick={goToPreviousMonth}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition hover:bg-white hover:text-gray-900"
-              aria-label="Предыдущий месяц"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="min-w-[140px] text-center text-sm font-medium text-gray-700">
-              {monthLabel}
-            </span>
-            <button
-              type="button"
-              onClick={goToNextMonth}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition hover:bg-white hover:text-gray-900"
-              aria-label="Следующий месяц"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
         </div>
 
         {/* Filters bar */}
         {isFiltersOpen && (
-          <div className="flex flex-wrap items-end gap-4 border border-t-0 border-gray-200 bg-gray-50 px-4 py-4 lg:px-6">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-500">Статус</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as AbsenceRequestStatus | "")}
-                className="h-9 min-w-[180px] rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-brand-400 focus:outline-none"
-              >
-                <option value="">Все статусы</option>
-                {STATUS_FILTER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div
+            className="px-4 lg:px-6 py-2"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+              background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+              border: "1px solid #e2e8f0",
+              borderTop: "1px solid #dbe4ee",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+            }}
+          >
+            <div style={{ minWidth: "180px", maxWidth: "280px", flex: "0 1 280px" }}>
+              <Select<SelectOption, false>
+                inputId="absence-filter-status"
+                value={STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter) || null}
+                onChange={(option: SingleValue<SelectOption>) => {
+                  setStatusFilter((option?.value || "") as AbsenceRequestStatus | "");
+                  setCurrentPage(1);
+                }}
+                options={STATUS_FILTER_OPTIONS}
+                placeholder="Статус"
+                isSearchable={false}
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={menuPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
 
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-500">Тип отсутствия</span>
-              <select
-                value={policyFilter}
-                onChange={(event) => setPolicyFilter(event.target.value)}
-                className="h-9 min-w-[200px] rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-brand-400 focus:outline-none"
-              >
-                <option value="">Все типы</option>
-                {policyOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
+              <Select<SelectOption, false>
+                inputId="absence-filter-policy"
+                value={policyOptions.find((option) => option.value === policyFilter) || null}
+                onChange={(option: SingleValue<SelectOption>) => {
+                  setPolicyFilter(option?.value || "");
+                  setCurrentPage(1);
+                }}
+                options={policyOptions}
+                placeholder="Тип отсутствия"
+                isClearable
+                styles={filterSelectStyles}
+                menuPortalTarget={menuPortalTarget}
+                menuPosition="fixed"
+                noOptionsMessage={() => "Ничего не найдено"}
+              />
+            </div>
 
             {activeFiltersCount > 0 && (
               <button
@@ -502,13 +532,36 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
 
       {/* Content card */}
       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-gray-100 bg-slate-50/70 px-5 py-3 text-sm text-gray-500">
-        <CalendarDays size={16} className="text-gray-400" />
-        {totalCount > 0
-          ? `Отображено ${rows.length} из ${totalCount}`
-          : isLoading
-            ? "Загрузка..."
-            : "Запросов нет"}
+      <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-slate-50/70 px-5 py-2.5 text-sm text-gray-500">
+        <span className="inline-flex items-center gap-2">
+          <CalendarDays size={16} className="text-gray-400" />
+          {totalCount > 0
+            ? `Отображено ${rows.length} из ${totalCount}`
+            : isLoading
+              ? "Загрузка..."
+              : "Запросов нет"}
+        </span>
+        <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1">
+          <button
+            type="button"
+            onClick={goToPreviousMonth}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+            aria-label="Предыдущий месяц"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="min-w-[140px] text-center text-sm font-medium text-gray-700">
+            {monthLabel}
+          </span>
+          <button
+            type="button"
+            onClick={goToNextMonth}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+            aria-label="Следующий месяц"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Table */}

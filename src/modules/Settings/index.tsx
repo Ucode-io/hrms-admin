@@ -10,11 +10,8 @@ import {
   CalendarDays,
   CheckCheck,
   ClipboardList,
-  CreditCard,
-  FileOutput,
   FolderOpen,
   Home,
-  Import,
   LaptopMinimal,
   Link2,
   ListChecks,
@@ -26,11 +23,10 @@ import {
   UserRoundCheck,
   UserX,
   WalletCards,
-  Webhook,
 } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 
-type SettingsItem = {
+export type SettingsItem = {
   id: string;
   title: string;
   icon: LucideIcon;
@@ -39,13 +35,13 @@ type SettingsItem = {
   keywords?: string[];
 };
 
-type SettingsSection = {
+export type SettingsSection = {
   id: string;
   title: string;
   columns: SettingsItem[][];
 };
 
-const settingsSections: SettingsSection[] = [
+export const settingsSections: SettingsSection[] = [
   {
     id: "main",
     title: "Основные настройки",
@@ -59,18 +55,6 @@ const settingsSections: SettingsSection[] = [
           subtitle: "Базовые параметры",
           keywords: ["общие", "основные", "платформа", "настройки"],
         },
-        {
-          id: "webhooks",
-          title: "Вебхуки",
-          icon: Webhook,
-          subtitle: "События и триггеры",
-        },
-        {
-          id: "billing",
-          title: "Биллинг",
-          icon: CreditCard,
-          subtitle: "Оплаты и реквизиты",
-        },
       ],
       [
         {
@@ -80,21 +64,8 @@ const settingsSections: SettingsSection[] = [
           path: "/settings/news",
           subtitle: "Лента новостей",
         },
-        {
-          id: "import",
-          title: "Импорт",
-          icon: Import,
-          subtitle: "Загрузка данных",
-        },
       ],
-      [
-        {
-          id: "export",
-          title: "Экспорт",
-          icon: FileOutput,
-          subtitle: "Выгрузка отчетов",
-        },
-      ],
+      [],
     ],
   },
   {
@@ -352,6 +323,10 @@ const SettingsPage: React.FC = () => {
         const columns = section.columns
           .map((column) =>
             column.filter((item) => {
+              if (!item.path) {
+                return false;
+              }
+
               if (!normalizedQuery) {
                 return true;
               }
@@ -377,11 +352,7 @@ const SettingsPage: React.FC = () => {
       <PageMeta title="Настройки | HRMS" description="Список настроек" />
 
       <div className="space-y-4">
-        <div className="-mx-4 border-y border-gray-200 bg-white px-4 py-5 md:-mx-6 md:px-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Настройки</h1>
-        </div>
-
-        <div className="-mx-4 border-b border-gray-200 px-4 pb-4 md:-mx-6 md:px-6">
+        <div className="-mx-4 border-b border-gray-200 px-4 py-4 md:-mx-6 md:px-6">
           <label className="relative block">
             <Search
               size={18}
@@ -411,60 +382,34 @@ const SettingsPage: React.FC = () => {
                 {section.columns.map((column, index) =>
                   column.map((item) => {
                     const Icon = item.icon;
-                    const isClickable = Boolean(item.path);
                     const content = (
                       <>
                         <span
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors ${isClickable
-                            ? "border-brand-100 bg-brand-50 text-brand-500 group-hover:bg-brand-100"
-                            : "border-gray-200 bg-gray-100 text-gray-400"
-                            }`}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-brand-100 bg-brand-50 text-brand-500 transition-colors group-hover:bg-brand-100"
                         >
                           <Icon size={15} />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span
-                            className={`block truncate text-sm font-semibold ${isClickable ? "text-gray-900" : "text-gray-500"
-                              }`}
-                          >
+                          <span className="block truncate text-sm font-semibold text-gray-900">
                             {item.title}
                           </span>
                           {item.subtitle && (
-                            <span
-                              className={`mt-0.5 block truncate text-xs ${isClickable ? "text-gray-500" : "text-gray-400"
-                                }`}
-                            >
+                            <span className="mt-0.5 block truncate text-xs text-gray-500">
                               {item.subtitle}
                             </span>
                           )}
                         </span>
-                        {!isClickable && (
-                          <span className="shrink-0 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                            Скоро
-                          </span>
-                        )}
                       </>
                     );
 
-                    if (isClickable && item.path) {
-                      return (
-                        <Link
-                          key={`${section.id}-${index}-${item.id}`}
-                          to={item.path}
-                          className="group flex items-start gap-2.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
-                        >
-                          {content}
-                        </Link>
-                      );
-                    }
-
                     return (
-                      <div
+                      <Link
                         key={`${section.id}-${index}-${item.id}`}
-                        className="flex cursor-not-allowed items-start gap-2.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5"
+                        to={item.path}
+                        className="group flex items-start gap-2.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-sm"
                       >
                         {content}
-                      </div>
+                      </Link>
                     );
                   })
                 )}

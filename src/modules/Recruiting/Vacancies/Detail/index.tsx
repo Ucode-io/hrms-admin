@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   Briefcase,
   CalendarDays,
-  ChevronLeft,
+  ChevronDown,
   Columns3,
   Info,
   MapPin,
@@ -143,27 +143,6 @@ export default function VacancyDetail() {
     <>
       <PageMeta title={`${vacancy.title} | Рекрутинг`} description="Воронка вакансии" />
 
-      {/* Back */}
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate("/recruiting/vacancies")}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2 text-sm">
-          <span
-            className="cursor-pointer text-brand-600"
-            onClick={() => navigate("/recruiting/vacancies")}
-          >
-            Вакансии
-          </span>
-          <span className="text-gray-300">/</span>
-          <span className="font-medium text-gray-800">{vacancy.title}</span>
-        </div>
-      </div>
-
       {/* Header card */}
       <div className="rounded-2xl border border-gray-200 bg-white px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -211,7 +190,9 @@ export default function VacancyDetail() {
               <select
                 value={vacancy.status}
                 onChange={(e) => handleStatusChange(e.target.value as VacancyStatus)}
-                className={`h-10 cursor-pointer appearance-none rounded-xl border-0 py-0 pl-3 pr-8 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-100 ${status.badgeClassName}`}
+                aria-label="Статус вакансии"
+                title="Изменить статус"
+                className={`h-10 cursor-pointer appearance-none rounded-xl border border-transparent py-0 pl-3 pr-9 text-sm font-medium shadow-sm ring-1 ring-inset ring-black/5 transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-brand-300 ${status.badgeClassName}`}
               >
                 {VACANCY_STATUS_ORDER.map((s) => (
                   <option key={s} value={s}>
@@ -219,6 +200,10 @@ export default function VacancyDetail() {
                   </option>
                 ))}
               </select>
+              <ChevronDown
+                size={15}
+                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 opacity-70"
+              />
             </div>
             <Button
               variant="outline"
