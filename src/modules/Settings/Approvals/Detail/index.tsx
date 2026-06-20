@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -16,10 +16,12 @@ import {
   type ApprovalProcessType,
   type ApprovalStage,
   createStageId,
-  getApprovalProcess,
   PROCESS_TYPES,
-  saveApprovalProcess,
 } from "../mockData";
+import {
+  useApprovalProcessQuery,
+  useSaveApprovalProcess,
+} from "../../../../api/services/approval.service";
 
 const STAGE_DND_TYPE = "approval-stage";
 
@@ -157,18 +159,45 @@ export default function ApprovalProcessDetailPage() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === "new";
 
-  const existing = useMemo(
-    () => (isNew ? undefined : getApprovalProcess(id as string)),
-    [id, isNew]
+  const { data: existing, isLoading } = useApprovalProcessQuery(
+    isNew ? undefined : id
   );
+  const saveProcessMutation = useSaveApprovalProcess();
 
-  const [title, setTitle] = useState(existing?.title ?? "");
-  const [type, setType] = useState<ApprovalProcessType | "">(existing?.type ?? "");
-  const [departments, setDepartments] = useState<DepartmentOption[]>(
-    existing?.departments.map((d) => ({ value: d.id, label: d.title })) ?? []
-  );
-  const [description, setDescription] = useState(existing?.description ?? "");
-  const [stages, setStages] = useState<ApprovalStage[]>(existing?.stages ?? []);
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState<ApprovalProcessType | "">("");
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [description, setDescription] = useState("");
+  const [stages, setStages] = useState<ApprovalStage[]>([]);
+
+  // Populate the form once the existing process loads (edit mode).
+  useEffect(() => {
+    if (!existing) return;
+    setTitle(existing.title);
+    setType(existing.type);
+    setDepartments(
+      existing.departments.map((d) => ({ value: d.id, label: d.title }))
+    );
+    setDescription(existing.description);
+    setStages(existing.stages);
+  }, [existing]);
+
+  if (!isNew && !existing && isLoading) {
+    return (
+      <div className="space-y-4">
+        <Link
+          to="/settings/approvals"
+          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
+        >
+          <ChevronLeft size={16} />
+          Назад
+        </Link>
+        <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500">
+          Загрузка…
+        </div>
+      </div>
+    );
+  }
 
   if (!isNew && !existing) {
     return (
@@ -216,7 +245,7 @@ export default function ApprovalProcessDetailPage() {
     });
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       toast.error("Укажите название процесса.");
       return;
@@ -239,19 +268,26 @@ export default function ApprovalProcessDetailPage() {
       return;
     }
 
-    saveApprovalProcess({
-      id: existing?.id,
-      title: title.trim(),
-      type,
-      departments: departments.map((d) => ({ id: d.value, title: d.label })),
-      description: description.trim(),
-      stages: stages.map((stage) => ({ ...stage, title: stage.title.trim() })),
-    });
+    try {
+      await saveProcessMutation.mutateAsync({
+        id: existing?.id,
+        process: {
+          title: title.trim(),
+          type,
+          departments: departments.map((d) => ({ id: d.value, title: d.label })),
+          description: description.trim(),
+          stages: stages.map((stage) => ({ ...stage, title: stage.title.trim() })),
+        },
+      });
 
-    toast.success(
-      isNew ? "Процесс одобрения создан." : "Процесс одобрения обновлён."
-    );
-    navigate("/settings/approvals");
+      toast.success(
+        isNew ? "Процесс одобрения создан." : "Процесс одобрения обновлён."
+      );
+      navigate("/settings/approvals");
+    } catch (error) {
+      console.error("Failed to save approval process:", error);
+      toast.error("Не удалось сохранить процесс.");
+    }
   };
 
   return (
@@ -282,8 +318,12 @@ export default function ApprovalProcessDetailPage() {
             >
               Отмена
             </Button>
-            <Button className="h-11" onClick={handleSave}>
-              Сохранить
+            <Button
+              className="h-11"
+              onClick={() => void handleSave()}
+              disabled={saveProcessMutation.isLoading}
+            >
+              {saveProcessMutation.isLoading ? "Сохранение…" : "Сохранить"}
             </Button>
           </div>
         </div>

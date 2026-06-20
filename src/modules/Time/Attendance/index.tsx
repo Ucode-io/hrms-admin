@@ -18,6 +18,21 @@ import {
 } from "../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 import { dedupeAttendanceByPriority } from "../../../utils/attendanceSourcePriority";
+import ApprovalProcessModal from "../../../components/approvals/ApprovalProcessModal";
+import ApprovalProgressBadge from "../../../components/approvals/ApprovalProgressBadge";
+import ApprovalProgressButton from "../../../components/approvals/ApprovalProgressButton";
+import {
+  countApprovedStages,
+  isProcessComplete,
+} from "../../settings/Approvals/approvalRuntime";
+import {
+  findApprovalProcessFor,
+  useApprovalProcessesQuery,
+  useApproveStage,
+  useEntityApprovalsQuery,
+} from "../../../api/services/approval.service";
+
+const ATTENDANCE_ENTITY_TYPE = "attendance";
 
 type AttendanceItem = {
   guid: string;
@@ -56,6 +71,7 @@ type AttendanceRecord = {
   createdAt: string;
   employeeGuid: string;
   employeeName: string;
+  departmentId: string;
 };
 
 type AttendanceDraft = {
@@ -441,10 +457,12 @@ const getDelayLabel = (delayTime: string, status: AttendanceActionStatus): strin
   return "—";
 };
 
-const getEmployeeInfo = (item: AttendanceItem): { employeeGuid: string; employeeName: string } => {
+const getEmployeeInfo = (
+  item: AttendanceItem
+): { employeeGuid: string; employeeName: string; departmentId: string } => {
   const relation =
     item.user_base_id_data && typeof item.user_base_id_data === "object"
-      ? item.user_base_id_data
+      ? (item.user_base_id_data as Record<string, unknown>)
       : null;
 
   const firstName = typeof relation?.first_name === "string" ? relation.first_name : "";
@@ -460,7 +478,18 @@ const getEmployeeInfo = (item: AttendanceItem): { employeeGuid: string; employee
     (typeof item.user_base_id === "string" && item.user_base_id) ||
     (typeof relation?.guid === "string" ? relation.guid : "");
 
-  return { employeeGuid, employeeName };
+  // uCode relation expansion returns the full user_base row, so the employee's
+  // department is available here (used to resolve the approval process).
+  const departmentRelation =
+    relation && typeof relation.departments_id_data === "object"
+      ? (relation.departments_id_data as Record<string, unknown>)
+      : null;
+  const departmentId =
+    (typeof relation?.departments_id === "string" && relation.departments_id) ||
+    (typeof departmentRelation?.guid === "string" ? departmentRelation.guid : "") ||
+    "";
+
+  return { employeeGuid, employeeName, departmentId };
 };
 
 const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
@@ -490,6 +519,10 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const [actionError, setActionError] = useState("");
   const [employeeFallbackLabel, setEmployeeFallbackLabel] = useState("");
   const [toDelete, setToDelete] = useState<AttendanceRecord | null>(null);
+  const [approvalRecord, setApprovalRecord] = useState<AttendanceRecord | null>(null);
+
+  const { data: approvalProcesses } = useApprovalProcessesQuery();
+  const approveStageMutation = useApproveStage();
 
   const brandColor = companyStore.mainColor;
   const normalizedDateFilter = useMemo(() => {
@@ -581,6 +614,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         createdAt: typeof item.created_at === "string" ? item.created_at : "",
         employeeGuid: employeeInfo.employeeGuid,
         employeeName: employeeInfo.employeeName,
+        departmentId: employeeInfo.departmentId,
       };
     });
 
@@ -601,6 +635,36 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       return toSortTimestamp(rightItem) - toSortTimestamp(leftItem);
     });
   }, [data?.response]);
+
+  // Resolve the approval process for a row from that employee's department.
+  const resolveRecordProcess = (record: AttendanceRecord) =>
+    findApprovalProcessFor(
+      approvalProcesses ?? [],
+      "attendance_change_approval",
+      record.departmentId
+    );
+
+  // Bulk approval progress for visible rows so finalized rows can still show
+  // the clickable audit badge.
+  const approvalEntityIds = useMemo(
+    () =>
+      records
+        .filter(
+          (record) =>
+            findApprovalProcessFor(
+              approvalProcesses ?? [],
+              "attendance_change_approval",
+              record.departmentId
+            )
+        )
+        .map((record) => record.guid),
+    [records, approvalProcesses]
+  );
+
+  const { data: approvalProgressMap } = useEntityApprovalsQuery(
+    ATTENDANCE_ENTITY_TYPE,
+    approvalEntityIds
+  );
 
   const activeFiltersCount = [employeeFilter, typeFilter, sourceTypeFilter].filter(Boolean).length;
   const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
@@ -740,26 +804,95 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     }
   };
 
+  const buildReviewPayload = (
+    record: AttendanceRecord,
+    status: "accepted" | "rejected"
+  ) => ({
+    user_base_id: record.employeeGuid,
+    companies_id: companyStore.company?.guid || COMPANY_ID,
+    date: record.date,
+    ...(record.checkInTime ? { check_in_time: record.checkInTime } : {}),
+    ...(record.checkOutTime ? { check_out_time: record.checkOutTime } : {}),
+    delay_time: normalizeDelayTimeForPayload(record.delayTime),
+    status: [status],
+    action_status: [
+      record.actionStatus === "unknown"
+        ? resolveActionStatusFromTime(record.checkInTime)
+        : record.actionStatus,
+    ],
+    source_type: [record.sourceType === "integration" ? "integration" : "manual"],
+  });
+
+  const confirmRecord = (record: AttendanceRecord) =>
+    updateMutation.mutateAsync({
+      guid: record.guid,
+      data: buildReviewPayload(record, "accepted"),
+    });
+
+  // Row "Подтвердить" click. With a configured approval process the change must
+  // pass every stage first → open the approval modal instead of confirming.
   const handleConfirmRequested = async (record: AttendanceRecord) => {
+    const process = resolveRecordProcess(record);
+    if (process) {
+      const progress = approvalProgressMap?.[record.guid] ?? null;
+      if (!isProcessComplete(process, progress)) {
+        setApprovalRecord(record);
+        return;
+      }
+    }
     try {
       setActionError("");
-      await updateMutation.mutateAsync({
-        guid: record.guid,
-        data: {
-          user_base_id: record.employeeGuid,
-          companies_id: companyStore.company?.guid || COMPANY_ID,
-          date: record.date,
-          ...(record.checkInTime ? { check_in_time: record.checkInTime } : {}),
-          ...(record.checkOutTime ? { check_out_time: record.checkOutTime } : {}),
-          delay_time: normalizeDelayTimeForPayload(record.delayTime),
-          status: ["accepted"],
-          action_status: [record.actionStatus === "unknown" ? resolveActionStatusFromTime(record.checkInTime) : record.actionStatus],
-          source_type: [record.sourceType === "integration" ? "integration" : "manual"],
-        },
-      });
+      await confirmRecord(record);
     } catch (confirmError) {
       console.error("Attendance confirm error:", confirmError);
       setActionError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+    }
+  };
+
+  const approvalRecordProcess = approvalRecord
+    ? resolveRecordProcess(approvalRecord)
+    : undefined;
+
+  const handleApproveStage = async (stageId: string, comment: string) => {
+    if (!approvalRecord || !approvalRecordProcess) return;
+    try {
+      await approveStageMutation.mutateAsync({
+        entityType: ATTENDANCE_ENTITY_TYPE,
+        entityId: approvalRecord.guid,
+        processId: approvalRecordProcess.id,
+        stageId,
+        comment,
+      });
+    } catch (stageError) {
+      console.error("Attendance stage approve error:", stageError);
+      setActionError("Не удалось одобрить этап.");
+    }
+  };
+
+  const finalizeApproval = async () => {
+    if (!approvalRecord) return;
+    try {
+      setActionError("");
+      await confirmRecord(approvalRecord);
+      setApprovalRecord(null);
+    } catch (confirmError) {
+      console.error("Attendance confirm error:", confirmError);
+      setActionError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+    }
+  };
+
+  const rejectFromApproval = async (_comment: string) => {
+    if (!approvalRecord) return;
+    try {
+      setActionError("");
+      await updateMutation.mutateAsync({
+        guid: approvalRecord.guid,
+        data: buildReviewPayload(approvalRecord, "rejected"),
+      });
+      setApprovalRecord(null);
+    } catch (rejectError) {
+      console.error("Attendance reject error:", rejectError);
+      setActionError("Не удалось отклонить запись.");
     }
   };
 
@@ -1022,6 +1155,19 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                           const requestTag = getWorkflowStatusTag(record.requestStatus);
                           const sourceTag = getSourceTypeTag(record.sourceType);
 
+                          const rowProcess = resolveRecordProcess(record);
+                          const rowProgress = rowProcess
+                            ? approvalProgressMap?.[record.guid] ?? null
+                            : null;
+                          const hasApprovalHistory =
+                            (rowProgress?.approvals?.length ?? 0) > 0;
+                          const showApprovalProgress =
+                            Boolean(rowProcess) &&
+                            (record.requestStatus === "requested" || hasApprovalHistory);
+                          const rowApprovedStages = rowProcess
+                            ? countApprovedStages(rowProcess, rowProgress)
+                            : 0;
+
                           return (
                             <tr key={record.guid} className="border-b border-slate-100">
                               <td className="py-3 text-[13px] text-slate-800">
@@ -1059,6 +1205,16 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                 >
                                   {requestTag.label}
                                 </span>
+                                {showApprovalProgress && rowProcess ? (
+                                  <div className="mt-1.5">
+                                    <ApprovalProgressBadge
+                                      title={rowProcess.title}
+                                      approvedStages={rowApprovedStages}
+                                      totalStages={rowProcess.stages.length}
+                                      onClick={() => setApprovalRecord(record)}
+                                    />
+                                  </div>
+                                ) : null}
                               </td>
                               <td className="py-3 text-[13px] text-slate-700">
                                 <span
@@ -1070,17 +1226,26 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                               <td className="py-3">
                                 <div className="flex justify-end gap-2">
                                   {record.requestStatus === "requested" ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        void handleConfirmRequested(record);
-                                      }}
-                                      className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-                                      title="Подтвердить"
-                                    >
-                                      <Check className="h-3.5 w-3.5" />
-                                      Подтвердить
-                                    </button>
+                                    rowProcess ? (
+                                      <ApprovalProgressButton
+                                        approvedStages={rowApprovedStages}
+                                        totalStages={rowProcess.stages.length}
+                                        onClick={() => setApprovalRecord(record)}
+                                        disabled={isSaving}
+                                      />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          void handleConfirmRequested(record);
+                                        }}
+                                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                                        title="Подтвердить"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                        Подтвердить
+                                      </button>
+                                    )
                                   ) : null}
                                   <button
                                     type="button"
@@ -1279,6 +1444,25 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
           </button>
         </div>
       </Modal>
+
+      <ApprovalProcessModal
+        isOpen={Boolean(approvalRecord)}
+        onClose={() => setApprovalRecord(null)}
+        process={approvalRecordProcess ?? null}
+        progress={
+          approvalRecord ? approvalProgressMap?.[approvalRecord.guid] ?? null : null
+        }
+        onApproveStage={(stageId, comment) =>
+          void handleApproveStage(stageId, comment)
+        }
+        isApprovingStage={approveStageMutation.isLoading}
+        confirmLabel="Подтвердить запись"
+        onConfirm={() => void finalizeApproval()}
+        isConfirming={updateMutation.isLoading}
+        onReject={(comment) => void rejectFromApproval(comment)}
+        isRejecting={updateMutation.isLoading}
+        readOnly={approvalRecord?.requestStatus !== "requested"}
+      />
     </>
   );
 }

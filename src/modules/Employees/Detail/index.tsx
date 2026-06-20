@@ -326,6 +326,10 @@ function EmployeeDetail() {
   const fullName = [emp.second_name, emp.first_name].filter(Boolean).join(" ");
   const positionTitle = emp.positions_id_data?.title || "";
   const departmentTitle = emp.departments_id_data?.title || "";
+  const employeeDepartmentId =
+    normalizeRelationId(emp.departments_id) ||
+    normalizeRelationId(emp.departments_id_data?.guid) ||
+    null;
   const locationTitle = emp.locations_id_data?.title || "";
   const divisionTitle = emp.divisions_id_data?.title || "";
   const employmentTypeTitle = emp.employment_types_id_data?.title || "";
@@ -943,9 +947,17 @@ function EmployeeDetail() {
       ) : activeTab === "Компенсация" ? (
         <CompensationSection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : activeTab === "Отсутствия" ? (
-        <AbsencesSection employeeGuid={emp.guid} brandColor={brandColor} />
+        <AbsencesSection
+          employeeGuid={emp.guid}
+          brandColor={brandColor}
+          departmentId={employeeDepartmentId}
+        />
       ) : activeTab === "Посещаемость" ? (
-        <AttendanceSection employeeGuid={emp.guid} brandColor={brandColor} />
+        <AttendanceSection
+          employeeGuid={emp.guid}
+          brandColor={brandColor}
+          departmentId={employeeDepartmentId}
+        />
       ) : activeTab === "Посещение спорта" ? (
         <SportAttendanceSection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : (

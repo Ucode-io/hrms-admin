@@ -14,25 +14,22 @@ import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
+import { type ApprovalProcess, getProcessTypeLabel } from "./mockData";
 import {
-  type ApprovalProcess,
-  deleteApprovalProcess,
-  getProcessTypeLabel,
-  listApprovalProcesses,
-} from "./mockData";
+  useApprovalProcessesQuery,
+  useDeleteApprovalProcess,
+} from "../../../api/services/approval.service";
 
 export default function ApprovalsSettingsPage() {
   const navigate = useNavigate();
-  const [items, setItems] = useState<ApprovalProcess[]>(() =>
-    listApprovalProcesses()
-  );
+  const { data: processes, isLoading } = useApprovalProcessesQuery();
+  const deleteProcessMutation = useDeleteApprovalProcess();
+  const items = useMemo(() => processes ?? [], [processes]);
   const [searchValue, setSearchValue] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ApprovalProcess | null>(null);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  const refresh = () => setItems(listApprovalProcesses());
 
   const filteredItems = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
@@ -59,12 +56,16 @@ export default function ApprovalsSettingsPage() {
     setItemToDelete(null);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!itemToDelete) return;
-    deleteApprovalProcess(itemToDelete.id);
-    refresh();
-    toast.success("Процесс одобрения удалён.");
-    closeDeleteModal();
+    try {
+      await deleteProcessMutation.mutateAsync(itemToDelete.id);
+      toast.success("Процесс одобрения удалён.");
+      closeDeleteModal();
+    } catch (error) {
+      console.error("Failed to delete approval process:", error);
+      toast.error("Не удалось удалить процесс.");
+    }
   };
 
   return (
@@ -142,7 +143,7 @@ export default function ApprovalsSettingsPage() {
                 {filteredItems.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Процессы одобрения не найдены
+                      {isLoading ? "Загрузка…" : "Процессы одобрения не найдены"}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -260,10 +261,11 @@ export default function ApprovalsSettingsPage() {
               Отмена
             </Button>
             <Button
-              onClick={confirmDelete}
+              onClick={() => void confirmDelete()}
+              disabled={deleteProcessMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              Удалить
+              {deleteProcessMutation.isLoading ? "Удаление…" : "Удалить"}
             </Button>
           </div>
         </div>

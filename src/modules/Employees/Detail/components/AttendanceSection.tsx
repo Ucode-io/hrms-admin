@@ -13,11 +13,27 @@ import {
 } from "../../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
 import { dedupeAttendanceByPriority } from "../../../../utils/attendanceSourcePriority";
+import ApprovalProcessModal from "../../../../components/approvals/ApprovalProcessModal";
+import ApprovalProgressBadge from "../../../../components/approvals/ApprovalProgressBadge";
+import ApprovalProgressButton from "../../../../components/approvals/ApprovalProgressButton";
+import {
+  countApprovedStages,
+  isProcessComplete,
+} from "../../../settings/Approvals/approvalRuntime";
+import {
+  findApprovalProcessFor,
+  useApprovalProcessesQuery,
+  useApproveStage,
+  useEntityApprovalsQuery,
+} from "../../../../api/services/approval.service";
 
 type AttendanceSectionProps = {
   employeeGuid: string;
   brandColor: string;
+  departmentId?: string | null;
 };
+
+const ATTENDANCE_ENTITY_TYPE = "attendance";
 
 type AttendanceItem = {
   guid: string;
@@ -292,12 +308,27 @@ const getDefaultDraft = (): AttendanceDraft => {
 export default function AttendanceSection({
   employeeGuid,
   brandColor,
+  departmentId,
 }: AttendanceSectionProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGuid, setEditingGuid] = useState<string | null>(null);
   const [draft, setDraft] = useState<AttendanceDraft>(getDefaultDraft());
   const [error, setError] = useState("");
   const [toDelete, setToDelete] = useState<AttendanceRecord | null>(null);
+  const [approvalRecord, setApprovalRecord] = useState<AttendanceRecord | null>(null);
+
+  // Approval process covering this employee's department (if configured).
+  const { data: approvalProcesses } = useApprovalProcessesQuery();
+  const attendanceApprovalProcess = useMemo(
+    () =>
+      findApprovalProcessFor(
+        approvalProcesses ?? [],
+        "attendance_change_approval",
+        departmentId
+      ),
+    [approvalProcesses, departmentId]
+  );
+  const approveStageMutation = useApproveStage();
 
   const { data, isLoading, isError } = useSettingsDirectoryQuery({
     slug: ATTENDANCE_SLUG,
@@ -341,6 +372,21 @@ export default function AttendanceSection({
 
     return rows.sort((left, right) => toSortTimestamp(right) - toSortTimestamp(left));
   }, [data?.response, employeeGuid]);
+
+  // Bulk approval progress for visible records so finalized rows can still
+  // show the clickable audit badge.
+  const approvalEntityIds = useMemo(
+    () =>
+      attendanceApprovalProcess
+        ? records.map((record) => record.guid)
+        : [],
+    [attendanceApprovalProcess, records]
+  );
+
+  const { data: approvalProgressMap } = useEntityApprovalsQuery(
+    ATTENDANCE_ENTITY_TYPE,
+    approvalEntityIds
+  );
 
   const closeModal = () => {
     if (isSaving) return;
@@ -425,24 +471,86 @@ export default function AttendanceSection({
     }
   };
 
-  const handleConfirmRequested = async (record: AttendanceRecord) => {
+  const buildReviewPayload = (
+    record: AttendanceRecord,
+    status: "accepted" | "rejected"
+  ) => ({
+    user_base_id: employeeGuid,
+    companies_id: companyStore.company?.guid || COMPANY_ID,
+    date: record.date,
+    ...(record.checkInTime ? { check_in_time: record.checkInTime } : {}),
+    ...(record.checkOutTime ? { check_out_time: record.checkOutTime } : {}),
+    delay_time: normalizeDelayTimeForPayload(record.delayTime),
+    status: [status],
+    action_status: [
+      record.actionStatus === "unknown"
+        ? resolveActionStatusFromTime(record.checkInTime)
+        : record.actionStatus,
+    ],
+  });
+
+  const confirmRecord = (record: AttendanceRecord) =>
+    updateMutation.mutateAsync({
+      guid: record.guid,
+      data: buildReviewPayload(record, "accepted"),
+    });
+
+  // Row "Подтвердить" click. With a configured approval process the change must
+  // pass every stage first → open the approval modal instead of confirming.
+  const requestConfirm = async (record: AttendanceRecord) => {
+    if (attendanceApprovalProcess) {
+      const progress = approvalProgressMap?.[record.guid] ?? null;
+      if (!isProcessComplete(attendanceApprovalProcess, progress)) {
+        setApprovalRecord(record);
+        return;
+      }
+    }
     try {
-      await updateMutation.mutateAsync({
-        guid: record.guid,
-        data: {
-          user_base_id: employeeGuid,
-          companies_id: companyStore.company?.guid || COMPANY_ID,
-          date: record.date,
-          ...(record.checkInTime ? { check_in_time: record.checkInTime } : {}),
-          ...(record.checkOutTime ? { check_out_time: record.checkOutTime } : {}),
-          delay_time: normalizeDelayTimeForPayload(record.delayTime),
-          status: ["accepted"],
-          action_status: [record.actionStatus === "unknown" ? resolveActionStatusFromTime(record.checkInTime) : record.actionStatus],
-        },
-      });
+      await confirmRecord(record);
     } catch (confirmError) {
       console.error("Attendance confirm error:", confirmError);
       setError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+    }
+  };
+
+  const handleApproveStage = async (stageId: string, comment: string) => {
+    if (!approvalRecord || !attendanceApprovalProcess) return;
+    try {
+      await approveStageMutation.mutateAsync({
+        entityType: ATTENDANCE_ENTITY_TYPE,
+        entityId: approvalRecord.guid,
+        processId: attendanceApprovalProcess.id,
+        stageId,
+        comment,
+      });
+    } catch (stageError) {
+      console.error("Attendance stage approve error:", stageError);
+      setError("Не удалось одобрить этап.");
+    }
+  };
+
+  const finalizeApproval = async () => {
+    if (!approvalRecord) return;
+    try {
+      await confirmRecord(approvalRecord);
+      setApprovalRecord(null);
+    } catch (confirmError) {
+      console.error("Attendance confirm error:", confirmError);
+      setError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+    }
+  };
+
+  const rejectFromApproval = async (_comment: string) => {
+    if (!approvalRecord) return;
+    try {
+      await updateMutation.mutateAsync({
+        guid: approvalRecord.guid,
+        data: buildReviewPayload(approvalRecord, "rejected"),
+      });
+      setApprovalRecord(null);
+    } catch (rejectError) {
+      console.error("Attendance reject error:", rejectError);
+      setError("Не удалось отклонить запись.");
     }
   };
 
@@ -508,6 +616,16 @@ export default function AttendanceSection({
                     const actionTag = getActionStatusTag(record.actionStatus, record.delayTime);
                     const requestTag = getWorkflowStatusTag(record.requestStatus);
 
+                    const recordProgress = approvalProgressMap?.[record.guid] ?? null;
+                    const hasApprovalHistory =
+                      (recordProgress?.approvals?.length ?? 0) > 0;
+                    const showApprovalProgress =
+                      Boolean(attendanceApprovalProcess) &&
+                      (record.requestStatus === "requested" || hasApprovalHistory);
+                    const approvedStages = attendanceApprovalProcess
+                      ? countApprovedStages(attendanceApprovalProcess, recordProgress)
+                      : 0;
+
                     return (
                       <tr key={record.guid} className="border-b border-slate-100">
                         <td className="py-3 text-[13px] text-slate-800">
@@ -532,21 +650,40 @@ export default function AttendanceSection({
                           >
                             {requestTag.label}
                           </span>
+                          {showApprovalProgress && attendanceApprovalProcess ? (
+                            <div className="mt-1.5">
+                              <ApprovalProgressBadge
+                                title={attendanceApprovalProcess.title}
+                                approvedStages={approvedStages}
+                                totalStages={attendanceApprovalProcess.stages.length}
+                                onClick={() => setApprovalRecord(record)}
+                              />
+                            </div>
+                          ) : null}
                         </td>
                         <td className="py-3">
                           <div className="flex justify-end gap-2">
                             {record.requestStatus === "requested" ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void handleConfirmRequested(record);
-                                }}
-                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-                                title="Подтвердить"
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                Подтвердить
-                              </button>
+                              showApprovalProgress && attendanceApprovalProcess ? (
+                                <ApprovalProgressButton
+                                  approvedStages={approvedStages}
+                                  totalStages={attendanceApprovalProcess.stages.length}
+                                  onClick={() => setApprovalRecord(record)}
+                                  disabled={isSaving}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void requestConfirm(record);
+                                  }}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                                  title="Подтвердить"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  Подтвердить
+                                </button>
+                              )
                             ) : null}
                             <button
                               type="button"
@@ -709,6 +846,25 @@ export default function AttendanceSection({
           </button>
         </div>
       </Modal>
+
+      <ApprovalProcessModal
+        isOpen={Boolean(approvalRecord)}
+        onClose={() => setApprovalRecord(null)}
+        process={attendanceApprovalProcess ?? null}
+        progress={
+          approvalRecord ? approvalProgressMap?.[approvalRecord.guid] ?? null : null
+        }
+        onApproveStage={(stageId, comment) =>
+          void handleApproveStage(stageId, comment)
+        }
+        isApprovingStage={approveStageMutation.isLoading}
+        confirmLabel="Подтвердить запись"
+        onConfirm={() => void finalizeApproval()}
+        isConfirming={updateMutation.isLoading}
+        onReject={(comment) => void rejectFromApproval(comment)}
+        isRejecting={updateMutation.isLoading}
+        readOnly={approvalRecord?.requestStatus !== "requested"}
+      />
     </>
   );
 }

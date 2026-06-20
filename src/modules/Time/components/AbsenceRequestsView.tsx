@@ -1,23 +1,48 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "react-query";
 import { Icon } from "@iconify/react";
-import { CalendarDays, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { toast } from "sonner";
 import companyStore from "../../../store/company.store";
 import {
   type Absence,
   type AbsenceRequestStatus,
+  useApproveAbsence,
+  useUpdateAbsence,
 } from "../../../api/services/absenceRequest.service";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 import EmployeesPaginationFooter from "../../Employees/List/components/EmployeesPaginationFooter";
+import ApprovalProcessModal from "../../../components/approvals/ApprovalProcessModal";
+import ApprovalProgressBadge from "../../../components/approvals/ApprovalProgressBadge";
+import ApprovalProgressButton from "../../../components/approvals/ApprovalProgressButton";
+import {
+  countApprovedStages,
+  isProcessComplete,
+} from "../../settings/Approvals/approvalRuntime";
+import {
+  findApprovalProcessFor,
+  useApprovalProcessesQuery,
+  useApproveStage,
+  useEntityApprovalsQuery,
+} from "../../../api/services/approval.service";
 
 const ABSENCES_SLUG = "absences";
+const ABSENCE_ENTITY_TYPE = "absence";
 
 type AbsenceRow = Absence & {
   user_base_id_data?: {
+    guid?: string | null;
     first_name?: string | null;
     second_name?: string | null;
     photo?: string | null;
     name?: string | null;
+    departments_id?: string | null;
+    departments_id_data?: {
+      guid?: string | null;
+      title?: string | null;
+      [key: string]: unknown;
+    } | null;
   } | null;
 };
 
@@ -127,6 +152,7 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
 };
 
 function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
+  const queryClient = useQueryClient();
   const brandColor = companyStore.mainColor || "#2563eb";
 
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -137,6 +163,13 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<AbsenceRequestStatus | "">("");
   const [policyFilter, setPolicyFilter] = useState("");
+  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
+  const [approvalRequest, setApprovalRequest] = useState<AbsenceRow | null>(null);
+
+  const { data: approvalProcesses } = useApprovalProcessesQuery();
+  const approveStageMutation = useApproveStage();
+  const approveRequestMutation = useApproveAbsence();
+  const updateRequestMutation = useUpdateAbsence();
 
   const monthStartIso = useMemo(
     () => toIsoDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)),
@@ -200,6 +233,38 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
     const list = (data?.response || []) as AbsenceRow[];
     return [...list].sort((a, b) => (b.date_from || "").localeCompare(a.date_from || ""));
   }, [data]);
+
+  const resolveRowDepartmentId = (row: AbsenceRow): string => {
+    const employee = row.user_base_id_data;
+    return (
+      (typeof employee?.departments_id === "string" && employee.departments_id) ||
+      (typeof employee?.departments_id_data?.guid === "string"
+        ? employee.departments_id_data.guid
+        : "") ||
+      ""
+    );
+  };
+
+  const resolveRowProcess = (row: AbsenceRow) =>
+    findApprovalProcessFor(
+      approvalProcesses ?? [],
+      "absence_approval",
+      resolveRowDepartmentId(row)
+    );
+
+  const approvalEntityIds = useMemo(
+    () =>
+      rows
+        .filter((row) => resolveRowProcess(row))
+        .map((row) => row.guid),
+    [rows, approvalProcesses]
+  );
+
+  const { data: approvalProgressMap } = useEntityApprovalsQuery(
+    ABSENCE_ENTITY_TYPE,
+    approvalEntityIds
+  );
+
   const totalCount = data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -226,6 +291,105 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   const resetFilters = () => {
     setStatusFilter("");
     setPolicyFilter("");
+  };
+
+  const invalidateAbsenceRows = () => {
+    queryClient.invalidateQueries(["SETTINGS_DIRECTORY", ABSENCES_SLUG]);
+  };
+
+  const handleReviewRequest = async (
+    row: AbsenceRow,
+    status: "approved" | "rejected"
+  ) => {
+    const process = resolveRowProcess(row);
+    if (status === "approved" && process) {
+      const progress = approvalProgressMap?.[row.guid] ?? null;
+      if (!isProcessComplete(process, progress)) {
+        setApprovalRequest(row);
+        return;
+      }
+    }
+
+    try {
+      setReviewingRequestId(row.guid);
+      if (status === "approved") {
+        await approveRequestMutation.mutateAsync({ guid: row.guid });
+      } else {
+        await updateRequestMutation.mutateAsync({
+          guid: row.guid,
+          data: {
+            status: ["rejected"],
+            reviewed_at: new Date().toISOString(),
+          },
+        });
+      }
+      invalidateAbsenceRows();
+      toast.success(status === "approved" ? "Запрос подтвержден." : "Запрос отклонен.");
+    } catch (error) {
+      console.error("Failed to review absence request:", error);
+      toast.error("Не удалось изменить статус запроса.");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
+
+  const approvalRequestProcess = approvalRequest
+    ? resolveRowProcess(approvalRequest)
+    : undefined;
+
+  const handleApproveStage = async (stageId: string, comment: string) => {
+    if (!approvalRequest || !approvalRequestProcess) return;
+    try {
+      await approveStageMutation.mutateAsync({
+        entityType: ABSENCE_ENTITY_TYPE,
+        entityId: approvalRequest.guid,
+        processId: approvalRequestProcess.id,
+        stageId,
+        comment,
+      });
+    } catch (error) {
+      console.error("Failed to approve absence stage:", error);
+      toast.error("Не удалось одобрить этап.");
+    }
+  };
+
+  const finalizeApproval = async () => {
+    if (!approvalRequest) return;
+    try {
+      setReviewingRequestId(approvalRequest.guid);
+      await approveRequestMutation.mutateAsync({ guid: approvalRequest.guid });
+      invalidateAbsenceRows();
+      toast.success("Запрос подтвержден.");
+      setApprovalRequest(null);
+    } catch (error) {
+      console.error("Failed to approve absence request:", error);
+      toast.error("Не удалось подтвердить запрос.");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
+
+  const rejectFromApproval = async (comment: string) => {
+    if (!approvalRequest) return;
+    try {
+      setReviewingRequestId(approvalRequest.guid);
+      await updateRequestMutation.mutateAsync({
+        guid: approvalRequest.guid,
+        data: {
+          status: ["rejected"],
+          reviewed_at: new Date().toISOString(),
+          reject_reason: comment.trim() || null,
+        },
+      });
+      invalidateAbsenceRows();
+      toast.success("Запрос отклонен.");
+      setApprovalRequest(null);
+    } catch (error) {
+      console.error("Failed to reject absence request:", error);
+      toast.error("Не удалось отклонить запрос.");
+    } finally {
+      setReviewingRequestId(null);
+    }
   };
 
   return (
@@ -356,7 +520,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm" style={{ opacity: isFetching ? 0.6 : 1 }}>
+          <table className="w-full min-w-[900px] text-left text-sm" style={{ opacity: isFetching ? 0.6 : 1 }}>
             <thead>
               <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
                 <th className="px-5 py-3 font-medium">Сотрудник</th>
@@ -364,6 +528,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                 <th className="px-5 py-3 font-medium">Период</th>
                 <th className="px-5 py-3 font-medium">Дней</th>
                 <th className="px-5 py-3 font-medium">Статус</th>
+                <th className="px-5 py-3 text-right font-medium">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -385,6 +550,19 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                   row.absence_policy_color || row.absence_policies_id_data?.color,
                   brandColor
                 );
+                const rowProcess = resolveRowProcess(row);
+                const rowProgress = rowProcess
+                  ? approvalProgressMap?.[row.guid] ?? null
+                  : null;
+                const hasApprovalHistory = (rowProgress?.approvals?.length ?? 0) > 0;
+                const showApprovalProgress =
+                  Boolean(rowProcess) && (status === "pending" || hasApprovalHistory);
+                const approvedStages = rowProcess
+                  ? countApprovedStages(rowProcess, rowProgress)
+                  : 0;
+                const isReviewing =
+                  reviewingRequestId === row.guid &&
+                  (approveRequestMutation.isLoading || updateRequestMutation.isLoading);
 
                 return (
                   <tr key={row.guid} className="hover:bg-gray-50">
@@ -430,6 +608,50 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                       >
                         {STATUS_LABELS[status]}
                       </span>
+                      {showApprovalProgress && rowProcess ? (
+                        <div className="mt-1.5">
+                          <ApprovalProgressBadge
+                            title={rowProcess.title}
+                            approvedStages={approvedStages}
+                            totalStages={rowProcess.stages.length}
+                            onClick={() => setApprovalRequest(row)}
+                          />
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-2">
+                        {status === "pending" ? (
+                          <>
+                            {rowProcess ? (
+                              <ApprovalProgressButton
+                                approvedStages={approvedStages}
+                                totalStages={rowProcess.stages.length}
+                                onClick={() => setApprovalRequest(row)}
+                                disabled={isReviewing}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void handleReviewRequest(row, "approved")}
+                                disabled={isReviewing}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Подтвердить
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => void handleReviewRequest(row, "rejected")}
+                              disabled={isReviewing}
+                              className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-[12px] font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Отклонить
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -452,6 +674,35 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
           onPageChange={(page) => setCurrentPage(page)}
         />
       )}
+
+      <ApprovalProcessModal
+        isOpen={Boolean(approvalRequest)}
+        onClose={() => setApprovalRequest(null)}
+        process={approvalRequestProcess ?? null}
+        progress={
+          approvalRequest ? approvalProgressMap?.[approvalRequest.guid] ?? null : null
+        }
+        onApproveStage={(stageId, comment) =>
+          void handleApproveStage(stageId, comment)
+        }
+        isApprovingStage={approveStageMutation.isLoading}
+        confirmLabel="Подтвердить отсутствие"
+        onConfirm={() => void finalizeApproval()}
+        isConfirming={
+          Boolean(approvalRequest) &&
+          reviewingRequestId === approvalRequest?.guid &&
+          approveRequestMutation.isLoading
+        }
+        onReject={(comment) => void rejectFromApproval(comment)}
+        isRejecting={
+          Boolean(approvalRequest) &&
+          reviewingRequestId === approvalRequest?.guid &&
+          updateRequestMutation.isLoading
+        }
+        readOnly={
+          approvalRequest ? normalizeStatus(approvalRequest.status) !== "pending" : false
+        }
+      />
     </>
   );
 }

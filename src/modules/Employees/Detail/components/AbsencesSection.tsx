@@ -13,6 +13,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import AbsenceRequestModal from "../../../../components/absences/AbsenceRequestModal";
+import ApprovalProcessModal from "../../../../components/approvals/ApprovalProcessModal";
+import ApprovalProgressBadge from "../../../../components/approvals/ApprovalProgressBadge";
+import ApprovalProgressButton from "../../../../components/approvals/ApprovalProgressButton";
 import { Modal } from "../../../../components/ui/modal";
 import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
@@ -29,10 +32,23 @@ import {
   type EmployeeAbsenceRequest,
 } from "../../../../api/services/employeeAbsenceSummary.service";
 import { useUploadFile } from "../../../../api/services/file-upload.service";
+import {
+  countApprovedStages,
+  isProcessComplete,
+} from "../../../settings/Approvals/approvalRuntime";
+import {
+  findApprovalProcessFor,
+  useApprovalProcessesQuery,
+  useApproveStage,
+  useEntityApprovalsQuery,
+} from "../../../../api/services/approval.service";
+
+const ABSENCE_ENTITY_TYPE = "absence";
 
 type AbsencesSectionProps = {
   employeeGuid: string;
   brandColor: string;
+  departmentId?: string | null;
 };
 
 type AttachmentItem = {
@@ -203,6 +219,7 @@ const parseAttachmentsField = (value: string | null): AttachmentItem[] => {
 export default function AbsencesSection({
   employeeGuid,
   brandColor,
+  departmentId,
 }: AbsencesSectionProps) {
   const queryClient = useQueryClient();
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
@@ -222,6 +239,18 @@ export default function AbsencesSection({
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
   const [deletingRequest, setDeletingRequest] = useState<EmployeeAbsenceRequest | null>(null);
   const [openMenuRequestId, setOpenMenuRequestId] = useState<string | null>(null);
+  const [approvalRequest, setApprovalRequest] = useState<EmployeeAbsenceRequest | null>(null);
+
+  // Approval process covering this employee's department (configured in
+  // /settings/approvals, loaded once + cached).
+  const { data: approvalProcesses } = useApprovalProcessesQuery();
+  const absenceApprovalProcess = useMemo(
+    () =>
+      findApprovalProcessFor(approvalProcesses ?? [], "absence_approval", departmentId),
+    [approvalProcesses, departmentId]
+  );
+
+  const approveStageMutation = useApproveStage();
 
   const summaryQuery = useEmployeeAbsenceSummaryQuery({
     userBaseId: employeeGuid,
@@ -263,6 +292,21 @@ export default function AbsencesSection({
       (request) => request.absence_policies_id === requestsFilter
     );
   }, [allRequests, requestsFilter]);
+
+  // Bulk approval progress for visible requests so finalized rows can still
+  // show the clickable audit badge.
+  const approvalEntityIds = useMemo(
+    () =>
+      absenceApprovalProcess
+        ? filteredRequests.map((request) => request.guid)
+        : [],
+    [absenceApprovalProcess, filteredRequests]
+  );
+
+  const { data: approvalProgressMap } = useEntityApprovalsQuery(
+    ABSENCE_ENTITY_TYPE,
+    approvalEntityIds
+  );
 
   const historyRequests = useMemo(() => {
     const list = historySummary?.approved ?? [];
@@ -437,6 +481,17 @@ export default function AbsencesSection({
       return;
     }
 
+    // When the employee's department has a configured approval process, the
+    // request must pass every stage before it can actually be approved. Open
+    // the approval modal instead of approving directly.
+    if (status === "approved" && absenceApprovalProcess) {
+      const progress = approvalProgressMap?.[request.guid] ?? null;
+      if (!isProcessComplete(absenceApprovalProcess, progress)) {
+        setApprovalRequest(request);
+        return;
+      }
+    }
+
     try {
       setReviewingRequestId(request.guid);
       if (status === "approved") {
@@ -461,6 +516,61 @@ export default function AbsencesSection({
     } catch (error) {
       console.error("Failed to review absence request:", error);
       toast.error("Не удалось изменить статус запроса.");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
+
+  const handleApproveStage = async (stageId: string, comment: string) => {
+    if (!approvalRequest || !absenceApprovalProcess) return;
+    try {
+      await approveStageMutation.mutateAsync({
+        entityType: ABSENCE_ENTITY_TYPE,
+        entityId: approvalRequest.guid,
+        processId: absenceApprovalProcess.id,
+        stageId,
+        comment,
+      });
+    } catch (error) {
+      console.error("Failed to approve absence stage:", error);
+      toast.error("Не удалось одобрить этап.");
+    }
+  };
+
+  const finalizeApproval = async () => {
+    if (!approvalRequest) return;
+    try {
+      setReviewingRequestId(approvalRequest.guid);
+      await approveRequestMutation.mutateAsync({ guid: approvalRequest.guid });
+      invalidateSummary();
+      toast.success("Запрос подтвержден.");
+      setApprovalRequest(null);
+    } catch (error) {
+      console.error("Failed to approve absence request:", error);
+      toast.error("Не удалось подтвердить запрос.");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
+
+  const rejectFromApproval = async (comment: string) => {
+    if (!approvalRequest) return;
+    try {
+      setReviewingRequestId(approvalRequest.guid);
+      await updateRequestMutation.mutateAsync({
+        guid: approvalRequest.guid,
+        data: {
+          status: ["rejected"],
+          reviewed_at: new Date().toISOString(),
+          reject_reason: comment.trim() || null,
+        },
+      });
+      invalidateSummary();
+      toast.success("Запрос отклонен.");
+      setApprovalRequest(null);
+    } catch (error) {
+      console.error("Failed to reject absence request:", error);
+      toast.error("Не удалось отклонить запрос.");
     } finally {
       setReviewingRequestId(null);
     }
@@ -648,6 +758,16 @@ export default function AbsencesSection({
                       approveRequestMutation.isLoading);
                   const attachments = parseAttachmentsField(request.attachments);
 
+                  const approvalProgress = approvalProgressMap?.[request.guid] ?? null;
+                  const hasApprovalHistory =
+                    (approvalProgress?.approvals?.length ?? 0) > 0;
+                  const showApprovalProgress =
+                    Boolean(absenceApprovalProcess) &&
+                    (request.status === "pending" || hasApprovalHistory);
+                  const approvedStages = absenceApprovalProcess
+                    ? countApprovedStages(absenceApprovalProcess, approvalProgress)
+                    : 0;
+
                   return (
                     <div
                       key={request.guid}
@@ -679,6 +799,17 @@ export default function AbsencesSection({
                             {(request.requested_days || 0).toFixed(1)} д.
                           </p>
 
+                          {showApprovalProgress && absenceApprovalProcess ? (
+                            <div className="mt-1.5">
+                              <ApprovalProgressBadge
+                                title={absenceApprovalProcess.title}
+                                approvedStages={approvedStages}
+                                totalStages={absenceApprovalProcess.stages.length}
+                                onClick={() => setApprovalRequest(request)}
+                              />
+                            </div>
+                          ) : null}
+
                           {request.note ? (
                             <p className="mt-1 text-[12px] text-slate-500 line-clamp-2">
                               {request.note}
@@ -706,16 +837,25 @@ export default function AbsencesSection({
                         <div className="flex items-center gap-2">
                           {request.status === "pending" ? (
                             <>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleReviewRequest(request, "approved")
-                                }
-                                disabled={isReviewing}
-                                className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
-                              >
-                                Подтвердить
-                              </button>
+                              {showApprovalProgress && absenceApprovalProcess ? (
+                                <ApprovalProgressButton
+                                  approvedStages={approvedStages}
+                                  totalStages={absenceApprovalProcess.stages.length}
+                                  onClick={() => setApprovalRequest(request)}
+                                  disabled={isReviewing}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleReviewRequest(request, "approved")
+                                  }
+                                  disabled={isReviewing}
+                                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                                >
+                                  Подтвердить
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() =>
@@ -875,6 +1015,33 @@ export default function AbsencesSection({
           </div>
         </div>
       </div>
+
+      <ApprovalProcessModal
+        isOpen={Boolean(approvalRequest)}
+        onClose={() => setApprovalRequest(null)}
+        process={absenceApprovalProcess ?? null}
+        progress={
+          approvalRequest ? approvalProgressMap?.[approvalRequest.guid] ?? null : null
+        }
+        onApproveStage={(stageId, comment) =>
+          void handleApproveStage(stageId, comment)
+        }
+        isApprovingStage={approveStageMutation.isLoading}
+        confirmLabel="Подтвердить отпуск"
+        onConfirm={() => void finalizeApproval()}
+        isConfirming={
+          Boolean(approvalRequest) &&
+          reviewingRequestId === approvalRequest?.guid &&
+          approveRequestMutation.isLoading
+        }
+        onReject={(comment) => void rejectFromApproval(comment)}
+        isRejecting={
+          Boolean(approvalRequest) &&
+          reviewingRequestId === approvalRequest?.guid &&
+          updateRequestMutation.isLoading
+        }
+        readOnly={approvalRequest?.status !== "pending"}
+      />
 
       <AbsenceRequestModal
         isOpen={isCreateModalOpen}
