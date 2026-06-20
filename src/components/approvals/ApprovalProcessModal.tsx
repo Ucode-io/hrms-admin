@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Clock, Lock, MessageSquare, ShieldCheck, UserRound, X } from "lucide-react";
 import { Modal } from "../ui/modal";
-import { type ApprovalProcess } from "../../modules/settings/Approvals/mockData";
+import { type ApprovalProcess } from "../../modules/Settings/Approvals/mockData";
 import {
   type RequestApprovalProgress,
   countApprovedStages,
@@ -15,7 +15,7 @@ import {
   getStageApproval,
   isProcessComplete,
   nextPendingStageIndex,
-} from "../../modules/settings/Approvals/approvalRuntime";
+} from "../../modules/Settings/Approvals/approvalRuntime";
 import { useCurrentUserPositionId } from "../../api/services/approval.service";
 
 interface ApprovalProcessModalProps {

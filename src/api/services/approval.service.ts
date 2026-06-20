@@ -21,8 +21,8 @@ import type {
   ApprovalProcessType,
   ApprovalRef,
   ApprovalStage,
-} from "../../modules/settings/Approvals/mockData";
-import type { RequestApprovalProgress } from "../../modules/settings/Approvals/approvalRuntime";
+} from "../../modules/Settings/Approvals/mockData";
+import type { RequestApprovalProgress } from "../../modules/Settings/Approvals/approvalRuntime";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
 const REPORTS_FUNCTION_PATH =

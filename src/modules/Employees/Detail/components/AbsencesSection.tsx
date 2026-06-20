@@ -35,7 +35,7 @@ import { useUploadFile } from "../../../../api/services/file-upload.service";
 import {
   countApprovedStages,
   isProcessComplete,
-} from "../../../settings/Approvals/approvalRuntime";
+} from "../../../Settings/Approvals/approvalRuntime";
 import {
   findApprovalProcessFor,
   useApprovalProcessesQuery,
