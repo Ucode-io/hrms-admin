@@ -479,7 +479,16 @@ export default function VacancyForm() {
                 <FormSelect
                   options={STATUS_OPTIONS}
                   value={draft.status}
-                  onChange={(v) => set("status", v as VacancyStatus)}
+                  onChange={(v) => {
+                    const next = v as VacancyStatus;
+                    set("status", next);
+                    // Auto-stamp / clear the closing date alongside the status.
+                    if (next === "closed") {
+                      if (!draft.closedAt) set("closedAt", new Date().toISOString().slice(0, 10));
+                    } else {
+                      set("closedAt", null);
+                    }
+                  }}
                   isSearchable={false}
                   menuPortal
                 />
@@ -503,6 +512,14 @@ export default function VacancyForm() {
                 <FormDatePicker value={draft.deadline} onChange={(v) => set("deadline", v)} />
               </Field>
             </div>
+
+            {draft.status === "closed" && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Дата закрытия">
+                  <FormDatePicker value={draft.closedAt} onChange={(v) => set("closedAt", v)} />
+                </Field>
+              </div>
+            )}
           </div>
         </Card>
 

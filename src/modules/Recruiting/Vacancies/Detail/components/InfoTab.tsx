@@ -121,6 +121,7 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
               ["Уровень", vacancy.experienceLevel || "—"],
               ["Локация", vacancy.location || "—"],
               ["Открыта", formatDate(vacancy.openedAt)],
+              ...(vacancy.closedAt ? [["Закрыта", formatDate(vacancy.closedAt)]] : []),
               ["Дедлайн", formatDate(vacancy.deadline)],
             ].map(([label, value]) => (
               <div key={label} className="flex items-baseline justify-between gap-3">

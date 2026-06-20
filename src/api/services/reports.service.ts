@@ -1007,6 +1007,7 @@ export type RecruitingClosureTimesRow = {
   id: string | null;
   title: string;
   opened_at: string | null;
+  closed_at: string | null;
   vacancies_count: number;
   candidates_count: number;
   hired_count: number;

@@ -169,6 +169,7 @@ const draftToPayload = (
   skills: draft.skills,
   deadline: draft.deadline,
   opened_at: draft.openedAt,
+  closed_at: draft.closedAt,
   recruiting_stage_templates_id: draft.stageTemplateId,
   stages: serializeStages ? vacancyStagesToPayload(draft.stages) : stageDefsToPayload(draft.stages),
 });
@@ -266,8 +267,13 @@ const vacancyService = {
 
   updateStatus: (guid: string, status: VacancyStatus) => {
     if (RECRUITING_USE_MOCK) return mockUpdateVacancyStatus(guid, status);
+    // Stamp the closing date when a vacancy is closed; clear it when reopened.
     return httpRequest.put(`/v2/items/${VACANCIES_SLUG}/${guid}`, {
-      data: { status: [status], guid },
+      data: {
+        status: [status],
+        closed_at: status === "closed" ? new Date().toISOString().slice(0, 10) : null,
+        guid,
+      },
     });
   },
 

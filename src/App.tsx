@@ -37,6 +37,8 @@ import CompensationSettingsPage from "./modules/Settings/Compensation";
 import AbsencePoliciesSettingsPage from "./modules/Settings/AbsencePolicies";
 import HolidayPoliciesSettingsPage from "./modules/Settings/HolidayPolicies";
 import HolidayPolicyDetailPage from "./modules/Settings/HolidayPolicies/Detail";
+import ApprovalsSettingsPage from "./modules/Settings/Approvals";
+import ApprovalProcessDetailPage from "./modules/Settings/Approvals/Detail";
 import DocumentsSettingsPage from "./modules/Settings/Documents";
 import CreateDocumentTemplatePage from "./modules/Settings/Documents/TemplateCreate";
 import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
@@ -215,6 +217,9 @@ function App() {
               <Route path="/settings/absence-policies" element={<AbsencePoliciesSettingsPage />} />
               <Route path="/settings/holiday-policies" element={<HolidayPoliciesSettingsPage />} />
               <Route path="/settings/holiday-policies/:id" element={<HolidayPolicyDetailPage />} />
+              <Route path="/settings/approvals" element={<ApprovalsSettingsPage />} />
+              <Route path="/settings/approvals/new" element={<ApprovalProcessDetailPage />} />
+              <Route path="/settings/approvals/:id" element={<ApprovalProcessDetailPage />} />
               <Route path="/settings/documents" element={<DocumentsSettingsPage />} />
               <Route path="/settings/documents/templates/new" element={<CreateDocumentTemplatePage />} />
               <Route path="/settings/documents/templates/:id/edit" element={<CreateDocumentTemplatePage />} />

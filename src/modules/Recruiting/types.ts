@@ -241,6 +241,7 @@ export interface VacancyDraft {
   skills: string[];
   deadline: string | null;
   openedAt: string | null;
+  closedAt: string | null;
   stageTemplateId: string | null;
   stages: StageDef[];
 }
@@ -753,6 +754,7 @@ export const createEmptyVacancyDraft = (): VacancyDraft => ({
   skills: [],
   deadline: null,
   openedAt: formatDateIso(new Date().toISOString()),
+  closedAt: null,
   stageTemplateId: null,
   stages: [],
 });
@@ -776,6 +778,7 @@ export const vacancyDraftFromItem = (v: Vacancy): VacancyDraft => ({
   skills: v.skills,
   deadline: v.deadline,
   openedAt: v.openedAt,
+  closedAt: v.closedAt,
   stageTemplateId: v.stageTemplateId,
   stages: sortStages(v.stages),
 });

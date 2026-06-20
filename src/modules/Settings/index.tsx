@@ -8,6 +8,7 @@ import {
   Building2,
   CalendarCheck,
   CalendarDays,
+  CheckCheck,
   ClipboardList,
   CreditCard,
   FileOutput,
@@ -238,6 +239,31 @@ const settingsSections: SettingsSection[] = [
           subtitle: "Смены и часы",
         },
       ],
+    ],
+  },
+  {
+    id: "approvals",
+    title: "Одобрения",
+    columns: [
+      [
+        {
+          id: "approvals",
+          title: "Процессы одобрения",
+          icon: CheckCheck,
+          path: "/settings/approvals",
+          subtitle: "Многоступенчатое одобрение заявок",
+          keywords: [
+            "одобрение",
+            "согласование",
+            "approvals",
+            "отпуск",
+            "посещаемость",
+            "этапы",
+          ],
+        },
+      ],
+      [],
+      [],
     ],
   },
   {
