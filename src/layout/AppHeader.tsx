@@ -10,6 +10,8 @@ import { ArrowLeft, Bell, Menu, X } from "lucide-react";
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: "Главная страница",
   documents: "Документы",
+  "knowledge-base": "База знаний",
+  articles: "Статья",
   employees: "Сотрудники",
   organization: "Организация",
   reports: "Отчеты",

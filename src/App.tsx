@@ -58,6 +58,8 @@ import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
 import EmployeeGenerateDocumentFromTemplatePage from "./modules/Employees/Detail/components/document-generation/GenerateFromTemplatePage";
 import DocumentsPage from "./modules/Documents";
+import KnowledgeBaseList from "./modules/KnowledgeBase/List";
+import KnowledgeBaseArticle from "./modules/KnowledgeBase/Article";
 import PropertyList from "./modules/Property/List";
 import TimeModule from "./modules/Time";
 import ReportsHomePage from "./modules/Reports";
@@ -238,6 +240,8 @@ function App() {
               <Route path="/employees/:id/edit" element={<EmployeeForm />} />
               <Route path="/employees/:id/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/knowledge-base" element={<KnowledgeBaseList />} />
+              <Route path="/knowledge-base/articles/:articleId" element={<KnowledgeBaseArticle />} />
               <Route path="/property" element={<PropertyList />} />
               <Route path="/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/time" element={<TimeModule />} />

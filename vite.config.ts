@@ -16,4 +16,15 @@ export default defineConfig({
     }),
   ],
   base: '/', // обязательно для корневого деплоя
+  optimizeDeps: {
+    // Pre-bundle the heavy editor deps so Vite doesn't discover them lazily
+    // and trigger a dev-server reload loop on first load.
+    include: [
+      "@blocknote/core",
+      "@blocknote/react",
+      "@blocknote/mantine",
+      "@mantine/core",
+      "@mantine/hooks",
+    ],
+  },
 });

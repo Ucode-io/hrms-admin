@@ -1,0 +1,46 @@
+/* Make BlockNote blend into the page like Notion — no card / no white box.
+   The default editor has a white background, rounded corners and a 54px inline
+   gutter (reserved for the drag handle). We keep the gutter (so handles have
+   room) but drop the background so the editor reads as part of the page. */
+
+.kb-editor .bn-container,
+.kb-editor .bn-editor {
+  background-color: transparent !important;
+}
+
+/* Opt the editor out of browser scroll anchoring. As BlockNote's content mounts
+   and grows above the viewport, the browser would otherwise shift the window
+   scroll down to "keep" the anchored content — which on article navigation
+   leaves the page (and the sticky tree) pushed down. */
+.kb-editor,
+.kb-editor * {
+  overflow-anchor: none;
+}
+
+.kb-editor .bn-editor {
+  border-radius: 0;
+  /* Comfortable reading height so short articles don't feel cramped. */
+  min-height: 360px;
+  /* Tighten BlockNote's default 54px inline gutter so the page uses its width
+     more efficiently. Header padding (px-6 = 24px) is kept in sync with this.
+     The drag-handle / "+" side menu still has room to render in the gutter. */
+  padding-inline: 24px !important;
+}
+
+/* BlockNote font → match the app's Inter stack and gray-800 ink. */
+.kb-editor .bn-editor {
+  font-size: 16px;
+  color: #1d2939;
+}
+
+/* Tighten the default block spacing a touch for a denser, cleaner look. */
+.kb-editor .bn-block-content {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+/* Selection / focus ring removal — the page itself is the surface. */
+.kb-editor .bn-editor:focus,
+.kb-editor .bn-editor:focus-visible {
+  outline: none;
+}

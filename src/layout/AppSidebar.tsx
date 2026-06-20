@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { Link, useLocation } from "react-router";
 import {
   BarChart3,
+  BookOpen,
   CalendarCheck,
   ChevronLeft,
   ChevronRight,
@@ -61,6 +62,7 @@ const moduleSections: ModuleSection[] = [
     title: "Документы",
     items: [
       { name: "Документы", path: "/documents", icon: <FileText size={18} /> },
+      { name: "База знаний", path: "/knowledge-base", icon: <BookOpen size={18} /> },
       { name: "Имущество", path: "/property", icon: <Package size={18} /> },
     ],
   },
@@ -83,6 +85,7 @@ const ENABLED_PATHS = new Set([
   "/recruiting/vacancies",
   "/recruiting/candidates",
   "/documents",
+  "/knowledge-base",
   "/property",
   "/reports",
   "/time",
