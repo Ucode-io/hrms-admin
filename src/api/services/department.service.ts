@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import httpRequest from "../httpRequest";
+import httpRequest, { getCompaniesId } from "../httpRequest";
 
 export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 
@@ -56,12 +56,19 @@ const normalizeAggregationRows = (res: unknown): DepartmentAggregationRow[] => {
   return Array.isArray(rawResponse) ? (rawResponse as DepartmentAggregationRow[]) : [];
 };
 
-const mapAggregationRowsToDepartments = (rows: DepartmentAggregationRow[]): Department[] => {
+const escapeSqlValue = (value: string): string => value.replace(/'/g, "''");
+
+const mapAggregationRowsToDepartments = (
+  rows: DepartmentAggregationRow[],
+  companiesId?: string | null
+): Department[] => {
   const byGuid = new Map<string, Department>();
+  const normalizedCompaniesId = companiesId?.trim();
 
   for (const row of rows) {
     const guid = typeof row.guid === "string" ? row.guid : "";
     if (!guid) continue;
+    if (normalizedCompaniesId && row.companies_id !== normalizedCompaniesId) continue;
 
     if (!byGuid.has(guid)) {
       const user_base_id_data =
@@ -132,6 +139,8 @@ const departmentService = {
     const maxRequests = 100;
     let offset = Number(params?.offset || 0);
     const rows: DepartmentAggregationRow[] = [];
+    const companiesId = getCompaniesId();
+    const where = companiesId ? `d.companies_id = '${escapeSqlValue(companiesId)}'` : undefined;
 
     for (let requestIndex = 0; requestIndex < maxRequests; requestIndex += 1) {
       const res = await httpRequest.post("/v2/items/departments/aggregation", {
@@ -154,6 +163,7 @@ const departmentService = {
             "ub.phone AS leader_phone",
             "el.title AS experience_level_title",
           ],
+          ...(where ? { where } : {}),
           order_by: ["d.title ASC", "el.title ASC", "d.created_at DESC"],
           limit,
           offset,
@@ -174,7 +184,7 @@ const departmentService = {
       }
     }
 
-    const response = mapAggregationRowsToDepartments(rows);
+    const response = mapAggregationRowsToDepartments(rows, companiesId);
 
     return {
       count: response.length,
