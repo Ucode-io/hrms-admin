@@ -507,10 +507,13 @@ export type AttendanceReportResult = {
   cards?: {
     month?: string;
     employees_count?: number;
-    total_work_days?: number;
-    on_time_count?: number;
+    worked_days?: number;
+    on_time_days?: number;
     total_late_time?: number;
     late_arrivals_count?: number;
+    total_absent_days?: number;
+    unexcused_absent_days?: number;
+    excused_absence_days?: number;
     paid_absence_days?: number;
     unpaid_absence_days?: number;
   };
@@ -533,13 +536,16 @@ export type AttendanceTableItem = {
   guid: string;
   employee: string;
   month: string;
-  total_work_days: number;
-  day_off_count: number;
-  bs_count: number;
-  on_time_count: number;
+  worked_days: number;
+  on_time_days: number;
+  late_days: number;
   total_late_time: number;
-  hospital_count: number;
-  vacation_count: number;
+  total_absent_days: number;
+  excused_absence_days: number;
+  unexcused_absent_days: number;
+  // Approved-absence days keyed by the real absence_policies.title, e.g.
+  // { "Vocation": 5, "командировка": 1 }.
+  absence_breakdown: Record<string, number>;
   paid_absence_days: number;
   unpaid_absence_days: number;
 };

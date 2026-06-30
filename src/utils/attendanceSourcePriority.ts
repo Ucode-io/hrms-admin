@@ -37,6 +37,45 @@ export const getAttendanceSourcePriority = (sourceType: unknown): number => {
   return ATTENDANCE_SOURCE_PRIORITY[getAttendanceSourceKind(sourceType)];
 };
 
+// A manual record only outranks an integration check-in once it is approved.
+// Unapproved manual is demoted below integration; rejected rows are dropped.
+const APPROVED_STATUSES = new Set(["accepted", "approved"]);
+const UNAPPROVED_MANUAL_PRIORITY = 5;
+
+const matchesStatus = (status: unknown, set: Set<string>): boolean => {
+  if (Array.isArray(status)) {
+    return status.some(
+      (item) =>
+        typeof item === "string" && set.has(item.trim().toLowerCase())
+    );
+  }
+  if (typeof status === "string") {
+    return set.has(status.trim().toLowerCase());
+  }
+  return false;
+};
+
+export const isApprovedAttendanceStatus = (status: unknown): boolean =>
+  matchesStatus(status, APPROVED_STATUSES);
+
+export const isRejectedAttendanceStatus = (status: unknown): boolean =>
+  matchesStatus(status, new Set(["rejected"]));
+
+/**
+ * Effective priority taking approval into account: absences (1) > approved
+ * manual (2) > integration (3) > unapproved manual (5), unknown (4).
+ */
+export const getAttendanceEffectivePriority = (
+  sourceType: unknown,
+  status: unknown
+): number => {
+  const kind = getAttendanceSourceKind(sourceType);
+  if (kind === "manual" && !isApprovedAttendanceStatus(status)) {
+    return UNAPPROVED_MANUAL_PRIORITY;
+  }
+  return ATTENDANCE_SOURCE_PRIORITY[kind];
+};
+
 const safeDate = (value: unknown): string => {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, 10);
@@ -59,6 +98,7 @@ export const dedupeAttendanceByPriority = <
     user_base_id?: unknown;
     date?: unknown;
     source_type?: unknown;
+    status?: unknown;
     created_at?: unknown;
   }
 >(
@@ -68,6 +108,11 @@ export const dedupeAttendanceByPriority = <
   const passthrough: T[] = [];
 
   for (const item of items) {
+    // Rejected records are never shown — they don't represent a real day status.
+    if (isRejectedAttendanceStatus(item.status)) {
+      continue;
+    }
+
     const userId = typeof item.user_base_id === "string" ? item.user_base_id : "";
     const date = safeDate(item.date);
 
@@ -83,8 +128,14 @@ export const dedupeAttendanceByPriority = <
       continue;
     }
 
-    const candidatePriority = getAttendanceSourcePriority(item.source_type);
-    const currentPriority = getAttendanceSourcePriority(current.source_type);
+    const candidatePriority = getAttendanceEffectivePriority(
+      item.source_type,
+      item.status
+    );
+    const currentPriority = getAttendanceEffectivePriority(
+      current.source_type,
+      current.status
+    );
 
     if (candidatePriority < currentPriority) {
       winners.set(key, item);

@@ -248,15 +248,10 @@ function AttendancePage() {
 
               <div className="space-y-4 xl:col-span-4">
                 <MetricCard title="Сотрудники" value={Number(cards.employees_count || 0)} />
+                <MetricCard title="Рабочие дни" value={Number(cards.worked_days || 0)} />
                 <MetricCard title="Опоздания (мин)" value={Number(cards.total_late_time || 0)} />
-                <MetricCard
-                  title="Оплачиваемые отсутствия (дни)"
-                  value={Number(cards.paid_absence_days || 0)}
-                />
-                <MetricCard
-                  title="Неоплачиваемые отсутствия (дни)"
-                  value={Number(cards.unpaid_absence_days || 0)}
-                />
+                <MetricCard title="Дней отсутствия" value={Number(cards.total_absent_days || 0)} />
+                <MetricCard title="Прогулы (дни)" value={Number(cards.unexcused_absent_days || 0)} />
               </div>
             </section>
           </div>
@@ -333,20 +328,17 @@ function AttendancePage() {
                 <tr className="bg-gray-50">
                   {[
                     "Сотрудник",
-                    "Месяц",
                     "Рабочие дни",
-                    "Отгул",
-                    "БС",
                     "Приход вовремя",
+                    "Опозданий",
                     "Опоздания (мин)",
-                    "Больничные",
-                    "Отпуск",
-                    "Оплач. отсутствия",
-                    "Неоплач. отсутствия",
+                    "Дней отсутствия",
+                    "По заявке",
+                    "Прогулы",
                   ].map((column) => (
                     <th
                       key={column}
-                      className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700"
+                      className="whitespace-nowrap border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700"
                     >
                       {column}
                     </th>
@@ -357,7 +349,7 @@ function AttendancePage() {
                 {isTableLoading ? (
                   Array.from({ length: 10 }).map((_, rowIndex) => (
                     <tr key={`table-skeleton-${rowIndex}`} className="animate-pulse">
-                      {Array.from({ length: 11 }).map((__, cellIndex) => (
+                      {Array.from({ length: 8 }).map((__, cellIndex) => (
                         <td
                           key={`table-skeleton-cell-${rowIndex}-${cellIndex}`}
                           className="border-b border-gray-100 px-4 py-3"
@@ -369,7 +361,7 @@ function AttendancePage() {
                   ))
                 ) : isTableError ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-6 text-center text-sm text-error-600">
+                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-error-600">
                       {getErrorMessage(tableError)}{" "}
                       <button
                         type="button"
@@ -384,30 +376,59 @@ function AttendancePage() {
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
                       Нет сотрудников по выбранным параметрам
                     </td>
                   </tr>
                 ) : (
-                  tableItems.map((item) => (
-                    <tr key={item.guid} className="hover:bg-gray-50">
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
-                        <Link to={`/employees/${item.guid}`} className="transition hover:text-brand-500">
-                          {item.employee}
-                        </Link>
-                      </td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.month}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.total_work_days}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.day_off_count}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.bs_count}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.on_time_count}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.total_late_time}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.hospital_count}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.vacation_count}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.paid_absence_days ?? 0}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.unpaid_absence_days ?? 0}</td>
-                    </tr>
-                  ))
+                  tableItems.map((item) => {
+                    const breakdownEntries = Object.entries(
+                      item.absence_breakdown ?? {}
+                    ).filter(([, value]) => Number(value) > 0);
+                    const hasBreakdown = breakdownEntries.length > 0;
+                    return (
+                      <tr key={item.guid} className="hover:bg-gray-50">
+                        <td className="whitespace-nowrap border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
+                          <Link to={`/employees/${item.guid}`} className="transition hover:text-brand-500">
+                            {item.employee}
+                          </Link>
+                        </td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.worked_days}</td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.on_time_days}</td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.late_days}</td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.total_late_time}</td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">{item.total_absent_days}</td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
+                          {hasBreakdown ? (
+                            <span
+                              title={breakdownEntries
+                                .map(([label, value]) => `${label}: ${value}`)
+                                .join(", ")}
+                              className="group relative inline-flex cursor-help items-center border-b border-dashed border-gray-400"
+                            >
+                              {item.excused_absence_days}
+                              <div className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden min-w-[180px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg group-hover:block">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                  Отсутствие по заявке
+                                </p>
+                                <div className="space-y-1">
+                                  {breakdownEntries.map(([label, value]) => (
+                                    <div key={label} className="flex items-center justify-between gap-4 text-xs">
+                                      <span className="text-gray-600">{label}</span>
+                                      <span className="font-semibold text-gray-900">{value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </span>
+                          ) : (
+                            item.excused_absence_days
+                          )}
+                        </td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.unexcused_absent_days}</td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
