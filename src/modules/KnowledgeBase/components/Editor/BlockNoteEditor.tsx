@@ -20,6 +20,7 @@ import { FileText } from "lucide-react";
 
 import { kbSchema, type KbBlock } from "./schema";
 import { useKbEditor, type KbEditorContextValue } from "./KbEditorContext";
+import { uploadFileToCdn } from "../../../../api/services/file-upload.service";
 
 type KbEditor = typeof kbSchema.BlockNoteEditor;
 
@@ -59,6 +60,9 @@ export default function BlockNoteEditor({
     schema: kbSchema,
     dictionary: ru,
     initialContent: initialContent && initialContent.length ? initialContent : undefined,
+    // Enables the "Загрузить" tab for image/file/video/audio blocks. BlockNote
+    // calls this with the picked File and embeds the returned CDN URL.
+    uploadFile: (file: File) => uploadFileToCdn(file, { folder: "knowledge-base" }),
   });
 
   return (
