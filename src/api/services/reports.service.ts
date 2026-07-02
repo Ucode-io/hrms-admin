@@ -42,6 +42,9 @@ const DELETE_ABSENCE_METHOD = "delete_absence";
 const GET_RECRUITING_FUNNEL_METHOD = "get_recruiting_funnel";
 const GET_RECRUITING_SOURCES_METHOD = "get_recruiting_sources";
 const GET_RECRUITING_CLOSURE_TIMES_METHOD = "get_recruiting_closure_times";
+const GET_WORK_SCHEDULES_METHOD = "get_work_schedules";
+const SAVE_WORK_SCHEDULE_METHOD = "save_work_schedule";
+const DELETE_WORK_SCHEDULE_METHOD = "delete_work_schedule";
 
 export type ApproveAbsenceResult = {
   absences_id: string;
@@ -2663,7 +2666,126 @@ const normalizeGatewayResponse = <T extends { method: string; result: unknown }>
   throw new Error(`Unexpected response format for ${expectedMethod}`);
 };
 
+export type WorkScheduleDayCode =
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat"
+  | "sun";
+
+export interface WorkScheduleDay {
+  day: WorkScheduleDayCode;
+  work_start_time: string | null;
+  work_end_time: string | null;
+  lunch_start_time: string | null;
+  lunch_end_time: string | null;
+  work_hours: number;
+  break_hours: number;
+  is_day_off: boolean;
+}
+
+export interface WorkSchedule {
+  guid: string;
+  title: string;
+  is_remote: boolean;
+  total_work_hours: number;
+  total_break_hours: number;
+  days: WorkScheduleDay[];
+}
+
+export interface GetWorkSchedulesResult {
+  count: number;
+  schedules: WorkSchedule[];
+}
+
+export type GetWorkSchedulesInvokeResponse = {
+  method: typeof GET_WORK_SCHEDULES_METHOD;
+  result: GetWorkSchedulesResult;
+};
+
+export type SaveWorkScheduleInvokeResponse = {
+  method: typeof SAVE_WORK_SCHEDULE_METHOD;
+  result: WorkSchedule;
+};
+
+export type DeleteWorkScheduleResult = {
+  guid: string;
+  deleted: boolean;
+  deleted_days_count: number;
+};
+
+export type DeleteWorkScheduleInvokeResponse = {
+  method: typeof DELETE_WORK_SCHEDULE_METHOD;
+  result: DeleteWorkScheduleResult;
+};
+
+export interface SaveWorkScheduleDayInput {
+  day: WorkScheduleDayCode;
+  work_start_time?: string | null;
+  work_end_time?: string | null;
+  lunch_start_time?: string | null;
+  lunch_end_time?: string | null;
+  is_day_off?: boolean;
+}
+
+export interface SaveWorkScheduleInput {
+  guid?: string;
+  title: string;
+  is_remote?: boolean;
+  days: SaveWorkScheduleDayInput[];
+}
+
 const reportsService = {
+  getWorkSchedules: async (requestData: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    guid?: string;
+  } = {}): Promise<GetWorkSchedulesResult> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_WORK_SCHEDULES_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<GetWorkSchedulesInvokeResponse>(
+      response.data,
+      GET_WORK_SCHEDULES_METHOD
+    ).result;
+  },
+  saveWorkSchedule: async (
+    requestData: SaveWorkScheduleInput
+  ): Promise<WorkSchedule> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: SAVE_WORK_SCHEDULE_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<SaveWorkScheduleInvokeResponse>(
+      response.data,
+      SAVE_WORK_SCHEDULE_METHOD
+    ).result;
+  },
+  deleteWorkSchedule: async (
+    guid: string
+  ): Promise<DeleteWorkScheduleResult> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: DELETE_WORK_SCHEDULE_METHOD,
+        data: { guid },
+      },
+    });
+
+    return normalizeGatewayResponse<DeleteWorkScheduleInvokeResponse>(
+      response.data,
+      DELETE_WORK_SCHEDULE_METHOD
+    ).result;
+  },
   getKpi: async (
     requestData: JsonRecord = {}
   ): Promise<KpiGetInvokeResponse> => {

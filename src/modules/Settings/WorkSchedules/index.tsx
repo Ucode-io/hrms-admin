@@ -5,7 +5,7 @@ import {
   useState,
 } from "react";
 
-import { useQueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import {
   MoreHorizontal,
   Plus,
@@ -26,200 +26,150 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
-import httpRequest from "../../../api/httpRequest";
-import settingsDirectoryService, {
-  type SettingsDirectoryItem,
-  useDeleteSettingsDirectoryItem,
-  useSettingsDirectoryQuery,
-} from "../../../api/services/settingsDirectory.service";
+import reportsService, {
+  type SaveWorkScheduleDayInput,
+  type WorkSchedule,
+  type WorkScheduleDay,
+  type WorkScheduleDayCode,
+} from "../../../api/services/reports.service";
 
-const WORK_SCHEDULE_SLUG = "work_schedule";
-const WORK_SCHEDULE_DAYS_SLUG = "work_schedule_days";
+const WORK_SCHEDULES_QUERY_KEY = "WORK_SCHEDULES";
 const PAGE_SIZE = 20;
 
-type UnknownRecord = Record<string, unknown>;
-
 type DayDef = {
-  key: string;
-  code: string;
+  code: WorkScheduleDayCode;
   label: string;
-  defaultWork: number;
+  defaultWorkStart: string;
+  defaultWorkEnd: string;
+  defaultLunchStart: string;
+  defaultLunchEnd: string;
+  defaultDayOff: boolean;
 };
 
 type DaySchedule = {
-  key: string;
-  code: string;
+  code: WorkScheduleDayCode;
   label: string;
-  breakHours: number;
-  workHours: number;
-  guid?: string;
-};
-
-type WorkScheduleItem = SettingsDirectoryItem & {
-  total_work_hours?: number;
-  total_break_hours?: number;
-  is_default?: boolean;
-  default?: boolean;
-};
-
-type WorkScheduleDayItem = {
-  guid: string;
-  day?: string[] | string;
-  break_hours?: number;
-  work_hours?: number;
-  work_schedule_id?: string;
-  [key: string]: unknown;
+  workStart: string;
+  workEnd: string;
+  lunchStart: string;
+  lunchEnd: string;
+  isDayOff: boolean;
 };
 
 const DAY_DEFS: DayDef[] = [
-  { key: "monday", code: "mon", label: "Понедельник", defaultWork: 8 },
-  { key: "tuesday", code: "tue", label: "Вторник", defaultWork: 8 },
-  { key: "wednesday", code: "wed", label: "Среда", defaultWork: 8 },
-  { key: "thursday", code: "thu", label: "Четверг", defaultWork: 8 },
-  { key: "friday", code: "fri", label: "Пятница", defaultWork: 8 },
-  { key: "saturday", code: "sat", label: "Суббота", defaultWork: 0 },
-  { key: "sunday", code: "sun", label: "Воскресенье", defaultWork: 0 },
+  { code: "mon", label: "Понедельник", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "tue", label: "Вторник", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "wed", label: "Среда", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "thu", label: "Четверг", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "fri", label: "Пятница", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "sat", label: "Суббота", defaultWorkStart: "", defaultWorkEnd: "", defaultLunchStart: "", defaultLunchEnd: "", defaultDayOff: true },
+  { code: "sun", label: "Воскресенье", defaultWorkStart: "", defaultWorkEnd: "", defaultLunchStart: "", defaultLunchEnd: "", defaultDayOff: true },
 ];
-
-const HOURS_STEP = 0.5;
-const MIN_HOURS = 0;
-const MAX_HOURS = 24;
 
 const toNumber = (value: unknown, fallback = 0): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const clampHours = (value: number): number => {
-  const rounded = Math.round(value * 2) / 2;
-  return Math.max(MIN_HOURS, Math.min(MAX_HOURS, rounded));
+const timeToMinutes = (value: string): number | null => {
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
 };
 
-const formatHours = (value: number): string => {
-  return value.toFixed(1);
+const roundHours = (value: number): number => Math.round(value * 10) / 10;
+
+// Mirrors computeDayHours in udevs-hrms-reports/src/methods/work-schedules-common.js
+const computeDayHours = (day: DaySchedule): { workHours: number; breakHours: number } => {
+  if (day.isDayOff) return { workHours: 0, breakHours: 0 };
+
+  const start = timeToMinutes(day.workStart);
+  const end = timeToMinutes(day.workEnd);
+  if (start == null || end == null || end <= start) {
+    return { workHours: 0, breakHours: 0 };
+  }
+
+  const lunchStart = timeToMinutes(day.lunchStart);
+  const lunchEnd = timeToMinutes(day.lunchEnd);
+  let breakMinutes = 0;
+  if (lunchStart != null && lunchEnd != null && lunchEnd > lunchStart) {
+    breakMinutes = lunchEnd - lunchStart;
+  }
+
+  const workMinutes = Math.max(0, end - start - breakMinutes);
+  return { workHours: roundHours(workMinutes / 60), breakHours: roundHours(breakMinutes / 60) };
 };
 
-const formatHoursWithComma = (value: number): string => {
-  return value.toFixed(1).replace(".", ",");
-};
+const formatHours = (value: number): string => value.toFixed(1);
 
-const buildDefaultDays = (): DaySchedule[] => {
-  return DAY_DEFS.map((day) => ({
-    key: day.key,
+const formatHoursWithComma = (value: number): string => value.toFixed(1).replace(".", ",");
+
+const buildDefaultDays = (): DaySchedule[] =>
+  DAY_DEFS.map((day) => ({
     code: day.code,
     label: day.label,
-    breakHours: 0,
-    workHours: day.defaultWork,
+    workStart: day.defaultWorkStart,
+    workEnd: day.defaultWorkEnd,
+    lunchStart: day.defaultLunchStart,
+    lunchEnd: day.defaultLunchEnd,
+    isDayOff: day.defaultDayOff,
   }));
-};
 
-const sumBreakHours = (days: DaySchedule[]): number => {
-  return days.reduce((total, day) => total + day.breakHours, 0);
-};
+const resolveDaysFromSchedule = (schedule: WorkSchedule): DaySchedule[] => {
+  const byCode = new Map<WorkScheduleDayCode, WorkScheduleDay>();
+  for (const day of schedule.days || []) {
+    if (day?.day) byCode.set(day.day, day);
+  }
 
-const sumWorkHours = (days: DaySchedule[]): number => {
-  return days.reduce((total, day) => total + day.workHours, 0);
-};
-
-const isDefaultSchedule = (item: WorkScheduleItem): boolean => {
-  return Boolean(item.is_default ?? item.default ?? (item as UnknownRecord).by_default);
-};
-
-const normalizeDayCode = (value: unknown): string => {
-  const raw = Array.isArray(value) ? value[0] : value;
-  return typeof raw === "string" ? raw.trim().toLowerCase() : "";
-};
-
-const resolveDaysFromRecords = (records: WorkScheduleDayItem[]): DaySchedule[] => {
-  const defaults = buildDefaultDays();
-
-  return defaults.map((defaultDay) => {
-    const matched = records.find((record) => normalizeDayCode(record.day) === defaultDay.code);
-    if (!matched) return defaultDay;
+  return DAY_DEFS.map((def) => {
+    const matched = byCode.get(def.code);
+    if (!matched) {
+      return {
+        code: def.code,
+        label: def.label,
+        workStart: "",
+        workEnd: "",
+        lunchStart: "",
+        lunchEnd: "",
+        isDayOff: true,
+      };
+    }
 
     return {
-      ...defaultDay,
-      guid: typeof matched.guid === "string" ? matched.guid : undefined,
-      breakHours: clampHours(toNumber(matched.break_hours, defaultDay.breakHours)),
-      workHours: clampHours(toNumber(matched.work_hours, defaultDay.workHours)),
+      code: def.code,
+      label: def.label,
+      workStart: matched.work_start_time || "",
+      workEnd: matched.work_end_time || "",
+      lunchStart: matched.lunch_start_time || "",
+      lunchEnd: matched.lunch_end_time || "",
+      isDayOff: Boolean(matched.is_day_off) || !matched.work_start_time || !matched.work_end_time,
     };
   });
 };
 
-const extractGuidFromResponse = (response: unknown): string | null => {
-  if (!response || typeof response !== "object") return null;
+const sumWorkHours = (days: DaySchedule[]): number =>
+  roundHours(days.reduce((total, day) => total + computeDayHours(day).workHours, 0));
 
-  const asRecord = response as UnknownRecord;
-  if (typeof asRecord.guid === "string" && asRecord.guid) {
-    return asRecord.guid;
-  }
-
-  const nested = asRecord.response;
-  if (nested && typeof nested === "object") {
-    const nestedGuid = (nested as UnknownRecord).guid;
-    if (typeof nestedGuid === "string" && nestedGuid) {
-      return nestedGuid;
-    }
-  }
-
-  return null;
-};
-
-const createWorkScheduleDay = (payload: {
-  day: string[];
-  break_hours: number;
-  work_hours: number;
-  work_schedule_id: string;
-}) => {
-  return httpRequest.post(`/v2/items/${WORK_SCHEDULE_DAYS_SLUG}`, { data: payload });
-};
-
-const updateWorkScheduleDay = (
-  guid: string,
-  payload: {
-    id: string;
-    guid: string;
-    day: string[];
-    break_hours: number;
-    work_hours: number;
-    work_schedule_id: string;
-  }
-) => {
-  return httpRequest.put(`/v2/items/${WORK_SCHEDULE_DAYS_SLUG}/${guid}`, { data: payload });
-};
-
-function HoursControl({
+function TimeField({
   value,
+  disabled,
   onChange,
 }: {
-  value: number;
-  onChange: (next: number) => void;
+  value: string;
+  disabled?: boolean;
+  onChange: (next: string) => void;
 }) {
   return (
-    <div className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5">
-      <span className="min-w-[40px] text-left text-sm font-semibold leading-none text-gray-700">
-        {formatHoursWithComma(value)}
-      </span>
-      <span className="text-sm font-semibold text-gray-500">час</span>
-      <div className="inline-flex overflow-hidden rounded-md border border-gray-200 bg-white">
-        <button
-          type="button"
-          onClick={() => onChange(clampHours(value - HOURS_STEP))}
-          className="inline-flex h-7 w-7 items-center justify-center text-gray-500 transition hover:bg-gray-100"
-          aria-label="Уменьшить"
-        >
-          -
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(clampHours(value + HOURS_STEP))}
-          className="inline-flex h-7 w-7 items-center justify-center border-l border-gray-200 text-gray-500 transition hover:bg-gray-100"
-          aria-label="Увеличить"
-        >
-          +
-        </button>
-      </div>
-    </div>
+    <input
+      type="time"
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      className="h-9 w-[110px] rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-sm font-semibold text-gray-700 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+    />
   );
 }
 
@@ -234,8 +184,9 @@ export default function WorkSchedulesSettingsPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editingItem, setEditingItem] = useState<WorkScheduleItem | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<WorkScheduleItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [editingItem, setEditingItem] = useState<WorkSchedule | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<WorkSchedule | null>(null);
   const [title, setTitle] = useState("");
   const [days, setDays] = useState<DaySchedule[]>(buildDefaultDays());
   const [isRemote, setIsRemote] = useState(false);
@@ -254,22 +205,18 @@ export default function WorkSchedulesSettingsPage() {
     };
   }, [searchValue]);
 
-  const queryParams = useMemo(
-    () => ({
-      limit: PAGE_SIZE,
-      offset: (currentPage - 1) * PAGE_SIZE,
-      ...(debouncedSearch ? { search: debouncedSearch } : {}),
-    }),
-    [currentPage, debouncedSearch]
+  const { data, isLoading, isFetching } = useQuery(
+    [WORK_SCHEDULES_QUERY_KEY, currentPage, debouncedSearch],
+    () =>
+      reportsService.getWorkSchedules({
+        limit: PAGE_SIZE,
+        offset: (currentPage - 1) * PAGE_SIZE,
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      }),
+    { keepPreviousData: true }
   );
 
-  const { data, isLoading, isFetching } = useSettingsDirectoryQuery({
-    slug: WORK_SCHEDULE_SLUG,
-    params: queryParams,
-  });
-  const deleteMutation = useDeleteSettingsDirectoryItem(WORK_SCHEDULE_SLUG);
-
-  const items = (data?.response || []) as WorkScheduleItem[];
+  const items = data?.schedules || [];
   const totalCount = data?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -296,46 +243,30 @@ export default function WorkSchedulesSettingsPage() {
     setOpenActionsFor(null);
   };
 
-  const loadEditData = async (item: WorkScheduleItem) => {
+  const loadEditData = async (item: WorkSchedule) => {
     setIsModalLoading(true);
 
     try {
-      const [scheduleData, scheduleDaysData] = await Promise.all([
-        settingsDirectoryService.getByGuid(WORK_SCHEDULE_SLUG, item.guid),
-        settingsDirectoryService.getList(WORK_SCHEDULE_DAYS_SLUG, {
-          limit: 100,
-          offset: 0,
-          work_schedule_id: item.guid,
-        }),
-      ]);
+      const result = await reportsService.getWorkSchedules({ guid: item.guid });
+      const schedule = result.schedules[0] || item;
 
-      const scheduleItem = ((scheduleData || item) as WorkScheduleItem);
-      const dayRecords = (scheduleDaysData.response || []) as unknown as WorkScheduleDayItem[];
-
-      setEditingItem(scheduleItem);
-      setTitle(String(scheduleItem.title || ""));
-      setIsRemote(
-        Boolean(
-          (scheduleItem as UnknownRecord).is_remote ??
-            (scheduleItem as UnknownRecord).use_workday_time ??
-            (scheduleItem as UnknownRecord).use_time_range ??
-            (scheduleItem as UnknownRecord).has_time_range
-        )
-      );
-      setDays(resolveDaysFromRecords(dayRecords));
+      setEditingItem(schedule);
+      setTitle(schedule.title || "");
+      setIsRemote(Boolean(schedule.is_remote));
+      setDays(resolveDaysFromSchedule(schedule));
     } catch (error) {
       console.error("Failed to load work schedule details:", error);
       toast.error("Не удалось загрузить данные графика.");
       setEditingItem(item);
-      setTitle(String(item.title || ""));
-      setDays(buildDefaultDays());
-      setIsRemote(false);
+      setTitle(item.title || "");
+      setIsRemote(Boolean(item.is_remote));
+      setDays(resolveDaysFromSchedule(item));
     } finally {
       setIsModalLoading(false);
     }
   };
 
-  const openEditModal = (item: WorkScheduleItem) => {
+  const openEditModal = (item: WorkSchedule) => {
     setEditingItem(item);
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
@@ -348,16 +279,34 @@ export default function WorkSchedulesSettingsPage() {
     resetForm();
   };
 
-  const updateDayValue = (dayKey: string, field: "breakHours" | "workHours", value: number) => {
+  const updateDayValue = (
+    dayCode: WorkScheduleDayCode,
+    field: "workStart" | "workEnd" | "lunchStart" | "lunchEnd",
+    value: string
+  ) => {
     setDays((prev) =>
-      prev.map((day) =>
-        day.key === dayKey
-          ? {
-              ...day,
-              [field]: value,
-            }
-          : day
-      )
+      prev.map((day) => (day.code === dayCode ? { ...day, [field]: value } : day))
+    );
+  };
+
+  const toggleDayOff = (dayCode: WorkScheduleDayCode) => {
+    setDays((prev) =>
+      prev.map((day) => {
+        if (day.code !== dayCode) return day;
+        const nextDayOff = !day.isDayOff;
+        if (nextDayOff) {
+          return { ...day, isDayOff: true };
+        }
+        const def = DAY_DEFS.find((d) => d.code === dayCode);
+        return {
+          ...day,
+          isDayOff: false,
+          workStart: day.workStart || def?.defaultWorkStart || "09:00",
+          workEnd: day.workEnd || def?.defaultWorkEnd || "18:00",
+          lunchStart: day.lunchStart || def?.defaultLunchStart || "",
+          lunchEnd: day.lunchEnd || def?.defaultLunchEnd || "",
+        };
+      })
     );
   };
 
@@ -370,66 +319,41 @@ export default function WorkSchedulesSettingsPage() {
       return;
     }
 
-    const totalBreakHours = Number(sumBreakHours(days).toFixed(1));
-    const totalWorkHours = Number(sumWorkHours(days).toFixed(1));
+    const invalidDay = days.find((day) => {
+      if (day.isDayOff) return false;
+      const start = timeToMinutes(day.workStart);
+      const end = timeToMinutes(day.workEnd);
+      return start == null || end == null || end <= start;
+    });
+
+    if (invalidDay) {
+      toast.error(`${invalidDay.label}: конец рабочего дня должен быть позже начала.`);
+      return;
+    }
+
+    const payloadDays: SaveWorkScheduleDayInput[] = days.map((day) => ({
+      day: day.code,
+      is_day_off: day.isDayOff,
+      work_start_time: day.isDayOff ? null : day.workStart || null,
+      work_end_time: day.isDayOff ? null : day.workEnd || null,
+      lunch_start_time: day.isDayOff ? null : day.lunchStart || null,
+      lunch_end_time: day.isDayOff ? null : day.lunchEnd || null,
+    }));
 
     setIsSaving(true);
 
     try {
-      let workScheduleGuid = editingItem?.guid || "";
-
-      if (editingItem) {
-        await settingsDirectoryService.update(WORK_SCHEDULE_SLUG, editingItem.guid, {
-          ...editingItem,
-          title: preparedTitle,
-          total_work_hours: totalWorkHours,
-          total_break_hours: totalBreakHours,
-          is_remote: isRemote,
-        });
-      } else {
-        const createResponse = await settingsDirectoryService.create(WORK_SCHEDULE_SLUG, {
-          title: preparedTitle,
-          total_work_hours: totalWorkHours,
-          total_break_hours: totalBreakHours,
-          is_remote: isRemote,
-        });
-
-        const createdGuid = extractGuidFromResponse(createResponse);
-        if (!createdGuid) {
-          throw new Error("Work schedule guid not returned from create response");
-        }
-        workScheduleGuid = createdGuid;
-      }
-
-      if (!workScheduleGuid) {
-        throw new Error("Work schedule guid is missing");
-      }
-
-      await Promise.all(
-        days.map((day) => {
-          const payload = {
-            day: [day.code],
-            break_hours: Number(day.breakHours.toFixed(1)),
-            work_hours: Number(day.workHours.toFixed(1)),
-            work_schedule_id: workScheduleGuid,
-          };
-
-          if (editingItem && day.guid) {
-            return updateWorkScheduleDay(day.guid, {
-              ...payload,
-              id: day.guid,
-              guid: day.guid,
-            });
-          }
-
-          return createWorkScheduleDay(payload);
-        })
-      );
+      await reportsService.saveWorkSchedule({
+        ...(editingItem ? { guid: editingItem.guid } : {}),
+        title: preparedTitle,
+        is_remote: isRemote,
+        days: payloadDays,
+      });
 
       toast.success(editingItem ? "Рабочий график обновлен." : "Рабочий график создан.");
       closeUpsertModal();
 
-      await queryClient.invalidateQueries(["SETTINGS_DIRECTORY", WORK_SCHEDULE_SLUG]);
+      await queryClient.invalidateQueries([WORK_SCHEDULES_QUERY_KEY]);
     } catch (error) {
       console.error("Failed to save work schedule:", error);
       toast.error("Не удалось сохранить рабочий график.");
@@ -438,7 +362,7 @@ export default function WorkSchedulesSettingsPage() {
     }
   };
 
-  const openDeleteModal = (item: WorkScheduleItem) => {
+  const openDeleteModal = (item: WorkSchedule) => {
     setItemToDelete(item);
     setIsDeleteModalOpen(true);
     setOpenActionsFor(null);
@@ -452,13 +376,17 @@ export default function WorkSchedulesSettingsPage() {
   const confirmDelete = async () => {
     if (!itemToDelete) return;
 
+    setIsDeleting(true);
     try {
-      await deleteMutation.mutateAsync(itemToDelete.guid);
+      await reportsService.deleteWorkSchedule(itemToDelete.guid);
       toast.success("Рабочий график удален.");
       closeDeleteModal();
+      await queryClient.invalidateQueries([WORK_SCHEDULES_QUERY_KEY]);
     } catch (error) {
       console.error("Failed to delete work schedule:", error);
       toast.error("Не удалось удалить рабочий график.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -555,10 +483,10 @@ export default function WorkSchedulesSettingsPage() {
                       <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                         <TableCell className="px-4 py-3 text-sm text-gray-900">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold">{String(item.title || "Без названия")}</span>
-                            {isDefaultSchedule(item) && (
+                            <span className="font-semibold">{item.title || "Без названия"}</span>
+                            {item.is_remote && (
                               <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-                                По умолчанию
+                                Удаленно
                               </span>
                             )}
                           </div>
@@ -627,7 +555,7 @@ export default function WorkSchedulesSettingsPage() {
         isOpen={isUpsertModalOpen}
         onClose={closeUpsertModal}
         showCloseButton={false}
-        className="mx-4 w-full max-w-[900px] overflow-hidden rounded-2xl border border-gray-200 shadow-xl"
+        className="mx-4 w-full max-w-[980px] overflow-hidden rounded-2xl border border-gray-200 shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
           <h3 className="text-xl font-semibold text-gray-900">
@@ -689,41 +617,85 @@ export default function WorkSchedulesSettingsPage() {
                   </button>
                 </div>
 
-                <div className="max-h-[420px] overflow-y-auto">
+                <div className="max-h-[460px] overflow-y-auto">
                   <table className="min-w-full">
                     <thead className="border-b border-gray-200 bg-gray-50">
                       <tr>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Будний день</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Часы перерыва</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Отработанные часы</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Начало</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Конец</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Обед с</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Обед по</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Часов</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Выходной</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {days.map((day) => (
-                        <tr key={day.key} className="border-b border-gray-100 last:border-b-0">
-                          <td className="px-3 py-2 text-sm font-semibold text-gray-900">{day.label}</td>
-                          <td className="px-3 py-2">
-                            <HoursControl
-                              value={day.breakHours}
-                              onChange={(next) => updateDayValue(day.key, "breakHours", next)}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <HoursControl
-                              value={day.workHours}
-                              onChange={(next) => updateDayValue(day.key, "workHours", next)}
-                            />
-                          </td>
-                        </tr>
-                      ))}
+                      {days.map((day) => {
+                        const { workHours } = computeDayHours(day);
+                        return (
+                          <tr key={day.code} className="border-b border-gray-100 last:border-b-0">
+                            <td className="px-3 py-2 text-sm font-semibold text-gray-900">{day.label}</td>
+                            <td className="px-3 py-2">
+                              <TimeField
+                                value={day.workStart}
+                                disabled={day.isDayOff}
+                                onChange={(next) => updateDayValue(day.code, "workStart", next)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <TimeField
+                                value={day.workEnd}
+                                disabled={day.isDayOff}
+                                onChange={(next) => updateDayValue(day.code, "workEnd", next)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <TimeField
+                                value={day.lunchStart}
+                                disabled={day.isDayOff}
+                                onChange={(next) => updateDayValue(day.code, "lunchStart", next)}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <TimeField
+                                value={day.lunchEnd}
+                                disabled={day.isDayOff}
+                                onChange={(next) => updateDayValue(day.code, "lunchEnd", next)}
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-sm font-semibold text-gray-700">
+                              {day.isDayOff ? "—" : `${formatHoursWithComma(workHours)} ч`}
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleDayOff(day.code)}
+                                aria-label="Выходной день"
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                                  day.isDayOff ? "bg-brand-500" : "bg-gray-200"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                    day.isDayOff ? "translate-x-4" : "translate-x-1"
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                     <tfoot className="border-t border-gray-200 bg-gray-50">
                       <tr>
-                        <td className="px-3 py-2 text-xs font-semibold text-gray-500">Общее</td>
-                        <td className="px-3 py-2 text-xs font-semibold text-gray-500">-</td>
-                        <td className="px-3 py-2 text-xs font-semibold text-gray-700">
-                          {formatHoursWithComma(totalWorkedInModal)} час
+                        <td className="px-3 py-2 text-xs font-semibold text-gray-500" colSpan={5}>
+                          Общее
                         </td>
+                        <td className="px-3 py-2 text-xs font-semibold text-gray-700">
+                          {formatHoursWithComma(totalWorkedInModal)} ч
+                        </td>
+                        <td className="px-3 py-2" />
                       </tr>
                     </tfoot>
                   </table>
@@ -768,7 +740,7 @@ export default function WorkSchedulesSettingsPage() {
           <p className="text-sm text-gray-500">Это действие нельзя отменить.</p>
           <p className="text-sm text-gray-700">
             {itemToDelete
-              ? `Вы уверены, что хотите удалить "${String(itemToDelete.title)}"?`
+              ? `Вы уверены, что хотите удалить "${itemToDelete.title}"?`
               : "Вы уверены, что хотите удалить этот график?"}
           </p>
 
@@ -782,10 +754,10 @@ export default function WorkSchedulesSettingsPage() {
             </Button>
             <Button
               onClick={confirmDelete}
-              disabled={deleteMutation.isLoading}
+              disabled={isDeleting}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {isDeleting ? "Удаление..." : "Удалить"}
             </Button>
           </div>
         </div>
