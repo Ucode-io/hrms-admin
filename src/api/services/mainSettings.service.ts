@@ -12,6 +12,7 @@ export interface MainSettings {
   show_business_absences: boolean;
   show_new_hires_widget: boolean;
   lateness_penalty_coefficient?: number;
+  lateness_grace_minutes?: number;
   created_at: string;
   updated_at: string;
   [key: string]: unknown;
@@ -24,6 +25,7 @@ export type MainSettingsPayload = {
   show_business_absences: boolean;
   show_new_hires_widget: boolean;
   lateness_penalty_coefficient: number;
+  lateness_grace_minutes: number;
 };
 
 export type MainSettingsSaveData = MainSettingsPayload & Partial<MainSettings>;

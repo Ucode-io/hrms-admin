@@ -12,6 +12,7 @@ import {
 } from "../../../api/services/mainSettings.service";
 
 const DEFAULT_LATENESS_COEFFICIENT = 4;
+const DEFAULT_LATENESS_GRACE_MINUTES = 30;
 
 const DEFAULT_FORM: MainSettingsPayload = {
   show_new_hires_widget: true,
@@ -20,6 +21,7 @@ const DEFAULT_FORM: MainSettingsPayload = {
   show_absences_widget: true,
   show_business_absences: true,
   lateness_penalty_coefficient: DEFAULT_LATENESS_COEFFICIENT,
+  lateness_grace_minutes: DEFAULT_LATENESS_GRACE_MINUTES,
 };
 
 export default function HomeSettingsPage() {
@@ -50,6 +52,10 @@ export default function HomeSettingsPage() {
         Number(data.lateness_penalty_coefficient) > 0
           ? Number(data.lateness_penalty_coefficient)
           : DEFAULT_LATENESS_COEFFICIENT,
+      lateness_grace_minutes:
+        Number(data.lateness_grace_minutes) >= 0
+          ? Number(data.lateness_grace_minutes)
+          : DEFAULT_LATENESS_GRACE_MINUTES,
     };
 
     setForm(next);
@@ -69,6 +75,10 @@ export default function HomeSettingsPage() {
 
   const setLatenessCoefficient = (value: number) => {
     setForm((prev) => ({ ...prev, lateness_penalty_coefficient: value }));
+  };
+
+  const setLatenessGraceMinutes = (value: number) => {
+    setForm((prev) => ({ ...prev, lateness_grace_minutes: value }));
   };
 
   const handleSave = async () => {
@@ -172,7 +182,29 @@ export default function HomeSettingsPage() {
                 />
                 <p className="text-sm leading-6 text-gray-500">
                   Удержание за опоздания в ведомости зарплаты рассчитывается как
-                  (Оклад ÷ рабочие минуты в месяце) × минуты опозданий × этот коэффициент.
+                  (Оклад ÷ рабочие минуты в месяце) × (минуты опозданий − прощаемые минуты) × этот коэффициент.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="lateness-grace-minutes"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Прощаемые минуты опоздания
+                </label>
+                <input
+                  id="lateness-grace-minutes"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={form.lateness_grace_minutes}
+                  onChange={(event) => setLatenessGraceMinutes(Number(event.target.value))}
+                  className="h-10 w-full max-w-[200px] rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+                />
+                <p className="text-sm leading-6 text-gray-500">
+                  Это количество минут опоздания вычитается из минут опозданий сотрудника
+                  перед расчетом штрафа (не может уйти ниже 0).
                 </p>
               </div>
             </div>
