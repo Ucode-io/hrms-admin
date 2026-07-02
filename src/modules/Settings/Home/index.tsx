@@ -11,12 +11,15 @@ import {
   useSaveMainSettings,
 } from "../../../api/services/mainSettings.service";
 
+const DEFAULT_LATENESS_COEFFICIENT = 4;
+
 const DEFAULT_FORM: MainSettingsPayload = {
   show_new_hires_widget: true,
   show_anniversaries_widget: false,
   show_birthdays_widget: true,
   show_absences_widget: true,
   show_business_absences: true,
+  lateness_penalty_coefficient: DEFAULT_LATENESS_COEFFICIENT,
 };
 
 export default function HomeSettingsPage() {
@@ -43,6 +46,10 @@ export default function HomeSettingsPage() {
       show_birthdays_widget: Boolean(data.show_birthdays_widget),
       show_absences_widget: Boolean(data.show_absences_widget),
       show_business_absences: Boolean(data.show_business_absences),
+      lateness_penalty_coefficient:
+        Number(data.lateness_penalty_coefficient) > 0
+          ? Number(data.lateness_penalty_coefficient)
+          : DEFAULT_LATENESS_COEFFICIENT,
     };
 
     setForm(next);
@@ -58,6 +65,10 @@ export default function HomeSettingsPage() {
 
   const setField = (key: keyof MainSettingsPayload, value: boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const setLatenessCoefficient = (value: number) => {
+    setForm((prev) => ({ ...prev, lateness_penalty_coefficient: value }));
   };
 
   const handleSave = async () => {
@@ -140,6 +151,28 @@ export default function HomeSettingsPage() {
                   По умолчанию мы показываем сотрудников в нерабочих отсутствиях (например, отпуск, больничный).
                   Включите эту опцию, чтобы также показывать сотрудников в рабочих отсутствиях
                   (например, командировка, удаленная работа).
+                </p>
+              </div>
+
+              <div className="space-y-1.5 border-t border-gray-100 pt-4">
+                <label
+                  htmlFor="lateness-penalty-coefficient"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Коэффициент штрафа за опоздания
+                </label>
+                <input
+                  id="lateness-penalty-coefficient"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={form.lateness_penalty_coefficient}
+                  onChange={(event) => setLatenessCoefficient(Number(event.target.value))}
+                  className="h-10 w-full max-w-[200px] rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+                />
+                <p className="text-sm leading-6 text-gray-500">
+                  Удержание за опоздания в ведомости зарплаты рассчитывается как
+                  (Оклад ÷ рабочие минуты в месяце) × минуты опозданий × этот коэффициент.
                 </p>
               </div>
             </div>

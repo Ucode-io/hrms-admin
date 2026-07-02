@@ -11,6 +11,7 @@ export interface MainSettings {
   show_birthdays_widget: boolean;
   show_business_absences: boolean;
   show_new_hires_widget: boolean;
+  lateness_penalty_coefficient?: number;
   created_at: string;
   updated_at: string;
   [key: string]: unknown;
@@ -22,6 +23,7 @@ export type MainSettingsPayload = {
   show_birthdays_widget: boolean;
   show_business_absences: boolean;
   show_new_hires_widget: boolean;
+  lateness_penalty_coefficient: number;
 };
 
 export type MainSettingsSaveData = MainSettingsPayload & Partial<MainSettings>;
