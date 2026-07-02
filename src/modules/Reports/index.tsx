@@ -128,11 +128,11 @@ const reportSections: ReportSection[] = [
       [
         {
           id: "absence-balance",
-          title: "Остаточный баланс выходных",
+          title: "Баланс отсутствий",
           icon: CalendarDays,
           path: "/reports/absence-balance",
-          subtitle: "Остатки по типам отсутствий",
-          keywords: ["баланс", "выходные", "отсутствие", "отпуск"],
+          subtitle: "Лимиты, использование и ожидающие заявки",
+          keywords: ["баланс", "выходные", "отсутствие", "отпуск", "ожидает", "лимит"],
         },
       ],
       [

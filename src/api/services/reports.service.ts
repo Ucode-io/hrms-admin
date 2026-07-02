@@ -21,6 +21,7 @@ const GET_ABSENCE_BALANCE_METHOD = "get_absence_balance";
 const GET_ABSENCE_BALANCE_TABLE_METHOD = "get_absence_balance_table";
 const GET_ATTENDANCE_METHOD = "get_attendance";
 const GET_ATTENDANCE_TABLE_METHOD = "get_attendance_table";
+const GET_ATTENDANCE_EXCEL_METHOD = "get_attendance_excel";
 const GET_SPORT_ATTENDANCE_METHOD = "get_sport_attendance";
 const GET_SPORT_ATTENDANCE_TABLE_METHOD = "get_sport_attendance_table";
 const GET_PAYROLL_METHOD = "get_payroll";
@@ -427,16 +428,55 @@ export type AbsenceBalancePolicyFilterItem = {
   label: string;
   color: string | null;
   icon: string | null;
+  policy_type: string;
+  period: string;
   default_balance: number | null;
   rows_count: number;
 };
 
+export type AbsenceBalanceByPolicyItem = {
+  id: string | null;
+  label: string;
+  color: string | null;
+  icon: string | null;
+  policy_type: string;
+  policy_type_label: string;
+  period: string;
+  period_label: string;
+  limit_per_employee: number;
+  employees_count: number;
+  used_days: number;
+  pending_days: number;
+  available_days: number;
+  pending_requests: number;
+  exhausted_count: number;
+  total_limit: number;
+  utilization_percent: number;
+};
+
+export type AbsenceBalanceByDepartmentItem = {
+  id: string | null;
+  label: string;
+  employees_count: number;
+  used_days: number;
+  pending_days: number;
+  pending_requests: number;
+};
+
 export type AbsenceBalanceResult = {
-  summary?: {
-    total_rows?: number;
+  cards?: {
     total_employees?: number;
     total_policies?: number;
+    used_days?: number;
+    used_days_year?: number;
+    pending_days?: number;
+    pending_requests?: number;
+    exhausted_count?: number;
     as_of_date?: string;
+  };
+  charts?: {
+    by_policy?: AbsenceBalanceByPolicyItem[];
+    by_department?: AbsenceBalanceByDepartmentItem[];
   };
   filters?: {
     absence_policies?: AbsenceBalancePolicyFilterItem[];
@@ -453,14 +493,23 @@ export type AbsenceBalanceTableItem = {
   guid: string;
   full_name: string;
   work_summary: string;
+  department: string | null;
   absence_policy_id: string | null;
   absence_type: string;
-  initial_balance: number | null;
-  accrued: number | null;
+  color: string | null;
+  icon: string | null;
+  policy_type: string;
+  policy_type_label: string;
+  period: string;
+  period_label: string;
+  limit: number | null;
   used: number | null;
-  carryover: number | null;
-  adjustments: number | null;
-  ending_balance: number | null;
+  pending: number | null;
+  available: number | null;
+  used_year: number | null;
+  utilization_percent: number;
+  cycle_from: string | null;
+  cycle_to: string | null;
   unit: string;
 };
 
@@ -570,6 +619,21 @@ export type AttendanceTableResult = {
 export type AttendanceTableInvokeResponse = {
   method: typeof GET_ATTENDANCE_TABLE_METHOD;
   result: AttendanceTableResult;
+};
+
+export type AttendanceExcelInvokeResponse = {
+  method: typeof GET_ATTENDANCE_EXCEL_METHOD;
+  result: {
+    period_key?: string;
+    file_name: string;
+    mime_type: string;
+    file_base64: string;
+    metadata?: {
+      employees_count?: number;
+      policy_columns?: string[];
+    };
+    filters_applied?: JsonRecord;
+  };
 };
 
 export type SportAttendanceMonthOption = {
@@ -1344,6 +1408,13 @@ const isAttendanceTableInvokeResponse = (
   return value.method === GET_ATTENDANCE_TABLE_METHOD && isRecord(value.result);
 };
 
+const isAttendanceExcelInvokeResponse = (
+  value: unknown
+): value is AttendanceExcelInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_ATTENDANCE_EXCEL_METHOD && isRecord(value.result);
+};
+
 const isSportAttendanceInvokeResponse = (
   value: unknown
 ): value is SportAttendanceInvokeResponse => {
@@ -1966,6 +2037,43 @@ const normalizeAttendanceTableResponse = (
   }
 
   throw new Error("Unexpected response format for get_attendance_table");
+};
+
+const normalizeAttendanceExcelResponse = (
+  raw: unknown
+): AttendanceExcelInvokeResponse => {
+  if (isAttendanceExcelInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isAttendanceExcelInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isAttendanceExcelInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_attendance_excel");
 };
 
 const normalizeSportAttendanceResponse = (
@@ -2890,6 +2998,18 @@ const reportsService = {
     });
 
     return normalizeAttendanceTableResponse(response.data);
+  },
+  getAttendanceExcel: async (
+    requestData: JsonRecord = {}
+  ): Promise<AttendanceExcelInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_ATTENDANCE_EXCEL_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeAttendanceExcelResponse(response.data);
   },
   getSportAttendance: async (
     requestData: JsonRecord = {}

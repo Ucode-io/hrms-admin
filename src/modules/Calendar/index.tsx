@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Icon } from "@iconify/react";
 import { Check, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, X } from "lucide-react";
+import { Link } from "react-router";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
@@ -1288,8 +1289,11 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
                         return (
                           <tr key={employee.guid} className="group">
-                            <td className="sticky left-0 z-10 min-w-[320px] border-b border-r border-gray-100 bg-white px-4 py-2 group-hover:bg-slate-50/70">
-                              <div className="flex items-center gap-3">
+                            <td className="sticky left-0 z-20 min-w-[320px] border-b border-r border-gray-100 bg-white px-4 py-2 transition-colors group-hover:bg-slate-50">
+                              <Link
+                                to={`/employees/${employee.guid}`}
+                                className="group/employee-link flex items-center gap-3 rounded-lg"
+                              >
                                 {employee.photo ? (
                                   <img
                                     src={employee.photo}
@@ -1302,10 +1306,12 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                                   </div>
                                 )}
                                 <div className="min-w-0">
-                                  <div className="truncate text-sm font-semibold text-gray-900">{fullName}</div>
+                                  <div className="truncate text-sm font-semibold text-gray-900 transition-colors group-hover/employee-link:text-brand-600">
+                                    {fullName}
+                                  </div>
                                   <div className="truncate text-xs text-gray-500">{subtitle || "—"}</div>
                                 </div>
-                              </div>
+                              </Link>
                             </td>
                             {timelineCells}
                           </tr>

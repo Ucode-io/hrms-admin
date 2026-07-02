@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
 import Chart from "react-apexcharts";
 import { ApexAxisChartSeries, ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
-import {
+import reportsService, {
   type AttendanceMonthOption,
   type AttendanceTopLateItem,
   useAttendanceReportQuery,
@@ -18,6 +18,18 @@ const TABLE_PAGE_LIMIT = 20;
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   return "Не удалось загрузить отчет. Попробуйте снова.";
+};
+
+const base64ToBlob = (base64: string, mimeType?: string): Blob => {
+  const binaryString = window.atob(base64);
+  const length = binaryString.length;
+  const bytes = new Uint8Array(length);
+
+  for (let index = 0; index < length; index += 1) {
+    bytes[index] = binaryString.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType || "application/octet-stream" });
 };
 
 const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7): number[] => {
@@ -56,6 +68,7 @@ function AttendancePage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -111,6 +124,37 @@ function AttendancePage() {
     page: tablePage,
     limit: TABLE_PAGE_LIMIT,
   });
+
+  const handleExportExcel = async () => {
+    if (isExporting) return;
+
+    try {
+      setIsExporting(true);
+
+      const response = await reportsService.getAttendanceExcel(tableRequestData);
+      const payload = response.result;
+
+      if (!payload.file_base64) {
+        throw new Error("Файл не получен.");
+      }
+
+      const blob = base64ToBlob(payload.file_base64, payload.mime_type);
+      const fileName = payload.file_name || "attendance.xlsx";
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Attendance excel export error:", error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const cards = data?.result?.cards ?? {};
   const topLate: AttendanceTopLateItem[] = data?.result?.charts?.top_late_time ?? [];
@@ -215,7 +259,7 @@ function AttendancePage() {
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
           <div className="space-y-4 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <select
                 value={selectedMonth}
                 onChange={(event) => {
@@ -230,6 +274,18 @@ function AttendancePage() {
                   </option>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleExportExcel();
+                }}
+                disabled={isExporting || isTableLoading || isTableFetching}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-brand-500 bg-brand-500 px-4 text-sm font-medium text-white transition hover:border-brand-600 hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Download size={16} />
+                {isExporting ? "Экспорт..." : "Экспорт в excel"}
+              </button>
             </div>
 
             <section className="grid gap-4 xl:grid-cols-12">
