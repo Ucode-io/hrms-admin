@@ -452,7 +452,16 @@ function AttendancePage() {
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.worked_days}</td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.on_time_days}</td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.late_days}</td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.total_late_time}</td>
+                        <td
+                          className={`border-b border-gray-100 px-4 py-2.5 text-sm ${
+                            item.has_work_schedule
+                              ? "text-gray-700"
+                              : "bg-error-50 font-semibold text-error-700"
+                          }`}
+                          title={item.has_work_schedule ? undefined : "Нет назначенного графика работы — опоздания не рассчитываются"}
+                        >
+                          {item.total_late_time}
+                        </td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">{item.total_absent_days}</td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
                           {hasBreakdown ? (

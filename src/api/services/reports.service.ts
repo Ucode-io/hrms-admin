@@ -592,6 +592,9 @@ export type AttendanceTableItem = {
   on_time_days: number;
   late_days: number;
   total_late_time: number;
+  // false when the employee has no work_schedule assigned for the period —
+  // lateness can't be computed reliably, so total_late_time is forced to 0.
+  has_work_schedule: boolean;
   total_absent_days: number;
   excused_absence_days: number;
   unexcused_absent_days: number;
