@@ -40,6 +40,7 @@ import settingsDirectoryService from "../../api/services/settingsDirectory.servi
 import RemoteSingleSelect, { type RemoteSelectOption } from "../../components/autocomplete/RemoteSingleSelect";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import reportsService, {
+  type KpiAutoMetricOption,
   type KpiFilterOption,
   type KpiParentOption,
   type KpiPeriodType,
@@ -82,6 +83,10 @@ type KpiRecord = {
   actualValue: number;
   percentTotal: number;
   hasChildren: boolean;
+  // Automatic KPI: actual is computed by the backend from task/project data and
+  // is therefore read-only in the UI.
+  isAuto: boolean;
+  metric: string | null;
   children: KpiRecord[];
 };
 
@@ -865,6 +870,8 @@ const mapApiItem = (item: KpiTableItem): KpiRecord => {
       ? Number(item.percent_total)
       : calcPercent(Number(item.actual_total) || 0, Number(item.plan_total) || 0),
     hasChildren: Boolean(item.has_children) || children.length > 0,
+    isAuto: Boolean(item.is_auto),
+    metric: typeof item.metric === "string" ? item.metric : null,
     children,
   };
 };
@@ -1057,6 +1064,7 @@ function KpiPage() {
   const [draft, setDraft] = useState<CreateKpiDraft>(() => getDefaultDraft("yearly"));
   const [positionFilterOptions, setPositionFilterOptions] = useState<FilterOption[]>([]);
   const [sourceFilterOptions, setSourceFilterOptions] = useState<FilterOption[]>([]);
+  const [autoMetricOptions, setAutoMetricOptions] = useState<KpiAutoMetricOption[]>([]);
   const [parentOptions, setParentOptions] = useState<KpiParentOption[]>([]);
   const [expandedColumns, setExpandedColumns] = useState<Set<string>>(() => new Set());
   const [expandedTreeNodeIds, setExpandedTreeNodeIds] = useState<Set<string>>(() => new Set());
@@ -1191,6 +1199,7 @@ function KpiPage() {
         const filters = response.result?.filters;
         const positions = Array.isArray(filters?.positions) ? filters!.positions! : [];
         const sources = Array.isArray(filters?.sources) ? filters!.sources! : [];
+        const autoMetrics = Array.isArray(filters?.auto_metrics) ? filters!.auto_metrics! : [];
         const parents = Array.isArray(filters?.parents) ? filters!.parents! : [];
 
         setPositionFilterOptions(
@@ -1208,6 +1217,9 @@ function KpiPage() {
               label: String(option.label || ""),
             }))
             .filter((option) => option.value && option.label)
+        );
+        setAutoMetricOptions(
+          autoMetrics.filter((option) => option.value && option.label)
         );
         setParentOptions(parents);
       } catch {
@@ -1772,6 +1784,18 @@ function KpiPage() {
   };
 
   const renderLeafActualEditor = (item: KpiRecord) => {
+    // Automatic KPIs are computed by the backend — show the value, don't edit it.
+    if (item.isAuto) {
+      return (
+        <span
+          title="Автоматический показатель — рассчитывается из данных задач/проектов"
+          className="inline-flex h-7 min-w-[90px] items-center justify-center gap-1 rounded-md px-2 text-center text-[13px] font-semibold text-slate-800"
+        >
+          {formatValueWithSymbol(item.actualValue, item.valueSymbol, item.valueSymbolPosition)}
+          <span className="text-[10px] font-medium text-indigo-500">авто</span>
+        </span>
+      );
+    }
     const isEditing =
       editingActualCell?.itemId === item.id && editingActualCell?.childId === null;
     if (isEditing) {
@@ -1816,10 +1840,13 @@ function KpiPage() {
     if (!child) {
       return <span className="text-[12px] text-slate-300">—</span>;
     }
-    // Cells where the underlying child still has its own children are read-only.
-    if (child.hasChildren) {
+    // Read-only cells: aggregated (own children) or automatically computed.
+    if (child.hasChildren || child.isAuto) {
       return (
-        <span className="inline-flex h-7 min-w-[70px] items-center justify-center text-[12px] font-semibold text-slate-700">
+        <span
+          title={child.isAuto ? "Автоматический показатель — рассчитывается из данных задач/проектов" : undefined}
+          className="inline-flex h-7 min-w-[70px] items-center justify-center text-[12px] font-semibold text-slate-700"
+        >
           {formatValueWithSymbol(child.actualValue, parent.valueSymbol, parent.valueSymbolPosition)}
         </span>
       );
@@ -2543,11 +2570,45 @@ function KpiPage() {
                   <span className="text-xs font-medium text-slate-500">Источник</span>
                   <input
                     type="text"
+                    list="kpi-source-options"
                     value={draft.source}
-                    onChange={(event) => setDraft((prev) => ({ ...prev, source: event.target.value }))}
+                    onChange={(event) => {
+                      const nextSource = event.target.value;
+                      const auto = autoMetricOptions.find((option) => option.value === nextSource.trim());
+                      setDraft((prev) => ({
+                        ...prev,
+                        source: nextSource,
+                        // Adopt the metric's default unit when picking an automatic
+                        // source and the user hasn't set a symbol yet.
+                        valueSymbol:
+                          auto && auto.value_symbol && !prev.valueSymbol
+                            ? auto.value_symbol
+                            : prev.valueSymbol,
+                      }));
+                    }}
                     className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
                     placeholder="Вручную"
                   />
+                  <datalist id="kpi-source-options">
+                    {autoMetricOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} (авто)
+                      </option>
+                    ))}
+                    {sourceFilterOptions
+                      .filter(
+                        (option) =>
+                          !autoMetricOptions.some((auto) => auto.value === option.value)
+                      )
+                      .map((option) => (
+                        <option key={option.value} value={option.value} />
+                      ))}
+                  </datalist>
+                  {autoMetricOptions.some((option) => option.value === draft.source.trim()) ? (
+                    <span className="text-[11px] font-medium text-indigo-500">
+                      Автоматический показатель — «Факт» рассчитывается из данных задач/проектов
+                    </span>
+                  ) : null}
                 </label>
               </div>
 
