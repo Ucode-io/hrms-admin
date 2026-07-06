@@ -429,6 +429,15 @@ export default function AbsencesSection({
       return;
     }
 
+    if (selectedPolicy && selectedPolicy.eligible === false) {
+      toast.error(
+        selectedPolicy.eligible_at
+          ? `Этот тип отсутствия будет доступен с ${formatDateRu(selectedPolicy.eligible_at)}.`
+          : `Этот тип отсутствия доступен после ${selectedPolicy.min_months ?? 0} мес. стажа.`
+      );
+      return;
+    }
+
     if (!modalDateFrom || !modalDateTo) {
       toast.error("Укажите диапазон дат.");
       return;
@@ -611,6 +620,7 @@ export default function AbsencesSection({
                     ? policy.icon
                     : DEFAULT_POLICY_ICON;
                 const iconColor = resolveHexColor(policy.color, brandColor);
+                const isEligible = policy.eligible !== false;
 
                 return (
                   <div
@@ -651,6 +661,13 @@ export default function AbsencesSection({
                           </>
                         ) : null}
                       </p>
+                      {!isEligible ? (
+                        <p className="mt-2 rounded-lg bg-[#FEF3C7] px-2 py-1 text-[11px] font-medium text-[#B45309]">
+                          {policy.eligible_at
+                            ? `Доступно с ${formatDateRu(policy.eligible_at)}`
+                            : `Доступно после ${policy.min_months ?? 0} мес. стажа`}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="mt-4 flex items-center justify-between gap-2">
@@ -658,14 +675,16 @@ export default function AbsencesSection({
                         <button
                           type="button"
                           onClick={() => openCreateModal(policy.guid)}
-                          className="rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-[12px] font-semibold text-slate-800 transition hover:bg-slate-200"
+                          disabled={!isEligible}
+                          className="rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-[12px] font-semibold text-slate-800 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Создать запрос
                         </button>
                         <button
                           type="button"
                           onClick={() => openCreateModal(policy.guid)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200"
+                          disabled={!isEligible}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label="Календарь"
                         >
                           <CalendarDays className="h-3.5 w-3.5" />

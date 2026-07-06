@@ -4,6 +4,8 @@ import { Outlet } from "react-router";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
+import AccessGuard from "./AccessGuard";
+import AccessGate from "./AccessGate";
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isMobileOpen } = useSidebar();
@@ -20,7 +22,9 @@ const LayoutContent: React.FC = () => {
       >
         <AppHeader />
         <div className="p-3 md:p-4 overflow-x-hidden flex-1 w-full">
-          <Outlet />
+          <AccessGuard>
+            <Outlet />
+          </AccessGuard>
         </div>
       </div>
     </div>
@@ -31,7 +35,9 @@ const AppLayout: React.FC = () => {
   return (
     <SidebarProvider>
       <HeaderBreadcrumbProvider>
-        <LayoutContent />
+        <AccessGate>
+          <LayoutContent />
+        </AccessGate>
       </HeaderBreadcrumbProvider>
     </SidebarProvider>
   );

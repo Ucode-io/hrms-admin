@@ -91,6 +91,9 @@ export interface Employee {
     [key: string]: any;
   } | null;
 
+  // HRMS application-level access role (separate from the ucode role_id above).
+  hrms_roles_id?: string | null;
+
   dismissal_types_id?: string | null;
   dismissial_types_id?: string | null;
   dismissal_types_id_data?: {

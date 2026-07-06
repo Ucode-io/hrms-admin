@@ -45,6 +45,7 @@ const DEFAULT_ICON = DEFAULT_ICON_OPTIONS[0].value;
 const DEFAULT_TYPE = "paid";
 const DEFAULT_PERIOD = "year";
 const DEFAULT_VALUE = 1;
+const DEFAULT_MIN_MONTHS = 0;
 
 const TYPE_OPTIONS = [
   { value: "paid", label: "Оплачиваемый" },
@@ -129,6 +130,7 @@ export default function AbsencePoliciesSettingsPage() {
   const [policyType, setPolicyType] = useState(DEFAULT_TYPE);
   const [policyPeriod, setPolicyPeriod] = useState(DEFAULT_PERIOD);
   const [policyValue, setPolicyValue] = useState(String(DEFAULT_VALUE));
+  const [minMonths, setMinMonths] = useState(String(DEFAULT_MIN_MONTHS));
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -178,6 +180,7 @@ export default function AbsencePoliciesSettingsPage() {
     setPolicyType(DEFAULT_TYPE);
     setPolicyPeriod(DEFAULT_PERIOD);
     setPolicyValue(String(DEFAULT_VALUE));
+    setMinMonths(String(DEFAULT_MIN_MONTHS));
   };
 
   const openCreateModal = () => {
@@ -195,6 +198,7 @@ export default function AbsencePoliciesSettingsPage() {
     setPolicyType(resolveStringOrArrayValue(item.type, DEFAULT_TYPE));
     setPolicyPeriod(resolveStringOrArrayValue(item.period, DEFAULT_PERIOD));
     setPolicyValue(String(resolveNumericValue(item.value, DEFAULT_VALUE)));
+    setMinMonths(String(resolveNumericValue(item.min_months, DEFAULT_MIN_MONTHS)));
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -212,6 +216,7 @@ export default function AbsencePoliciesSettingsPage() {
     const preparedType = resolveStringOrArrayValue(policyType, DEFAULT_TYPE);
     const preparedPeriod = resolveStringOrArrayValue(policyPeriod, DEFAULT_PERIOD);
     const preparedValue = resolveNumericValue(policyValue, NaN);
+    const preparedMinMonths = resolveNumericValue(minMonths, NaN);
 
     if (!preparedTitle) {
       toast.error("Название обязательно.");
@@ -228,6 +233,11 @@ export default function AbsencePoliciesSettingsPage() {
       return;
     }
 
+    if (!Number.isFinite(preparedMinMonths) || preparedMinMonths < 0) {
+      toast.error("Минимальный стаж должен быть числом 0 или больше.");
+      return;
+    }
+
     const payload = {
       title: preparedTitle,
       icon: preparedIcon,
@@ -235,6 +245,7 @@ export default function AbsencePoliciesSettingsPage() {
       type: [preparedType],
       period: [preparedPeriod],
       value: preparedValue,
+      min_months: Math.round(preparedMinMonths),
     };
 
     try {
@@ -375,6 +386,7 @@ export default function AbsencePoliciesSettingsPage() {
                   const itemType = resolveStringOrArrayValue(item.type, "—");
                   const itemPeriod = resolveStringOrArrayValue(item.period, "—");
                   const itemValue = resolveNumericValue(item.value, 0);
+                  const itemMinMonths = resolveNumericValue(item.min_months, 0);
                   const iconOption = getIconOption(itemIcon);
                   return (
                     <div
@@ -408,6 +420,11 @@ export default function AbsencePoliciesSettingsPage() {
                             <span className="inline-flex rounded-lg bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-700">
                               {itemValue}
                             </span>
+                            {itemMinMonths > 0 ? (
+                              <span className="inline-flex rounded-lg bg-[#FEF3C7] px-2.5 py-1 text-sm font-medium text-[#B45309]">
+                                От {itemMinMonths} мес. стажа
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -594,6 +611,26 @@ export default function AbsencePoliciesSettingsPage() {
                 className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="absence-policy-min-months" className="block text-sm font-medium text-gray-700">
+              Доступно после (месяцев стажа)
+            </label>
+            <input
+              id="absence-policy-min-months"
+              type="number"
+              min={0}
+              step={1}
+              value={minMonths}
+              onChange={(event) => setMinMonths(event.target.value)}
+              placeholder="0"
+              className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+            />
+            <p className="text-xs text-gray-500">
+              Сотрудник сможет отправлять запрос только после указанного числа месяцев с даты приёма.
+              До этого доступных дней будет 0. Оставьте 0, чтобы доступ был сразу.
+            </p>
           </div>
         </div>
 

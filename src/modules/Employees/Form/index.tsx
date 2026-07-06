@@ -26,6 +26,7 @@ import { useDepartmentExperienceLevelsSummaryQuery } from "../../../api/services
 import { usePositionsQuery } from "../../../api/services/position.service";
 import { useCreateEmployeeWork } from "../../../api/services/employeeWork.service";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
+import { useRolesQuery, roleService } from "../../../api/services/role.service";
 import type { EmployeeFormValues, SelectOption } from "./types";
 import { employeeFormDefaults } from "./types";
 
@@ -102,6 +103,11 @@ function EmployeeForm() {
   const experienceLevels = experienceLevelsData?.response ?? [];
   const locations = locationsData?.response ?? [];
   const employeeWorkReasons = employeeWorkReasonsData?.response ?? [];
+  const { data: rolesData } = useRolesQuery();
+  const roleOptions: SelectOption[] = (rolesData ?? []).map((role) => ({
+    value: role.id,
+    label: role.title,
+  }));
   const departmentIds = useMemo(
     () => departments.map((department) => department.guid),
     [departments]
@@ -174,9 +180,30 @@ function EmployeeForm() {
         locations_id: employee.locations_id || "",
         employee_work_reason_id: "",
         salary: "",
+        hrms_roles_id: "",
       });
     }
   }, [employee, isEdit, reset]);
+
+  /* ── Load the assigned access role (PG-direct, not the items API) ── */
+  useEffect(() => {
+    let cancelled = false;
+    if (isEdit && id) {
+      roleService
+        .getUserAccess(id)
+        .then((access) => {
+          if (!cancelled && access.role) {
+            setValue("hrms_roles_id", access.role.id);
+          }
+        })
+        .catch(() => {
+          /* role table not ready / no access — leave unselected */
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, id, setValue]);
 
   /* ── Photo upload ── */
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -280,9 +307,21 @@ function EmployeeForm() {
       locations_id: data.locations_id || null,
     };
 
+    // The HRMS access role lives in a new physical column that the generic
+    // items API doesn't manage — persist it PG-direct via the reports gateway.
+    const assignHrmsRole = async (employeeGuid: string) => {
+      if (!employeeGuid) return;
+      try {
+        await roleService.assignRole(employeeGuid, data.hrms_roles_id || null);
+      } catch (err) {
+        console.error("Failed to assign access role:", err);
+      }
+    };
+
     try {
       if (isEdit) {
         await updateMutation.mutateAsync({ ...payload, guid: id || "" });
+        await assignHrmsRole(id || "");
       } else {
         payload.client_type_id = "1c435896-2f12-4b61-a684-62ad1d2307d1";
         payload.role_id = import.meta.env.VITE_EMPLOYEE_ROLE_ID;
@@ -303,6 +342,7 @@ function EmployeeForm() {
             date_from: toISODate(data.date_hire) || toISODate(new Date()),
             date_to: null,
           });
+          await assignHrmsRole(createdEmployeeGuid);
         }
       }
       navigate("/employees");
@@ -557,6 +597,32 @@ function EmployeeForm() {
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* ─── Left: Доступ ─── */}
+            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
+              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                Доступ
+              </div>
+              <div style={{ padding: "24px" }}>
+                <label style={labelStyle}>Роль доступа</label>
+                <Controller
+                  control={control}
+                  name="hrms_roles_id"
+                  render={({ field }) => (
+                    <SearchableSelect
+                      options={roleOptions}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Выберите роль"
+                      brandColor={brandColor}
+                    />
+                  )}
+                />
+                <p style={{ marginTop: "8px", fontSize: "12px", color: "#94a3b8" }}>
+                  Определяет, какие модули доступны сотруднику.
+                </p>
               </div>
             </div>
           </div>

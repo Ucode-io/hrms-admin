@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import SignIn from "./pages/AuthPages/SignIn";
+import LandingPage from "./pages/Landing";
 import NotFound from "./pages/OtherPage/NotFound";
 import UnderDevelopment from "./pages/OtherPage/UnderDevelopment";
 import DashboardPage from "./modules/Dashboard";
@@ -50,11 +51,13 @@ import DismissalTypesSettingsPage from "./modules/Settings/DismissalTypes";
 import EmployeeWorkChangeReasonsSettingsPage from "./modules/Settings/EmployeeWorkChangeReasons";
 import PropertyCategoriesSettingsPage from "./modules/Settings/PropertyCategories";
 import HickvisionIntegrationSettingsPage from "./modules/Settings/Integrations/Hickvision";
+import TimeDoctorIntegrationSettingsPage from "./modules/Settings/Integrations/TimeDoctor";
 import TariffsList from "./modules/Settings/Tariffs/List";
 import TariffForm from "./modules/Settings/Tariffs/Form";
 import ProductCategoriesList from "./modules/Settings/ProductCategories/List";
 import ProductCategoryForm from "./modules/Settings/ProductCategories/Form";
 import SettingsLayout from "./modules/Settings/SettingsLayout";
+import RolesSettingsPage from "./modules/Settings/Roles";
 import EmployeesList from "./modules/Employees/List";
 import EmployeeDetail from "./modules/Employees/Detail";
 import EmployeeForm from "./modules/Employees/Form";
@@ -65,6 +68,7 @@ import KnowledgeBaseArticle from "./modules/KnowledgeBase/Article";
 import PropertyList from "./modules/Property/List";
 import PropertyForm from "./modules/Property/Form";
 import TimeModule from "./modules/Time";
+import TimeTrackingModule from "./modules/TimeTracking";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
 import GenderDistributionPage from "./modules/Reports/GenderDistribution";
@@ -211,6 +215,7 @@ function App() {
                 <Route path="employment-types" element={<EmploymentTypesSettingsPage />} />
                 <Route path="divisions" element={<DivisionsSettingsPage />} />
                 <Route path="skills" element={<SkillsSettingsPage />} />
+                <Route path="roles" element={<RolesSettingsPage />} />
                 <Route path="departments" element={<DepartmentsSettingsPage />} />
                 <Route path="compensation" element={<CompensationSettingsPage />} />
                 <Route path="absence-policies" element={<AbsencePoliciesSettingsPage />} />
@@ -230,6 +235,7 @@ function App() {
                 <Route path="employee-work-reasons" element={<EmployeeWorkChangeReasonsSettingsPage />} />
                 <Route path="property-categories" element={<PropertyCategoriesSettingsPage />} />
                 <Route path="integrations/hickvision" element={<HickvisionIntegrationSettingsPage />} />
+                <Route path="integrations/timedoctor" element={<TimeDoctorIntegrationSettingsPage />} />
                 <Route path="tariffs" element={<TariffsList />} />
                 <Route path="tariffs/new" element={<TariffForm />} />
                 <Route path="tariffs/:id" element={<TariffForm />} />
@@ -257,6 +263,7 @@ function App() {
               <Route path="/property/:id/edit" element={<PropertyForm />} />
               <Route path="/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/time" element={<TimeModule />} />
+              <Route path="/time-tracking" element={<TimeTrackingModule />} />
               <Route path="/calendar" element={<Navigate to="/time?view=calendar" replace />} />
               <Route path="/time/attendance" element={<Navigate to="/time?view=attendance" replace />} />
               <Route path="/reports" element={<ReportsHomePage />} />
@@ -301,8 +308,9 @@ function App() {
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
             </Route> : <>
+              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<SignIn />} />
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </>
           }
 

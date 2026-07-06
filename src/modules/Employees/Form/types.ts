@@ -23,6 +23,7 @@ export interface EmployeeFormValues {
   locations_id: string;
   employee_work_reason_id: string;
   salary: string;
+  hrms_roles_id: string;
 }
 
 export const employeeFormDefaults: EmployeeFormValues = {
@@ -46,4 +47,5 @@ export const employeeFormDefaults: EmployeeFormValues = {
   locations_id: "",
   employee_work_reason_id: "",
   salary: "",
+  hrms_roles_id: "",
 };

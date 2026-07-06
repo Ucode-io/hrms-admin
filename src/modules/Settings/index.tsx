@@ -19,6 +19,7 @@ import {
   MapPin,
   Search,
   Share2,
+  Shield,
   SlidersHorizontal,
   UserRoundCheck,
   UserX,
@@ -65,7 +66,16 @@ export const settingsSections: SettingsSection[] = [
           subtitle: "Лента новостей",
         },
       ],
-      [],
+      [
+        {
+          id: "roles",
+          title: "Роли и доступы",
+          icon: Shield,
+          path: "/settings/roles",
+          subtitle: "Роли и доступ к модулям",
+          keywords: ["роли", "доступ", "права", "модули", "roles", "access"],
+        },
+      ],
     ],
   },
   {
@@ -251,7 +261,16 @@ export const settingsSections: SettingsSection[] = [
           keywords: ["hikvision", "hickvision", "integration", "attendance"],
         },
       ],
-      [],
+      [
+        {
+          id: "timedoctor",
+          title: "Time Doctor",
+          icon: Link2,
+          path: "/settings/integrations/timedoctor",
+          subtitle: "Подключение учёта времени",
+          keywords: ["time doctor", "timedoctor", "td2", "integration", "productivity", "учет времени"],
+        },
+      ],
       [],
     ],
   },

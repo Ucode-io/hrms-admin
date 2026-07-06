@@ -1,0 +1,547 @@
+/* ============ NSTEX Landing page styles ============ */
+
+.landing {
+  --ld-primary: #1858f3;
+  --ld-primary-dark: #0f3fbe;
+  --ld-primary-soft: #eef3fe;
+  --ld-ink: #0b1526;
+  font-family: var(--font-outfit, "Outfit", sans-serif);
+}
+
+/* ---------- Scroll reveal ---------- */
+.ld-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--ld-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.ld-reveal.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- Background helpers ---------- */
+.ld-grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(24, 88, 243, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(24, 88, 243, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 40%, transparent 100%);
+}
+
+.ld-blob {
+  filter: blur(90px);
+  animation: ld-blob 16s ease-in-out infinite alternate;
+}
+
+@keyframes ld-blob {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(40px, -30px) scale(1.12);
+  }
+  100% {
+    transform: translate(-30px, 24px) scale(0.96);
+  }
+}
+
+/* ---------- Floating elements ---------- */
+.ld-float {
+  animation: ld-float 6s ease-in-out infinite;
+}
+
+.ld-float-slow {
+  animation: ld-float 8s ease-in-out 1.2s infinite;
+}
+
+.ld-float-fast {
+  animation: ld-float 5s ease-in-out 0.6s infinite;
+}
+
+@keyframes ld-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+/* ---------- Hero mockup bar chart ---------- */
+.ld-bar {
+  transform-origin: bottom;
+  transform: scaleY(0);
+  animation: ld-bar 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--ld-bar-delay, 0ms);
+}
+
+@keyframes ld-bar {
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* ---------- KPI progress ring ---------- */
+.ld-ring {
+  stroke-dasharray: 176;
+  stroke-dashoffset: 176;
+  animation: ld-ring 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+}
+
+@keyframes ld-ring {
+  to {
+    stroke-dashoffset: 23;
+  }
+}
+
+/* ---------- Pulsing status dot ---------- */
+.ld-pulse-dot {
+  position: relative;
+}
+
+.ld-pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: ld-pulse 2s ease-out infinite;
+}
+
+@keyframes ld-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* ---------- Marquee ---------- */
+.ld-marquee {
+  display: flex;
+  width: max-content;
+  animation: ld-marquee 30s linear infinite;
+}
+
+.ld-marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes ld-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ---------- Primary button shine ---------- */
+.ld-btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.ld-btn-shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -80%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+}
+
+.ld-btn-shine:hover::before {
+  left: 130%;
+}
+
+/* ---------- Feature card hover ---------- */
+.ld-card {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s ease;
+}
+
+.ld-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(24, 88, 243, 0.35);
+  box-shadow:
+    0 12px 32px -8px rgba(24, 88, 243, 0.18),
+    0 4px 12px -4px rgba(11, 21, 38, 0.06);
+}
+
+.ld-card:hover .ld-card-icon {
+  background: var(--ld-primary);
+  color: #ffffff;
+  transform: scale(1.08) rotate(-4deg);
+}
+
+.ld-card-icon {
+  transition:
+    background 0.35s ease,
+    color 0.35s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- Animated dashed connector ---------- */
+.ld-dash {
+  stroke-dasharray: 6 8;
+  animation: ld-dash 1.2s linear infinite;
+}
+
+@keyframes ld-dash {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+/* ---------- SVG illustration line draw ---------- */
+.ld-draw {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: ld-draw 2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+}
+
+@keyframes ld-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- Typing caret in hero badge ---------- */
+.ld-caret {
+  animation: ld-caret 1.1s steps(1) infinite;
+}
+
+@keyframes ld-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---------- 3D tilt (hero mockup) ---------- */
+.ld-tilt {
+  transition: transform 0.35s ease-out;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* ---------- Slow rotating decorative ring ---------- */
+.ld-spin-slow {
+  animation: ld-spin 46s linear infinite;
+}
+
+@keyframes ld-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Orbiting integration icons ---------- */
+.ld-orbit-item {
+  animation: ld-orbit var(--ld-orbit-dur, 28s) linear infinite;
+  animation-delay: var(--ld-orbit-delay, 0s);
+}
+
+@keyframes ld-orbit {
+  from {
+    transform: rotate(0deg) translateX(var(--ld-orbit-r, 130px)) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(var(--ld-orbit-r, 130px)) rotate(-360deg);
+  }
+}
+
+/* ---------- Word rotation in hero H1 ---------- */
+.ld-word {
+  transition:
+    opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- Reversed marquee ---------- */
+.ld-marquee-reverse {
+  animation-direction: reverse;
+}
+
+/* ---------- Dots pattern background ---------- */
+.ld-dots-bg {
+  background-image: radial-gradient(rgba(24, 88, 243, 0.14) 1.5px, transparent 1.5px);
+  background-size: 22px 22px;
+}
+
+/* ---------- Soft grid background for tinted sections ---------- */
+.ld-grid-soft {
+  background-image:
+    linear-gradient(to right, rgba(24, 88, 243, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(24, 88, 243, 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 75% 80% at 50% 50%, black 30%, transparent 90%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 80% at 50% 50%, black 30%, transparent 90%);
+}
+
+/* ---------- Twinkling sparkles ---------- */
+.ld-twinkle {
+  animation: ld-twinkle 2.6s ease-in-out infinite;
+  animation-delay: var(--ld-delay, 0ms);
+}
+
+@keyframes ld-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.7) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(18deg);
+  }
+}
+
+/* ---------- FAQ accordion ---------- */
+.ld-acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ld-acc-body.is-open {
+  grid-template-rows: 1fr;
+}
+
+.ld-acc-inner {
+  overflow: hidden;
+}
+
+.ld-acc-chevron {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ld-acc-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+/* ---------- Feature card arrow slide-in ---------- */
+.ld-card-arrow {
+  opacity: 0;
+  transform: translateX(-8px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ld-card:hover .ld-card-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ---------- Aurora gradient text ---------- */
+.ld-gradient-text {
+  background: linear-gradient(100deg, #1858f3, #4f7ef6, #1858f3);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ld-gradient-shift 5s linear infinite;
+}
+
+@keyframes ld-gradient-shift {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* ---------- Orbit center pulse rings ---------- */
+.ld-radar::before,
+.ld-radar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(24, 88, 243, 0.35);
+  animation: ld-radar 3.2s ease-out infinite;
+}
+
+.ld-radar::after {
+  animation-delay: 1.6s;
+}
+
+.ld-radar-light::before,
+.ld-radar-light::after {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+@keyframes ld-radar {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+/* ---------- Animated conic gradient frame ---------- */
+@property --ld-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.ld-conic-frame {
+  background: conic-gradient(
+    from var(--ld-angle),
+    rgba(24, 88, 243, 0.55),
+    rgba(156, 185, 255, 0.12),
+    rgba(24, 88, 243, 0.55),
+    rgba(156, 185, 255, 0.12),
+    rgba(24, 88, 243, 0.55)
+  );
+  animation: ld-angle 7s linear infinite;
+}
+
+@keyframes ld-angle {
+  to {
+    --ld-angle: 360deg;
+  }
+}
+
+/* ---------- Running pulse dot along connector ---------- */
+.ld-run-dot {
+  animation: ld-run 4.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation-delay: var(--ld-delay, 0ms);
+}
+
+@keyframes ld-run {
+  0% {
+    left: 17%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 83%;
+    opacity: 0;
+  }
+}
+
+/* ---------- Security: scanning beam ---------- */
+.ld-scan {
+  animation: ld-scan 3.6s ease-in-out infinite;
+}
+
+@keyframes ld-scan {
+  0%,
+  100% {
+    top: 14%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  50% {
+    top: 80%;
+    opacity: 1;
+  }
+  88% {
+    opacity: 0.4;
+  }
+}
+
+/* ---------- Security: cycling event log rows ---------- */
+.ld-log-row {
+  opacity: 0;
+  animation: ld-log 10s linear infinite;
+  animation-delay: var(--ld-delay, 0ms);
+}
+
+@keyframes ld-log {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  4%,
+  86% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  94%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ld-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .ld-blob,
+  .ld-float,
+  .ld-float-slow,
+  .ld-float-fast,
+  .ld-marquee,
+  .ld-caret,
+  .ld-dash,
+  .ld-spin-slow,
+  .ld-orbit-item,
+  .ld-twinkle,
+  .ld-gradient-text,
+  .ld-conic-frame,
+  .ld-run-dot,
+  .ld-scan {
+    animation: none;
+  }
+
+  .ld-log-row {
+    animation: none;
+    opacity: 1;
+  }
+
+  .ld-radar::before,
+  .ld-radar::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .ld-tilt {
+    transition: none;
+  }
+
+  .ld-bar {
+    animation: none;
+    transform: scaleY(1);
+  }
+
+  .ld-ring {
+    animation: none;
+    stroke-dashoffset: 23;
+  }
+
+  .ld-pulse-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -22,6 +22,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import PageMeta from "../../../components/common/PageMeta";
 import companyStore from "../../../store/company.store";
 import { useEmployeeQuery, useUpdateEmployee } from "../../../api/services/employee.service";
+import { useUserAccessQuery } from "../../../api/services/role.service";
 import { useEmployeeWorksQuery } from "../../../api/services/employeeWork.service";
 import { useHeaderBreadcrumbLabel } from "../../../context/HeaderBreadcrumbContext";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
@@ -258,6 +259,8 @@ function EmployeeDetail() {
   const employeeCover = companyStore.company?.employee_cover;
 
   const { data: emp, isLoading } = useEmployeeQuery(id || "");
+  const { data: userAccess } = useUserAccessQuery(id || "");
+  const accessRoleTitle = userAccess?.role?.title || "—";
   const breadcrumbEmployeeName = [emp?.first_name, emp?.second_name].filter(Boolean).join(" ").trim();
   useHeaderBreadcrumbLabel(breadcrumbEmployeeName);
   const { data: employeeWorksData } = useEmployeeWorksQuery({
@@ -851,6 +854,7 @@ function EmployeeDetail() {
                 <SummaryItem label="Департамент" value={workDepartmentTitle} />
                 <SummaryItem label="Подразделение" value={workDivisionTitle} />
                 <SummaryItem label="Локация" value={workLocationTitle} />
+                <SummaryItem label="Роль доступа" value={accessRoleTitle} />
                 <SummaryItem label="Срок работы" value={calcTenure(workDateFrom)} />
               </div>
             </div>
