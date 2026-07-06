@@ -1179,6 +1179,7 @@ export type KpiFiltersResult = {
     value_symbol_positions?: KpiFilterOption[];
     positions?: KpiFilterOption[];
     sources?: KpiFilterOption[];
+    auto_metrics?: KpiAutoMetricOption[];
     parents?: KpiParentOption[];
     defaults?: {
       period_type?: KpiPeriodType;
@@ -1216,7 +1217,17 @@ export type KpiTableItem = {
   actual_total: number;
   percent_total: number;
   has_children: boolean;
+  // Automatic KPIs: actual_total is computed live from task/project data by the
+  // reports backend. `metric` is the resolved metric key (see auto_metrics).
+  is_auto?: boolean;
+  metric?: string | null;
   children: KpiTableItem[];
+};
+
+export type KpiAutoMetricOption = {
+  value: string;
+  label: string;
+  value_symbol?: string;
 };
 
 export type KpiTableGroup = {
