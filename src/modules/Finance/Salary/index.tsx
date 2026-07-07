@@ -424,18 +424,6 @@ function FinanceSalaryPage() {
     ],
     []
   );
-  const employeeFilterOptions = useMemo<FilterOption[]>(() => {
-    const map = new Map<string, string>();
-    for (const record of records) {
-      const value = (record.employeeGuid || "").trim();
-      const label = (record.employeeName || "").trim();
-      if (!value || !label) continue;
-      if (!map.has(value)) map.set(value, label);
-    }
-    return [...map.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, "ru"));
-  }, [records]);
   const compensationTypeFilterOptions = useMemo<FilterOption[]>(
     () =>
       compensationTypeOptions
@@ -1026,18 +1014,15 @@ function FinanceSalaryPage() {
             }}
           >
             <div style={{ minWidth: "180px", maxWidth: "260px", flex: "0 1 260px" }}>
-              <Select
-                inputId="salary-filter-employee"
-                value={employeeFilterOptions.find((option) => option.value === employeeFilter) || null}
-                onChange={(option: any) => setEmployeeFilter(option?.value || "")}
-                options={employeeFilterOptions}
+              <EmployeeInfiniteSelect
+                value={employeeFilter}
+                onChange={(value) => setEmployeeFilter(value)}
+                fallbackLabel={
+                  employeeFilter ? knownEmployeeNameMap.get(employeeFilter) || undefined : undefined
+                }
                 placeholder="Сотрудник"
-                isSearchable
-                isClearable
-                styles={filterSelectStyles}
-                menuPortalTarget={selectPortalTarget}
-                menuPosition="fixed"
-                noOptionsMessage={() => "Ничего не найдено"}
+                styles={filterSelectStyles as StylesConfig<FilterOption, false>}
+                menuPortalTarget={selectPortalTarget || undefined}
               />
             </div>
 
