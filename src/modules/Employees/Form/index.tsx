@@ -26,7 +26,7 @@ import { useDepartmentExperienceLevelsSummaryQuery } from "../../../api/services
 import { usePositionsQuery } from "../../../api/services/position.service";
 import { useCreateEmployeeWork } from "../../../api/services/employeeWork.service";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
-import { useRolesQuery, roleService } from "../../../api/services/role.service";
+import { useRolesQuery } from "../../../api/services/role.service";
 import type { EmployeeFormValues, SelectOption } from "./types";
 import { employeeFormDefaults } from "./types";
 
@@ -180,30 +180,12 @@ function EmployeeForm() {
         locations_id: employee.locations_id || "",
         employee_work_reason_id: "",
         salary: "",
-        hrms_roles_id: "",
+        // hrms_roles_id is a registered ucode field on user_base, so it rides
+        // along with the item read/write — no separate lookup needed.
+        hrms_roles_id: employee.hrms_roles_id || "",
       });
     }
   }, [employee, isEdit, reset]);
-
-  /* ── Load the assigned access role (PG-direct, not the items API) ── */
-  useEffect(() => {
-    let cancelled = false;
-    if (isEdit && id) {
-      roleService
-        .getUserAccess(id)
-        .then((access) => {
-          if (!cancelled && access.role) {
-            setValue("hrms_roles_id", access.role.id);
-          }
-        })
-        .catch(() => {
-          /* role table not ready / no access — leave unselected */
-        });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [isEdit, id, setValue]);
 
   /* ── Photo upload ── */
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -305,23 +287,13 @@ function EmployeeForm() {
       experience_levels_id: data.experience_levels_id || null,
       divisions_id: data.divisions_id || null,
       locations_id: data.locations_id || null,
-    };
-
-    // The HRMS access role lives in a new physical column that the generic
-    // items API doesn't manage — persist it PG-direct via the reports gateway.
-    const assignHrmsRole = async (employeeGuid: string) => {
-      if (!employeeGuid) return;
-      try {
-        await roleService.assignRole(employeeGuid, data.hrms_roles_id || null);
-      } catch (err) {
-        console.error("Failed to assign access role:", err);
-      }
+      // Registered ucode field — persists directly through the items API.
+      hrms_roles_id: data.hrms_roles_id || null,
     };
 
     try {
       if (isEdit) {
         await updateMutation.mutateAsync({ ...payload, guid: id || "" });
-        await assignHrmsRole(id || "");
       } else {
         payload.client_type_id = "1c435896-2f12-4b61-a684-62ad1d2307d1";
         payload.role_id = import.meta.env.VITE_EMPLOYEE_ROLE_ID;
@@ -342,7 +314,6 @@ function EmployeeForm() {
             date_from: toISODate(data.date_hire) || toISODate(new Date()),
             date_to: null,
           });
-          await assignHrmsRole(createdEmployeeGuid);
         }
       }
       navigate("/employees");
