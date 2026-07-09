@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { Download, Search } from "lucide-react";
 import Select from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
+import MonthNavigator from "../../../components/common/MonthNavigator";
 import Spinner from "../../../components/ui/Spinner";
 import reportsService, {
   useBonusDeductionsReportQuery,
@@ -231,8 +232,6 @@ function BonusDeductionsPage() {
   } = useBonusDeductionsReportQuery();
 
   const filters = reportData?.result?.filters;
-  const yearOptions = useMemo(() => toOptions(filters?.years), [filters?.years]);
-  const monthOptions = useMemo(() => toOptions(filters?.months), [filters?.months]);
   const employeeOptions = useMemo(() => toOptions(filters?.employees), [filters?.employees]);
   const departmentOptions = useMemo(() => toOptions(filters?.departments), [filters?.departments]);
 
@@ -364,8 +363,8 @@ function BonusDeductionsPage() {
       <div className="-mx-4 -mt-4 -mb-4 flex h-[calc(100dvh-64px)] min-h-0 flex-col md:-mx-6 md:-mt-6 md:-mb-6 md:h-[calc(100dvh-64px)]">
         <section className="flex h-full min-h-0 flex-col bg-white">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="border-b border-gray-100 px-3 py-1.5 md:px-4 md:py-2">
-              <div className="flex flex-wrap items-end gap-2">
+            <div className="border-b border-gray-100 px-4 py-3 md:px-6">
+              <div className="flex flex-wrap items-end gap-3">
                 <label className="relative min-w-[220px] flex-1">
                   <Search
                     size={16}
@@ -380,43 +379,18 @@ function BonusDeductionsPage() {
                   />
                 </label>
 
-                <div className="min-w-[120px]">
-                  <p className="sr-only">Год</p>
-                  <Select
-                    options={yearOptions}
-                    value={yearOptions.find((item) => item.value === selectedYear) || null}
-                    onChange={(value) => {
-                      const nextValue =
-                        value && typeof value === "object" && "value" in value
-                          ? String(value.value)
-                          : "";
-                      setSelectedYear(nextValue);
-                    }}
-                    isClearable={false}
-                    menuPosition="fixed"
-                    menuPortalTarget={selectPortalTarget}
-                    styles={selectStyles}
-                  />
-                </div>
-
-                <div className="min-w-[120px]">
-                  <p className="sr-only">Месяц</p>
-                  <Select
-                    options={monthOptions}
-                    value={monthOptions.find((item) => item.value === selectedMonth) || null}
-                    onChange={(value) => {
-                      const nextValue =
-                        value && typeof value === "object" && "value" in value
-                          ? String(value.value)
-                          : "";
-                      setSelectedMonth(nextValue);
-                    }}
-                    isClearable={false}
-                    menuPosition="fixed"
-                    menuPortalTarget={selectPortalTarget}
-                    styles={selectStyles}
-                  />
-                </div>
+                <MonthNavigator
+                  value={
+                    selectedYear && selectedMonth
+                      ? `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`
+                      : ""
+                  }
+                  onChange={(monthKey) => {
+                    const [year, month] = monthKey.split("-");
+                    setSelectedYear(String(Number(year)));
+                    setSelectedMonth(String(Number(month)));
+                  }}
+                />
 
                 <div className="min-w-[220px] flex-1">
                   <p className="sr-only">Сотрудник</p>

@@ -3,7 +3,7 @@ import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import Chart from "react-apexcharts";
-import { ApexAxisChartSeries, ApexNonAxisChartSeries, ApexOptions } from "apexcharts";
+import { ApexAxisChartSeries, ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
 import {
@@ -63,6 +63,14 @@ const formatDate = (value: string | null | undefined): string => {
 const toPercentText = (value: number | null | undefined): string => {
   const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
   return safe.toFixed(2).replace(".", ",");
+};
+
+// Compact percent for chart labels: at most one decimal, trailing ",0" trimmed.
+// 20 → "20", 17.78 → "17,8", 6.67 → "6,7".
+const toPercentShort = (value: number | null | undefined): string => {
+  const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const rounded = Math.round(safe * 10) / 10;
+  return (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)).replace(".", ",");
 };
 
 const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7): number[] => {
@@ -333,12 +341,17 @@ function StaffCountPage() {
     },
   ];
 
-  const createPieOptions = (
+  const createBarOptions = (
     items: StaffCountShareItem[],
     onSliceSelect: (index: number) => void
-  ): ApexOptions => ({
+  ): ApexOptions => {
+  const maxCount = items.reduce((acc, item) => Math.max(acc, item.employees_count || 0), 0);
+  // Headroom past the longest bar so its label sits fully outside the bar.
+  const axisMax = Math.max(1, Math.ceil(maxCount * 1.28));
+
+  return {
     chart: {
-      type: "pie",
+      type: "bar",
       fontFamily: "Outfit, sans-serif",
       toolbar: { show: false },
       events: {
@@ -349,29 +362,69 @@ function StaffCountPage() {
         },
       },
     },
-    labels: items.map((item) => `${item.label} ${toPercentText(item.percentage)}%`),
-    colors: PIE_COLORS,
-    legend: {
-      show: true,
-      position: "bottom",
-      fontSize: "13px",
-      itemMargin: {
-        horizontal: 10,
-        vertical: 4,
+    plotOptions: {
+      bar: {
+        horizontal: true,
+        distributed: true,
+        borderRadius: 6,
+        barHeight: "62%",
+        dataLabels: {
+          position: "top",
+        },
       },
     },
-    dataLabels: {
-      enabled: false,
+    colors: PIE_COLORS,
+    xaxis: {
+      categories: items.map((item) => item.label),
+      max: axisMax,
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: {
+        style: { fontSize: "12px", colors: "#64748b" },
+      },
     },
-    stroke: {
-      width: 0,
+    yaxis: {
+      labels: {
+        style: { fontSize: "12px", colors: ["#334155"] },
+      },
+    },
+    legend: { show: false },
+    grid: {
+      borderColor: "#e5e7eb",
+      strokeDashArray: 4,
+      // Reserve room so data labels past the longest bar aren't clipped.
+      padding: { right: 56 },
+    },
+    dataLabels: {
+      enabled: true,
+      // Anchor at the bar's end so the label sits fully outside the bar,
+      // never overlapping it — regardless of bar length.
+      textAnchor: "start",
+      // Absolute count with its share in parentheses, e.g. "9 (20%)".
+      formatter: (value: number, opts) => {
+        const item = items[opts.dataPointIndex];
+        const percent = item ? toPercentShort(item.percentage) : "0";
+        return `${value}  (${percent}%)`;
+      },
+      offsetX: 12,
+      style: {
+        fontSize: "13px",
+        fontWeight: 700,
+        colors: ["#1e293b"],
+      },
+      background: { enabled: false },
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value} сотруд.`,
+        formatter: (value: number, opts) => {
+          const item = items[opts?.dataPointIndex ?? -1];
+          const percent = item ? toPercentShort(item.percentage) : "0";
+          return `${value} сотруд. (${percent}%)`;
+        },
       },
     },
-  });
+  };
+  };
 
   const handleDepartmentSliceSelect = (index: number) => {
     const item = byDepartments[index];
@@ -393,14 +446,22 @@ function StaffCountPage() {
     setTablePage(1);
   };
 
-  const departmentsPieSeries: ApexNonAxisChartSeries = byDepartments.map((item) => item.employees_count);
-  const locationsPieSeries: ApexNonAxisChartSeries = byLocations.map((item) => item.employees_count);
-  const departmentsPieOptions = useMemo(
-    () => createPieOptions(byDepartments, handleDepartmentSliceSelect),
+  const departmentsBarSeries: ApexAxisChartSeries = [
+    { name: "Сотрудники", data: byDepartments.map((item) => item.employees_count) },
+  ];
+  const locationsBarSeries: ApexAxisChartSeries = [
+    { name: "Сотрудники", data: byLocations.map((item) => item.employees_count) },
+  ];
+  const departmentsHasData = byDepartments.some((item) => item.employees_count > 0);
+  const locationsHasData = byLocations.some((item) => item.employees_count > 0);
+  const departmentsBarHeight = Math.max(220, byDepartments.length * 46);
+  const locationsBarHeight = Math.max(220, byLocations.length * 46);
+  const departmentsBarOptions = useMemo(
+    () => createBarOptions(byDepartments, handleDepartmentSliceSelect),
     [byDepartments]
   );
-  const locationsPieOptions = useMemo(
-    () => createPieOptions(byLocations, handleLocationSliceSelect),
+  const locationsBarOptions = useMemo(
+    () => createBarOptions(byLocations, handleLocationSliceSelect),
     [byLocations]
   );
 
@@ -484,14 +545,17 @@ function StaffCountPage() {
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
                 <h3 className="text-lg font-semibold text-gray-900">Численность персонала по департаментам</h3>
                 <div className="mt-2">
-                  {byDepartments.length === 0 || departmentsPieSeries.every((value) => value === 0) ? (
+                  {!departmentsHasData ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
                       Нет данных для графика
                     </div>
                   ) : (
-                    <div className="flex justify-center">
-                      <Chart options={departmentsPieOptions} series={departmentsPieSeries} type="pie" height={300} />
-                    </div>
+                    <Chart
+                      options={departmentsBarOptions}
+                      series={departmentsBarSeries}
+                      type="bar"
+                      height={departmentsBarHeight}
+                    />
                   )}
                 </div>
               </article>
@@ -499,14 +563,17 @@ function StaffCountPage() {
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
                 <h3 className="text-lg font-semibold text-gray-900">Численность персонала по локациям</h3>
                 <div className="mt-2">
-                  {byLocations.length === 0 || locationsPieSeries.every((value) => value === 0) ? (
+                  {!locationsHasData ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
                       Нет данных для графика
                     </div>
                   ) : (
-                    <div className="flex justify-center">
-                      <Chart options={locationsPieOptions} series={locationsPieSeries} type="pie" height={300} />
-                    </div>
+                    <Chart
+                      options={locationsBarOptions}
+                      series={locationsBarSeries}
+                      type="bar"
+                      height={locationsBarHeight}
+                    />
                   )}
                 </div>
               </article>

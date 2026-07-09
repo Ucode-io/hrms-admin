@@ -134,6 +134,8 @@ export const useEmployeesQuery = (
     offset?: number;
     search?: string;
     status?: EmployeeStatus;
+    positions_id?: string[];
+    departments_id?: string[];
     enabled?: boolean;
   } = {}
 ) => {
@@ -153,6 +155,14 @@ export const useEmployeesQuery = (
 
     if (params.status) {
       dataObj.status = [params.status];
+    }
+
+    if (params.positions_id && params.positions_id.length > 0) {
+      dataObj.positions_id = params.positions_id;
+    }
+
+    if (params.departments_id && params.departments_id.length > 0) {
+      dataObj.departments_id = params.departments_id;
     }
 
     const res = await instance.get(`/v2/items/${SLUG}`, {

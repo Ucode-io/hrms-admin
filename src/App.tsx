@@ -71,14 +71,15 @@ import TimeModule from "./modules/Time";
 import TimeTrackingModule from "./modules/TimeTracking";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
+import BirthdaysPage from "./modules/Reports/Birthdays";
 import GenderDistributionPage from "./modules/Reports/GenderDistribution";
 import StaffCountPage from "./modules/Reports/StaffCount";
 import StaffTurnoverPage from "./modules/Reports/StaffTurnover";
 import TenurePage from "./modules/Reports/Tenure";
 import AbsenceBalancePage from "./modules/Reports/AbsenceBalance";
 import AttendancePage from "./modules/Reports/Attendance";
+import LatenessPage from "./modules/Reports/Lateness";
 import SportAttendancePage from "./modules/Reports/SportAttendance";
-import PayrollPage from "./modules/Reports/Payroll";
 import BonusDeductionsPage from "./modules/Reports/BonusDeductions";
 import RecruitingFunnelPage from "./modules/Reports/RecruitingFunnel";
 import RecruitingSourcesPage from "./modules/Reports/RecruitingSources";
@@ -268,14 +269,15 @@ function App() {
               <Route path="/time/attendance" element={<Navigate to="/time?view=attendance" replace />} />
               <Route path="/reports" element={<ReportsHomePage />} />
               <Route path="/reports/age-distribution" element={<AgeDistributionPage />} />
+              <Route path="/reports/birthdays" element={<BirthdaysPage />} />
               <Route path="/reports/gender-distribution" element={<GenderDistributionPage />} />
               <Route path="/reports/staff-count" element={<StaffCountPage />} />
               <Route path="/reports/staff-turnover" element={<StaffTurnoverPage />} />
               <Route path="/reports/tenure" element={<TenurePage />} />
               <Route path="/reports/absence-balance" element={<AbsenceBalancePage />} />
               <Route path="/reports/attendance" element={<AttendancePage />} />
+              <Route path="/reports/lateness" element={<LatenessPage />} />
               <Route path="/reports/sport-attendance" element={<SportAttendancePage />} />
-              <Route path="/reports/payroll" element={<PayrollPage />} />
               <Route path="/reports/bonus-deductions" element={<BonusDeductionsPage />} />
               <Route path="/reports/recruiting-funnel" element={<RecruitingFunnelPage />} />
               <Route path="/reports/recruiting-sources" element={<RecruitingSourcesPage />} />

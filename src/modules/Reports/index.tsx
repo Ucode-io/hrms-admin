@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Cake,
   CalendarCheck,
   CalendarDays,
   Clock3,
@@ -82,6 +83,14 @@ const reportSections: ReportSection[] = [
           subtitle: "Средний срок работы и годовщины",
           keywords: ["стаж", "срок", "работа"],
         },
+        {
+          id: "birthdays",
+          title: "Дни рождения",
+          icon: Cake,
+          path: "/reports/birthdays",
+          subtitle: "Дни рождения сотрудников по месяцам",
+          keywords: ["день рождения", "дни рождения", "именины", "birthday", "месяц"],
+        },
       ],
     ],
   },
@@ -141,8 +150,16 @@ const reportSections: ReportSection[] = [
           title: "Посещаемость",
           icon: CalendarCheck,
           path: "/reports/attendance",
-          subtitle: "Опоздания и отсутствия за месяц",
-          keywords: ["посещаемость", "опоздания", "рабочие дни"],
+          subtitle: "Рабочие дни, отработано и отсутствия",
+          keywords: ["посещаемость", "рабочие дни", "отсутствия", "отработано"],
+        },
+        {
+          id: "lateness",
+          title: "Опоздания",
+          icon: Clock3,
+          path: "/reports/lateness",
+          subtitle: "Минуты опозданий и количество раз",
+          keywords: ["опоздания", "опоздал", "минуты", "поздно"],
         },
       ],
       [
@@ -161,16 +178,6 @@ const reportSections: ReportSection[] = [
     id: "finance",
     title: "Финансы",
     columns: [
-      [
-        {
-          id: "payroll",
-          title: "Payroll",
-          icon: HandCoins,
-          path: "/reports/payroll",
-          subtitle: "Зарплата и бонусы по периодам",
-          keywords: ["payroll", "зарплата", "выплаты"],
-        },
-      ],
       [
         {
           id: "bonus-deductions",

@@ -1,30 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import Chart from "react-apexcharts";
-import { ApexNonAxisChartSeries, ApexOptions } from "apexcharts";
+import { ApexAxisChartSeries, ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
 import MonthNavigator from "../../../components/common/MonthNavigator";
 import Spinner from "../../../components/ui/Spinner";
 import {
-  type SportAttendanceDistributionItem,
-  type SportAttendanceMonthOption,
-  useSportAttendanceReportQuery,
-  useSportAttendanceTableQuery,
+  type AttendanceMonthOption,
+  type LatenessTopLateItem,
+  useLatenessReportQuery,
+  useLatenessTableQuery,
 } from "../../../api/services/reports.service";
 
 const TABLE_PAGE_LIMIT = 20;
-const CHART_COLORS = ["#74A8C9", "#6B8FE3", "#666DCF", "#A78BFA"];
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   return "Не удалось загрузить отчет. Попробуйте снова.";
 };
 
-const toPercentText = (value: number | null | undefined): string => {
-  const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
-  return safe.toFixed(2).replace(".", ",");
+// Minutes → "2 ч 15 мин" / "45 мин".
+const formatMinutes = (minutes: number): string => {
+  const safe = Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0;
+  const hours = Math.floor(safe / 60);
+  const mins = safe % 60;
+  if (hours > 0) {
+    return `${hours} ч ${mins} мин`;
+  }
+  return `${mins} мин`;
 };
 
 const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7): number[] => {
@@ -49,43 +54,55 @@ const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7
   return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 };
 
-function SportAttendancePage() {
+function MetricCard({ title, value }: { title: string; value: string }) {
+  return (
+    <article className="rounded-2xl border border-gray-200 bg-white p-4">
+      <p className="text-sm text-gray-500">{title}</p>
+      <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
+    </article>
+  );
+}
+
+function LatenessPage() {
   const [tablePage, setTablePage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
-  const [selectedBucketKey, setSelectedBucketKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setTablePage(1);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const reportRequestData = useMemo(
     () => (selectedMonth ? { month: selectedMonth } : {}),
     [selectedMonth]
   );
 
-  const {
-    data,
-    isLoading,
-    isFetching,
-    isError,
-    error,
-    refetch,
-  } = useSportAttendanceReportQuery(reportRequestData);
+  const { data, isLoading, isFetching, isError, error, refetch } =
+    useLatenessReportQuery(reportRequestData);
 
-  const months: SportAttendanceMonthOption[] = data?.result?.filters?.available_months ?? [];
-  const distribution: SportAttendanceDistributionItem[] = data?.result?.chart?.distribution ?? [];
+  const months: AttendanceMonthOption[] = data?.result?.filters?.available_months ?? [];
 
   useEffect(() => {
     if (selectedMonth) return;
 
-    const fallback = data?.result?.summary?.month || months[0]?.key || "";
+    const fallback = data?.result?.cards?.month || months[0]?.key || "";
     if (fallback) {
       setSelectedMonth(fallback);
     }
-  }, [selectedMonth, data?.result?.summary?.month, months]);
+  }, [selectedMonth, data?.result?.cards?.month, months]);
 
   const tableRequestData = useMemo(
     () => ({
       ...(selectedMonth ? { month: selectedMonth } : {}),
-      ...(selectedBucketKey ? { bucket_key: selectedBucketKey } : {}),
+      ...(search ? { search } : {}),
     }),
-    [selectedMonth, selectedBucketKey]
+    [selectedMonth, search]
   );
 
   const {
@@ -95,80 +112,71 @@ function SportAttendancePage() {
     isError: isTableError,
     error: tableError,
     refetch: refetchTable,
-  } = useSportAttendanceTableQuery({
+  } = useLatenessTableQuery({
     requestData: tableRequestData,
     page: tablePage,
     limit: TABLE_PAGE_LIMIT,
   });
 
-  const pieSeries: ApexNonAxisChartSeries = distribution.map((item) => item.count);
-  const pieLabels = distribution.map(
-    (item) => `${item.label} ${toPercentText(item.percentage)}%`
-  );
-  const selectedBucketLabel =
-    distribution.find((item) => item.key === selectedBucketKey)?.label ?? selectedBucketKey;
+  const cards = data?.result?.cards ?? {};
+  const topLate: LatenessTopLateItem[] = data?.result?.charts?.top_late_time ?? [];
 
-  const pieOptions: ApexOptions = useMemo(
-    () => ({
-      chart: {
-        type: "pie",
-        fontFamily: "Outfit, sans-serif",
-        toolbar: { show: false },
-        events: {
-          dataPointSelection: (_event, _chartContext, config) => {
-            if (typeof config?.dataPointIndex !== "number" || config.dataPointIndex < 0) {
-              return;
-            }
+  const lateSeries: ApexAxisChartSeries = [
+    {
+      name: "Минуты опозданий",
+      data: topLate.map((item) => item.total_late_time),
+    },
+  ];
 
-            const selected = distribution[config.dataPointIndex];
-            if (!selected?.key) {
-              return;
-            }
-
-            setSelectedBucketKey((prev) => (prev === selected.key ? null : selected.key));
-            setTablePage(1);
-          },
+  const lateOptions: ApexOptions = {
+    chart: {
+      type: "bar",
+      fontFamily: "Outfit, sans-serif",
+      toolbar: { show: false },
+    },
+    colors: ["#F97066"],
+    plotOptions: {
+      bar: {
+        borderRadius: 6,
+        columnWidth: "45%",
+      },
+    },
+    xaxis: {
+      categories: topLate.map((item) => item.full_name),
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: {
+        style: {
+          fontSize: "11px",
+          colors: "#64748b",
         },
       },
-      labels: pieLabels,
-      colors: CHART_COLORS,
-      legend: {
-        show: true,
-        position: "bottom",
-        fontSize: "14px",
-        itemMargin: {
-          horizontal: 10,
-          vertical: 5,
+    },
+    yaxis: {
+      title: {
+        text: "Минуты",
+        style: { fontSize: "12px", color: "#64748b" },
+      },
+      labels: {
+        style: {
+          fontSize: "12px",
+          colors: ["#64748b"],
         },
       },
-      dataLabels: {
-        enabled: false,
+    },
+    grid: {
+      borderColor: "#e5e7eb",
+      strokeDashArray: 4,
+    },
+    dataLabels: {
+      enabled: false,
+    },
+    tooltip: {
+      y: {
+        formatter: (value: number) => formatMinutes(value),
       },
-      stroke: {
-        width: 0,
-      },
-      tooltip: {
-        y: {
-          formatter: (value: number) => `${value} сотруд.`,
-        },
-      },
-      responsive: [
-        {
-          breakpoint: 768,
-          options: {
-            chart: {
-              height: 300,
-            },
-            legend: {
-              position: "bottom",
-              fontSize: "12px",
-            },
-          },
-        },
-      ],
-    }),
-    [distribution, pieLabels]
-  );
+    },
+  };
 
   const tableResult = tableData?.result;
   const tableItems = tableResult?.items ?? [];
@@ -180,10 +188,18 @@ function SportAttendancePage() {
   const tableTo = tablePagination?.to ?? 0;
   const visiblePages = getVisiblePages(tableCurrentPage, tableTotalPages);
 
+  const tableColumns = [
+    "Сотрудник",
+    "Пришёл вовремя",
+    "Опозданий (раз)",
+    "Всего опозданий",
+    "В среднем за раз",
+  ];
+
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Посещение спорта | HRMS" description="Отчет по посещению спорта" />
+        <PageMeta title="Опоздания | HRMS" description="Отчет по опозданиям" />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -194,7 +210,7 @@ function SportAttendancePage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Посещение спорта | HRMS" description="Отчет по посещению спорта" />
+        <PageMeta title="Опоздания | HRMS" description="Отчет по опозданиям" />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -213,12 +229,12 @@ function SportAttendancePage() {
 
   return (
     <>
-      <PageMeta title="Посещение спорта | HRMS" description="Отчет по посещению спорта" />
+      <PageMeta title="Опоздания | HRMS" description="Отчет по опозданиям" />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
           <div className="space-y-4 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <MonthNavigator
                 value={selectedMonth}
                 onChange={(monthKey) => {
@@ -228,39 +244,56 @@ function SportAttendancePage() {
               />
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-              {distribution.length === 0 || pieSeries.every((value) => value === 0) ? (
-                <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
-                  Нет данных для графика
-                </div>
-              ) : (
-                <div className="flex justify-center">
-                  <Chart options={pieOptions} series={pieSeries} type="pie" height={320} />
-                </div>
-              )}
-            </div>
+            <section className="grid gap-4 xl:grid-cols-12">
+              <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4 xl:col-span-8">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Топ сотрудников по времени опозданий
+                </h3>
+                {topLate.length === 0 ? (
+                  <div className="mt-2 flex h-[280px] items-center justify-center text-sm text-gray-500">
+                    Нет данных для графика
+                  </div>
+                ) : (
+                  <div className="mt-2">
+                    <Chart options={lateOptions} series={lateSeries} type="bar" height={300} />
+                  </div>
+                )}
+              </article>
+
+              <div className="space-y-4 xl:col-span-4">
+                <MetricCard
+                  title="Опоздавших сотрудников"
+                  value={String(Number(cards.employees_late_count || 0))}
+                />
+                <MetricCard
+                  title="Всего опозданий (раз)"
+                  value={String(Number(cards.late_arrivals_count || 0))}
+                />
+                <MetricCard
+                  title="Суммарное время"
+                  value={formatMinutes(Number(cards.total_late_time || 0))}
+                />
+              </div>
+            </section>
           </div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-          {selectedBucketKey ? (
-            <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <span className="text-xs font-medium text-gray-500">Фильтр по графику:</span>
-              <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                Посещения: {selectedBucketLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedBucketKey(null);
-                  setTablePage(1);
-                }}
-                className="inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
-              >
-                Сбросить
-              </button>
-            </div>
-          ) : null}
+          <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
+            <label className="relative w-full md:max-w-sm">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Поиск..."
+                className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
+              />
+            </label>
+          </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
@@ -302,9 +335,7 @@ function SportAttendancePage() {
               <button
                 type="button"
                 disabled={tableCurrentPage >= tableTotalPages || isTableFetching}
-                onClick={() =>
-                  setTablePage((prev) => Math.min(tableTotalPages, prev + 1))
-                }
+                onClick={() => setTablePage((prev) => Math.min(tableTotalPages, prev + 1))}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ChevronRight size={15} />
@@ -316,10 +347,10 @@ function SportAttendancePage() {
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-gray-50">
-                  {["Сотрудник", "Месяц", "Количество посещений"].map((column) => (
+                  {tableColumns.map((column) => (
                     <th
                       key={column}
-                      className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700"
+                      className="whitespace-nowrap border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700"
                     >
                       {column}
                     </th>
@@ -328,9 +359,9 @@ function SportAttendancePage() {
               </thead>
               <tbody>
                 {isTableLoading ? (
-                  Array.from({ length: 8 }).map((_, rowIndex) => (
+                  Array.from({ length: 10 }).map((_, rowIndex) => (
                     <tr key={`table-skeleton-${rowIndex}`} className="animate-pulse">
-                      {Array.from({ length: 3 }).map((__, cellIndex) => (
+                      {tableColumns.map((__, cellIndex) => (
                         <td
                           key={`table-skeleton-cell-${rowIndex}-${cellIndex}`}
                           className="border-b border-gray-100 px-4 py-3"
@@ -342,7 +373,7 @@ function SportAttendancePage() {
                   ))
                 ) : isTableError ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-sm text-error-600">
+                    <td colSpan={tableColumns.length} className="px-4 py-6 text-center text-sm text-error-600">
                       {getErrorMessage(tableError)}{" "}
                       <button
                         type="button"
@@ -357,21 +388,36 @@ function SportAttendancePage() {
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                    <td colSpan={tableColumns.length} className="px-4 py-6 text-center text-sm text-gray-500">
+                      Опозданий за выбранный период не найдено
                     </td>
                   </tr>
                 ) : (
                   tableItems.map((item) => (
                     <tr key={item.guid} className="hover:bg-gray-50">
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
-                        <Link to={`/employees/${item.guid}`} className="transition hover:text-brand-500">
-                          {item.employee}
-                        </Link>
+                      <td className="whitespace-nowrap border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
+                        <span className="inline-flex items-center gap-2">
+                          <Link to={`/employees/${item.guid}`} className="transition hover:text-brand-500">
+                            {item.employee}
+                          </Link>
+                          {item.is_remote ? (
+                            <span className="inline-flex items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-600">
+                              Удалённо
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.month}</td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {item.attendance_count}
+                        {item.on_time_days}
+                      </td>
+                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
+                        {item.late_days}
+                      </td>
+                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
+                        {formatMinutes(item.total_late_time)}
+                      </td>
+                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
+                        {formatMinutes(item.avg_late_time)}
                       </td>
                     </tr>
                   ))
@@ -396,4 +442,4 @@ function SportAttendancePage() {
   );
 }
 
-export default observer(SportAttendancePage);
+export default observer(LatenessPage);

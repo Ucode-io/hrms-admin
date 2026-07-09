@@ -8,6 +8,8 @@ import {
   FileText,
   Folder,
   Image,
+  LayoutGrid,
+  List,
   MoreVertical,
   Search,
   Trash2,
@@ -268,6 +270,43 @@ const DocumentTypeIcon = ({ type, className = "h-5 w-5" }: { type: string; class
   }
 };
 
+type DocumentsViewMode = "grid" | "list";
+
+const ViewToggle = ({
+  value,
+  onChange,
+}: {
+  value: DocumentsViewMode;
+  onChange: (mode: DocumentsViewMode) => void;
+}) => (
+  <div className="inline-flex h-[38px] items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-[3px]">
+    <button
+      type="button"
+      onClick={() => onChange("list")}
+      className={`inline-flex h-[30px] items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition ${
+        value === "list"
+          ? "border border-blue-100 bg-white text-blue-600 shadow-sm"
+          : "border border-transparent text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      <List className="h-[17px] w-[17px]" />
+      Список
+    </button>
+    <button
+      type="button"
+      onClick={() => onChange("grid")}
+      className={`inline-flex h-[30px] items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition ${
+        value === "grid"
+          ? "border border-blue-100 bg-white text-blue-600 shadow-sm"
+          : "border border-transparent text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      <LayoutGrid className="h-[17px] w-[17px]" />
+      Сетка
+    </button>
+  </div>
+);
+
 export default function EmployeeDocumentsSection({
   employeeGuid,
   brandColor,
@@ -280,6 +319,7 @@ export default function EmployeeDocumentsSection({
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const [activeFolder, setActiveFolder] = useState<DocumentFolderItem | null>(null);
+  const [viewMode, setViewMode] = useState<DocumentsViewMode>("grid");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<EmployeeDocumentItem | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -663,10 +703,11 @@ export default function EmployeeDocumentsSection({
     <>
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         {activeFolder ? (
-          <>
+          <div key={activeFolder.guid} className="documents-view-enter">
             <div className="px-6 py-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
+                  <ViewToggle value={viewMode} onChange={setViewMode} />
                   {!isGlobalMode ? (
                     <button
                       type="button"
@@ -676,9 +717,6 @@ export default function EmployeeDocumentsSection({
                       К папкам
                     </button>
                   ) : null}
-                  <span className="text-[13px] font-medium text-slate-500">
-                    {activeFolderDocuments.length} файлов
-                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -701,6 +739,7 @@ export default function EmployeeDocumentsSection({
                 </div>
               </div>
 
+              {viewMode === "grid" ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {activeFolderDocuments.map((doc) => {
                   const type = normalizeDocumentType(doc.type);
@@ -828,21 +867,137 @@ export default function EmployeeDocumentsSection({
                     </div>
                   );
                 })}
-                <input
-                  ref={activeFolderUploadInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(event) => void handleUploadToActiveFolder(event)}
-                />
               </div>
+              ) : (
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        {["", "Название", "Тип", "Сотрудник", ""].map((heading, index) => (
+                          <th
+                            key={`doc-col-${index}`}
+                            className="whitespace-nowrap border-b border-slate-200 px-4 py-2.5 text-left text-[12px] font-semibold text-slate-500"
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeFolderDocuments.map((doc) => {
+                        const type = normalizeDocumentType(doc.type);
+                        const docName = getDocumentName(doc);
+                        const employeeLabel = getDocumentEmployeeLabel(doc);
+                        const employeePhoto = getDocumentEmployeePhoto(doc);
+                        const deleting = deletingDocumentId === doc.guid;
+                        const isSelected = selectedItemId === doc.guid;
+
+                        return (
+                          <tr
+                            key={doc.guid}
+                            aria-pressed={isSelected}
+                            onClick={() => handleOpenFile(doc)}
+                            title="Открыть"
+                            className={`cursor-pointer select-none border-b border-slate-100 transition ${
+                              isSelected ? "bg-brand-50" : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <td className="w-[52px] px-4 py-2.5">
+                              <DocumentTypeIcon type={type} className="h-5 w-5 text-slate-600" />
+                            </td>
+                            <td className="px-4 py-2.5 text-[14px] font-semibold text-slate-900">
+                              {docName}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span
+                                className={`rounded px-2 py-0.5 text-[11px] font-semibold ${getTypeBadgeColor(type)}`}
+                              >
+                                {type.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-[13px] text-slate-600">
+                              {employeeLabel ? (
+                                <div className="inline-flex max-w-full items-center gap-2">
+                                  {employeePhoto ? (
+                                    <img
+                                      src={employeePhoto}
+                                      alt={employeeLabel}
+                                      className="h-6 w-6 shrink-0 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <span
+                                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                                      style={{ backgroundColor: brandColor }}
+                                    >
+                                      {getEmployeeInitials(employeeLabel)}
+                                    </span>
+                                  )}
+                                  <span className="truncate">{employeeLabel}</span>
+                                </div>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleOpenFile(doc);
+                                  }}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+                                  title="Открыть"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(event) => handleDownloadFile(event, doc)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+                                  title="Скачать"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(event) => void handleDeleteFile(event, doc)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-100 text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                                  title="Удалить"
+                                  disabled={deleting}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              )}
+
+              <input
+                ref={activeFolderUploadInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => void handleUploadToActiveFolder(event)}
+              />
 
               {activeFolderDocuments.length === 0 ? (
                 <p className="mt-3 text-[13px] text-slate-500">В этой папке пока нет файлов.</p>
               ) : null}
             </div>
-          </>
+          </div>
         ) : (
-          <>
+          <div key="documents-folders-root" className="documents-view-enter">
+            <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-3">
+              <ViewToggle value={viewMode} onChange={setViewMode} />
+            </div>
+            {viewMode === "grid" ? (
             <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-3">
               {folders.map((folder) => {
                 const docsInFolder = documentsByFolder.get(folder.guid) || [];
@@ -908,7 +1063,86 @@ export default function EmployeeDocumentsSection({
                 );
               })}
             </div>
-          </>
+            ) : (
+            <div className="px-6 py-5">
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        {["", "Название", "Файлов", ""].map((heading, index) => (
+                          <th
+                            key={`folder-col-${index}`}
+                            className="whitespace-nowrap border-b border-slate-200 px-4 py-2.5 text-left text-[12px] font-semibold text-slate-500"
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {folders.map((folder) => {
+                        const docsInFolder = documentsByFolder.get(folder.guid) || [];
+                        const isUploading = uploadingFolderId === folder.guid;
+                        const isSelected = selectedItemId === folder.guid;
+
+                        return (
+                          <tr
+                            key={folder.guid}
+                            aria-pressed={isSelected}
+                            onClick={() => openFolder(folder)}
+                            title="Открыть"
+                            className={`cursor-pointer select-none border-b border-slate-100 transition ${
+                              isSelected ? "bg-brand-50" : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <td className="w-[52px] px-4 py-2.5">
+                              <Folder className="h-6 w-6 fill-slate-700 text-slate-700" />
+                            </td>
+                            <td className="px-4 py-2.5 text-[14px] font-semibold text-slate-900">
+                              {folder.title || "Без названия"}
+                            </td>
+                            <td className="px-4 py-2.5 text-[13px] text-slate-600">
+                              {docsInFolder.length} файлов
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center justify-end">
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openUploadDialog(folder);
+                                  }}
+                                  title={isUploading ? "Загрузка..." : "Добавить файл"}
+                                >
+                                  <Upload className="h-4 w-4" style={{ color: brandColor }} />
+                                  {isUploading ? "Загрузка..." : "Добавить"}
+                                </button>
+                                <input
+                                  ref={(element) => {
+                                    fileInputRefs.current[folder.guid] = element;
+                                  }}
+                                  type="file"
+                                  className="hidden"
+                                  onClick={(event) => event.stopPropagation()}
+                                  onChange={(event) => {
+                                    event.stopPropagation();
+                                    void handleUploadToFolder(folder, event);
+                                  }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            )}
+          </div>
         )}
       </div>
 

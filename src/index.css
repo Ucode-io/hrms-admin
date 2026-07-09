@@ -1415,6 +1415,21 @@ span.flatpickr-weekday,
   to { transform: rotate(360deg); }
 }
 
+@keyframes documentsViewFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.documents-view-enter {
+  animation: documentsViewFade 0.22s ease-out;
+}
+
 /* Rich-text content (recruiting): restore headings/lists Tailwind preflight resets.
    Applies both to rendered output (.comment-body) and the live editor (.rsw-ce). */
 .comment-body h1,

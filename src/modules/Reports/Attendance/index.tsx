@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
 import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
-import Chart from "react-apexcharts";
-import { ApexAxisChartSeries, ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
+import MonthNavigator from "../../../components/common/MonthNavigator";
 import Spinner from "../../../components/ui/Spinner";
 import reportsService, {
   type AttendanceMonthOption,
-  type AttendanceTopLateItem,
   useAttendanceReportQuery,
   useAttendanceTableQuery,
 } from "../../../api/services/reports.service";
@@ -157,59 +155,6 @@ function AttendancePage() {
   };
 
   const cards = data?.result?.cards ?? {};
-  const topLate: AttendanceTopLateItem[] = data?.result?.charts?.top_late_time ?? [];
-
-  const lateSeries: ApexAxisChartSeries = [
-    {
-      name: "Общее время опозданий",
-      data: topLate.map((item) => item.total_late_time),
-    },
-  ];
-
-  const lateOptions: ApexOptions = {
-    chart: {
-      type: "bar",
-      fontFamily: "Outfit, sans-serif",
-      toolbar: { show: false },
-    },
-    colors: ["#6B8FE3"],
-    plotOptions: {
-      bar: {
-        borderRadius: 6,
-        columnWidth: "45%",
-      },
-    },
-    xaxis: {
-      categories: topLate.map((item) => item.full_name),
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-      labels: {
-        style: {
-          fontSize: "11px",
-          colors: "#64748b",
-        },
-      },
-    },
-    yaxis: {
-      title: {
-        text: "Минуты",
-        style: { fontSize: "12px", color: "#64748b" },
-      },
-      labels: {
-        style: {
-          fontSize: "12px",
-          colors: ["#64748b"],
-        },
-      },
-    },
-    grid: {
-      borderColor: "#e5e7eb",
-      strokeDashArray: 4,
-    },
-    dataLabels: {
-      enabled: false,
-    },
-  };
 
   const tableResult = tableData?.result;
   const tableItems = tableResult?.items ?? [];
@@ -220,6 +165,15 @@ function AttendancePage() {
   const tableFrom = tablePagination?.from ?? 0;
   const tableTo = tablePagination?.to ?? 0;
   const visiblePages = getVisiblePages(tableCurrentPage, tableTotalPages);
+
+  const tableColumns = [
+    "Сотрудник",
+    "Рабочие дни",
+    "Отработано",
+    "Дней отсутствия",
+    "Оплачиваемые",
+    "Неоплачиваемые",
+  ];
 
   if (isLoading) {
     return (
@@ -260,20 +214,13 @@ function AttendancePage() {
         <section className="rounded-2xl border border-gray-200 bg-white">
           <div className="space-y-4 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <select
+              <MonthNavigator
                 value={selectedMonth}
-                onChange={(event) => {
-                  setSelectedMonth(event.target.value);
+                onChange={(monthKey) => {
+                  setSelectedMonth(monthKey);
                   setTablePage(1);
                 }}
-                className="select-with-arrow h-10 min-w-[180px] rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
-              >
-                {months.map((monthOption) => (
-                  <option key={monthOption.key} value={monthOption.key}>
-                    {monthOption.label}
-                  </option>
-                ))}
-              </select>
+              />
 
               <button
                 type="button"
@@ -288,27 +235,16 @@ function AttendancePage() {
               </button>
             </div>
 
-            <section className="grid gap-4 xl:grid-cols-12">
-              <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4 xl:col-span-8">
-                <h3 className="text-lg font-semibold text-gray-900">Топ сотрудников по времени опозданий</h3>
-                {topLate.length === 0 ? (
-                  <div className="mt-2 flex h-[280px] items-center justify-center text-sm text-gray-500">
-                    Нет данных для графика
-                  </div>
-                ) : (
-                  <div className="mt-2">
-                    <Chart options={lateOptions} series={lateSeries} type="bar" height={300} />
-                  </div>
-                )}
-              </article>
-
-              <div className="space-y-4 xl:col-span-4">
-                <MetricCard title="Сотрудники" value={Number(cards.employees_count || 0)} />
-                <MetricCard title="Рабочие дни" value={Number(cards.worked_days || 0)} />
-                <MetricCard title="Опоздания (мин)" value={Number(cards.total_late_time || 0)} />
-                <MetricCard title="Дней отсутствия" value={Number(cards.total_absent_days || 0)} />
-                <MetricCard title="Прогулы (дни)" value={Number(cards.unexcused_absent_days || 0)} />
-              </div>
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+              <MetricCard title="Сотрудники" value={Number(cards.employees_count || 0)} />
+              <MetricCard title="Рабочие дни (план)" value={Number(cards.scheduled_working_days || 0)} />
+              <MetricCard title="Отработано дней" value={Number(cards.worked_days || 0)} />
+              <MetricCard title="Дней отсутствия" value={Number(cards.total_absent_days || 0)} />
+              <MetricCard title="Оплачиваемые" value={Number(cards.paid_absence_days || 0)} />
+              <MetricCard
+                title="Неоплачиваемые"
+                value={Number(cards.unpaid_absence_days || 0) + Number(cards.unexcused_absent_days || 0)}
+              />
             </section>
           </div>
         </section>
@@ -382,16 +318,7 @@ function AttendancePage() {
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-gray-50">
-                  {[
-                    "Сотрудник",
-                    "Рабочие дни",
-                    "Приход вовремя",
-                    "Опозданий",
-                    "Опоздания (мин)",
-                    "Дней отсутствия",
-                    "По заявке",
-                    "Прогулы",
-                  ].map((column) => (
+                  {tableColumns.map((column) => (
                     <th
                       key={column}
                       className="whitespace-nowrap border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700"
@@ -405,7 +332,7 @@ function AttendancePage() {
                 {isTableLoading ? (
                   Array.from({ length: 10 }).map((_, rowIndex) => (
                     <tr key={`table-skeleton-${rowIndex}`} className="animate-pulse">
-                      {Array.from({ length: 8 }).map((__, cellIndex) => (
+                      {tableColumns.map((__, cellIndex) => (
                         <td
                           key={`table-skeleton-cell-${rowIndex}-${cellIndex}`}
                           className="border-b border-gray-100 px-4 py-3"
@@ -417,7 +344,7 @@ function AttendancePage() {
                   ))
                 ) : isTableError ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-error-600">
+                    <td colSpan={tableColumns.length} className="px-4 py-6 text-center text-sm text-error-600">
                       {getErrorMessage(tableError)}{" "}
                       <button
                         type="button"
@@ -432,65 +359,37 @@ function AttendancePage() {
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={tableColumns.length} className="px-4 py-6 text-center text-sm text-gray-500">
                       Нет сотрудников по выбранным параметрам
                     </td>
                   </tr>
                 ) : (
                   tableItems.map((item) => {
-                    const breakdownEntries = Object.entries(
-                      item.absence_breakdown ?? {}
-                    ).filter(([, value]) => Number(value) > 0);
-                    const hasBreakdown = breakdownEntries.length > 0;
+                    const unpaidTotal =
+                      Number(item.unpaid_absence_days) + Number(item.unexcused_absent_days);
                     return (
                       <tr key={item.guid} className="hover:bg-gray-50">
                         <td className="whitespace-nowrap border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
-                          <Link to={`/employees/${item.guid}`} className="transition hover:text-brand-500">
-                            {item.employee}
-                          </Link>
+                          <span className="inline-flex items-center gap-2">
+                            <Link to={`/employees/${item.guid}`} className="transition hover:text-brand-500">
+                              {item.employee}
+                            </Link>
+                            {item.is_remote ? (
+                              <span className="inline-flex items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-600">
+                                Удалённо
+                              </span>
+                            ) : null}
+                          </span>
                         </td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.worked_days}</td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.on_time_days}</td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.late_days}</td>
-                        <td
-                          className={`border-b border-gray-100 px-4 py-2.5 text-sm ${
-                            item.has_work_schedule
-                              ? "text-gray-700"
-                              : "bg-error-50 font-semibold text-error-700"
-                          }`}
-                          title={item.has_work_schedule ? undefined : "Нет назначенного графика работы — опоздания не рассчитываются"}
-                        >
-                          {item.total_late_time}
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
+                          {item.scheduled_working_days}
+                        </td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
+                          {item.worked_days}
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">{item.total_absent_days}</td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                          {hasBreakdown ? (
-                            <span
-                              title={breakdownEntries
-                                .map(([label, value]) => `${label}: ${value}`)
-                                .join(", ")}
-                              className="group relative inline-flex cursor-help items-center border-b border-dashed border-gray-400"
-                            >
-                              {item.excused_absence_days}
-                              <div className="pointer-events-none absolute left-0 top-full z-20 mt-1 hidden min-w-[180px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg group-hover:block">
-                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                  Отсутствие по заявке
-                                </p>
-                                <div className="space-y-1">
-                                  {breakdownEntries.map(([label, value]) => (
-                                    <div key={label} className="flex items-center justify-between gap-4 text-xs">
-                                      <span className="text-gray-600">{label}</span>
-                                      <span className="font-semibold text-gray-900">{value}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </span>
-                          ) : (
-                            item.excused_absence_days
-                          )}
-                        </td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.unexcused_absent_days}</td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.paid_absence_days}</td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{unpaidTotal}</td>
                       </tr>
                     );
                   })

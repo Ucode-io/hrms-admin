@@ -9,6 +9,7 @@ const REPORTS_FUNCTION_PATH =
   "/v2/invoke_function/udevs-hrms-reports?project-id=9a462573-ce11-4288-928a-a6ba754b6998";
 const GET_AGE_DISTRIBUTION_METHOD = "get_age_distribution";
 const GET_AGE_DISTRIBUTION_TABLE_METHOD = "get_age_distribution_table";
+const GET_BIRTHDAYS_METHOD = "get_birthdays";
 const GET_GENDER_DISTRIBUTION_METHOD = "get_gender_distribution";
 const GET_GENDER_DISTRIBUTION_TABLE_METHOD = "get_gender_distribution_table";
 const GET_STAFF_COUNT_METHOD = "get_staff_count";
@@ -22,6 +23,8 @@ const GET_ABSENCE_BALANCE_TABLE_METHOD = "get_absence_balance_table";
 const GET_ATTENDANCE_METHOD = "get_attendance";
 const GET_ATTENDANCE_TABLE_METHOD = "get_attendance_table";
 const GET_ATTENDANCE_EXCEL_METHOD = "get_attendance_excel";
+const GET_LATENESS_METHOD = "get_lateness";
+const GET_LATENESS_TABLE_METHOD = "get_lateness_table";
 const GET_SPORT_ATTENDANCE_METHOD = "get_sport_attendance";
 const GET_SPORT_ATTENDANCE_TABLE_METHOD = "get_sport_attendance_table";
 const GET_PAYROLL_METHOD = "get_payroll";
@@ -115,6 +118,42 @@ export type AgeDistributionResult = {
 export type AgeDistributionInvokeResponse = {
   method: typeof GET_AGE_DISTRIBUTION_METHOD;
   result: AgeDistributionResult;
+};
+
+export type BirthdayEmployee = {
+  guid: string;
+  full_name: string;
+  photo: string | null;
+  birth_date: string | null;
+  birth_month: number;
+  birth_day: number;
+  age: number | null;
+  turning_age: number | null;
+  days_until: number | null;
+  next_birthday: string | null;
+  is_today: boolean;
+  position: string;
+  department: string;
+  division: string;
+};
+
+export type BirthdaysMonthGroup = {
+  month: number;
+  label: string;
+  employees_count: number;
+  employees: BirthdayEmployee[];
+};
+
+export type BirthdaysResult = {
+  upcoming: BirthdayEmployee[];
+  months: BirthdaysMonthGroup[];
+  total_employees: number;
+  filters_applied?: JsonRecord;
+};
+
+export type BirthdaysInvokeResponse = {
+  method: typeof GET_BIRTHDAYS_METHOD;
+  result: BirthdaysResult;
 };
 
 export type AgeDistributionTableItem = {
@@ -559,6 +598,7 @@ export type AttendanceReportResult = {
   cards?: {
     month?: string;
     employees_count?: number;
+    scheduled_working_days?: number;
     worked_days?: number;
     on_time_days?: number;
     total_late_time?: number;
@@ -588,6 +628,7 @@ export type AttendanceTableItem = {
   guid: string;
   employee: string;
   month: string;
+  scheduled_working_days: number;
   worked_days: number;
   on_time_days: number;
   late_days: number;
@@ -595,6 +636,8 @@ export type AttendanceTableItem = {
   // false when the employee has no work_schedule assigned for the period —
   // lateness can't be computed reliably, so total_late_time is forced to 0.
   has_work_schedule: boolean;
+  // true when the employee's current work schedule is marked remote.
+  is_remote: boolean;
   total_absent_days: number;
   excused_absence_days: number;
   unexcused_absent_days: number;
@@ -625,6 +668,61 @@ export type AttendanceTableResult = {
 export type AttendanceTableInvokeResponse = {
   method: typeof GET_ATTENDANCE_TABLE_METHOD;
   result: AttendanceTableResult;
+};
+
+export type LatenessTopLateItem = {
+  guid: string;
+  full_name: string;
+  late_days: number;
+  total_late_time: number;
+};
+
+export type LatenessReportResult = {
+  cards?: {
+    month?: string;
+    employees_count?: number;
+    employees_late_count?: number;
+    late_arrivals_count?: number;
+    total_late_time?: number;
+  };
+  charts?: {
+    top_late_time?: LatenessTopLateItem[];
+  };
+  filters?: {
+    available_months?: AttendanceMonthOption[];
+  };
+  filters_applied?: JsonRecord;
+};
+
+export type LatenessInvokeResponse = {
+  method: typeof GET_LATENESS_METHOD;
+  result: LatenessReportResult;
+};
+
+export type LatenessTableItem = {
+  guid: string;
+  employee: string;
+  month: string;
+  late_days: number;
+  on_time_days: number;
+  total_late_time: number;
+  avg_late_time: number;
+  // false when the employee has no work_schedule assigned for the period —
+  // lateness can't be computed reliably, so total_late_time is forced to 0.
+  has_work_schedule: boolean;
+  // true when the employee's current work schedule is marked remote.
+  is_remote: boolean;
+};
+
+export type LatenessTableResult = {
+  items: LatenessTableItem[];
+  pagination: AttendanceTablePagination;
+  filters_applied?: JsonRecord;
+};
+
+export type LatenessTableInvokeResponse = {
+  method: typeof GET_LATENESS_TABLE_METHOD;
+  result: LatenessTableResult;
 };
 
 export type AttendanceExcelInvokeResponse = {
@@ -1341,6 +1439,13 @@ const isAgeDistributionTableInvokeResponse = (
   return value.method === GET_AGE_DISTRIBUTION_TABLE_METHOD && isRecord(value.result);
 };
 
+const isBirthdaysInvokeResponse = (
+  value: unknown
+): value is BirthdaysInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_BIRTHDAYS_METHOD && isRecord(value.result);
+};
+
 const isGenderDistributionInvokeResponse = (
   value: unknown
 ): value is GenderDistributionInvokeResponse => {
@@ -1430,6 +1535,20 @@ const isAttendanceExcelInvokeResponse = (
 ): value is AttendanceExcelInvokeResponse => {
   if (!isRecord(value)) return false;
   return value.method === GET_ATTENDANCE_EXCEL_METHOD && isRecord(value.result);
+};
+
+const isLatenessInvokeResponse = (
+  value: unknown
+): value is LatenessInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_LATENESS_METHOD && isRecord(value.result);
+};
+
+const isLatenessTableInvokeResponse = (
+  value: unknown
+): value is LatenessTableInvokeResponse => {
+  if (!isRecord(value)) return false;
+  return value.method === GET_LATENESS_TABLE_METHOD && isRecord(value.result);
 };
 
 const isSportAttendanceInvokeResponse = (
@@ -1610,6 +1729,43 @@ const normalizeAgeDistributionTableResponse = (
   }
 
   throw new Error("Unexpected response format for get_age_distribution_table");
+};
+
+const normalizeBirthdaysResponse = (
+  raw: unknown
+): BirthdaysInvokeResponse => {
+  if (isBirthdaysInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isBirthdaysInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isBirthdaysInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_birthdays");
 };
 
 const normalizeGenderDistributionResponse = (
@@ -2091,6 +2247,80 @@ const normalizeAttendanceExcelResponse = (
   }
 
   throw new Error("Unexpected response format for get_attendance_excel");
+};
+
+const normalizeLatenessResponse = (
+  raw: unknown
+): LatenessInvokeResponse => {
+  if (isLatenessInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isLatenessInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isLatenessInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_lateness");
+};
+
+const normalizeLatenessTableResponse = (
+  raw: unknown
+): LatenessTableInvokeResponse => {
+  if (isLatenessTableInvokeResponse(raw)) {
+    return raw;
+  }
+
+  if (isRecord(raw)) {
+    const nestedServerError =
+      isRecord(raw.data) && typeof raw.data.server_error === "string"
+        ? raw.data.server_error
+        : null;
+
+    if (typeof raw.server_error === "string" && raw.server_error) {
+      throw new Error(raw.server_error);
+    }
+
+    if (nestedServerError) {
+      throw new Error(nestedServerError);
+    }
+
+    if (isLatenessTableInvokeResponse(raw.data)) {
+      return raw.data;
+    }
+
+    if (isRecord(raw.data)) {
+      const payload = raw.data.data;
+
+      if (isLatenessTableInvokeResponse(payload)) {
+        return payload;
+      }
+    }
+  }
+
+  throw new Error("Unexpected response format for get_lateness_table");
 };
 
 const normalizeSportAttendanceResponse = (
@@ -2931,6 +3161,25 @@ const reportsService = {
 
     return normalizeAgeDistributionTableResponse(response.data);
   },
+  getBirthdays: async (
+    requestData: JsonRecord = {}
+  ): Promise<BirthdaysInvokeResponse> => {
+    const hasRequestData = Object.keys(requestData).length > 0;
+    const gatewayPayload = hasRequestData
+      ? {
+          method: GET_BIRTHDAYS_METHOD,
+          data: requestData,
+        }
+      : {
+          method: GET_BIRTHDAYS_METHOD,
+        };
+
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: gatewayPayload,
+    });
+
+    return normalizeBirthdaysResponse(response.data);
+  },
   getGenderDistribution: async (
     requestData: JsonRecord = {}
   ): Promise<GenderDistributionInvokeResponse> => {
@@ -3146,6 +3395,40 @@ const reportsService = {
     });
 
     return normalizeAttendanceExcelResponse(response.data);
+  },
+  getLateness: async (
+    requestData: JsonRecord = {}
+  ): Promise<LatenessInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_LATENESS_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeLatenessResponse(response.data);
+  },
+  getLatenessTable: async (
+    requestData: JsonRecord = {},
+    pagination: { page?: number; limit?: number } = {}
+  ): Promise<LatenessTableInvokeResponse> => {
+    const page = Number.isFinite(Number(pagination.page)) ? Number(pagination.page) : 1;
+    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 20;
+
+    const payloadData = {
+      ...requestData,
+      page,
+      limit,
+    };
+
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_LATENESS_TABLE_METHOD,
+        data: payloadData,
+      },
+    });
+
+    return normalizeLatenessTableResponse(response.data);
   },
   getSportAttendance: async (
     requestData: JsonRecord = {}
@@ -3371,6 +3654,16 @@ export const useAgeDistributionTableQuery = ({
   });
 };
 
+export const useBirthdaysReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "BIRTHDAYS", requestData],
+    queryFn: () => reportsService.getBirthdays(requestData),
+    staleTime: 60_000,
+  });
+};
+
 export const useGenderDistributionReportQuery = (
   requestData: JsonRecord = {}
 ) => {
@@ -3528,6 +3821,33 @@ export const useAttendanceTableQuery = ({
   return useQuery({
     queryKey: ["REPORTS", "ATTENDANCE_TABLE", requestData, page, limit],
     queryFn: () => reportsService.getAttendanceTable(requestData, { page, limit }),
+    keepPreviousData: true,
+    staleTime: 30_000,
+  });
+};
+
+export const useLatenessReportQuery = (
+  requestData: JsonRecord = {}
+) => {
+  return useQuery({
+    queryKey: ["REPORTS", "LATENESS", requestData],
+    queryFn: () => reportsService.getLateness(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const useLatenessTableQuery = ({
+  requestData = {},
+  page = 1,
+  limit = 20,
+}: {
+  requestData?: JsonRecord;
+  page?: number;
+  limit?: number;
+} = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "LATENESS_TABLE", requestData, page, limit],
+    queryFn: () => reportsService.getLatenessTable(requestData, { page, limit }),
     keepPreviousData: true,
     staleTime: 30_000,
   });

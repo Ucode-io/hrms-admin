@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { Icon } from "@iconify/react";
-import { Check, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, SlidersHorizontal, X } from "lucide-react";
 import { Link } from "react-router";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -34,13 +34,71 @@ import {
   dedupeAttendanceByPriority,
   getAttendanceSourceKind,
 } from "../../utils/attendanceSourcePriority";
+import Select, { type StylesConfig } from "react-select";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
+import { usePositionsQuery } from "../../api/services/position.service";
+import { useDepartmentsSettingsQuery } from "../../api/services/department.service";
 import { useSettingsDirectoryQuery } from "../../api/services/settingsDirectory.service";
 import { useEmployeeAbsenceSummaryQuery } from "../../api/services/employeeAbsenceSummary.service";
 import { useUploadFile } from "../../api/services/file-upload.service";
 
 const PAGE_SIZE = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+type FilterOption = { value: string; label: string };
+
+// Matches the /finance/salary filter selects.
+const filterSelectStyles: StylesConfig<FilterOption, true> = {
+  control: (base: any, state: any) => ({
+    ...base,
+    minHeight: 40,
+    borderRadius: 12,
+    backgroundColor: state.hasValue ? "#eff6ff" : "#fff",
+    borderColor: state.hasValue ? "#bfdbfe" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
+    boxShadow: "none",
+    "&:hover": {
+      borderColor: state.hasValue ? "#93c5fd" : "#cbd5e1",
+    },
+  }),
+  valueContainer: (base: any) => ({ ...base, padding: "0 10px" }),
+  indicatorsContainer: (base: any, state: any) => ({
+    ...base,
+    color: state.hasValue ? "#2563eb" : "#64748b",
+  }),
+  dropdownIndicator: (base: any, state: any) => ({
+    ...base,
+    color: state.hasValue ? "#2563eb" : "#64748b",
+    padding: 6,
+    "&:hover": { color: state.hasValue ? "#1d4ed8" : "#475569" },
+  }),
+  clearIndicator: (base: any) => ({
+    ...base,
+    color: "#64748b",
+    padding: 6,
+    "&:hover": { color: "#475569" },
+  }),
+  indicatorSeparator: () => ({ display: "none" }),
+  placeholder: (base: any) => ({ ...base, color: "#94a3b8", fontSize: 14 }),
+  input: (base: any) => ({ ...base, color: "#1e293b", fontSize: 14, margin: 0, padding: 0 }),
+  multiValue: (base: any) => ({ ...base, backgroundColor: "#dbeafe", borderRadius: 8 }),
+  multiValueLabel: (base: any) => ({ ...base, color: "#1d4ed8", fontSize: 13, fontWeight: 600 }),
+  multiValueRemove: (base: any) => ({
+    ...base,
+    color: "#1d4ed8",
+    borderRadius: 8,
+    "&:hover": { backgroundColor: "#bfdbfe", color: "#1e3a8a" },
+  }),
+  menu: (base: any) => ({ ...base, borderRadius: 10, overflow: "hidden", zIndex: 9999 }),
+  menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
+  option: (base: any, state: any) => ({
+    ...base,
+    backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
+    color: state.isSelected ? "#1d4ed8" : "#1e293b",
+    fontSize: 14,
+    padding: "8px 12px",
+  }),
+  noOptionsMessage: (base: any) => ({ ...base, color: "#64748b", fontSize: 13 }),
+};
 const WEEKDAY_SHORT_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 const MONTH_NAMES_RU = [
   "Январь",
@@ -637,6 +695,9 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createEmployeeId, setCreateEmployeeId] = useState("");
   const [createPolicyId, setCreatePolicyId] = useState("");
@@ -702,7 +763,48 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     offset: (employeesPage - 1) * PAGE_SIZE,
     search: debouncedSearch || undefined,
     status: "active",
+    positions_id: selectedPositionIds.length > 0 ? selectedPositionIds : undefined,
+    departments_id: selectedDepartmentIds.length > 0 ? selectedDepartmentIds : undefined,
   });
+
+  // Reset the paginated employee list whenever the position/department filters
+  // change, mirroring the search reset so pages don't mix filtered/unfiltered data.
+  const isFirstFilterRun = useRef(true);
+  useEffect(() => {
+    if (isFirstFilterRun.current) {
+      isFirstFilterRun.current = false;
+      return;
+    }
+    setEmployeesPage(1);
+    setEmployees([]);
+    isNextPageRequestedRef.current = false;
+    lastKnownTotalCountRef.current = 0;
+  }, [selectedPositionIds, selectedDepartmentIds]);
+
+  const { data: positionsData } = usePositionsQuery({ params: { all: true } });
+  const positionFilterOptions = useMemo(
+    () =>
+      (positionsData?.response ?? [])
+        .filter((item) => item?.guid && item?.title)
+        .map((item) => ({ value: item.guid, label: item.title })),
+    [positionsData?.response]
+  );
+
+  const { data: departmentsData } = useDepartmentsSettingsQuery({
+    params: { limit: 1000 },
+  });
+  const departmentFilterOptions = useMemo(
+    () =>
+      (departmentsData?.response ?? [])
+        .filter((item) => item?.guid && item?.title)
+        .map((item) => ({ value: item.guid, label: item.title })),
+    [departmentsData?.response]
+  );
+
+  const activeFiltersCount =
+    (selectedDepartmentIds.length > 0 ? 1 : 0) + (selectedPositionIds.length > 0 ? 1 : 0);
+  const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
+  const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
 
   const employeesChunk = useMemo(() => {
     return ((employeesData?.response || []) as Employee[]).filter(
@@ -1135,6 +1237,25 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
               brandColor="var(--color-brand-500)"
             />
 
+            <button
+              type="button"
+              onClick={() => setIsFiltersOpen((open) => !open)}
+              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
+                isFilterButtonActive
+                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <SlidersHorizontal size={16} />
+              {activeFiltersCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                  {activeFiltersCount}
+                </span>
+              ) : null}
+            </button>
+
             <Button
               className="h-10 shrink-0 rounded-xl px-3.5 text-sm whitespace-nowrap"
               startIcon={<Plus size={15} />}
@@ -1144,6 +1265,74 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
             </Button>
           </div>
         </div>
+
+        {isFiltersOpen ? (
+          <div
+            className="px-4 py-2 lg:px-6"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+              background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+              border: "1px solid #e2e8f0",
+              borderTop: "1px solid #dbe4ee",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+            }}
+          >
+            <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
+              <Select<FilterOption, true>
+                isMulti
+                inputId="calendar-filter-department"
+                options={departmentFilterOptions}
+                value={departmentFilterOptions.filter((option) =>
+                  selectedDepartmentIds.includes(option.value)
+                )}
+                onChange={(value) =>
+                  setSelectedDepartmentIds(value.map((option) => option.value))
+                }
+                placeholder="Департамент"
+                noOptionsMessage={() => "Ничего не найдено"}
+                styles={filterSelectStyles}
+                menuPortalTarget={selectPortalTarget}
+                menuPosition="fixed"
+              />
+            </div>
+
+            <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
+              <Select<FilterOption, true>
+                isMulti
+                inputId="calendar-filter-position"
+                options={positionFilterOptions}
+                value={positionFilterOptions.filter((option) =>
+                  selectedPositionIds.includes(option.value)
+                )}
+                onChange={(value) =>
+                  setSelectedPositionIds(value.map((option) => option.value))
+                }
+                placeholder="Должность"
+                noOptionsMessage={() => "Ничего не найдено"}
+                styles={filterSelectStyles}
+                menuPortalTarget={selectPortalTarget}
+                menuPosition="fixed"
+              />
+            </div>
+
+            {activeFiltersCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDepartmentIds([]);
+                  setSelectedPositionIds([]);
+                }}
+                className="ml-auto inline-flex h-10 items-center rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
+              >
+                Сбросить
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="min-h-0 flex-1 px-4 py-4 lg:px-6">
           <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
