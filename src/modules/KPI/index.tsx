@@ -63,6 +63,7 @@ import settingsDirectoryService from "../../api/services/settingsDirectory.servi
 import RemoteSingleSelect, { type RemoteSelectOption } from "../../components/autocomplete/RemoteSingleSelect";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import reportsService, {
+  type KpiAggregationType,
   type KpiAutoMetricOption,
   type KpiFilterOption,
   type KpiParentOption,
@@ -98,6 +99,8 @@ type KpiRecord = {
   valueSymbol: string;
   valueSymbolPosition: "prefix" | "suffix";
   periodType: KpiPeriodMode;
+  // How this KPI derives its actual from its children (sum | min | max | avg).
+  aggregationType: KpiAggregationType;
   startDate: string;
   endDate: string;
   ownPlanValue: number;
@@ -475,6 +478,7 @@ type CreateKpiDraft = {
   name: string;
   description: string;
   periodType: KpiPeriodMode;
+  aggregationType: KpiAggregationType;
   startDate: string;
   endDate: string;
   planValue: string;
@@ -844,6 +848,39 @@ const normalizePeriodType = (value: unknown): KpiPeriodMode => {
   return "monthly";
 };
 
+const normalizeAggregationType = (value: unknown): KpiAggregationType => {
+  if (value === "min" || value === "max" || value === "avg" || value === "sum") {
+    return value;
+  }
+  return "sum";
+};
+
+// Mirror of the backend aggregation so optimistic UI updates match the server.
+const aggregateChildActuals = (
+  values: number[],
+  aggregationType: KpiAggregationType
+): number => {
+  if (values.length === 0) return 0;
+  switch (aggregationType) {
+    case "min":
+      return Math.min(...values);
+    case "max":
+      return Math.max(...values);
+    case "avg":
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    case "sum":
+    default:
+      return values.reduce((sum, value) => sum + value, 0);
+  }
+};
+
+const AGGREGATION_OPTIONS: { value: KpiAggregationType; label: string; hint: string }[] = [
+  { value: "sum", label: "Сумма", hint: "Факт = сумма дочерних" },
+  { value: "min", label: "Мин. значение", hint: "Факт = минимум из дочерних" },
+  { value: "max", label: "Макс. значение", hint: "Факт = максимум из дочерних" },
+  { value: "avg", label: "Среднее", hint: "Факт = среднее дочерних" },
+];
+
 const formatDraftPeriodRangeLabel = (
   startDateIso: string,
   endDateIso: string,
@@ -883,6 +920,7 @@ const mapApiItem = (item: KpiTableItem): KpiRecord => {
     valueSymbol: typeof item.value_symbol === "string" ? item.value_symbol : "",
     valueSymbolPosition: item.value_symbol_position === "prefix" ? "prefix" : "suffix",
     periodType,
+    aggregationType: normalizeAggregationType(item.aggregation_type),
     startDate: normalizeDateInputValue(item.start_date),
     endDate: normalizeDateInputValue(item.end_date),
     ownPlanValue: roundToTwo(Number(item.own_plan_total) || 0),
@@ -933,7 +971,10 @@ const applyActualValueToTree = (
 
     if (nodeChanged && nextChildren.length > 0) {
       const aggregatedActual = roundToTwo(
-        nextChildren.reduce((sum, child) => sum + child.actualValue, 0)
+        aggregateChildActuals(
+          nextChildren.map((child) => child.actualValue),
+          nextNode.aggregationType
+        )
       );
       nextNode = {
         ...nextNode,
@@ -1028,16 +1069,21 @@ const buildChildrenFromSlots = (
 const computeChildDefaults = (
   parentName: string,
   parentPlanValue: string,
-  slotsCount: number
+  slotsCount: number,
+  aggregationType: KpiAggregationType
 ): { name: string; planValue: string } => {
   const planNumber = parsePlanInputValue(parentPlanValue);
-  const perChild =
-    Number.isFinite(planNumber) && planNumber > 0 && slotsCount > 0
-      ? formatPlanInputValue(formatPlanForInput(planNumber / slotsCount))
-      : "";
+  const hasPlan = Number.isFinite(planNumber) && planNumber > 0;
+  // Sum: split the parent plan across children. Min/max/avg: each child targets
+  // the same level, so copy the parent value to every child.
+  const perChildNumber =
+    aggregationType === "sum" && slotsCount > 0 ? planNumber / slotsCount : planNumber;
+  const planValue = hasPlan
+    ? formatPlanInputValue(formatPlanForInput(perChildNumber))
+    : "";
   return {
     name: parentName,
-    planValue: perChild,
+    planValue,
   };
 };
 
@@ -1054,6 +1100,7 @@ const getDefaultDraft = (periodType: KpiPeriodMode): CreateKpiDraft => {
     name: "",
     description: "",
     periodType,
+    aggregationType: "sum",
     startDate: range.from,
     endDate: range.to,
     planValue: "",
@@ -1066,6 +1113,47 @@ type GroupEntry = {
   position: string;
   positionsId: string | null;
   items: KpiRecord[];
+};
+
+// Apply the current local order (from drag-n-drop) onto freshly-loaded groups,
+// while adopting the fresh row data. Preserves position + row order, refreshes
+// values, and appends anything newly added / drops anything removed.
+const reconcileGroupOrder = (
+  prevGroups: GroupEntry[],
+  freshGroups: GroupEntry[]
+): GroupEntry[] => {
+  if (prevGroups.length === 0) return freshGroups;
+
+  const freshByPosition = new Map(freshGroups.map((group) => [group.position, group]));
+  const result: GroupEntry[] = [];
+  const usedPositions = new Set<string>();
+
+  for (const prevGroup of prevGroups) {
+    const freshGroup = freshByPosition.get(prevGroup.position);
+    if (!freshGroup) continue;
+    usedPositions.add(prevGroup.position);
+
+    const freshItemById = new Map(freshGroup.items.map((item) => [item.id, item]));
+    const items: KpiRecord[] = [];
+    const usedIds = new Set<string>();
+    for (const prevItem of prevGroup.items) {
+      const freshItem = freshItemById.get(prevItem.id);
+      if (freshItem) {
+        items.push(freshItem);
+        usedIds.add(prevItem.id);
+      }
+    }
+    for (const freshItem of freshGroup.items) {
+      if (!usedIds.has(freshItem.id)) items.push(freshItem);
+    }
+    result.push({ ...freshGroup, items });
+  }
+
+  for (const freshGroup of freshGroups) {
+    if (!usedPositions.has(freshGroup.position)) result.push(freshGroup);
+  }
+
+  return result;
 };
 
 // Sortable groups (position headers) use a prefixed id so they never collide
@@ -1576,21 +1664,15 @@ function KpiPage() {
   const [orderedGroups, setOrderedGroups] = useState<GroupEntry[]>([]);
   const orderedGroupsRef = useRef<GroupEntry[]>([]);
 
-  // Re-sync the local ordering whenever the underlying server data changes
-  // (identity captured by a signature of positions + row ids in order). A drag
-  // reorder mutates `orderedGroups` without touching this signature, so the
-  // optimistic order survives until the next server reload.
-  const groupsSignature = useMemo(
-    () =>
-      groupEntries
-        .map((group) => `${group.position}#${group.items.map((item) => item.id).join(",")}`)
-        .join("|"),
-    [groupEntries]
-  );
-  const lastGroupsSignatureRef = useRef<string | null>(null);
-  if (lastGroupsSignatureRef.current !== groupsSignature) {
-    lastGroupsSignatureRef.current = groupsSignature;
-    setOrderedGroups(groupEntries);
+  // Whenever the server-derived groups change (a reload OR an optimistic value
+  // edit), reconcile: keep the current local drag order of positions/rows but
+  // always adopt the fresh row data. Reordering by drag mutates `orderedGroups`
+  // without touching `groupEntries`, so that order survives; a value change
+  // rebuilds `groupEntries`, so this reconcile refreshes the visible numbers.
+  const lastGroupEntriesRef = useRef<GroupEntry[] | null>(null);
+  if (lastGroupEntriesRef.current !== groupEntries) {
+    lastGroupEntriesRef.current = groupEntries;
+    setOrderedGroups((prev) => reconcileGroupOrder(prev, groupEntries));
   }
   orderedGroupsRef.current = orderedGroups;
 
@@ -1828,7 +1910,8 @@ function KpiPage() {
     const editDefaults = computeChildDefaults(
       item.name,
       formatPlanInputValue(String(item.ownPlanValue)),
-      slots.length
+      slots.length,
+      item.aggregationType
     );
     const children =
       item.hasChildren && slots.length > 0
@@ -1846,6 +1929,7 @@ function KpiPage() {
       name: item.name,
       description: item.description,
       periodType: item.periodType,
+      aggregationType: item.aggregationType,
       startDate: startIso,
       endDate: endIso,
       planValue: formatPlanInputValue(String(item.ownPlanValue)),
@@ -1943,7 +2027,12 @@ function KpiPage() {
 
     setDraft((prev) => {
       if (!prev.hasChildren) return prev;
-      const defaults = computeChildDefaults(prev.name, prev.planValue, slots.length);
+      const defaults = computeChildDefaults(
+        prev.name,
+        prev.planValue,
+        slots.length,
+        prev.aggregationType
+      );
       const next = buildChildrenFromSlots(slots, prev.children, defaults);
       const same =
         next.length === prev.children.length &&
@@ -2034,14 +2123,18 @@ function KpiPage() {
         });
       }
 
-      const childrenSum = roundToTwo(
-        childrenPayload.reduce((sum, child) => sum + child.plan_total, 0)
-      );
-      if (Math.abs(childrenSum - planTotal) > 0.01) {
-        setCreateError(
-          `Сумма планов дочерних KPI (${formatMetricDisplayValue(childrenSum)}) должна быть равна плановому значению родителя (${formatMetricDisplayValue(planTotal)})`
+      // The "children plans must sum to the parent plan" rule only makes sense
+      // for sum aggregation; min/max/avg have no such invariant.
+      if (draft.aggregationType === "sum") {
+        const childrenSum = roundToTwo(
+          childrenPayload.reduce((sum, child) => sum + child.plan_total, 0)
         );
-        return;
+        if (Math.abs(childrenSum - planTotal) > 0.01) {
+          setCreateError(
+            `Сумма планов дочерних KPI (${formatMetricDisplayValue(childrenSum)}) должна быть равна плановому значению родителя (${formatMetricDisplayValue(planTotal)})`
+          );
+          return;
+        }
       }
     }
 
@@ -2060,6 +2153,7 @@ function KpiPage() {
         value_symbol: draft.valueSymbol.trim() || undefined,
         value_symbol_position: draft.valueSymbolPosition,
         period_type: draft.periodType,
+        aggregation_type: draft.aggregationType,
         start_date: draft.startDate,
         end_date: draft.endDate,
         plan_total: planTotal,
@@ -3209,7 +3303,12 @@ function KpiPage() {
                             return { ...prev, hasChildren: false, children: [] };
                           }
                           const slots = computeChildSlots(prev.periodType, prev.startDate, prev.endDate);
-                          const defaults = computeChildDefaults(prev.name, prev.planValue, slots.length);
+                          const defaults = computeChildDefaults(
+                            prev.name,
+                            prev.planValue,
+                            slots.length,
+                            prev.aggregationType
+                          );
                           return {
                             ...prev,
                             hasChildren: true,
@@ -3226,6 +3325,59 @@ function KpiPage() {
                     </span>
                   </label>
                 </div>
+
+                {draft.hasChildren && childrenSupported(draft.periodType) ? (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-slate-600">
+                      Как считать факт родителя
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {AGGREGATION_OPTIONS.map((option) => {
+                        const isActive = draft.aggregationType === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              setDraft((prev) => {
+                                if (prev.aggregationType === option.value) return prev;
+                                // Re-apply the plan default to children: sum splits
+                                // the parent plan, min/max/avg copies it to each.
+                                const slots = computeChildSlots(
+                                  prev.periodType,
+                                  prev.startDate,
+                                  prev.endDate
+                                );
+                                const defaults = computeChildDefaults(
+                                  prev.name,
+                                  prev.planValue,
+                                  slots.length,
+                                  option.value
+                                );
+                                return {
+                                  ...prev,
+                                  aggregationType: option.value,
+                                  children: prev.children.map((child) => ({
+                                    ...child,
+                                    planValue: defaults.planValue,
+                                  })),
+                                };
+                              })
+                            }
+                            title={option.hint}
+                            className={`rounded-lg border px-3 py-2 text-left text-[13px] font-medium transition ${
+                              isActive
+                                ? "border-brand-300 bg-brand-50 text-brand-600"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
 
                 {draft.hasChildren && childrenSupported(draft.periodType) ? (
                   <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">

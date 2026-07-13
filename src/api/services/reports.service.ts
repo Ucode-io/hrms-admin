@@ -1259,6 +1259,9 @@ export type ImportSalaryExcelInvokeResponse = {
 
 export type KpiPeriodType = "daily" | "monthly" | "weekly" | "quarterly" | "yearly";
 
+// How a parent KPI derives its actual from its children.
+export type KpiAggregationType = "sum" | "min" | "max" | "avg";
+
 export type KpiFilterOption = {
   value: string;
   label: string;
@@ -1306,6 +1309,7 @@ export type KpiTableItem = {
   value_symbol?: string;
   value_symbol_position?: "prefix" | "suffix" | string;
   period_type: KpiPeriodType | string;
+  aggregation_type?: KpiAggregationType | string;
   start_date: string;
   end_date: string;
   start_date_label?: string;
@@ -1359,6 +1363,7 @@ export type SaveKpiInvokeResponse = {
     parent_id: string | null;
     positions_id?: string | null;
     period_type: KpiPeriodType | string;
+    aggregation_type?: KpiAggregationType | string;
     value_symbol?: string;
     value_symbol_position?: "prefix" | "suffix" | string;
     plan_total: number;
