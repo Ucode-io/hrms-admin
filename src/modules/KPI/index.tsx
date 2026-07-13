@@ -8,7 +8,29 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
+import {
+  DndContext,
+  MeasuringStrategy,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { CSS } from "@dnd-kit/utilities";
 import DatePicker, { registerLocale } from "react-datepicker";
 import { ru } from "date-fns/locale/ru";
 import "react-datepicker/dist/react-datepicker.css";
@@ -17,6 +39,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  GripVertical,
   LayoutGrid,
   List,
   Minus,
@@ -1039,6 +1062,100 @@ const getDefaultDraft = (periodType: KpiPeriodMode): CreateKpiDraft => {
   };
 };
 
+type GroupEntry = {
+  position: string;
+  positionsId: string | null;
+  items: KpiRecord[];
+};
+
+// Sortable groups (position headers) use a prefixed id so they never collide
+// with KPI row ids (uuids).
+const positionDndId = (position: string): string => `position::${position}`;
+
+// Drag handle props are spread onto the grip button so only the grip starts a
+// drag — the rest of the row stays interactive (menus, inline editing).
+type DragHandleProps = {
+  attributes: ReturnType<typeof useSortable>["attributes"];
+  listeners: ReturnType<typeof useSortable>["listeners"];
+  isDragging: boolean;
+};
+
+// A KPI table row, reorderable within its position group. The real <tr> stays
+// in the table (only translated), so table cell widths are preserved while
+// neighbours slide via dnd-kit's transition.
+function SortableKpiRow({
+  id,
+  position,
+  className,
+  children,
+}: {
+  id: string;
+  position: string;
+  className?: string;
+  children: (handle: DragHandleProps) => ReactNode;
+}) {
+  const { setNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
+    id,
+    data: { type: "item", position },
+  });
+
+  // CSS.Translate (not CSS.Transform): the sorting strategy also emits scaleY
+  // to match the hovered neighbour's height, which visibly squashes rows of
+  // uneven height (multi-line descriptions). Translate keeps the row's size.
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    ...(isDragging ? { position: "relative", zIndex: 30 } : {}),
+  };
+
+  // The whole row follows the cursor; lift it visually above its neighbours.
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`${className ?? ""} ${
+        isDragging ? "bg-white shadow-lg ring-1 ring-blue-200" : ""
+      }`}
+    >
+      {children({ attributes, listeners, isDragging })}
+    </tr>
+  );
+}
+
+// A position-group header row, reorderable against the other groups.
+function SortablePositionRow({
+  id,
+  className,
+  children,
+}: {
+  id: string;
+  className?: string;
+  children: (handle: DragHandleProps) => ReactNode;
+}) {
+  const { setNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
+    id,
+    data: { type: "position" },
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    ...(isDragging ? { position: "relative", zIndex: 30 } : {}),
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`${className ?? ""} ${
+        isDragging ? "bg-white shadow-md ring-1 ring-blue-200" : ""
+      }`}
+    >
+      {children({ attributes, listeners, isDragging })}
+    </tr>
+  );
+}
+
 function KpiPage() {
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [periodMode, setPeriodMode] = useState<KpiPeriodMode>("yearly");
@@ -1432,33 +1549,212 @@ function KpiPage() {
     []
   );
 
-  const groupedItems = useMemo(() => {
-    const groups = new Map<string, KpiRecord[]>();
+  // Server-driven grouping (order reflects the persisted sort). `orderedGroups`
+  // below mirrors this but can be mutated optimistically during drag-n-drop.
+  const groupEntries = useMemo<GroupEntry[]>(() => {
+    const groups = new Map<string, GroupEntry>();
     if (kpiGroups.length > 0) {
       for (const group of kpiGroups) {
-        groups.set(group.position || "Без должности", []);
+        const position = group.position || "Без должности";
+        if (!groups.has(position)) {
+          groups.set(position, { position, positionsId: null, items: [] });
+        }
       }
     }
     for (const item of kpiItems) {
-      if (!groups.has(item.position)) {
-        groups.set(item.position, []);
+      let entry = groups.get(item.position);
+      if (!entry) {
+        entry = { position: item.position, positionsId: item.positionsId, items: [] };
+        groups.set(item.position, entry);
       }
-      groups.get(item.position)?.push(item);
+      if (!entry.positionsId) entry.positionsId = item.positionsId;
+      entry.items.push(item);
     }
-    return [...groups.entries()];
+    return [...groups.values()];
   }, [kpiItems, kpiGroups]);
+
+  const [orderedGroups, setOrderedGroups] = useState<GroupEntry[]>([]);
+  const orderedGroupsRef = useRef<GroupEntry[]>([]);
+
+  // Re-sync the local ordering whenever the underlying server data changes
+  // (identity captured by a signature of positions + row ids in order). A drag
+  // reorder mutates `orderedGroups` without touching this signature, so the
+  // optimistic order survives until the next server reload.
+  const groupsSignature = useMemo(
+    () =>
+      groupEntries
+        .map((group) => `${group.position}#${group.items.map((item) => item.id).join(",")}`)
+        .join("|"),
+    [groupEntries]
+  );
+  const lastGroupsSignatureRef = useRef<string | null>(null);
+  if (lastGroupsSignatureRef.current !== groupsSignature) {
+    lastGroupsSignatureRef.current = groupsSignature;
+    setOrderedGroups(groupEntries);
+  }
+  orderedGroupsRef.current = orderedGroups;
 
   const rowIndexById = useMemo(() => {
     const map = new Map<string, number>();
     let counter = 1;
-    for (const [, items] of groupedItems) {
-      for (const item of items) {
+    for (const group of orderedGroups) {
+      for (const item of group.items) {
         map.set(item.id, counter);
         counter += 1;
       }
     }
     return map;
-  }, [groupedItems]);
+  }, [orderedGroups]);
+
+  const dndSensors = useSensors(
+    // A small activation distance keeps the grip clickable and prevents
+    // accidental drags when the user just clicks around the row.
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Constrain collisions to the active drag's own kind: a KPI row only targets
+  // rows in its own position group, a position header only targets other
+  // headers. Keeps drops reliable in the wide, scrollable table.
+  const dndCollisionDetection = useCallback<CollisionDetection>((args) => {
+    const activeData = args.active.data.current;
+    const activeType = activeData?.type;
+    let droppableContainers = args.droppableContainers.filter(
+      (container) => container.data.current?.type === activeType
+    );
+    if (activeType === "item") {
+      droppableContainers = droppableContainers.filter(
+        (container) => container.data.current?.position === activeData?.position
+      );
+    }
+    return closestCenter({ ...args, droppableContainers });
+  }, []);
+
+  const persistKpiItemOrder = useCallback((group: GroupEntry) => {
+    if (group.items.length === 0) return;
+    void reportsService
+      .reorderKpi({
+        mode: "items",
+        positions_id: group.positionsId,
+        ordered_ids: group.items.map((item) => item.id),
+      })
+      .catch(() => toast.error("Не удалось сохранить порядок KPI"));
+  }, []);
+
+  const persistPositionOrder = useCallback((groups: GroupEntry[]) => {
+    if (groups.length === 0) return;
+    void reportsService
+      .reorderKpi({
+        mode: "positions",
+        ordered_position_ids: groups.map((entry) => entry.positionsId),
+      })
+      .catch(() => toast.error("Не удалось сохранить порядок должностей"));
+  }, []);
+
+  // While a position header is being dragged we collapse every KPI row (across
+  // all groups) so only the headers remain — the group reorder then reads as a
+  // clean, compact list. The collapse is animated in two phases: rows first
+  // fade out ("collapsing"), then unmount ("collapsed"); on drop they remount
+  // with a fade-in ("expanding") before returning to "idle".
+  type PositionDragPhase = "idle" | "collapsing" | "collapsed" | "expanding";
+  const [positionDragPhase, setPositionDragPhase] = useState<PositionDragPhase>("idle");
+  const positionDragTimerRef = useRef<number | null>(null);
+
+  const clearPositionDragTimer = useCallback(() => {
+    if (positionDragTimerRef.current !== null) {
+      window.clearTimeout(positionDragTimerRef.current);
+      positionDragTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearPositionDragTimer, [clearPositionDragTimer]);
+
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      if (event.active.data.current?.type !== "position") return;
+      clearPositionDragTimer();
+      setPositionDragPhase("collapsing");
+      positionDragTimerRef.current = window.setTimeout(() => {
+        setPositionDragPhase("collapsed");
+        positionDragTimerRef.current = null;
+      }, 140);
+    },
+    [clearPositionDragTimer]
+  );
+
+  const finishPositionDragPhase = useCallback(() => {
+    clearPositionDragTimer();
+    setPositionDragPhase((phase) => {
+      if (phase === "idle") return phase;
+      positionDragTimerRef.current = window.setTimeout(() => {
+        setPositionDragPhase("idle");
+        positionDragTimerRef.current = null;
+      }, 260);
+      return "expanding";
+    });
+  }, [clearPositionDragTimer]);
+
+  const handleDragCancel = useCallback(() => {
+    finishPositionDragPhase();
+  }, [finishPositionDragPhase]);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      finishPositionDragPhase();
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const type = active.data.current?.type;
+      const current = orderedGroupsRef.current;
+
+      if (type === "position") {
+        const from = current.findIndex((g) => positionDndId(g.position) === active.id);
+        const to = current.findIndex((g) => positionDndId(g.position) === over.id);
+        if (from < 0 || to < 0) return;
+        const next = arrayMove(current, from, to);
+        orderedGroupsRef.current = next;
+        setOrderedGroups(next);
+        persistPositionOrder(next);
+        return;
+      }
+
+      if (type === "item") {
+        const position = active.data.current?.position as string | undefined;
+        if (!position) return;
+        const groupIndex = current.findIndex((g) => g.position === position);
+        if (groupIndex < 0) return;
+        const group = current[groupIndex];
+        const from = group.items.findIndex((item) => item.id === active.id);
+        const to = group.items.findIndex((item) => item.id === over.id);
+        // Reorder only within the same group; drops elsewhere are ignored.
+        if (from < 0 || to < 0) return;
+        const nextGroup: GroupEntry = { ...group, items: arrayMove(group.items, from, to) };
+        const next = [...current];
+        next[groupIndex] = nextGroup;
+        orderedGroupsRef.current = next;
+        setOrderedGroups(next);
+        persistKpiItemOrder(nextGroup);
+      }
+    },
+    [finishPositionDragPhase, persistKpiItemOrder, persistPositionOrder]
+  );
+
+  const positionSortableIds = useMemo(
+    () => orderedGroups.map((group) => positionDndId(group.position)),
+    [orderedGroups]
+  );
+
+  // True while a position header is actually being dragged (rows hidden or
+  // fading out). "expanding" is the post-drop reveal and doesn't count.
+  const isPositionDragActive =
+    positionDragPhase === "collapsing" || positionDragPhase === "collapsed";
+
+  const itemRowPhaseClass =
+    positionDragPhase === "collapsing"
+      ? "kpi-row-exit"
+      : positionDragPhase === "expanding"
+        ? "kpi-row-enter"
+        : "";
 
   const findItemById = useCallback(
     (items: KpiRecord[], id: string): KpiRecord | null => {
@@ -1894,15 +2190,33 @@ function KpiPage() {
     );
   };
 
-  const renderRow = (item: KpiRecord) => {
+  const renderRow = (item: KpiRecord, position: string) => {
     const totalPlan = item.planValue;
     const totalActual = item.actualValue;
     const totalPercent = item.percentTotal;
 
     return (
-      <tr key={`row-${item.id}`} className="group border-b border-slate-100">
-        <td className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-[13px] text-slate-500">
-          {rowIndexById.get(item.id) ?? "—"}
+      <SortableKpiRow
+        key={`row-${item.id}`}
+        id={item.id}
+        position={position}
+        className={`group border-b border-slate-100 ${itemRowPhaseClass}`}
+      >
+        {(handle) => (
+          <>
+        <td className="w-12 min-w-[52px] py-2 pl-2 pr-2 text-[13px] text-slate-500">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              {...handle.attributes}
+              {...handle.listeners}
+              className="cursor-grab touch-none text-slate-300 opacity-0 transition hover:text-slate-500 group-hover:opacity-100 active:cursor-grabbing"
+              aria-label="Перетащить KPI"
+            >
+              <GripVertical size={14} />
+            </button>
+            <span>{rowIndexById.get(item.id) ?? "—"}</span>
+          </div>
         </td>
         <td className="py-2 pl-4 pr-3 text-left">
           <div className="flex items-center gap-1.5">
@@ -1992,14 +2306,20 @@ function KpiPage() {
             {totalPercent}%
           </span>
         </td>
-      </tr>
+          </>
+        )}
+      </SortableKpiRow>
     );
   };
 
-  const renderTreeListRows = (items: KpiRecord[], level = 0): JSX.Element[] => {
+  const renderTreeListRows = (
+    items: KpiRecord[],
+    level = 0,
+    position?: string
+  ): JSX.Element[] => {
     const rows: JSX.Element[] = [];
 
-    for (const item of items) {
+    items.forEach((item) => {
       const totalPlan = item.planValue;
       const totalActual = item.actualValue;
       const totalPercent = item.percentTotal;
@@ -2011,11 +2331,29 @@ function KpiPage() {
         item.endDate
       );
       const rowBgClass = getBucketBgClass(item.periodType);
+      const isDraggableRoot = level === 0 && Boolean(position);
 
-      rows.push(
-        <tr key={`list-row-${item.id}`} className={`group border-b border-slate-100 ${rowBgClass}`}>
-          <td className="w-12 min-w-[52px] py-2 pl-3 pr-3 text-center text-[13px] text-slate-500">
-            {level === 0 ? rowIndexById.get(item.id) ?? "—" : ""}
+      const rowContent = (handle?: DragHandleProps) => (
+        <>
+          <td className="w-12 min-w-[52px] py-2 pl-2 pr-2 text-center text-[13px] text-slate-500">
+            {level === 0 ? (
+              <div className="flex items-center justify-center gap-1">
+                {handle ? (
+                  <button
+                    type="button"
+                    {...handle.attributes}
+                    {...handle.listeners}
+                    className="cursor-grab touch-none text-slate-300 opacity-0 transition hover:text-slate-500 group-hover:opacity-100 active:cursor-grabbing"
+                    aria-label="Перетащить KPI"
+                  >
+                    <GripVertical size={14} />
+                  </button>
+                ) : null}
+                <span>{rowIndexById.get(item.id) ?? "—"}</span>
+              </div>
+            ) : (
+              ""
+            )}
           </td>
           <td className="py-2 pl-4 pr-3 text-left">
             <div className="flex items-start gap-2" style={{ paddingLeft: `${level * 18}px` }}>
@@ -2082,13 +2420,35 @@ function KpiPage() {
               {totalPercent}%
             </span>
           </td>
-        </tr>
+        </>
       );
+
+      if (isDraggableRoot && position) {
+        rows.push(
+          <SortableKpiRow
+            key={`list-row-${item.id}`}
+            id={item.id}
+            position={position}
+            className={`group border-b border-slate-100 ${rowBgClass} ${itemRowPhaseClass}`}
+          >
+            {(handle) => rowContent(handle)}
+          </SortableKpiRow>
+        );
+      } else {
+        rows.push(
+          <tr
+            key={`list-row-${item.id}`}
+            className={`group border-b border-slate-100 ${rowBgClass} ${itemRowPhaseClass}`}
+          >
+            {rowContent()}
+          </tr>
+        );
+      }
 
       if (hasChildren && isExpanded) {
         rows.push(...renderTreeListRows(item.children, level + 1));
       }
-    }
+    });
 
     return rows;
   };
@@ -2339,7 +2699,21 @@ function KpiPage() {
                   <p className="m-0 text-[13px] text-slate-500">KPI не найдены</p>
                 </div>
               ) : (
-                viewMode === "calendar" ? (
+                <DndContext
+                  sensors={dndSensors}
+                  collisionDetection={dndCollisionDetection}
+                  modifiers={[restrictToVerticalAxis]}
+                  measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+                  // Collapsing all KPI rows on a position drag shrinks the layout
+                  // sharply; leaving auto-scroll on makes it chase the shifting
+                  // bottom edge and scroll forever. Headers all fit once collapsed,
+                  // so auto-scroll isn't needed for position drags anyway.
+                  autoScroll={!isPositionDragActive}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onDragCancel={handleDragCancel}
+                >
+                {viewMode === "calendar" ? (
                   <div className="overflow-x-auto">
                     <table
                       style={tableMinWidthStyle}
@@ -2432,20 +2806,54 @@ function KpiPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {groupedItems.map(([position, items]) => (
-                          <Fragment key={`group-${position}`}>
-                            <tr className="border-b border-slate-100 bg-slate-50/60">
-                              <td className="py-1.5 pl-3 pr-3" />
-                              <td
-                                colSpan={4 + leafBuckets.length * 3 + 3}
-                                className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
+                        <SortableContext
+                          items={positionSortableIds}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {orderedGroups.map((group) => (
+                            <Fragment key={`group-${group.position}`}>
+                              <SortablePositionRow
+                                id={positionDndId(group.position)}
+                                className="group border-b border-slate-100 bg-slate-50/60"
                               >
-                                {position}
-                              </td>
-                            </tr>
-                            {items.map((item) => renderRow(item))}
-                          </Fragment>
-                        ))}
+                                {(handle) => (
+                                  <>
+                                    <td className="py-1.5 pl-2 pr-2">
+                                      <button
+                                        type="button"
+                                        {...handle.attributes}
+                                        {...handle.listeners}
+                                        className="cursor-grab touch-none text-slate-400 opacity-0 transition hover:text-slate-600 group-hover:opacity-100 active:cursor-grabbing"
+                                        aria-label="Перетащить должность"
+                                      >
+                                        <GripVertical size={14} />
+                                      </button>
+                                    </td>
+                                    <td
+                                      colSpan={4 + leafBuckets.length * 3 + 3}
+                                      className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
+                                    >
+                                      {group.position}
+                                      {isPositionDragActive ? (
+                                        <span className="ml-2 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+                                          {group.items.length} KPI
+                                        </span>
+                                      ) : null}
+                                    </td>
+                                  </>
+                                )}
+                              </SortablePositionRow>
+                              {positionDragPhase !== "collapsed" && (
+                                <SortableContext
+                                  items={group.items.map((item) => item.id)}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {group.items.map((item) => renderRow(item, group.position))}
+                                </SortableContext>
+                              )}
+                            </Fragment>
+                          ))}
+                        </SortableContext>
                       </tbody>
                     </table>
                   </div>
@@ -2471,24 +2879,59 @@ function KpiPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {groupedItems.map(([position, items]) => (
-                          <Fragment key={`group-list-${position}`}>
-                            <tr className="border-b border-slate-100 bg-slate-50/60">
-                              <td className="py-1.5 pl-3 pr-3" />
-                              <td
-                                colSpan={7}
-                                className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
+                        <SortableContext
+                          items={positionSortableIds}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {orderedGroups.map((group) => (
+                            <Fragment key={`group-list-${group.position}`}>
+                              <SortablePositionRow
+                                id={positionDndId(group.position)}
+                                className="group border-b border-slate-100 bg-slate-50/60"
                               >
-                                {position}
-                              </td>
-                            </tr>
-                            {renderTreeListRows(items)}
-                          </Fragment>
-                        ))}
+                                {(handle) => (
+                                  <>
+                                    <td className="py-1.5 pl-2 pr-2">
+                                      <button
+                                        type="button"
+                                        {...handle.attributes}
+                                        {...handle.listeners}
+                                        className="cursor-grab touch-none text-slate-400 opacity-0 transition hover:text-slate-600 group-hover:opacity-100 active:cursor-grabbing"
+                                        aria-label="Перетащить должность"
+                                      >
+                                        <GripVertical size={14} />
+                                      </button>
+                                    </td>
+                                    <td
+                                      colSpan={7}
+                                      className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
+                                    >
+                                      {group.position}
+                                      {isPositionDragActive ? (
+                                        <span className="ml-2 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+                                          {group.items.length} KPI
+                                        </span>
+                                      ) : null}
+                                    </td>
+                                  </>
+                                )}
+                              </SortablePositionRow>
+                              {positionDragPhase !== "collapsed" && (
+                                <SortableContext
+                                  items={group.items.map((item) => item.id)}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {renderTreeListRows(group.items, 0, group.position)}
+                                </SortableContext>
+                              )}
+                            </Fragment>
+                          ))}
+                        </SortableContext>
                       </tbody>
                     </table>
                   </div>
-                )
+                )}
+                </DndContext>
               )}
             </div>
           </div>

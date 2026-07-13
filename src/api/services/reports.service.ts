@@ -40,6 +40,7 @@ const GET_KPI_TABLE_METHOD = "get_kpi_table";
 const SAVE_KPI_METHOD = "save_kpi";
 const DELETE_KPI_METHOD = "delete_kpi";
 const UPDATE_KPI_VALUE_METHOD = "update_kpi_value";
+const REORDER_KPI_METHOD = "reorder_kpi";
 const APPROVE_ABSENCE_METHOD = "approve_absence";
 const DELETE_ABSENCE_METHOD = "delete_absence";
 const GET_RECRUITING_FUNNEL_METHOD = "get_recruiting_funnel";
@@ -1391,6 +1392,19 @@ export type UpdateKpiValueInvokeResponse = {
       actual_total: number;
       percent_total: number;
     } | null;
+  };
+};
+
+export type ReorderKpiMode = "items" | "positions";
+
+export type ReorderKpiInvokeResponse = {
+  method: typeof REORDER_KPI_METHOD;
+  result: {
+    mode: ReorderKpiMode | string;
+    updated_count: number;
+    positions_id?: string | null;
+    ordered_ids?: string[];
+    ordered_position_ids?: (string | null)[];
   };
 };
 
@@ -3089,6 +3103,23 @@ const reportsService = {
     });
 
     return normalizeUpdateKpiValueResponse(response.data);
+  },
+  reorderKpi: async (
+    requestData:
+      | { mode: "items"; positions_id?: string | null; ordered_ids: string[] }
+      | { mode: "positions"; ordered_position_ids: (string | null)[] }
+  ): Promise<ReorderKpiInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: REORDER_KPI_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<ReorderKpiInvokeResponse>(
+      response.data,
+      REORDER_KPI_METHOD
+    );
   },
   approveAbsence: async (
     requestData: { absences_id: string; reviewed_by?: string | null }
