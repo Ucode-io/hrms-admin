@@ -7,7 +7,9 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   FileText,
+  GraduationCap,
   Home,
   Package,
   Settings,
@@ -73,6 +75,14 @@ const moduleSections: ModuleSection[] = [
     ],
   },
   {
+    title: "Опросы",
+    items: [{ name: "Опросники", path: "/surveys", icon: <ClipboardList size={18} /> }],
+  },
+  {
+    title: "Обучение",
+    items: [{ name: "Тренинги", path: "/trainings", icon: <GraduationCap size={18} /> }],
+  },
+  {
     title: "Финансы",
     items: [{ name: "Зарплата", path: "/finance/salary", icon: <WalletCards size={18} /> }],
   },
@@ -102,6 +112,8 @@ const ENABLED_PATHS = new Set([
   "/calendar",
   "/finance/salary",
   "/kpi",
+  "/surveys",
+  "/trainings",
   "/settings",
   "/settings/compensation",
   "/settings/news",

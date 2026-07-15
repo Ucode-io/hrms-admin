@@ -21,7 +21,8 @@ import RemoteSingleSelect, {
 } from "../../../../components/autocomplete/RemoteSingleSelect";
 import httpRequest from "../../../../api/httpRequest";
 import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
-import { useDepartmentExperienceLevelsSummaryQuery } from "../../../../api/services/departmentExperienceLevel.service";
+import { usePositionsQuery } from "../../../../api/services/position.service";
+import { useExperienceLevelsQuery } from "../../../../api/services/experienceLevel.service";
 import {
   default as employeeWorkService,
   type EmployeeWork,
@@ -491,6 +492,10 @@ export default function WorkSection({
   const { data: departmentsData } = useDepartmentsSettingsQuery({
     params: { limit: 200, offset: 0 },
   });
+  const { data: positionsData } = usePositionsQuery({ params: { all: true } });
+  const { data: experienceLevelsData } = useExperienceLevelsQuery({
+    params: { limit: 1000, offset: 0 },
+  });
 
   const createEmployeeWork = useCreateEmployeeWork();
   const updateEmployeeWork = useUpdateEmployeeWork();
@@ -560,25 +565,33 @@ export default function WorkSection({
     return Array.isArray(departmentsData?.response) ? departmentsData.response : [];
   }, [departmentsData?.response]);
 
-  const departmentIds = useMemo(() => {
-    return departmentOptions.map((department) => department.guid);
-  }, [departmentOptions]);
+  const positionsList = useMemo(() => {
+    return Array.isArray(positionsData?.response) ? positionsData.response : [];
+  }, [positionsData?.response]);
 
-  const { data: departmentExperienceLevelsSummary } = useDepartmentExperienceLevelsSummaryQuery({
-    departmentIds,
-  });
+  const experienceLevelsList = useMemo(() => {
+    return Array.isArray(experienceLevelsData?.response) ? experienceLevelsData.response : [];
+  }, [experienceLevelsData?.response]);
+
+  const selectedPositionGroupId = useMemo(() => {
+    if (!form.positionsId) return null;
+    const position = positionsList.find((item) => item.guid === form.positionsId);
+    return typeof position?.experience_level_groups_id === "string"
+      ? position.experience_level_groups_id
+      : null;
+  }, [positionsList, form.positionsId]);
 
   const allowedExperienceLevelIds = useMemo(() => {
-    if (!form.departmentId) return null;
+    if (!selectedPositionGroupId) return null;
 
     const ids = new Set<string>();
-    for (const row of departmentExperienceLevelsSummary?.response || []) {
-      if (row.departments_id === form.departmentId && row.experience_levels_id) {
-        ids.add(row.experience_levels_id);
+    for (const level of experienceLevelsList) {
+      if (level.experience_level_groups_id === selectedPositionGroupId) {
+        ids.add(level.guid);
       }
     }
     return ids;
-  }, [departmentExperienceLevelsSummary?.response, form.departmentId]);
+  }, [experienceLevelsList, selectedPositionGroupId]);
 
   const departmentSelectOptions = useMemo<RemoteSelectOption[]>(() => {
     return departmentOptions.map((item) => ({
@@ -1250,7 +1263,7 @@ export default function WorkSection({
                   setForm((prev) => ({ ...prev, experienceLevelId: value }))
                 }
                 placeholder={
-                  form.departmentId ? "Выберите уровень" : "Сначала выберите департамент"
+                  selectedPositionGroupId ? "Выберите уровень" : "Сначала выберите должность"
                 }
                 disabled={isSaving}
                 menuPortalTarget={menuPortalTarget}

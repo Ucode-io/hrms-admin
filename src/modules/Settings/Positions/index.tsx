@@ -35,6 +35,7 @@ import {
   usePositionsQuery,
   useUpdatePosition,
 } from "../../../api/services/position.service";
+import { useExperienceLevelGroupsQuery } from "../../../api/services/experienceLevelGroup.service";
 
 type Option = {
   value: string;
@@ -48,13 +49,6 @@ type FlattenedTreeRow = {
 };
 
 const ROOT_KEY = "__root__";
-
-const resolveEmployeesCount = (position: Position): number => {
-  if (typeof position.employees_count === "number") return position.employees_count;
-  if (typeof position.employee_count === "number") return position.employee_count;
-  if (Array.isArray(position.employees)) return position.employees.length;
-  return 0;
-};
 
 const resolveParentPositionId = (position: Position): string | null => {
   const rawValue = position.positions_id;
@@ -107,6 +101,7 @@ export default function PositionsSettingsPage() {
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [positionToDelete, setPositionToDelete] = useState<Position | null>(null);
   const [positionTitle, setPositionTitle] = useState("");
+  const [positionGroupId, setPositionGroupId] = useState("");
   const [parentPositionId, setParentPositionId] = useState("");
 
   const [expandedGuids, setExpandedGuids] = useState<string[]>([]);
@@ -128,11 +123,33 @@ export default function PositionsSettingsPage() {
   const { data, isLoading } = usePositionsQuery({
     params: { all: true },
   });
+  const { data: groupsData } = useExperienceLevelGroupsQuery({ params: { limit: 200, offset: 0 } });
   const createMutation = useCreatePosition();
   const updateMutation = useUpdatePosition();
   const deleteMutation = useDeletePosition();
 
   const positions = useMemo(() => data?.response || [], [data?.response]);
+  const experienceLevelGroups = useMemo(() => groupsData?.response || [], [groupsData?.response]);
+  const groupTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const group of experienceLevelGroups) {
+      map.set(group.guid, String(group.title || "Без названия"));
+    }
+    return map;
+  }, [experienceLevelGroups]);
+  const groupOptions = useMemo<Option[]>(() => {
+    const options: Option[] = [{ value: "", label: "Без группы" }];
+    for (const group of [...experienceLevelGroups].sort((a, b) =>
+      String(a.title || "").localeCompare(String(b.title || ""), "ru")
+    )) {
+      options.push({ value: group.guid, label: String(group.title || "Без названия") });
+    }
+    return options;
+  }, [experienceLevelGroups]);
+  const selectedGroupOption = useMemo(
+    () => groupOptions.find((option) => option.value === positionGroupId) || groupOptions[0],
+    [groupOptions, positionGroupId]
+  );
 
   useEffect(() => {
     if (initializedExpandRef.current || positions.length === 0) {
@@ -329,6 +346,7 @@ export default function PositionsSettingsPage() {
     setEditingPosition(null);
     setPositionTitle("");
     setParentPositionId("");
+    setPositionGroupId("");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -337,6 +355,11 @@ export default function PositionsSettingsPage() {
     setEditingPosition(position);
     setPositionTitle(String(position.title || ""));
     setParentPositionId(resolveParentPositionId(position) || "");
+    setPositionGroupId(
+      typeof position.experience_level_groups_id === "string"
+        ? position.experience_level_groups_id
+        : ""
+    );
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -346,6 +369,7 @@ export default function PositionsSettingsPage() {
     setEditingPosition(null);
     setPositionTitle("");
     setParentPositionId("");
+    setPositionGroupId("");
   };
 
   const handleSubmit = async () => {
@@ -359,6 +383,7 @@ export default function PositionsSettingsPage() {
     const payload = {
       title,
       positions_id: parentPositionId || null,
+      experience_level_groups_id: positionGroupId || null,
     };
 
     try {
@@ -471,8 +496,8 @@ export default function PositionsSettingsPage() {
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                     Название
                   </TableCell>
-                  <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Сотрудники
+                  <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                    Группа уровней
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
                     Действия
@@ -487,8 +512,8 @@ export default function PositionsSettingsPage() {
                       <TableCell className="px-4 py-4">
                         <div className="h-4 w-60 animate-pulse rounded bg-gray-200" />
                       </TableCell>
-                      <TableCell className="px-4 py-4 text-right">
-                        <div className="ml-auto h-4 w-8 animate-pulse rounded bg-gray-200" />
+                      <TableCell className="px-4 py-4">
+                        <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
                       </TableCell>
                       <TableCell className="px-4 py-4 text-right">
                         <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-200" />
@@ -533,8 +558,25 @@ export default function PositionsSettingsPage() {
                             <span>{String(position.title || "Без названия")}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-right text-sm text-gray-700">
-                          {resolveEmployeesCount(position)}
+                        <TableCell className="px-4 py-3 text-sm text-gray-700">
+                          {(() => {
+                            const groupId =
+                              typeof position.experience_level_groups_id === "string"
+                                ? position.experience_level_groups_id
+                                : "";
+                            const groupTitle =
+                              (groupId && groupTitleById.get(groupId)) ||
+                              (typeof position.experience_level_groups_id_data?.title === "string"
+                                ? position.experience_level_groups_id_data.title
+                                : "");
+                            return groupTitle ? (
+                              <span className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                                {groupTitle}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="px-4 py-3">
                           <div className="relative flex items-center justify-end">
@@ -631,6 +673,24 @@ export default function PositionsSettingsPage() {
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="position-parent-select"
+              noOptionsMessage={() => "Ничего не найдено"}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Группа уровней опыта
+            </label>
+            <Select
+              options={groupOptions}
+              value={selectedGroupOption}
+              onChange={(option) => setPositionGroupId(option?.value || "")}
+              placeholder="Выберите группу уровней опыта"
+              isSearchable
+              styles={getParentSelectStyles()}
+              menuPortalTarget={menuPortalTarget || undefined}
+              menuPosition="fixed"
+              classNamePrefix="position-group-select"
               noOptionsMessage={() => "Ничего не найдено"}
             />
           </div>

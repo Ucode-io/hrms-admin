@@ -34,6 +34,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   salary: "Зарплата",
   time: "Время",
   "time-tracking": "Учёт времени работы",
+  surveys: "Опросники",
+  trainings: "Тренинги",
   calendar: "Календарь",
   clients: "Клиенты",
   contracts: "Договоры",
@@ -124,6 +126,8 @@ const AppHeader: React.FC = () => {
     { pattern: /^\/recruiting\/candidates\/.+/, listPath: "/recruiting/candidates" },
     { pattern: /^\/property\/.+/, listPath: "/property" },
     { pattern: /^\/reports\/.+/, listPath: "/reports" },
+    { pattern: /^\/surveys\/.+/, listPath: "/surveys" },
+    { pattern: /^\/trainings\/.+/, listPath: "/trainings" },
     { pattern: /^\/settings\/.+/, listPath: "/settings" },
   ];
   const backButtonPage = BACK_BUTTON_PAGES.find((page) => page.pattern.test(location.pathname));

@@ -7,6 +7,7 @@ export interface ExperienceLevel {
   guid: string;
   title: string;
   companies_id: string;
+  experience_level_groups_id?: string | null;
   created_at: string;
   updated_at: string;
   employees_count?: number;
@@ -24,6 +25,7 @@ export interface ExperienceLevelListParams {
   limit?: number;
   offset?: number;
   search?: string;
+  experience_level_groups_id?: string;
 }
 
 const experienceLevelService = {
@@ -40,7 +42,7 @@ const experienceLevelService = {
     };
   },
 
-  create: (data: { title: string; companies_id?: string }) =>
+  create: (data: { title: string; companies_id?: string; experience_level_groups_id?: string | null }) =>
     httpRequest.post("/v2/items/experience_levels", {
       data: {
         companies_id: COMPANY_ID,
@@ -80,7 +82,7 @@ export const useCreateExperienceLevel = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { title: string; companies_id?: string }) =>
+    mutationFn: (data: { title: string; companies_id?: string; experience_level_groups_id?: string | null }) =>
       experienceLevelService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries(["EXPERIENCE_LEVELS"]);

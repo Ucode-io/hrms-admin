@@ -11,7 +11,7 @@ const API_BASE_URL = "https://api.admin.u-code.io";
 const PROJECT_ID = "9a462573-ce11-4288-928a-a6ba754b6998";
 const ENVIRONMENT_ID = "2f73835f-3a29-46c8-951e-75119db9bfc0";
 // app_id — u-code API key (P-… format), also used to arm the background re-sync.
-const APP_ID = "P-bta3QjePSLS84na33QXCvxUEv3vB4iMU";
+const APP_ID = "P-aUAOU0KNOuRctMIRJDjVb5kElKgxkYpI";
 // NOTE: confirm the deployed function slug. Service name is
 // `workload-timedoctor-integration`.
 const TIMEDOCTOR_FUNCTION_PATH = `/v2/invoke_function/workload-timedoctor-integration?project-id=${PROJECT_ID}`;

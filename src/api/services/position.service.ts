@@ -9,6 +9,12 @@ export interface Position {
   title: string;
   companies_id: string;
   positions_id?: string | null;
+  experience_level_groups_id?: string | null;
+  experience_level_groups_id_data?: {
+    guid?: string;
+    title?: string;
+    [key: string]: unknown;
+  } | null;
   created_at: string;
   updated_at: string;
   employees_count?: number;
@@ -103,7 +109,12 @@ const positionService = {
     };
   },
 
-  create: (data: { title: string; positions_id?: string | null; companies_id?: string }) =>
+  create: (data: {
+    title: string;
+    positions_id?: string | null;
+    experience_level_groups_id?: string | null;
+    companies_id?: string;
+  }) =>
     httpRequest.post("/v2/items/positions", {
       data: {
         companies_id: COMPANY_ID,
@@ -143,8 +154,12 @@ export const useCreatePosition = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { title: string; positions_id?: string | null; companies_id?: string }) =>
-      positionService.create(data),
+    mutationFn: (data: {
+      title: string;
+      positions_id?: string | null;
+      experience_level_groups_id?: string | null;
+      companies_id?: string;
+    }) => positionService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries(["POSITIONS"]);
     },

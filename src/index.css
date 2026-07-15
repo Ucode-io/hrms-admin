@@ -1469,3 +1469,12 @@ span.flatpickr-weekday,
 }
 .kpi-row-exit { animation: kpi-row-exit 140ms ease-out both; }
 .kpi-row-enter { animation: kpi-row-enter 240ms ease both; }
+
+/* SurveyJS Creator: hide the license reminder banner (same approach as the
+   formula-creator-survey project). Note: this is cosmetic only — the SurveyJS
+   EULA still requires a commercial license for production use of the Creator.
+   !important is required because survey-creator-core.css loads after this file
+   and sets display: block with equal specificity. */
+.svc-creator__non-commercial-text {
+  display: none !important;
+}

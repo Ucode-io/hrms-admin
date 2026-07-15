@@ -26,9 +26,16 @@ import ProductsList from "./modules/Products/List";
 import ProductFormPage from "./modules/Products/Form";
 import PlatformSettingsPage from "./modules/Settings/PlatformSettings";
 import SettingsGeneralPage from "./modules/Settings/General";
+import CareerSiteSettingsPage from "./modules/Settings/CareerSite";
 import HomeSettingsPage from "./modules/Settings/Home";
 import PositionsSettingsPage from "./modules/Settings/Positions";
 import ExperienceLevelsSettingsPage from "./modules/Settings/ExperienceLevels";
+import SurveysPage from "./modules/Surveys";
+import SurveyEditorPage from "./modules/Surveys/Editor";
+import SurveyDetailPage from "./modules/Surveys/Detail";
+import TrainingsPage from "./modules/Trainings";
+import TrainingEditorPage from "./modules/Trainings/Editor";
+import TrainingDetailPage from "./modules/Trainings/Detail";
 import EmploymentTypesSettingsPage from "./modules/Settings/EmploymentTypes";
 import DivisionsSettingsPage from "./modules/Settings/Divisions";
 import SkillsSettingsPage from "./modules/Settings/Skills";
@@ -210,6 +217,7 @@ function App() {
                 <Route path="platform" element={<PlatformSettingsPage />} />
                 <Route path="home" element={<HomeSettingsPage />} />
                 <Route path="general" element={<SettingsGeneralPage />} />
+                <Route path="career-site" element={<CareerSiteSettingsPage />} />
                 <Route path="positions" element={<PositionsSettingsPage />} />
                 <Route path="experience-levels" element={<ExperienceLevelsSettingsPage />} />
                 <Route path="locations" element={<LocationsSettingsPage />} />
@@ -250,6 +258,16 @@ function App() {
                 <Route path="rejection-reasons" element={<RejectionReasonsSettingsPage />} />
                 <Route path="candidate-sources" element={<CandidateSourcesSettingsPage />} />
               </Route>
+
+              <Route path="/surveys" element={<SurveysPage />} />
+              <Route path="/surveys/new" element={<SurveyEditorPage />} />
+              <Route path="/surveys/:id" element={<SurveyDetailPage />} />
+              <Route path="/surveys/:id/edit" element={<SurveyEditorPage />} />
+
+              <Route path="/trainings" element={<TrainingsPage />} />
+              <Route path="/trainings/new" element={<TrainingEditorPage />} />
+              <Route path="/trainings/:id" element={<TrainingDetailPage />} />
+              <Route path="/trainings/:id/edit" element={<TrainingEditorPage />} />
 
               <Route path="/employees" element={<EmployeesList />} />
               <Route path="/employees/new" element={<EmployeeForm />} />

@@ -15,7 +15,6 @@ export interface Department {
   employees_count?: number;
   employee_count?: number;
   employees?: unknown[];
-  experience_level_titles?: string[];
   [key: string]: unknown;
 }
 
@@ -43,7 +42,6 @@ interface DepartmentAggregationRow {
   leader_middle_name?: string | null;
   leader_email?: string | null;
   leader_phone?: string | null;
-  experience_level_title?: string | null;
 }
 
 const normalizeAggregationRows = (res: unknown): DepartmentAggregationRow[] => {
@@ -97,19 +95,7 @@ const mapAggregationRowsToDepartments = (
         user_base_id_data,
         created_at: String(row.created_at || ""),
         updated_at: String(row.updated_at || ""),
-        experience_level_titles: [],
       });
-    }
-
-    const department = byGuid.get(guid);
-    if (!department) continue;
-
-    const levelTitle = String(row.experience_level_title || "").trim();
-    if (levelTitle && !department.experience_level_titles?.includes(levelTitle)) {
-      department.experience_level_titles = [
-        ...(department.experience_level_titles || []),
-        levelTitle,
-      ];
     }
   }
 
@@ -147,7 +133,7 @@ const departmentService = {
         data: {
           operation: "SELECT",
           table:
-            "departments d LEFT JOIN user_base ub ON ub.guid = d.user_base_id LEFT JOIN department_experience_levels del ON del.departments_id = d.guid LEFT JOIN experience_levels el ON el.guid = del.experience_levels_id",
+            "departments d LEFT JOIN user_base ub ON ub.guid = d.user_base_id",
           columns: [
             "d.guid AS guid",
             "d.title AS title",
@@ -161,10 +147,9 @@ const departmentService = {
             "ub.middle_name AS leader_middle_name",
             "ub.email AS leader_email",
             "ub.phone AS leader_phone",
-            "el.title AS experience_level_title",
           ],
           ...(where ? { where } : {}),
-          order_by: ["d.title ASC", "el.title ASC", "d.created_at DESC"],
+          order_by: ["d.title ASC", "d.created_at DESC"],
           limit,
           offset,
         },

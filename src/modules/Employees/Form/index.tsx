@@ -22,7 +22,6 @@ import { useDivisionsQuery } from "../../../api/services/division.service";
 import { useExperienceLevelsQuery } from "../../../api/services/experienceLevel.service";
 import { useLocationsQuery } from "../../../api/services/location.service";
 import { useDepartmentsSettingsQuery } from "../../../api/services/department.service";
-import { useDepartmentExperienceLevelsSummaryQuery } from "../../../api/services/departmentExperienceLevel.service";
 import { usePositionsQuery } from "../../../api/services/position.service";
 import { useCreateEmployeeWork } from "../../../api/services/employeeWork.service";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
@@ -81,7 +80,7 @@ function EmployeeForm() {
   } = useForm<EmployeeFormValues>({ defaultValues: employeeFormDefaults });
 
   const photo = watch("photo");
-  const selectedDepartmentId = watch("departments_id");
+  const selectedPositionId = watch("positions_id");
   const selectedExperienceLevelId = watch("experience_levels_id");
 
   /* ── API queries ── */
@@ -108,29 +107,29 @@ function EmployeeForm() {
     value: role.id,
     label: role.title,
   }));
-  const departmentIds = useMemo(
-    () => departments.map((department) => department.guid),
-    [departments]
-  );
-  const { data: departmentExperienceLevelsSummary } = useDepartmentExperienceLevelsSummaryQuery({
-    departmentIds,
-  });
-
   const departmentOptions: SelectOption[] = departments.map((d) => ({ value: d.guid, label: d.title }));
   const positionOptions: SelectOption[] = positions.map((p) => ({ value: p.guid, label: String(p.title) }));
   const employmentTypeOptions: SelectOption[] = employmentTypes.map((e) => ({ value: e.guid, label: e.title }));
   const divisionOptions: SelectOption[] = divisions.map((d) => ({ value: d.guid, label: d.title }));
+  const selectedPositionGroupId = useMemo(() => {
+    if (!selectedPositionId) return null;
+    const position = positions.find((item) => item.guid === selectedPositionId);
+    return typeof position?.experience_level_groups_id === "string"
+      ? position.experience_level_groups_id
+      : null;
+  }, [positions, selectedPositionId]);
+
   const allowedExperienceLevelIds = useMemo(() => {
-    if (!selectedDepartmentId) return null;
+    if (!selectedPositionGroupId) return null;
 
     const ids = new Set<string>();
-    for (const row of departmentExperienceLevelsSummary?.response || []) {
-      if (row.departments_id === selectedDepartmentId && row.experience_levels_id) {
-        ids.add(row.experience_levels_id);
+    for (const level of experienceLevels) {
+      if (level.experience_level_groups_id === selectedPositionGroupId) {
+        ids.add(level.guid);
       }
     }
     return ids;
-  }, [departmentExperienceLevelsSummary?.response, selectedDepartmentId]);
+  }, [experienceLevels, selectedPositionGroupId]);
 
   const experienceLevelOptions: SelectOption[] = experienceLevels
     .filter((level) => !allowedExperienceLevelIds || allowedExperienceLevelIds.has(level.guid))
@@ -699,9 +698,9 @@ function EmployeeForm() {
                         value={field.value}
                         onChange={field.onChange}
                         placeholder={
-                          selectedDepartmentId
+                          selectedPositionGroupId
                             ? "Выберите уровень"
-                            : "Сначала выберите департамент"
+                            : "Сначала выберите должность"
                         }
                         brandColor={brandColor}
                       />

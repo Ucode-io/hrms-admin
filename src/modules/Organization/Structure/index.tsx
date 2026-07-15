@@ -31,9 +31,6 @@ import {
   useDeleteDepartment,
   useUpdateDepartment,
 } from "../../../api/services/department.service";
-import departmentExperienceLevelService, {
-  useSyncDepartmentExperienceLevels,
-} from "../../../api/services/departmentExperienceLevel.service";
 import {
   type OrgStructureNode,
   useOrgStructureReportQuery,
@@ -103,28 +100,6 @@ type LevelFilterOption = {
   value: string;
   label: string;
   hierarchyLevel: number;
-};
-
-const resolveCreatedOrUpdatedGuid = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== "object") return null;
-  const data = payload as Record<string, unknown>;
-  if (typeof data.guid === "string" && data.guid) return data.guid;
-
-  const response = data.response;
-  if (response && typeof response === "object") {
-    const responseObj = response as Record<string, unknown>;
-    if (typeof responseObj.guid === "string" && responseObj.guid) return responseObj.guid;
-  }
-
-  if (Array.isArray(response)) {
-    const first = response[0];
-    if (first && typeof first === "object") {
-      const firstObj = first as Record<string, unknown>;
-      if (typeof firstObj.guid === "string" && firstObj.guid) return firstObj.guid;
-    }
-  }
-
-  return null;
 };
 
 const COLOR_PALETTE = [
@@ -1385,9 +1360,6 @@ function OrganizationStructureModule({
   const [departmentTitle, setDepartmentTitle] = useState("");
   const [parentDepartmentId, setParentDepartmentId] = useState("");
   const [leaderUserId, setLeaderUserId] = useState("");
-  const [experienceLevelIds, setExperienceLevelIds] = useState<string[]>([]);
-  const [experienceLevelFallbackOptions, setExperienceLevelFallbackOptions] = useState<Option[]>([]);
-  const [isLoadingExperienceLevels, setIsLoadingExperienceLevels] = useState(false);
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
   const searchInput = typeof searchValue === "string" ? searchValue : internalSearchInput;
   const setSearchInput = (value: string) => {
@@ -1432,7 +1404,6 @@ function OrganizationStructureModule({
   const createDepartmentMutation = useCreateDepartment();
   const updateDepartmentMutation = useUpdateDepartment();
   const deleteDepartmentMutation = useDeleteDepartment();
-  const syncExperienceLevelsMutation = useSyncDepartmentExperienceLevels();
   const isEmployeesLoading = false;
 
   const result = data?.result;
@@ -1590,9 +1561,6 @@ function OrganizationStructureModule({
     setDepartmentTitle("");
     setParentDepartmentId(parentGuid);
     setLeaderUserId("");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
-    setIsLoadingExperienceLevels(false);
     setIsUpsertModalOpen(true);
   }, [nodeById]);
 
@@ -1647,9 +1615,6 @@ function OrganizationStructureModule({
     setDepartmentTitle("");
     setParentDepartmentId("");
     setLeaderUserId("");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
-    setIsLoadingExperienceLevels(false);
     setIsUpsertModalOpen(true);
   }, [createRequestKey, embedded]);
 
@@ -1715,58 +1680,16 @@ function OrganizationStructureModule({
   }, [departmentsById, selectedNode, structureViewMode]);
   const selectedEmployees = useMemo<Employee[]>(() => [], []);
 
-  const loadExperienceLevelsForDepartment = async (departmentGuid: string) => {
-    setIsLoadingExperienceLevels(true);
-
-    try {
-      const relations = await departmentExperienceLevelService.getListByDepartment(departmentGuid);
-      const nextIds: string[] = [];
-      const fallback: Option[] = [];
-      const seenFallback = new Set<string>();
-
-      for (const relation of relations.response) {
-        if (!relation.experience_levels_id) continue;
-        nextIds.push(relation.experience_levels_id);
-        const titleFromRelation =
-          relation.experience_levels_id_data &&
-          typeof relation.experience_levels_id_data === "object" &&
-          typeof relation.experience_levels_id_data.title === "string"
-            ? relation.experience_levels_id_data.title
-            : relation.experience_levels_id;
-        if (!seenFallback.has(relation.experience_levels_id)) {
-          fallback.push({
-            value: relation.experience_levels_id,
-            label: titleFromRelation,
-          });
-          seenFallback.add(relation.experience_levels_id);
-        }
-      }
-
-      setExperienceLevelIds(Array.from(new Set(nextIds)));
-      setExperienceLevelFallbackOptions(fallback);
-    } catch (loadError) {
-      console.error("Failed to load department experience levels:", loadError);
-      toast.error("Не удалось загрузить уровни опыта для департамента.");
-      setExperienceLevelIds([]);
-      setExperienceLevelFallbackOptions([]);
-    } finally {
-      setIsLoadingExperienceLevels(false);
-    }
-  };
-
   const openEditModal = (department: Department) => {
     setEditingDepartment(department);
     setDepartmentTitle(String(department.title || ""));
     setParentDepartmentId(department.departments_id || "");
     setLeaderUserId(department.user_base_id || "");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
     setIsUpsertModalOpen(true);
-    void loadExperienceLevelsForDepartment(department.guid);
   };
 
   const closeUpsertModal = () => {
-    if (createDepartmentMutation.isLoading || updateDepartmentMutation.isLoading || syncExperienceLevelsMutation.isLoading) {
+    if (createDepartmentMutation.isLoading || updateDepartmentMutation.isLoading) {
       return;
     }
     setIsUpsertModalOpen(false);
@@ -1774,9 +1697,6 @@ function OrganizationStructureModule({
     setDepartmentTitle("");
     setParentDepartmentId("");
     setLeaderUserId("");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
-    setIsLoadingExperienceLevels(false);
   };
 
   const openDeleteModal = (department: Department) => {
@@ -1804,23 +1724,13 @@ function OrganizationStructureModule({
     };
 
     try {
-      let savedDepartmentGuid: string | null = editingDepartment?.guid || null;
       if (editingDepartment) {
-        const updated = await updateDepartmentMutation.mutateAsync({
+        await updateDepartmentMutation.mutateAsync({
           guid: editingDepartment.guid,
           data: payload,
         });
-        savedDepartmentGuid = resolveCreatedOrUpdatedGuid(updated) || savedDepartmentGuid;
       } else {
-        const created = await createDepartmentMutation.mutateAsync(payload);
-        savedDepartmentGuid = resolveCreatedOrUpdatedGuid(created);
-      }
-
-      if (savedDepartmentGuid) {
-        await syncExperienceLevelsMutation.mutateAsync({
-          departmentGuid: savedDepartmentGuid,
-          experienceLevelIds,
-        });
+        await createDepartmentMutation.mutateAsync(payload);
       }
 
       toast.success(editingDepartment ? "Департамент обновлен." : "Департамент создан.");
@@ -2133,23 +2043,18 @@ function OrganizationStructureModule({
       isOpen={isUpsertModalOpen}
       isSaving={
         createDepartmentMutation.isLoading ||
-        updateDepartmentMutation.isLoading ||
-        syncExperienceLevelsMutation.isLoading ||
-        isLoadingExperienceLevels
+        updateDepartmentMutation.isLoading
       }
       isEditing={Boolean(editingDepartment)}
       departmentTitle={departmentTitle}
       parentDepartmentId={parentDepartmentId}
       leaderUserId={leaderUserId}
-      experienceLevelIds={experienceLevelIds}
-      experienceLevelFallbackOptions={experienceLevelFallbackOptions}
       leaderFallbackLabel={editingDepartment ? resolveDepartmentLeaderName(editingDepartment) : ""}
       parentOptions={parentOptions}
       onClose={closeUpsertModal}
       onDepartmentTitleChange={setDepartmentTitle}
       onParentDepartmentChange={setParentDepartmentId}
       onLeaderChange={setLeaderUserId}
-      onExperienceLevelsChange={setExperienceLevelIds}
       onSubmit={() => {
         void handleSubmitDepartment();
       }}

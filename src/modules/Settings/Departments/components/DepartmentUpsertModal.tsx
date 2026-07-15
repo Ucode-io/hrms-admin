@@ -1,11 +1,10 @@
 import { X } from "lucide-react";
 import Select from "react-select";
-import ExperienceLevelsInfiniteMultiSelect from "../../../../components/autocomplete/ExperienceLevelsInfiniteMultiSelect";
 import Button from "../../../../components/ui/button/Button";
 import { Modal } from "../../../../components/ui/modal";
 import EmployeeInfiniteSelect from "../../../../components/autocomplete/EmployeeInfiniteSelect";
 import type { Option } from "../types";
-import { getDepartmentExperienceLevelsSelectStyles, getDepartmentSelectStyles } from "../utils";
+import { getDepartmentSelectStyles } from "../utils";
 
 interface DepartmentUpsertModalProps {
   isOpen: boolean;
@@ -14,15 +13,12 @@ interface DepartmentUpsertModalProps {
   departmentTitle: string;
   parentDepartmentId: string;
   leaderUserId: string;
-  experienceLevelIds: string[];
-  experienceLevelFallbackOptions: Option[];
   leaderFallbackLabel?: string;
   parentOptions: Option[];
   onClose: () => void;
   onDepartmentTitleChange: (value: string) => void;
   onParentDepartmentChange: (value: string) => void;
   onLeaderChange: (value: string) => void;
-  onExperienceLevelsChange: (value: string[]) => void;
   onSubmit: () => void;
 }
 
@@ -33,15 +29,12 @@ export default function DepartmentUpsertModal({
   departmentTitle,
   parentDepartmentId,
   leaderUserId,
-  experienceLevelIds,
-  experienceLevelFallbackOptions,
   leaderFallbackLabel,
   parentOptions,
   onClose,
   onDepartmentTitleChange,
   onParentDepartmentChange,
   onLeaderChange,
-  onExperienceLevelsChange,
   onSubmit,
 }: DepartmentUpsertModalProps) {
   const selectedParentOption =
@@ -114,21 +107,6 @@ export default function DepartmentUpsertModal({
             styles={getDepartmentSelectStyles()}
             menuPortalTarget={menuPortalTarget}
             classNamePrefix="department-leader-select"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">
-            Уровни опыта
-          </label>
-          <ExperienceLevelsInfiniteMultiSelect
-            value={experienceLevelIds}
-            onChange={onExperienceLevelsChange}
-            fallbackOptions={experienceLevelFallbackOptions}
-            placeholder="Выберите уровни опыта"
-            styles={getDepartmentExperienceLevelsSelectStyles()}
-            menuPortalTarget={menuPortalTarget}
-            classNamePrefix="department-experience-levels-select"
           />
         </div>
       </div>

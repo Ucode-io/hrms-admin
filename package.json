@@ -60,6 +60,10 @@
     "react-select": "^5.10.2",
     "react-simple-wysiwyg": "^3.4.1",
     "sonner": "^2.0.7",
+    "survey-core": "^2.5.34",
+    "survey-creator-core": "^2.5.34",
+    "survey-creator-react": "^2.5.34",
+    "survey-react-ui": "^2.5.34",
     "swiper": "^11.2.3",
     "tailwind-merge": "^3.0.1"
   },

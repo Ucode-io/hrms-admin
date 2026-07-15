@@ -3,7 +3,9 @@ import {
   BarChart3,
   BookOpen,
   CalendarCheck,
+  ClipboardList,
   FileText,
+  GraduationCap,
   Home,
   Package,
   Settings as SettingsIcon,
@@ -28,6 +30,8 @@ export type ModuleKey =
   | "documents"
   | "knowledge_base"
   | "property"
+  | "surveys"
+  | "trainings"
   | "finance"
   | "reports"
   | "settings";
@@ -96,6 +100,20 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
     description: "Активы и инвентарь",
     icon: Package,
     paths: ["/property"],
+  },
+  {
+    key: "surveys",
+    label: "Опросы",
+    description: "Опросники и результаты",
+    icon: ClipboardList,
+    paths: ["/surveys"],
+  },
+  {
+    key: "trainings",
+    label: "Тренинги",
+    description: "Обучение и домашние задания",
+    icon: GraduationCap,
+    paths: ["/trainings"],
   },
   {
     key: "finance",

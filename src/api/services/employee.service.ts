@@ -127,6 +127,49 @@ export interface Employee {
 
 const EMPLOYEE_ROLE_ID = import.meta.env.VITE_EMPLOYEE_ROLE_ID || "";
 
+// ───── Imperative list fetch (for bulk operations outside hooks) ─────
+export const fetchEmployeesList = async (params: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  status?: EmployeeStatus;
+  departments_id?: string[];
+} = {}): Promise<{ count: number; response: Employee[] }> => {
+  const dataObj: Record<string, any> = {
+    limit: params.limit ?? 200,
+    offset: params.offset ?? 0,
+  };
+
+  if (EMPLOYEE_ROLE_ID) {
+    dataObj.role_id = EMPLOYEE_ROLE_ID;
+  }
+
+  if (params.search) {
+    dataObj.search = params.search;
+  }
+
+  if (params.status) {
+    dataObj.status = [params.status];
+  }
+
+  if (params.departments_id && params.departments_id.length > 0) {
+    dataObj.departments_id = params.departments_id;
+  }
+
+  const res = await instance.get(`/v2/items/${SLUG}`, {
+    params: {
+      "project-id": PROJECT_ID,
+      data: JSON.stringify(dataObj),
+    },
+  });
+
+  const data = res.data?.data?.data;
+  return {
+    count: Number(data?.count || 0),
+    response: Array.isArray(data?.response) ? (data.response as Employee[]) : [],
+  };
+};
+
 // ───── List employees ─────
 export const useEmployeesQuery = (
   params: {

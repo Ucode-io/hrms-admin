@@ -10,9 +10,6 @@ import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
-import departmentExperienceLevelService, {
-  useSyncDepartmentExperienceLevels,
-} from "../../../api/services/departmentExperienceLevel.service";
 import {
   type Department,
   useCreateDepartment,
@@ -27,37 +24,6 @@ import { resolveDepartmentLeaderName } from "./utils";
 
 const ROOT_KEY = "__root__";
 
-const resolveCreatedOrUpdatedGuid = (payload: unknown): string | null => {
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-
-  const data = payload as Record<string, unknown>;
-  if (typeof data.guid === "string" && data.guid) {
-    return data.guid;
-  }
-
-  const response = data.response;
-  if (response && typeof response === "object") {
-    const responseObj = response as Record<string, unknown>;
-    if (typeof responseObj.guid === "string" && responseObj.guid) {
-      return responseObj.guid;
-    }
-  }
-
-  if (Array.isArray(response)) {
-    const first = response[0];
-    if (first && typeof first === "object") {
-      const firstObj = first as Record<string, unknown>;
-      if (typeof firstObj.guid === "string" && firstObj.guid) {
-        return firstObj.guid;
-      }
-    }
-  }
-
-  return null;
-};
-
 export default function DepartmentsSettingsPage() {
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -69,11 +35,6 @@ export default function DepartmentsSettingsPage() {
   const [departmentTitle, setDepartmentTitle] = useState("");
   const [parentDepartmentId, setParentDepartmentId] = useState("");
   const [leaderUserId, setLeaderUserId] = useState("");
-  const [experienceLevelIds, setExperienceLevelIds] = useState<string[]>([]);
-  const [experienceLevelFallbackOptions, setExperienceLevelFallbackOptions] = useState<Option[]>(
-    []
-  );
-  const [isLoadingExperienceLevels, setIsLoadingExperienceLevels] = useState(false);
 
   const [expandedGuids, setExpandedGuids] = useState<string[]>([]);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
@@ -98,7 +59,6 @@ export default function DepartmentsSettingsPage() {
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
   const deleteMutation = useDeleteDepartment();
-  const syncExperienceLevelsMutation = useSyncDepartmentExperienceLevels();
 
   const departments = useMemo(() => data?.response || [], [data?.response]);
 
@@ -289,55 +249,11 @@ export default function DepartmentsSettingsPage() {
     [editingDepartment]
   );
 
-  const loadExperienceLevelsForDepartment = async (departmentGuid: string) => {
-    setIsLoadingExperienceLevels(true);
-
-    try {
-      const relations = await departmentExperienceLevelService.getListByDepartment(departmentGuid);
-      const nextIds: string[] = [];
-      const fallback: Option[] = [];
-      const seenFallback = new Set<string>();
-
-      for (const relation of relations.response) {
-        if (!relation.experience_levels_id) continue;
-        nextIds.push(relation.experience_levels_id);
-
-        const titleFromRelation =
-          relation.experience_levels_id_data &&
-          typeof relation.experience_levels_id_data === "object" &&
-          typeof relation.experience_levels_id_data.title === "string"
-            ? relation.experience_levels_id_data.title
-            : relation.experience_levels_id;
-
-        if (!seenFallback.has(relation.experience_levels_id)) {
-          fallback.push({
-            value: relation.experience_levels_id,
-            label: titleFromRelation,
-          });
-          seenFallback.add(relation.experience_levels_id);
-        }
-      }
-
-      setExperienceLevelIds(Array.from(new Set(nextIds)));
-      setExperienceLevelFallbackOptions(fallback);
-    } catch (error) {
-      console.error("Failed to load department experience levels:", error);
-      toast.error("Не удалось загрузить уровни опыта для департамента.");
-      setExperienceLevelIds([]);
-      setExperienceLevelFallbackOptions([]);
-    } finally {
-      setIsLoadingExperienceLevels(false);
-    }
-  };
-
   const openCreateModal = () => {
     setEditingDepartment(null);
     setDepartmentTitle("");
     setParentDepartmentId("");
     setLeaderUserId("");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
-    setIsLoadingExperienceLevels(false);
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -347,11 +263,8 @@ export default function DepartmentsSettingsPage() {
     setDepartmentTitle(String(department.title || ""));
     setParentDepartmentId(department.departments_id || "");
     setLeaderUserId(department.user_base_id || "");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
-    void loadExperienceLevelsForDepartment(department.guid);
   };
 
   const closeUpsertModal = () => {
@@ -360,9 +273,6 @@ export default function DepartmentsSettingsPage() {
     setDepartmentTitle("");
     setParentDepartmentId("");
     setLeaderUserId("");
-    setExperienceLevelIds([]);
-    setExperienceLevelFallbackOptions([]);
-    setIsLoadingExperienceLevels(false);
   };
 
   const handleSubmit = async () => {
@@ -380,33 +290,19 @@ export default function DepartmentsSettingsPage() {
     };
 
     try {
-      let savedDepartmentGuid: string | null = editingDepartment?.guid || null;
-
       if (editingDepartment) {
-        const updateResult = await updateMutation.mutateAsync({
+        await updateMutation.mutateAsync({
           guid: editingDepartment.guid,
           data: {
             ...editingDepartment,
             ...payload,
           },
         });
-        savedDepartmentGuid = resolveCreatedOrUpdatedGuid(updateResult) || editingDepartment.guid;
         toast.success("Департамент успешно обновлен.");
       } else {
-        const createResult = await createMutation.mutateAsync(payload);
-        savedDepartmentGuid = resolveCreatedOrUpdatedGuid(createResult);
+        await createMutation.mutateAsync(payload);
         toast.success("Департамент успешно создан.");
       }
-
-      if (!savedDepartmentGuid) {
-        toast.error("Департамент сохранен, но не удалось определить GUID для связи с уровнями опыта.");
-        return;
-      }
-
-      await syncExperienceLevelsMutation.mutateAsync({
-        departmentGuid: savedDepartmentGuid,
-        experienceLevelIds,
-      });
 
       closeUpsertModal();
     } catch (error) {
@@ -439,11 +335,7 @@ export default function DepartmentsSettingsPage() {
     }
   };
 
-  const isSaving =
-    createMutation.isLoading ||
-    updateMutation.isLoading ||
-    syncExperienceLevelsMutation.isLoading ||
-    isLoadingExperienceLevels;
+  const isSaving = createMutation.isLoading || updateMutation.isLoading;
 
   const toggleActionsMenu = (guid: string) => {
     setOpenActionsFor((prev) => (prev === guid ? null : guid));
@@ -512,15 +404,12 @@ export default function DepartmentsSettingsPage() {
         departmentTitle={departmentTitle}
         parentDepartmentId={parentDepartmentId}
         leaderUserId={leaderUserId}
-        experienceLevelIds={experienceLevelIds}
-        experienceLevelFallbackOptions={experienceLevelFallbackOptions}
         leaderFallbackLabel={leaderFallbackLabel}
         parentOptions={parentOptions}
         onClose={closeUpsertModal}
         onDepartmentTitleChange={setDepartmentTitle}
         onParentDepartmentChange={setParentDepartmentId}
         onLeaderChange={setLeaderUserId}
-        onExperienceLevelsChange={setExperienceLevelIds}
         onSubmit={handleSubmit}
       />
 

@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { Check, ChevronLeft, ChevronRight, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import Select, { type SingleValue, type StylesConfig } from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
 import { Modal } from "../../../components/ui/modal";
@@ -17,7 +17,6 @@ import {
   useUpdateSettingsDirectoryItem,
 } from "../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
-import { dedupeAttendanceByPriority } from "../../../utils/attendanceSourcePriority";
 import ApprovalProcessModal from "../../../components/approvals/ApprovalProcessModal";
 import ApprovalProgressBadge from "../../../components/approvals/ApprovalProgressBadge";
 import ApprovalProgressButton from "../../../components/approvals/ApprovalProgressButton";
@@ -227,17 +226,6 @@ const parseIsoDate = (value: string): Date | null => {
   if (Number.isNaN(parsed.getTime())) return null;
   if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
   return parsed;
-};
-
-const toDateValue = (value: string | null | undefined): Date | null => {
-  if (!value) return null;
-
-  if (ISO_DATE_PATTERN.test(value.trim())) {
-    return parseIsoDate(value.trim());
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
 const toExactDateRangeFilter = (isoDate: string): { $gte: string; $lte: string } => ({
@@ -590,12 +578,11 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
   const records = useMemo<AttendanceRecord[]>(() => {
     const rawRows = (data?.response || []) as AttendanceItem[];
-    // Per (user, date) keep only the row with the highest source priority:
-    // absences > manual > integration. Lower-priority duplicates stay in DB
-    // but are hidden from this listing so the dominant row is what the user
-    // sees and edits.
-    const deduped = dedupeAttendanceByPriority(rawRows);
-    const rows = deduped.map((item) => {
+    // Show every attendance row as-is: when an employee has both a manual and
+    // an integration entry for the same (user, date), both are listed. Source
+    // precedence is a display concern handled elsewhere; this listing no longer
+    // hides lower-priority rows.
+    const rows = rawRows.map((item) => {
       const date = normalizeDateKey(item.date, item.created_at);
       const checkInTime = normalizeTime(item.check_in_time);
       const checkOutTime = normalizeTime(item.check_out_time);
@@ -722,19 +709,6 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     setEditingGuid(null);
     setDraft(getDefaultDraft(dateFilter));
     setEmployeeFallbackLabel("");
-    setFormError("");
-    setIsModalOpen(true);
-  };
-
-  const openEdit = (record: AttendanceRecord) => {
-    setEditingGuid(record.guid);
-    setDraft({
-      employeeGuid: record.employeeGuid,
-      date: toDateValue(record.date || record.createdAt),
-      checkInTime: normalizeTime(record.checkInTime),
-      checkOutTime: normalizeTime(record.checkOutTime),
-    });
-    setEmployeeFallbackLabel(record.employeeName || "");
     setFormError("");
     setIsModalOpen(true);
   };
@@ -1255,14 +1229,6 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                       </button>
                                     )
                                   ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => openEdit(record)}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-                                    title="Изменить"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => setToDelete(record)}
