@@ -19,8 +19,16 @@ const SignInForm = observer(function SignInForm() {
     e.preventDefault();
     setError("");
 
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+    setUsername(trimmedUsername);
+    setPassword(trimmedPassword);
+
     try {
-      const response = await loginMutation.mutateAsync({ username, password });
+      const response = await loginMutation.mutateAsync({
+        username: trimmedUsername,
+        password: trimmedPassword,
+      });
 
       const accessToken = response?.token?.access_token;
       const refreshToken = response?.token?.refresh_token;
@@ -89,7 +97,7 @@ const SignInForm = observer(function SignInForm() {
                 type="text"
                 placeholder="name@domain.com"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ""))}
                 disabled={loginMutation.isLoading}
                 className="h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 focus:outline-none disabled:opacity-50 transition-all"
               />
