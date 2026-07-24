@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Select, {
   type InputActionMeta,
   type MultiValue,
@@ -19,6 +19,9 @@ interface EmployeesInfiniteMultiSelectProps {
   styles?: StylesConfig<Option, true>;
   menuPortalTarget?: HTMLElement;
   classNamePrefix?: string;
+  /** Limit options to employees holding this position (guid). */
+  positionsId?: string;
+  isDisabled?: boolean;
 }
 
 const PAGE_LIMIT = 20;
@@ -58,12 +61,17 @@ export default function EmployeesInfiniteMultiSelect({
   styles,
   menuPortalTarget,
   classNamePrefix = "employees-infinite-multi-select",
+  positionsId,
+  isDisabled = false,
 }: EmployeesInfiniteMultiSelectProps) {
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const [options, setOptions] = useState<Option[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  // Labels of every option ever loaded, so selected chips keep their names
+  // after the option list is replaced by a new search/filter.
+  const seenLabelsRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -79,7 +87,7 @@ export default function EmployeesInfiniteMultiSelect({
     setOffset(0);
     setOptions([]);
     setTotalCount(0);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, positionsId]);
 
   const queryParams = useMemo(
     () => ({
@@ -87,8 +95,10 @@ export default function EmployeesInfiniteMultiSelect({
       offset,
       status: "active" as const,
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(positionsId ? { positions_id: [positionsId] } : {}),
+      enabled: !isDisabled,
     }),
-    [debouncedSearch, offset]
+    [debouncedSearch, offset, positionsId, isDisabled]
   );
 
   const { data, isLoading, isFetching } = useEmployeesQuery(queryParams);
@@ -99,6 +109,10 @@ export default function EmployeesInfiniteMultiSelect({
       label: resolveEmployeeFullName(item),
     }));
 
+    for (const option of response) {
+      seenLabelsRef.current.set(option.value, option.label);
+    }
+
     setTotalCount(Number(data?.count || 0));
     setOptions((prev) => (offset === 0 ? response : mergeUniqueOptions(prev, response)));
   }, [data, offset]);
@@ -108,6 +122,9 @@ export default function EmployeesInfiniteMultiSelect({
 
     for (const option of fallbackOptions) {
       byId.set(option.value, option);
+    }
+    for (const [id, label] of seenLabelsRef.current) {
+      byId.set(id, { value: id, label });
     }
     for (const option of options) {
       byId.set(option.value, option);
@@ -148,8 +165,9 @@ export default function EmployeesInfiniteMultiSelect({
       placeholder={placeholder}
       isSearchable
       isMulti
+      isDisabled={isDisabled}
       closeMenuOnSelect={false}
-      isLoading={isLoading || isFetching}
+      isLoading={!isDisabled && (isLoading || isFetching)}
       styles={styles}
       menuPortalTarget={menuPortalTarget}
       menuPosition="fixed"

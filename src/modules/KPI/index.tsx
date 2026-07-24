@@ -62,6 +62,9 @@ import companyStore from "../../store/company.store";
 import httpRequest from "../../api/httpRequest";
 import settingsDirectoryService from "../../api/services/settingsDirectory.service";
 import RemoteSingleSelect, { type RemoteSelectOption } from "../../components/autocomplete/RemoteSingleSelect";
+import EmployeesInfiniteMultiSelect from "../../components/autocomplete/EmployeesInfiniteMultiSelect";
+import { KpiSheetSelect, useKpiSheets } from "./sheets";
+import { CommentableCell, cellCommentKey, useKpiCellComments } from "./comments";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import reportsService, {
   type KpiAggregationType,
@@ -114,6 +117,10 @@ type KpiRecord = {
   // is therefore read-only in the UI.
   isAuto: boolean;
   metric: string | null;
+  // Сумма вознаграждения за 100% выполнения (null — не задана).
+  rewardAmount: number | null;
+  // Привязанные сотрудники (guid из user_base).
+  employeeIds: string[];
   children: KpiRecord[];
 };
 
@@ -473,6 +480,9 @@ type CreateKpiDraft = {
   parentTitle: string;
   positionId: string;
   positionTitle: string;
+  // Сотрудники, привязанные к KPI (только с должностью positionId).
+  // Отправляются в save_kpi (employee_ids), приходят из get_kpi_table.
+  employeeIds: string[];
   source: string;
   valueSymbol: string;
   valueSymbolPosition: "prefix" | "suffix";
@@ -483,6 +493,10 @@ type CreateKpiDraft = {
   startDate: string;
   endDate: string;
   planValue: string;
+  // Сумма вознаграждения за 100% выполнения KPI. Выплата пропорциональна
+  // проценту достижения (50% → половина суммы). Отправляется в save_kpi
+  // (reward_amount), приходит из get_kpi_table.
+  rewardAmount: string;
   hasChildren: boolean;
   children: ChildDraft[];
 };
@@ -972,6 +986,13 @@ const mapApiItem = (item: KpiTableItem): KpiRecord => {
     hasChildren: Boolean(item.has_children) || children.length > 0,
     isAuto: Boolean(item.is_auto),
     metric: typeof item.metric === "string" ? item.metric : null,
+    rewardAmount:
+      item.reward_amount === null || item.reward_amount === undefined
+        ? null
+        : roundToTwo(Number(item.reward_amount) || 0),
+    employeeIds: Array.isArray(item.employee_ids)
+      ? item.employee_ids.filter((id): id is string => typeof id === "string")
+      : [],
     children,
   };
 };
@@ -1133,6 +1154,7 @@ const getDefaultDraft = (periodType: KpiPeriodMode): CreateKpiDraft => {
     parentTitle: "",
     positionId: "",
     positionTitle: "",
+    employeeIds: [],
     source: "Вручную",
     valueSymbol: "",
     valueSymbolPosition: "suffix",
@@ -1143,6 +1165,7 @@ const getDefaultDraft = (periodType: KpiPeriodMode): CreateKpiDraft => {
     startDate: range.from,
     endDate: range.to,
     planValue: "",
+    rewardAmount: "",
     hasChildren: false,
     children: [],
   };
@@ -1314,6 +1337,15 @@ function KpiPage() {
   const [expandedTreeNodeIds, setExpandedTreeNodeIds] = useState<Set<string>>(() => new Set());
   const skipTableLoaderRef = useRef(false);
 
+  // Листы KPI (как в Google Sheets). Пока API их не знает, привязка KPI к
+  // листам живёт в localStorage per-company — см. ./sheets.tsx.
+  const sheetsApi = useKpiSheets(companyStore.company?.guid || "");
+  const { activeSheetId, sheetIdOf, isDefaultActive } = sheetsApi;
+
+  // Комментарии к ячейкам План/Факт (в стиле Google Sheets). Пока UI-стадия:
+  // хранятся в localStorage per-company — см. ./comments.tsx.
+  const commentsApi = useKpiCellComments(companyStore.company?.guid || "");
+
   const selectPortalTarget = typeof document !== "undefined" ? document.body : undefined;
   const filterSelectPortalTarget = typeof document !== "undefined" ? document.body : null;
 
@@ -1371,6 +1403,58 @@ function KpiPage() {
         fontSize: 14,
         fontWeight: state.hasValue ? 600 : 500,
       }),
+      menu: (base) => ({ ...base, borderRadius: 10, overflow: "hidden", zIndex: 100100 }),
+      menuPortal: (base) => ({ ...base, zIndex: 100100 }),
+      option: (base, state) => ({
+        ...base,
+        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        fontSize: 14,
+        padding: "8px 12px",
+      }),
+      noOptionsMessage: (base) => ({ ...base, color: "#64748b", fontSize: 13 }),
+    }),
+    []
+  );
+
+  const employeeSelectStyles = useMemo<StylesConfig<FilterOption, true>>(
+    () => ({
+      control: (base, state) => ({
+        ...base,
+        minHeight: 40,
+        borderRadius: 12,
+        backgroundColor: state.isDisabled ? "#f8fafc" : "#fff",
+        borderColor: state.isFocused ? "#cbd5e1" : "#e2e8f0",
+        boxShadow: "none",
+        "&:hover": { borderColor: "#cbd5e1" },
+      }),
+      valueContainer: (base) => ({ ...base, padding: "4px 10px", gap: 4 }),
+      placeholder: (base) => ({ ...base, color: "#94a3b8", fontSize: 14 }),
+      input: (base) => ({ ...base, color: "#1e293b", fontSize: 14, margin: 0, padding: 0 }),
+      multiValue: (base) => ({
+        ...base,
+        margin: 0,
+        borderRadius: 8,
+        backgroundColor: "#eff6ff",
+        border: "1px solid #bfdbfe",
+      }),
+      multiValueLabel: (base) => ({
+        ...base,
+        color: "#1d4ed8",
+        fontSize: 12,
+        fontWeight: 600,
+        padding: "2px 4px 2px 8px",
+      }),
+      multiValueRemove: (base) => ({
+        ...base,
+        color: "#60a5fa",
+        borderRadius: "0 7px 7px 0",
+        ":hover": { backgroundColor: "#dbeafe", color: "#1d4ed8" },
+      }),
+      indicatorsContainer: (base) => ({ ...base, color: "#64748b" }),
+      dropdownIndicator: (base) => ({ ...base, color: "#64748b", padding: 6 }),
+      clearIndicator: (base) => ({ ...base, color: "#64748b", padding: 6 }),
+      indicatorSeparator: () => ({ display: "none" }),
       menu: (base) => ({ ...base, borderRadius: 10, overflow: "hidden", zIndex: 100100 }),
       menuPortal: (base) => ({ ...base, zIndex: 100100 }),
       option: (base, state) => ({
@@ -1532,9 +1616,16 @@ function KpiPage() {
     [cursorDate, periodMode]
   );
 
+  // KPI активного листа: явно привязанные к нему + (для листа по умолчанию)
+  // все KPI без привязки.
+  const sheetKpiItems = useMemo(
+    () => kpiItems.filter((item) => sheetIdOf(item.id) === activeSheetId),
+    [kpiItems, sheetIdOf, activeSheetId]
+  );
+
   const hasLevel1 = useMemo(
-    () => kpiItems.some((item) => item.children.length > 0),
-    [kpiItems]
+    () => sheetKpiItems.some((item) => item.children.length > 0),
+    [sheetKpiItems]
   );
 
   // For each top-level bucket column index, true if at least one row's child
@@ -1551,14 +1642,14 @@ function KpiPage() {
               ? 7
               : 0;
     const result = new Array<boolean>(maxLen).fill(false);
-    for (const item of kpiItems) {
+    for (const item of sheetKpiItems) {
       const limit = Math.min(item.children.length, maxLen);
       for (let i = 0; i < limit; i++) {
         if (item.children[i].children.length > 0) result[i] = true;
       }
     }
     return result;
-  }, [kpiItems, periodMode]);
+  }, [sheetKpiItems, periodMode]);
 
   const leafBuckets = useMemo(
     () => buildLeafBuckets(periodMode, cursorDate, expandedColumns, hasLevel1, canExpandByIndex),
@@ -1681,7 +1772,9 @@ function KpiPage() {
   // below mirrors this but can be mutated optimistically during drag-n-drop.
   const groupEntries = useMemo<GroupEntry[]>(() => {
     const groups = new Map<string, GroupEntry>();
-    if (kpiGroups.length > 0) {
+    // Пустые группы-должности с сервера показываем только на листе по
+    // умолчанию: на остальных листах группа появляется вместе со своими KPI.
+    if (isDefaultActive && kpiGroups.length > 0) {
       for (const group of kpiGroups) {
         const position = group.position || "Без должности";
         if (!groups.has(position)) {
@@ -1689,7 +1782,7 @@ function KpiPage() {
         }
       }
     }
-    for (const item of kpiItems) {
+    for (const item of sheetKpiItems) {
       let entry = groups.get(item.position);
       if (!entry) {
         entry = { position: item.position, positionsId: item.positionsId, items: [] };
@@ -1699,7 +1792,7 @@ function KpiPage() {
       entry.items.push(item);
     }
     return [...groups.values()];
-  }, [kpiItems, kpiGroups]);
+  }, [sheetKpiItems, kpiGroups, isDefaultActive]);
 
   const [orderedGroups, setOrderedGroups] = useState<GroupEntry[]>([]);
   const orderedGroupsRef = useRef<GroupEntry[]>([]);
@@ -1897,6 +1990,13 @@ function KpiPage() {
     [kpiItems, actionMenuItemId, findItemById]
   );
 
+  // Перемещать между листами можно только корневые KPI — дочерние всегда
+  // отображаются внутри родителя.
+  const actionMenuIsRootItem = useMemo(
+    () => Boolean(actionMenuItemId && kpiItems.some((item) => item.id === actionMenuItemId)),
+    [kpiItems, actionMenuItemId]
+  );
+
   const handleMovePeriod = (direction: "prev" | "next") => {
     setCursorDate((prev) => {
       const next = new Date(prev);
@@ -1963,6 +2063,8 @@ function KpiPage() {
       parentTitle: "",
       positionId: item.positionsId || "",
       positionTitle: item.position,
+      // Привязанные сотрудники приходят из get_kpi_table (employee_ids).
+      employeeIds: item.employeeIds,
       source: item.source || "Вручную",
       valueSymbol: item.valueSymbol || "",
       valueSymbolPosition: item.valueSymbolPosition || "suffix",
@@ -1973,6 +2075,9 @@ function KpiPage() {
       startDate: startIso,
       endDate: endIso,
       planValue: formatPlanInputValue(String(item.ownPlanValue)),
+      // Сумма вознаграждения приходит из get_kpi_table (reward_amount).
+      rewardAmount:
+        item.rewardAmount != null ? formatPlanInputValue(String(item.rewardAmount)) : "",
       hasChildren: item.hasChildren && childrenSupported(item.periodType),
       children,
     });
@@ -2000,6 +2105,7 @@ function KpiPage() {
     if (!kpiToDelete) return;
     try {
       await reportsService.deleteKpi({ guid: kpiToDelete.id });
+      sheetsApi.clearKpiAssignment(kpiToDelete.id);
       toast.success("KPI удален");
       setReloadToken((prev) => prev + 1);
     } catch {
@@ -2182,7 +2288,11 @@ function KpiPage() {
     setIsCreateSaving(true);
 
     try {
-      await reportsService.saveKpi({
+      // Сумма вознаграждения: пустое поле → null (снять выплату).
+      const rewardTrimmed = draft.rewardAmount.trim();
+      const rewardAmount = rewardTrimmed ? parsePlanInputValue(rewardTrimmed) : null;
+
+      const saveResponse = await reportsService.saveKpi({
         guid: editingKpiId || undefined,
         parent_id: draft.parentId || undefined,
         companies_id: companyStore.company?.guid,
@@ -2197,8 +2307,17 @@ function KpiPage() {
         start_date: draft.startDate,
         end_date: draft.endDate,
         plan_total: planTotal,
+        reward_amount: rewardAmount,
+        // Сотрудники привязываются к сохраняемому (корневому/дочернему) KPI.
+        employee_ids: draft.employeeIds,
         children: draft.hasChildren ? childrenPayload : [],
       });
+
+      // Новый корневой KPI появляется на том листе, где его создали.
+      const savedGuid = saveResponse.result?.guid;
+      if (!editingKpiId && savedGuid && !draft.parentId) {
+        sheetsApi.moveKpiToSheet(savedGuid, activeSheetId);
+      }
 
       setIsCreateModalOpen(false);
       setCreateError("");
@@ -2211,6 +2330,28 @@ function KpiPage() {
     } finally {
       setIsCreateSaving(false);
     }
+  };
+
+  // Оборачивает содержимое ячейки План/Факт слоем комментариев (маркер, tooltip,
+  // мини-редактор). valueId — id листового/бакетного значения, к которому крепится
+  // заметка; column — «план»/«факт»; label — подпись для заголовка редактора.
+  const withCellComment = (
+    valueId: string,
+    column: "plan" | "fact",
+    label: string,
+    content: ReactNode
+  ): ReactNode => {
+    const key = cellCommentKey(valueId, column);
+    return (
+      <CommentableCell
+        commentKey={key}
+        comment={commentsApi.getComment(key)}
+        onSave={commentsApi.setComment}
+        label={label}
+      >
+        {content}
+      </CommentableCell>
+    );
   };
 
   const renderLeafActualEditor = (item: KpiRecord) => {
@@ -2388,13 +2529,20 @@ function KpiPage() {
             <Fragment key={`${item.id}-${leaf.key}`}>
               <td className={`whitespace-nowrap px-1 py-1.5 text-center text-[12px] text-slate-500 ${cellBg}`}>
                 {node ? (
-                  formatValueWithSymbol(nodePlan, item.valueSymbol, item.valueSymbolPosition)
+                  withCellComment(
+                    node.id,
+                    "plan",
+                    `План · ${leaf.label}`,
+                    formatValueWithSymbol(nodePlan, item.valueSymbol, item.valueSymbolPosition)
+                  )
                 ) : (
                   <span className="text-slate-300">—</span>
                 )}
               </td>
               <td className={`whitespace-nowrap px-1 py-1.5 text-center text-[13px] font-semibold text-slate-800 ${cellBg}`}>
-                {renderBucketFactCell(item, node)}
+                {node
+                  ? withCellComment(node.id, "fact", `Факт · ${leaf.label}`, renderBucketFactCell(item, node))
+                  : renderBucketFactCell(item, node)}
               </td>
               <td className={`px-1 py-1.5 text-center ${cellBg}`}>
                 {node ? (
@@ -2414,15 +2562,25 @@ function KpiPage() {
         <td
           className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}whitespace-nowrap bg-blue-50/50 px-2 py-1.5 text-center text-[13px] font-medium text-slate-700`}
         >
-          {formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)}
+          {withCellComment(
+            item.id,
+            "plan",
+            "План · Итого",
+            formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)
+          )}
         </td>
         <td className="whitespace-nowrap bg-blue-50/50 px-2 py-1.5 text-center text-[13px] font-semibold text-slate-900">
-          {item.hasChildren ? (
-            <span>
-              {formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}
-            </span>
-          ) : (
-            renderLeafActualEditor(item)
+          {withCellComment(
+            item.id,
+            "fact",
+            "Факт · Итого",
+            item.hasChildren ? (
+              <span>
+                {formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}
+              </span>
+            ) : (
+              renderLeafActualEditor(item)
+            )
           )}
         </td>
         <td className="bg-blue-50/50 px-2 py-1.5 text-center">
@@ -2530,13 +2688,23 @@ function KpiPage() {
           </td>
           <td className="py-2 pr-3 text-center text-[13px] text-slate-600">{periodLabel}</td>
           <td className="py-2 pr-3 text-center text-[13px] font-medium text-slate-700">
-            {formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)}
+            {withCellComment(
+              item.id,
+              "plan",
+              "План",
+              formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)
+            )}
           </td>
           <td className="py-2 pr-3 text-center text-[13px] font-semibold text-slate-900">
-            {item.hasChildren ? (
-              <span>{formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}</span>
-            ) : (
-              renderLeafActualEditor(item)
+            {withCellComment(
+              item.id,
+              "fact",
+              "Факт",
+              item.hasChildren ? (
+                <span>{formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}</span>
+              ) : (
+                renderLeafActualEditor(item)
+              )
             )}
           </td>
           <td className="py-2 pr-3 text-center text-[13px]">
@@ -2650,6 +2818,8 @@ function KpiPage() {
               Сетка
             </button>
           </div>
+
+          <KpiSheetSelect api={sheetsApi} />
 
           <div className="ml-auto flex min-w-0 items-center justify-end gap-2 flex-wrap">
             <ExpandableSearchInput
@@ -2824,6 +2994,24 @@ function KpiPage() {
               ) : kpiItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
                   <p className="m-0 text-[13px] text-slate-500">KPI не найдены</p>
+                </div>
+              ) : sheetKpiItems.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-10 text-center">
+                  <p className="m-0 text-[13px] font-medium text-slate-600">
+                    На этом листе пока нет KPI
+                  </p>
+                  <p className="mx-auto mt-1 max-w-md text-[12px] text-slate-500">
+                    Создайте новый KPI на этом листе или переместите существующий
+                    через меню строки «Переместить в лист».
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl bg-brand-500 px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-600"
+                  >
+                    <Plus size={14} />
+                    Добавить KPI
+                  </button>
                 </div>
               ) : (
                 <DndContext
@@ -3126,6 +3314,9 @@ function KpiPage() {
                         ...prev,
                         positionId: value,
                         positionTitle: "",
+                        // Сотрудники фильтруются по должности — при её смене
+                        // прежний выбор становится невалидным.
+                        employeeIds: prev.positionId === value ? prev.employeeIds : [],
                       }))
                     }
                     loadOptions={loadPositionOptions}
@@ -3133,6 +3324,35 @@ function KpiPage() {
                     placeholder="Выберите должность"
                     classNamePrefix="kpi-position-select"
                     menuPortalTarget={selectPortalTarget}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-xs font-medium text-slate-500">Сотрудники</span>
+                  <EmployeesInfiniteMultiSelect
+                    value={draft.employeeIds}
+                    onChange={(ids) => setDraft((prev) => ({ ...prev, employeeIds: ids }))}
+                    positionsId={draft.positionId || undefined}
+                    isDisabled={!draft.positionId}
+                    placeholder={
+                      draft.positionId ? "Выберите сотрудников" : "Сначала выберите должность"
+                    }
+                    styles={employeeSelectStyles}
+                    menuPortalTarget={selectPortalTarget}
+                    classNamePrefix="kpi-employees-select"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-xs font-medium text-slate-500">Название KPI *</span>
+                  <input
+                    type="text"
+                    value={draft.name}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
+                    placeholder="Например: Продажи 2025"
+                    className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
                   />
                 </label>
 
@@ -3183,17 +3403,6 @@ function KpiPage() {
               </div>
 
               <label className="block space-y-2">
-                <span className="text-xs font-medium text-slate-500">Название KPI *</span>
-                <input
-                  type="text"
-                  value={draft.name}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Например: Продажи 2025"
-                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-                />
-              </label>
-
-              <label className="block space-y-2">
                 <span className="text-xs font-medium text-slate-500">Описание</span>
                 <textarea
                   value={draft.description}
@@ -3237,31 +3446,53 @@ function KpiPage() {
                 </div>
               </div>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-medium text-slate-500">Период *</span>
-                <DatePicker
-                  selected={selectedDraftPeriodDate}
-                  onChange={handleDraftPeriodChange}
-                  locale="ru"
-                  dateFormat={getPickerDateFormatByPeriod(draft.periodType)}
-                  placeholderText="Выберите период"
-                  className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-                  popperClassName="kpi-datepicker-popper"
-                  calendarClassName={`kpi-period-calendar kpi-period-calendar--${draft.periodType}`}
-                  popperProps={{ strategy: "fixed" }}
-                  portalId="root"
-                  withPortal
-                  showPopperArrow={false}
-                  calendarStartDay={1}
-                  showWeekPicker={draft.periodType === "weekly"}
-                  showMonthYearPicker={draft.periodType === "monthly"}
-                  showQuarterYearPicker={draft.periodType === "quarterly"}
-                  showYearPicker={draft.periodType === "yearly"}
-                />
-                {draftPeriodRangeLabel ? (
-                  <span className="text-xs text-slate-500">{draftPeriodRangeLabel}</span>
-                ) : null}
-              </label>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-xs font-medium text-slate-500">Период *</span>
+                  <DatePicker
+                    selected={selectedDraftPeriodDate}
+                    onChange={handleDraftPeriodChange}
+                    locale="ru"
+                    dateFormat={getPickerDateFormatByPeriod(draft.periodType)}
+                    placeholderText="Выберите период"
+                    className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                    popperClassName="kpi-datepicker-popper"
+                    calendarClassName={`kpi-period-calendar kpi-period-calendar--${draft.periodType}`}
+                    popperProps={{ strategy: "fixed" }}
+                    portalId="root"
+                    withPortal
+                    showPopperArrow={false}
+                    calendarStartDay={1}
+                    showWeekPicker={draft.periodType === "weekly"}
+                    showMonthYearPicker={draft.periodType === "monthly"}
+                    showQuarterYearPicker={draft.periodType === "quarterly"}
+                    showYearPicker={draft.periodType === "yearly"}
+                  />
+                  {draftPeriodRangeLabel ? (
+                    <span className="text-xs text-slate-500">{draftPeriodRangeLabel}</span>
+                  ) : null}
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-xs font-medium text-slate-500">Сумма вознаграждения</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={draft.rewardAmount}
+                    onChange={(event) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        rewardAmount: formatPlanInputValue(event.target.value),
+                      }))
+                    }
+                    placeholder="Например: 1 000 000"
+                    className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                  />
+                  <span className="text-[11px] text-slate-400">
+                    Выплата пропорциональна выполнению KPI: 100% — вся сумма, 50% — половина
+                  </span>
+                </label>
+              </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <label className="block space-y-2">
@@ -3522,7 +3753,7 @@ function KpiPage() {
         onClose={closeActionMenu}
         usePortal
         anchorEl={actionMenuAnchorEl}
-        className="w-[160px] p-1"
+        className="w-[200px] p-1"
       >
         <DropdownItem
           onClick={() => {
@@ -3546,6 +3777,36 @@ function KpiPage() {
           <Trash2 size={14} />
           Удалить
         </DropdownItem>
+
+        {actionMenuIsRootItem && sheetsApi.sheets.length > 1 ? (
+          <>
+            <div className="my-1 h-px bg-slate-100" aria-hidden="true" />
+            <div className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Переместить в лист
+            </div>
+            {sheetsApi.sheets
+              .filter((sheet) => actionMenuItemId && sheet.id !== sheetIdOf(actionMenuItemId))
+              .map((sheet) => (
+                <DropdownItem
+                  key={`move-to-${sheet.id}`}
+                  onClick={() => {
+                    if (!actionMenuItemId) return;
+                    sheetsApi.moveKpiToSheet(actionMenuItemId, sheet.id);
+                    toast.success(`KPI перемещён в лист «${sheet.name}»`);
+                  }}
+                  onItemClick={closeActionMenu}
+                  className="flex items-center gap-2 rounded-lg text-slate-700"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: sheet.color || "#cbd5e1" }}
+                  />
+                  <span className="truncate">{sheet.name}</span>
+                </DropdownItem>
+              ))}
+          </>
+        ) : null}
       </Dropdown>
 
       <Modal

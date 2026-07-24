@@ -41,6 +41,10 @@ const SAVE_KPI_METHOD = "save_kpi";
 const DELETE_KPI_METHOD = "delete_kpi";
 const UPDATE_KPI_VALUE_METHOD = "update_kpi_value";
 const REORDER_KPI_METHOD = "reorder_kpi";
+const KPI_SHEETS_GET_METHOD = "kpi_sheets_get";
+const KPI_SHEETS_SAVE_METHOD = "kpi_sheets_save";
+const KPI_COMMENTS_GET_METHOD = "kpi_comments_get";
+const KPI_COMMENT_SAVE_METHOD = "kpi_comment_save";
 const APPROVE_ABSENCE_METHOD = "approve_absence";
 const DELETE_ABSENCE_METHOD = "delete_absence";
 const GET_RECRUITING_FUNNEL_METHOD = "get_recruiting_funnel";
@@ -1324,6 +1328,10 @@ export type KpiTableItem = {
   // reports backend. `metric` is the resolved metric key (see auto_metrics).
   is_auto?: boolean;
   metric?: string | null;
+  // Payout for 100% completion (proportional to percent). null = not set.
+  reward_amount?: number | null;
+  // Employees (user_base guids) attached to this KPI.
+  employee_ids?: string[];
   children: KpiTableItem[];
 };
 
@@ -1371,7 +1379,47 @@ export type SaveKpiInvokeResponse = {
     percent_total: number;
     has_children: boolean;
     child_ids: string[];
+    reward_amount?: number | null;
+    employee_ids?: string[];
   };
+};
+
+// ─── KPI sheets & cell comments (Google-Sheets-like features) ───────────────
+
+export type KpiSheetDto = {
+  guid: string;
+  name: string;
+  color: string | null;
+  is_default: boolean;
+  sort_order: number;
+};
+
+export type KpiSheetsState = {
+  // false before the DB migration is applied — the front then keeps a single
+  // local-only sheet and does not persist.
+  supported: boolean;
+  sheets: KpiSheetDto[];
+  default_sheet_id: string | null;
+  assignments: Record<string, string>;
+};
+
+export type KpiSheetsSavePayload = {
+  sheets: Array<{ guid: string; name: string; color: string | null; sort_order?: number }>;
+  default_sheet_id: string | null;
+  assignments: Record<string, string>;
+};
+
+export type KpiCommentsState = {
+  supported: boolean;
+  comments: Record<string, string>;
+};
+
+export type KpiCommentSaveResult = {
+  supported: boolean;
+  key: string;
+  kpi_items_id: string;
+  column: "plan" | "fact";
+  comment: string;
 };
 
 export type DeleteKpiInvokeResponse = {
@@ -3125,6 +3173,46 @@ const reportsService = {
       response.data,
       REORDER_KPI_METHOD
     );
+  },
+  kpiSheetsGet: async (): Promise<KpiSheetsState> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: KPI_SHEETS_GET_METHOD, data: {} },
+    });
+    return normalizeGatewayResponse<{ method: string; result: KpiSheetsState }>(
+      response.data,
+      KPI_SHEETS_GET_METHOD
+    ).result;
+  },
+  kpiSheetsSave: async (payload: KpiSheetsSavePayload): Promise<KpiSheetsState> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: KPI_SHEETS_SAVE_METHOD, data: payload },
+    });
+    return normalizeGatewayResponse<{ method: string; result: KpiSheetsState }>(
+      response.data,
+      KPI_SHEETS_SAVE_METHOD
+    ).result;
+  },
+  kpiCommentsGet: async (): Promise<KpiCommentsState> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: KPI_COMMENTS_GET_METHOD, data: {} },
+    });
+    return normalizeGatewayResponse<{ method: string; result: KpiCommentsState }>(
+      response.data,
+      KPI_COMMENTS_GET_METHOD
+    ).result;
+  },
+  kpiCommentSave: async (payload: {
+    kpi_items_id: string;
+    column: "plan" | "fact";
+    comment: string;
+  }): Promise<KpiCommentSaveResult> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: KPI_COMMENT_SAVE_METHOD, data: payload },
+    });
+    return normalizeGatewayResponse<{ method: string; result: KpiCommentSaveResult }>(
+      response.data,
+      KPI_COMMENT_SAVE_METHOD
+    ).result;
   },
   approveAbsence: async (
     requestData: { absences_id: string; reviewed_by?: string | null }
