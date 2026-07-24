@@ -21,7 +21,8 @@ const LayoutContent: React.FC = () => {
           } ${isMobileOpen ? "ml-0" : ""}`}
       >
         <AppHeader />
-        <div className="p-3 md:p-4 overflow-x-hidden flex-1 w-full">
+        {/* overflow-x-clip (не hidden): hidden создаёт scroll-контейнер и ломает position: sticky у вложенных тулбаров */}
+        <div className="p-3 md:p-4 overflow-x-clip flex-1 w-full">
           <AccessGuard>
             <Outlet />
           </AccessGuard>

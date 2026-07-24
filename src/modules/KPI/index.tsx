@@ -10,6 +10,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
   MeasuringStrategy,
@@ -42,7 +43,7 @@ import {
   GripVertical,
   LayoutGrid,
   List,
-  Minus,
+  // Minus, // Временно скрыто вместе с кнопкой сворачивания колонки
   MoreHorizontal,
   Pencil,
   Plus,
@@ -539,29 +540,14 @@ const getBucketBgClass = (periodType: KpiPeriodMode): string => {
   }
 };
 
-const getBucketHeaderBgClass = (periodType: KpiPeriodMode): string => {
-  switch (periodType) {
-    case "daily":
-      return "bg-rose-50/60";
-    case "weekly":
-      return "bg-amber-50/60";
-    case "monthly":
-      return "bg-sky-50/60";
-    case "quarterly":
-      return "bg-emerald-50/60";
-    case "yearly":
-      return "bg-violet-50/60";
-    default:
-      return "";
-  }
-};
 
-const getExpandTitleByPeriod = (periodType: KpiPeriodMode): string => {
-  if (periodType === "quarterly") return "Развернуть до месяцев";
-  if (periodType === "monthly") return "Развернуть до недель";
-  if (periodType === "weekly") return "Развернуть до дней";
-  return "Развернуть";
-};
+// Временно скрыто вместе с кнопкой сворачивания/разворачивания колонки
+// const getExpandTitleByPeriod = (periodType: KpiPeriodMode): string => {
+//   if (periodType === "quarterly") return "Развернуть до месяцев";
+//   if (periodType === "monthly") return "Развернуть до недель";
+//   if (periodType === "weekly") return "Развернуть до дней";
+//   return "Развернуть";
+// };
 
 const KPI_PERIOD_TABS: { key: KpiPeriodMode; label: string }[] = [
   { key: "yearly", label: "Годовой KPI" },
@@ -602,6 +588,59 @@ const getQuarterStart = (value: Date): Date => {
 };
 
 const roundToTwo = (value: number): number => Math.round(value * 100) / 100;
+
+// Кастомный тултип: показывается сразу при наведении и не обрезается
+// контейнером с overflow (рендерится в body через портал).
+const HoverTooltip = ({
+  text,
+  children,
+}: {
+  text: string;
+  children: ReactNode;
+}) => {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
+
+  const show = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setCoords({ left: rect.left + rect.width / 2, top: rect.bottom + 8 });
+  }, []);
+
+  const hide = useCallback(() => setCoords(null), []);
+
+  return (
+    <span
+      ref={anchorRef}
+      className="inline-flex"
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
+      {children}
+      {coords
+        ? createPortal(
+            <span
+              role="tooltip"
+              style={{
+                position: "fixed",
+                left: coords.left,
+                top: coords.top,
+                transform: "translateX(-50%)",
+                zIndex: 70,
+              }}
+              className="pointer-events-none max-w-xs whitespace-normal rounded-lg bg-slate-800 px-2.5 py-1.5 text-[12px] font-medium leading-snug text-white shadow-lg"
+            >
+              {text}
+            </span>,
+            document.body
+          )
+        : null}
+    </span>
+  );
+};
 
 const formatMetricValue = (value: number): string => {
   if (!Number.isFinite(value)) return "0";
@@ -1531,14 +1570,15 @@ function KpiPage() {
     setExpandedColumns(new Set());
   }, [periodMode]);
 
-  const toggleColumnExpand = useCallback((topKey: string) => {
-    setExpandedColumns((prev) => {
-      const next = new Set(prev);
-      if (next.has(topKey)) next.delete(topKey);
-      else next.add(topKey);
-      return next;
-    });
-  }, []);
+  // Временно скрыто вместе с кнопкой сворачивания/разворачивания колонки
+  // const toggleColumnExpand = useCallback((topKey: string) => {
+  //   setExpandedColumns((prev) => {
+  //     const next = new Set(prev);
+  //     if (next.has(topKey)) next.delete(topKey);
+  //     else next.add(topKey);
+  //     return next;
+  //   });
+  // }, []);
 
   const toggleTreeNodeExpand = useCallback((nodeId: string) => {
     setExpandedTreeNodeIds((prev) => {
@@ -1551,7 +1591,7 @@ function KpiPage() {
 
   const tableMinWidthStyle = useMemo<CSSProperties>(() => {
     const cols = leafBuckets.length;
-    const minWidth = 720 + cols * 180;
+    const minWidth = 440 + cols * 180;
     return { minWidth: `${minWidth}px` };
   }, [leafBuckets]);
 
@@ -2314,7 +2354,15 @@ function KpiPage() {
         </td>
         <td className="py-2 pl-4 pr-3 text-left">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-semibold text-slate-900">{item.name}</span>
+            {item.description ? (
+              <HoverTooltip text={item.description}>
+                <span className="cursor-default text-[13px] font-semibold text-slate-900">
+                  {item.name}
+                </span>
+              </HoverTooltip>
+            ) : (
+              <span className="text-[13px] font-semibold text-slate-900">{item.name}</span>
+            )}
             <button
               type="button"
               className={`dropdown-toggle inline-flex h-6 w-6 items-center justify-center rounded-md border transition ${
@@ -2328,21 +2376,6 @@ function KpiPage() {
               <MoreHorizontal size={14} />
             </button>
           </div>
-          {item.description ? (
-            <div className="mt-1 text-[12px] text-slate-500">{item.description}</div>
-          ) : null}
-        </td>
-        <td className="py-2 pr-3 text-[13px] text-slate-700">{item.source}</td>
-        <td className="py-2 pr-3 text-[13px] text-slate-700">
-          <span
-            className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${getGoalTypeBadgeClass(item.periodType)}`}
-          >
-            {getGoalTypeBadgeLabel(item.periodType)}
-          </span>
-        </td>
-        <td className="py-2 pr-3 text-[13px] text-slate-600">
-          {formatDisplayDate(item.startDate)} <br />
-          {formatDisplayDate(item.endDate)}
         </td>
 
         {leafBuckets.map((leaf) => {
@@ -2350,18 +2383,17 @@ function KpiPage() {
           const nodePlan = node ? node.planValue : 0;
           const nodeActual = node ? node.actualValue : 0;
           const nodePercent = node ? node.percentTotal : 0;
-          const baseBg = getBucketBgClass(leaf.bucketPeriodType);
-          const cellBg = leaf.isTotalOfExpanded ? `${baseBg} font-semibold` : baseBg;
+          const cellBg = leaf.isTotalOfExpanded ? "font-semibold" : "";
           return (
             <Fragment key={`${item.id}-${leaf.key}`}>
-              <td className={`px-1 py-1.5 text-center text-[12px] text-slate-500 ${cellBg}`}>
+              <td className={`whitespace-nowrap px-1 py-1.5 text-center text-[12px] text-slate-500 ${cellBg}`}>
                 {node ? (
                   formatValueWithSymbol(nodePlan, item.valueSymbol, item.valueSymbolPosition)
                 ) : (
                   <span className="text-slate-300">—</span>
                 )}
               </td>
-              <td className={`px-1 py-1.5 text-center text-[13px] font-semibold text-slate-800 ${cellBg}`}>
+              <td className={`whitespace-nowrap px-1 py-1.5 text-center text-[13px] font-semibold text-slate-800 ${cellBg}`}>
                 {renderBucketFactCell(item, node)}
               </td>
               <td className={`px-1 py-1.5 text-center ${cellBg}`}>
@@ -2380,11 +2412,11 @@ function KpiPage() {
         })}
 
         <td
-          className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}bg-blue-50/50 px-2 py-1.5 text-center text-[13px] font-medium text-slate-700`}
+          className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}whitespace-nowrap bg-blue-50/50 px-2 py-1.5 text-center text-[13px] font-medium text-slate-700`}
         >
           {formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)}
         </td>
-        <td className="bg-blue-50/50 px-2 py-1.5 text-center text-[13px] font-semibold text-slate-900">
+        <td className="whitespace-nowrap bg-blue-50/50 px-2 py-1.5 text-center text-[13px] font-semibold text-slate-900">
           {item.hasChildren ? (
             <span>
               {formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}
@@ -2553,7 +2585,7 @@ function KpiPage() {
 
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
         <div
-          className="px-4 lg:px-6 py-2"
+          className="sticky top-0 z-30 px-4 lg:px-6 py-2"
           style={{
             display: "flex",
             alignItems: "center",
@@ -2717,9 +2749,10 @@ function KpiPage() {
           </div>
         ) : null}
 
-        <div className="px-4 lg:px-6 py-5">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-200 px-4 py-3">
+        <div className="py-5">
+          {/* overflow-clip (не hidden): hidden ломает position: sticky у строки с периодами */}
+          <div className="overflow-clip border-y border-slate-200 bg-white">
+            <div className="sticky top-[56px] z-20 flex items-center justify-between gap-3 flex-wrap border-b border-slate-200 bg-white px-4 py-3">
               <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
                 {KPI_PERIOD_TABS.map((tab) => {
                   const isActive = periodMode === tab.key;
@@ -2827,26 +2860,17 @@ function KpiPage() {
                           >
                             KPI / Название
                           </th>
-                          <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
-                            Источник
-                          </th>
-                          <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
-                            Тип
-                          </th>
-                          <th rowSpan={2} className="py-2 pr-3 text-[12px] font-semibold text-slate-500">
-                            Период
-                          </th>
                           {leafBuckets.map((leaf) => {
-                            const isExpanded = leaf.toggleState === "expanded";
-                            const bgClass = getBucketHeaderBgClass(leaf.bucketPeriodType);
+                            // const isExpanded = leaf.toggleState === "expanded"; // Временно скрыто вместе с кнопкой сворачивания
                             return (
                               <th
                                 key={leaf.key}
                                 colSpan={3}
-                                className={`px-2 py-2 text-center text-[12px] font-semibold text-slate-600 ${bgClass}`}
+                                className="px-2 py-2 text-center text-[12px] font-semibold text-slate-600"
                               >
                                 <span className="inline-flex items-center gap-1.5">
                                   <span>{leaf.label}</span>
+                                  {/* Временно скрыто — кнопка сворачивания/разворачивания колонки
                                   {leaf.isToggle ? (
                                     <button
                                       type="button"
@@ -2858,6 +2882,7 @@ function KpiPage() {
                                       {isExpanded ? <Minus size={12} /> : <Plus size={12} />}
                                     </button>
                                   ) : null}
+                                  */}
                                 </span>
                               </th>
                             );
@@ -2871,16 +2896,15 @@ function KpiPage() {
                         </tr>
                         <tr className="border-b border-slate-200">
                           {leafBuckets.map((leaf) => {
-                            const bg = getBucketHeaderBgClass(leaf.bucketPeriodType);
                             return (
                               <Fragment key={`${leaf.key}-sub`}>
-                                <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
+                                <th className="px-1 py-1 text-center text-[11px] font-semibold text-slate-500">
                                   План
                                 </th>
-                                <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
+                                <th className="px-1 py-1 text-center text-[11px] font-semibold text-slate-500">
                                   Факт
                                 </th>
-                                <th className={`px-1 py-1 text-center text-[11px] font-semibold text-slate-500 ${bg}`}>
+                                <th className="px-1 py-1 text-center text-[11px] font-semibold text-slate-500">
                                   %
                                 </th>
                               </Fragment>
@@ -2908,11 +2932,11 @@ function KpiPage() {
                             <Fragment key={`group-${group.position}`}>
                               <SortablePositionRow
                                 id={positionDndId(group.position)}
-                                className="group border-b border-slate-100 bg-slate-50/60"
+                                className="group border-y-2 border-slate-200 bg-slate-100"
                               >
                                 {(handle) => (
                                   <>
-                                    <td className="py-1.5 pl-2 pr-2">
+                                    <td className="py-2.5 pl-2 pr-2">
                                       <button
                                         type="button"
                                         {...handle.attributes}
@@ -2924,15 +2948,21 @@ function KpiPage() {
                                       </button>
                                     </td>
                                     <td
-                                      colSpan={4 + leafBuckets.length * 3 + 3}
-                                      className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
+                                      colSpan={1 + leafBuckets.length * 3 + 3}
+                                      className="py-2.5 pl-4 pr-3 text-left"
                                     >
-                                      {group.position}
-                                      {isPositionDragActive ? (
-                                        <span className="ml-2 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+                                      <div className="flex items-center gap-2.5">
+                                        <span
+                                          className="h-4 w-1 shrink-0 rounded-full bg-brand-500"
+                                          aria-hidden="true"
+                                        />
+                                        <span className="text-[13px] font-bold uppercase tracking-wide text-slate-800">
+                                          {group.position}
+                                        </span>
+                                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500">
                                           {group.items.length} KPI
                                         </span>
-                                      ) : null}
+                                      </div>
                                     </td>
                                   </>
                                 )}
@@ -2981,11 +3011,11 @@ function KpiPage() {
                             <Fragment key={`group-list-${group.position}`}>
                               <SortablePositionRow
                                 id={positionDndId(group.position)}
-                                className="group border-b border-slate-100 bg-slate-50/60"
+                                className="group border-y-2 border-slate-200 bg-slate-100"
                               >
                                 {(handle) => (
                                   <>
-                                    <td className="py-1.5 pl-2 pr-2">
+                                    <td className="py-2.5 pl-2 pr-2">
                                       <button
                                         type="button"
                                         {...handle.attributes}
@@ -2996,16 +3026,19 @@ function KpiPage() {
                                         <GripVertical size={14} />
                                       </button>
                                     </td>
-                                    <td
-                                      colSpan={7}
-                                      className="py-1.5 pl-4 pr-3 text-left text-[13px] font-semibold text-brand-500"
-                                    >
-                                      {group.position}
-                                      {isPositionDragActive ? (
-                                        <span className="ml-2 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+                                    <td colSpan={7} className="py-2.5 pl-4 pr-3 text-left">
+                                      <div className="flex items-center gap-2.5">
+                                        <span
+                                          className="h-4 w-1 shrink-0 rounded-full bg-brand-500"
+                                          aria-hidden="true"
+                                        />
+                                        <span className="text-[13px] font-bold uppercase tracking-wide text-slate-800">
+                                          {group.position}
+                                        </span>
+                                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500">
                                           {group.items.length} KPI
                                         </span>
-                                      ) : null}
+                                      </div>
                                     </td>
                                   </>
                                 )}
