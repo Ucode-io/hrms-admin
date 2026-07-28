@@ -24,6 +24,7 @@ import {
 } from "../../components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import SearchableSelect from "../../components/ui/searchable-select";
+import companyStore from "../../store/company.store";
 import { useEmployeesQuery } from "../../api/services/employee.service";
 import {
   useTd2Config,
@@ -90,7 +91,7 @@ function UserStatsModal({
       chart: { type: "bar", toolbar: { show: false }, fontFamily: "inherit" },
       plotOptions: { bar: { columnWidth: "55%", borderRadius: 3 } },
       dataLabels: { enabled: false },
-      colors: ["#465fff"],
+      colors: [companyStore.mainColor],
       xaxis: {
         categories: daily.map((d) => d.work_date.slice(8)),
         title: { text: "День месяца", style: { fontSize: "11px", fontWeight: 400 } },
@@ -432,7 +433,7 @@ function MappingTab({
                         setAssignments((prev) => ({ ...prev, [u.td2_user_id]: val }))
                       }
                       placeholder="Выберите сотрудника"
-                      brandColor="#465fff"
+                      brandColor={companyStore.mainColor}
                     />
                   </div>
                   <Button

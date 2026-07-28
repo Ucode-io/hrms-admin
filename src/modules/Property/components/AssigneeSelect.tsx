@@ -44,7 +44,7 @@ const selectStyles: StylesConfig<AssigneeOption, false> = {
   option: (base, state) => ({
     ...base,
     fontSize: "14px",
-    backgroundColor: state.isSelected ? "#2563eb" : state.isFocused ? "#eff6ff" : "#fff",
+    backgroundColor: state.isSelected ? "var(--company-color)" : state.isFocused ? "var(--color-brand-50)" : "#fff",
     color: state.isSelected ? "#fff" : "#1e293b",
   }),
 };

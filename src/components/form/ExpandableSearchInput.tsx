@@ -18,7 +18,7 @@ export default function ExpandableSearchInput({
   inputId,
   expandedWidth = 460,
   collapsedSize = 38,
-  brandColor = "#2563eb",
+  brandColor = "var(--company-color)",
 }: ExpandableSearchInputProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isFocused, setIsFocused] = useState(false);

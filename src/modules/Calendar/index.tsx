@@ -53,8 +53,8 @@ const filterSelectStyles: StylesConfig<FilterOption, true> = {
     ...base,
     minHeight: 40,
     borderRadius: 12,
-    backgroundColor: state.hasValue ? "#eff6ff" : "#fff",
-    borderColor: state.hasValue ? "#bfdbfe" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
+    backgroundColor: state.hasValue ? "var(--color-brand-50)" : "#fff",
+    borderColor: state.hasValue ? "var(--color-brand-200)" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
     boxShadow: "none",
     "&:hover": {
       borderColor: state.hasValue ? "#93c5fd" : "#cbd5e1",
@@ -63,13 +63,13 @@ const filterSelectStyles: StylesConfig<FilterOption, true> = {
   valueContainer: (base: any) => ({ ...base, padding: "0 10px" }),
   indicatorsContainer: (base: any, state: any) => ({
     ...base,
-    color: state.hasValue ? "#2563eb" : "#64748b",
+    color: state.hasValue ? "var(--company-color)" : "#64748b",
   }),
   dropdownIndicator: (base: any, state: any) => ({
     ...base,
-    color: state.hasValue ? "#2563eb" : "#64748b",
+    color: state.hasValue ? "var(--company-color)" : "#64748b",
     padding: 6,
-    "&:hover": { color: state.hasValue ? "#1d4ed8" : "#475569" },
+    "&:hover": { color: state.hasValue ? "var(--color-brand-700)" : "#475569" },
   }),
   clearIndicator: (base: any) => ({
     ...base,
@@ -80,20 +80,20 @@ const filterSelectStyles: StylesConfig<FilterOption, true> = {
   indicatorSeparator: () => ({ display: "none" }),
   placeholder: (base: any) => ({ ...base, color: "#94a3b8", fontSize: 14 }),
   input: (base: any) => ({ ...base, color: "#1e293b", fontSize: 14, margin: 0, padding: 0 }),
-  multiValue: (base: any) => ({ ...base, backgroundColor: "#dbeafe", borderRadius: 8 }),
-  multiValueLabel: (base: any) => ({ ...base, color: "#1d4ed8", fontSize: 13, fontWeight: 600 }),
+  multiValue: (base: any) => ({ ...base, backgroundColor: "var(--color-brand-100)", borderRadius: 8 }),
+  multiValueLabel: (base: any) => ({ ...base, color: "var(--color-brand-700)", fontSize: 13, fontWeight: 600 }),
   multiValueRemove: (base: any) => ({
     ...base,
-    color: "#1d4ed8",
+    color: "var(--color-brand-700)",
     borderRadius: 8,
-    "&:hover": { backgroundColor: "#bfdbfe", color: "#1e3a8a" },
+    "&:hover": { backgroundColor: "var(--color-brand-200)", color: "var(--color-brand-900)" },
   }),
   menu: (base: any) => ({ ...base, borderRadius: 10, overflow: "hidden", zIndex: 9999 }),
   menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
   option: (base: any, state: any) => ({
     ...base,
-    backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
-    color: state.isSelected ? "#1d4ed8" : "#1e293b",
+    backgroundColor: state.isSelected ? "var(--color-brand-100)" : state.isFocused ? "#f8fafc" : "#fff",
+    color: state.isSelected ? "var(--color-brand-700)" : "#1e293b",
     fontSize: 14,
     padding: "8px 12px",
   }),
@@ -1244,13 +1244,13 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
               title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
               className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
                 isFilterButtonActive
-                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                  ? "border-brand-200 bg-brand-50 text-brand-500"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               <SlidersHorizontal size={16} />
               {activeFiltersCount > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-semibold text-white">
                   {activeFiltersCount}
                 </span>
               ) : null}
@@ -1326,7 +1326,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                   setSelectedDepartmentIds([]);
                   setSelectedPositionIds([]);
                 }}
-                className="ml-auto inline-flex h-10 items-center rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
+                className="ml-auto inline-flex h-10 items-center rounded-xl border border-brand-200 bg-brand-50 px-3 text-sm font-medium text-brand-500 transition hover:bg-brand-100"
               >
                 Сбросить
               </button>

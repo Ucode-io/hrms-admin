@@ -256,8 +256,8 @@ function GenderDistributionPage() {
                     onClick={() => setTablePage(page)}
                     className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-70"
                     style={{
-                      borderColor: isActive ? "#3b82f6" : "#e5e7eb",
-                      backgroundColor: isActive ? "#3b82f6" : "#ffffff",
+                      borderColor: isActive ? "var(--company-color)" : "#e5e7eb",
+                      backgroundColor: isActive ? "var(--company-color)" : "#ffffff",
                       color: isActive ? "#ffffff" : "#334155",
                     }}
                   >

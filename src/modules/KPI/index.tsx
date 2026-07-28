@@ -1376,8 +1376,8 @@ function KpiPage() {
         ...base,
         minHeight: 40,
         borderRadius: 12,
-        backgroundColor: state.hasValue ? "#eff6ff" : "#fff",
-        borderColor: state.hasValue ? "#bfdbfe" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
+        backgroundColor: state.hasValue ? "var(--color-brand-50)" : "#fff",
+        borderColor: state.hasValue ? "var(--color-brand-200)" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
         boxShadow: "none",
         "&:hover": {
           borderColor: state.hasValue ? "#93c5fd" : "#cbd5e1",
@@ -1386,11 +1386,11 @@ function KpiPage() {
       valueContainer: (base) => ({ ...base, padding: "0 10px" }),
       indicatorsContainer: (base, state) => ({
         ...base,
-        color: state.hasValue ? "#2563eb" : "#64748b",
+        color: state.hasValue ? "var(--company-color)" : "#64748b",
       }),
       dropdownIndicator: (base, state) => ({
         ...base,
-        color: state.hasValue ? "#2563eb" : "#64748b",
+        color: state.hasValue ? "var(--company-color)" : "#64748b",
         padding: 6,
       }),
       clearIndicator: (base) => ({ ...base, color: "#64748b", padding: 6 }),
@@ -1399,7 +1399,7 @@ function KpiPage() {
       input: (base) => ({ ...base, color: "#1e293b", fontSize: 14, margin: 0, padding: 0 }),
       singleValue: (base, state) => ({
         ...base,
-        color: state.hasValue ? "#2563eb" : "#334155",
+        color: state.hasValue ? "var(--company-color)" : "#334155",
         fontSize: 14,
         fontWeight: state.hasValue ? 600 : 500,
       }),
@@ -1407,8 +1407,8 @@ function KpiPage() {
       menuPortal: (base) => ({ ...base, zIndex: 100100 }),
       option: (base, state) => ({
         ...base,
-        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
-        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        backgroundColor: state.isSelected ? "var(--color-brand-100)" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "var(--color-brand-700)" : "#1e293b",
         fontSize: 14,
         padding: "8px 12px",
       }),
@@ -1435,12 +1435,12 @@ function KpiPage() {
         ...base,
         margin: 0,
         borderRadius: 8,
-        backgroundColor: "#eff6ff",
-        border: "1px solid #bfdbfe",
+        backgroundColor: "var(--color-brand-50)",
+        border: "1px solid var(--color-brand-200)",
       }),
       multiValueLabel: (base) => ({
         ...base,
-        color: "#1d4ed8",
+        color: "var(--color-brand-700)",
         fontSize: 12,
         fontWeight: 600,
         padding: "2px 4px 2px 8px",
@@ -1449,7 +1449,7 @@ function KpiPage() {
         ...base,
         color: "#60a5fa",
         borderRadius: "0 7px 7px 0",
-        ":hover": { backgroundColor: "#dbeafe", color: "#1d4ed8" },
+        ":hover": { backgroundColor: "var(--color-brand-100)", color: "var(--color-brand-700)" },
       }),
       indicatorsContainer: (base) => ({ ...base, color: "#64748b" }),
       dropdownIndicator: (base) => ({ ...base, color: "#64748b", padding: 6 }),
@@ -1459,8 +1459,8 @@ function KpiPage() {
       menuPortal: (base) => ({ ...base, zIndex: 100100 }),
       option: (base, state) => ({
         ...base,
-        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
-        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        backgroundColor: state.isSelected ? "var(--color-brand-100)" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "var(--color-brand-700)" : "#1e293b",
         fontSize: 14,
         padding: "8px 12px",
       }),
@@ -2779,10 +2779,10 @@ function KpiPage() {
                 gap: "8px",
                 height: "30px",
                 padding: "0 12px",
-                border: viewMode === "list" ? "1px solid #dbeafe" : "1px solid transparent",
+                border: viewMode === "list" ? "1px solid var(--color-brand-100)" : "1px solid transparent",
                 borderRadius: "8px",
                 backgroundColor: viewMode === "list" ? "#fff" : "transparent",
-                color: viewMode === "list" ? "#2563eb" : "#64748b",
+                color: viewMode === "list" ? "var(--company-color)" : "#64748b",
                 fontWeight: 600,
                 fontSize: "13px",
                 cursor: "pointer",
@@ -2803,10 +2803,10 @@ function KpiPage() {
                 gap: "8px",
                 height: "30px",
                 padding: "0 12px",
-                border: viewMode === "calendar" ? "1px solid #dbeafe" : "1px solid transparent",
+                border: viewMode === "calendar" ? "1px solid var(--color-brand-100)" : "1px solid transparent",
                 borderRadius: "8px",
                 backgroundColor: viewMode === "calendar" ? "#fff" : "transparent",
-                color: viewMode === "calendar" ? "#2563eb" : "#64748b",
+                color: viewMode === "calendar" ? "var(--company-color)" : "#64748b",
                 fontWeight: 600,
                 fontSize: "13px",
                 cursor: "pointer",
@@ -2839,13 +2839,13 @@ function KpiPage() {
               title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
               className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFilterButtonActive
-                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                  ? "border-brand-200 bg-brand-50 text-brand-500"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               <SlidersHorizontal size={16} />
               {activeFiltersCount > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-semibold text-white">
                   {activeFiltersCount}
                 </span>
               ) : null}
@@ -2936,10 +2936,10 @@ function KpiPage() {
                         alignItems: "center",
                         height: "30px",
                         padding: "0 12px",
-                        border: isActive ? "1px solid #dbeafe" : "1px solid transparent",
+                        border: isActive ? "1px solid var(--color-brand-100)" : "1px solid transparent",
                         borderRadius: "8px",
                         backgroundColor: isActive ? "#fff" : "transparent",
-                        color: isActive ? "#2563eb" : "#64748b",
+                        color: isActive ? "var(--company-color)" : "#64748b",
                         fontWeight: 600,
                         fontSize: "13px",
                         cursor: "pointer",

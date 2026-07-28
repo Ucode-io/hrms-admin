@@ -897,9 +897,9 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
             className="relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border transition"
             style={{
-              color: isFilterButtonActive ? "#2563eb" : "#334155",
-              backgroundColor: isFilterButtonActive ? "#eff6ff" : "#fff",
-              borderColor: isFilterButtonActive ? "#bfdbfe" : "#e2e8f0",
+              color: isFilterButtonActive ? "var(--company-color)" : "#334155",
+              backgroundColor: isFilterButtonActive ? "var(--color-brand-50)" : "#fff",
+              borderColor: isFilterButtonActive ? "var(--color-brand-200)" : "#e2e8f0",
             }}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -1025,9 +1025,9 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   height: "38px",
                   padding: "0 12px",
                   borderRadius: "10px",
-                  border: "1px solid #bfdbfe",
-                  backgroundColor: "#eff6ff",
-                  color: "#2563eb",
+                  border: "1px solid var(--color-brand-200)",
+                  backgroundColor: "var(--color-brand-50)",
+                  color: "var(--company-color)",
                   fontSize: "13px",
                   fontWeight: 600,
                   cursor: "pointer",

@@ -64,7 +64,7 @@ const selectStyles: StylesConfig<RemoteSelectOption, false> = {
     ...base,
     fontSize: "13px",
     cursor: "pointer",
-    backgroundColor: state.isSelected ? "#eff6ff" : state.isFocused ? "#f8fafc" : "#fff",
+    backgroundColor: state.isSelected ? "var(--color-brand-50)" : state.isFocused ? "#f8fafc" : "#fff",
     color: state.isSelected ? "#0f172a" : "#334155",
   }),
   menu: (base) => ({

@@ -470,8 +470,8 @@ function FinanceSalaryPage() {
         ...base,
         minHeight: 40,
         borderRadius: 12,
-        backgroundColor: state.hasValue ? "#eff6ff" : "#fff",
-        borderColor: state.hasValue ? "#bfdbfe" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
+        backgroundColor: state.hasValue ? "var(--color-brand-50)" : "#fff",
+        borderColor: state.hasValue ? "var(--color-brand-200)" : state.isFocused ? "#cbd5e1" : "#e2e8f0",
         boxShadow: "none",
         "&:hover": {
           borderColor: state.hasValue ? "#93c5fd" : "#cbd5e1",
@@ -483,14 +483,14 @@ function FinanceSalaryPage() {
       }),
       indicatorsContainer: (base: any, state: any) => ({
         ...base,
-        color: state.hasValue ? "#2563eb" : "#64748b",
+        color: state.hasValue ? "var(--company-color)" : "#64748b",
       }),
       dropdownIndicator: (base: any, state: any) => ({
         ...base,
-        color: state.hasValue ? "#2563eb" : "#64748b",
+        color: state.hasValue ? "var(--company-color)" : "#64748b",
         padding: 6,
         "&:hover": {
-          color: state.hasValue ? "#1d4ed8" : "#475569",
+          color: state.hasValue ? "var(--color-brand-700)" : "#475569",
         },
       }),
       clearIndicator: (base: any) => ({
@@ -518,7 +518,7 @@ function FinanceSalaryPage() {
       }),
       singleValue: (base: any, state: any) => ({
         ...base,
-        color: state.hasValue ? "#2563eb" : "#334155",
+        color: state.hasValue ? "var(--company-color)" : "#334155",
         fontSize: 14,
         fontWeight: state.hasValue ? 600 : 500,
       }),
@@ -534,8 +534,8 @@ function FinanceSalaryPage() {
       }),
       option: (base: any, state: any) => ({
         ...base,
-        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
-        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        backgroundColor: state.isSelected ? "var(--color-brand-100)" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "var(--color-brand-700)" : "#1e293b",
         fontSize: 14,
         padding: "8px 12px",
       }),
@@ -607,8 +607,8 @@ function FinanceSalaryPage() {
       }),
       option: (base, state) => ({
         ...base,
-        backgroundColor: state.isSelected ? "#dbeafe" : state.isFocused ? "#f8fafc" : "#fff",
-        color: state.isSelected ? "#1d4ed8" : "#1e293b",
+        backgroundColor: state.isSelected ? "var(--color-brand-100)" : state.isFocused ? "#f8fafc" : "#fff",
+        color: state.isSelected ? "var(--color-brand-700)" : "#1e293b",
         fontSize: 14,
         padding: "8px 12px",
       }),
@@ -925,13 +925,13 @@ function FinanceSalaryPage() {
               title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
               className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFilterButtonActive
-                  ? "border-blue-200 bg-blue-50 text-blue-600"
+                  ? "border-brand-200 bg-brand-50 text-brand-500"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               <SlidersHorizontal size={16} />
               {activeFiltersCount > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-semibold text-white">
                   {activeFiltersCount}
                 </span>
               ) : null}
@@ -1068,7 +1068,7 @@ function FinanceSalaryPage() {
                   setOperationFilter("");
                   setCompensationTypeFilter("");
                 }}
-                className="ml-auto inline-flex h-10 items-center rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-600 transition hover:bg-blue-100"
+                className="ml-auto inline-flex h-10 items-center rounded-xl border border-brand-200 bg-brand-50 px-3 text-sm font-medium text-brand-500 transition hover:bg-brand-100"
               >
                 Сбросить
               </button>
