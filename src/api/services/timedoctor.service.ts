@@ -1,20 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import axios from "axios";
 import authStore from "../../store/auth.store";
+import companyStore from "../../store/company.store";
+import { getCompaniesId } from "../httpRequest";
 import { handleUnauthorizedError } from "../unauthorizedHandler";
 
 // --- Time Doctor (TD2) integration gateway -------------------------------
-// All 16 handlers share one u-code invoke_function endpoint. The handler is
-// selected with `data.method`; its payload lives in `data.object_data`.
-// Response shape from the function: { status: "success" | "error", data: ... }.
+// Все обработчики живут в одной cloud-функции u-code. Обработчик выбирается
+// полем `data.method`, его аргументы — в `data.object_data`.
+//
+// `company_id` в object_data — это companies_id HRMS: одна установка функции
+// обслуживает несколько компаний, и без него методы конфигурации и синка не
+// знают, чей аккаунт Time Doctor трогать.
 const API_BASE_URL = "https://api.admin.u-code.io";
 const PROJECT_ID = "9a462573-ce11-4288-928a-a6ba754b6998";
 const ENVIRONMENT_ID = "2f73835f-3a29-46c8-951e-75119db9bfc0";
 // app_id — u-code API key (P-… format), also used to arm the background re-sync.
 const APP_ID = "P-aUAOU0KNOuRctMIRJDjVb5kElKgxkYpI";
-// NOTE: confirm the deployed function slug. Service name is
-// `workload-timedoctor-integration`.
-const TIMEDOCTOR_FUNCTION_PATH = `/v2/invoke_function/workload-timedoctor-integration?project-id=${PROJECT_ID}`;
+// Слаг задеплоенной функции. Прежнее значение (`workload-timedoctor-integration`,
+// без префикса) в шлюзе не существует — вызовы падали с «no rows in result set».
+const TIMEDOCTOR_FUNCTION_PATH = `/v2/invoke_function/udevs-hrms-workload-timedoctor-integration?project-id=${PROJECT_ID}`;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -46,37 +51,53 @@ timedoctorRequest.interceptors.response.use(
 );
 
 /**
- * Peel the u-code gateway wrapper(s) until we reach the function's own
- * `{ status, data }` envelope, then enforce it. Throws on `status !== success`.
+ * Спуск сквозь конверты шлюза до собственного ответа функции `{status, data}`.
+ *
+ * Идти «пока не встретим поле status» нельзя: внешний конверт u-code сам имеет
+ * `status: "CREATED"`, и обход останавливался на нём, после чего любой успешный
+ * ответ читался как ошибка. Ищем именно `success`/`error` — статусы функции.
  */
 const unwrapTd2Response = <T,>(raw: unknown): T => {
-  let node: unknown = raw;
-  for (let depth = 0; depth < 5; depth += 1) {
-    if (isRecord(node) && typeof node.status === "string") {
-      break;
+  const findEnvelope = (node: unknown, depth = 0): JsonRecord | null => {
+    if (depth > 6 || !isRecord(node)) return null;
+    if (node.status === "success" || node.status === "error") return node;
+    for (const key of ["data", "result", "response"]) {
+      const found = findEnvelope(node[key], depth + 1);
+      if (found) return found;
     }
-    if (isRecord(node) && "data" in node) {
-      node = node.data;
-      continue;
-    }
-    break;
+    return null;
+  };
+
+  const envelope = findEnvelope(raw);
+  if (!envelope) {
+    const outer = isRecord(raw) ? raw : {};
+    // Ошибки шлюза (неизвестный метод, провал валидации) до конверта функции
+    // не доходят — их текст лежит в `data` внешнего ответа.
+    const gatewayError =
+      typeof outer.data === "string" && outer.data
+        ? outer.data
+        : typeof outer.description === "string"
+          ? outer.description
+          : "";
+    throw new Error(gatewayError || "Неожиданный формат ответа Time Doctor.");
   }
 
-  if (!isRecord(node) || typeof node.status !== "string") {
-    throw new Error("Неожиданный формат ответа Time Doctor.");
-  }
-
-  if (node.status !== "success") {
-    const payload = isRecord(node.data) ? node.data : {};
+  if (envelope.status !== "success") {
+    const payload = isRecord(envelope.data) ? envelope.data : {};
     const message =
       (typeof payload.message === "string" && payload.message) ||
       (typeof payload.error === "string" && payload.error) ||
+      (typeof envelope.server_error === "string" && envelope.server_error) ||
       "Запрос к Time Doctor не выполнен.";
     throw new Error(message);
   }
 
-  return node.data as T;
+  return envelope.data as T;
 };
+
+/** companies_id текущей компании — его ждёт каждый метод функции. */
+const resolveCompanyId = (): string =>
+  getCompaniesId() || companyStore.company?.guid || "";
 
 const callTd2 = async <T,>(
   method: string,
@@ -89,7 +110,7 @@ const callTd2 = async <T,>(
       project_id: PROJECT_ID,
       user_id: authStore.user?.guid ?? authStore.user_data?.guid ?? undefined,
       method,
-      object_data: objectData,
+      object_data: { company_id: resolveCompanyId(), ...objectData },
     },
   });
 
@@ -217,6 +238,26 @@ export interface Td2UserStatsResult {
   daily: Td2UserDailyStat[];
 }
 
+/**
+ * Состояние фоновой синхронизации.
+ *
+ * `td2_full_sync_async` только ставит задачу и сразу отвечает; ход выполнения
+ * читается отдельным `td2_sync_status`. Пустые строки в `finished_at`/`error`
+ * функция отдаёт вместо null — трактуем их как «нет значения».
+ */
+export interface Td2SyncStatus {
+  running: boolean;
+  phase?: string;
+  trigger?: string;
+  from_date?: string;
+  to_date?: string;
+  started_at?: string;
+  finished_at?: string;
+  last_sync_at?: string;
+  worklogs_synced?: number;
+  error?: string;
+}
+
 // --- Service methods ------------------------------------------------------
 
 const timedoctorService = {
@@ -254,6 +295,10 @@ const timedoctorService = {
 
   // Sync
   fullSync: () => callTd2<JsonRecord>("td2_full_sync"),
+  /** Ставит фоновую синхронизацию за период и сразу возвращается. */
+  fullSyncAsync: (payload: { from_date: string; to_date: string }) =>
+    callTd2<JsonRecord>("td2_full_sync_async", payload),
+  syncStatus: () => callTd2<Td2SyncStatus>("td2_sync_status"),
   syncAllUsers: (payload?: { from_date?: string; to_date?: string }) =>
     callTd2<Td2SyncResult>("td2_sync_all_users_stats", payload ?? {}),
   syncUser: (payload: {
@@ -428,3 +473,32 @@ export const useTd2UserStats = (
       keepPreviousData: true,
     }
   );
+
+/**
+ * Статус фоновой синхронизации.
+ *
+ * Пока задача выполняется, опрашиваем раз в 3 секунды; как только `running`
+ * гаснет — опрос прекращается. Интервал задаётся функцией, поэтому одна и та же
+ * подписка сама переходит из «тикающей» в «спящую» без перемонтирования.
+ */
+export const useTd2SyncStatus = (enabled = true) =>
+  useQuery(["td2", "sync-status"], () => timedoctorService.syncStatus(), {
+    enabled,
+    retry: false,
+    refetchInterval: (data) => (data?.running ? 3000 : false),
+  });
+
+export const useTd2FullSyncAsync = () => {
+  const qc = useQueryClient();
+  return useMutation(
+    (payload: { from_date: string; to_date: string }) =>
+      timedoctorService.fullSyncAsync(payload),
+    {
+      onSuccess: () => {
+        // Статус нужен сразу: кнопка должна уйти в «Синхронизация…» ещё до
+        // первого тика опроса.
+        qc.invalidateQueries(["td2", "sync-status"]);
+      },
+    }
+  );
+};

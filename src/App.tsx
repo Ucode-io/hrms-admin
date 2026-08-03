@@ -27,9 +27,13 @@ import ProductFormPage from "./modules/Products/Form";
 import PlatformSettingsPage from "./modules/Settings/PlatformSettings";
 import SettingsGeneralPage from "./modules/Settings/General";
 import CareerSiteSettingsPage from "./modules/Settings/CareerSite";
+import CustomFieldsSettingsPage from "./modules/Settings/CustomFields";
+import TaskDirectoriesSettingsPage from "./modules/Settings/TaskDirectories";
 import HomeSettingsPage from "./modules/Settings/Home";
 import PositionsSettingsPage from "./modules/Settings/Positions";
 import ExperienceLevelsSettingsPage from "./modules/Settings/ExperienceLevels";
+import GradeMatrixSettingsPage from "./modules/Settings/GradeMatrix";
+import TasksPage from "./modules/Tasks";
 import SurveysPage from "./modules/Surveys";
 import SurveyEditorPage from "./modules/Surveys/Editor";
 import SurveyDetailPage from "./modules/Surveys/Detail";
@@ -76,6 +80,8 @@ import PropertyList from "./modules/Property/List";
 import PropertyForm from "./modules/Property/Form";
 import TimeModule from "./modules/Time";
 import TimeTrackingModule from "./modules/TimeTracking";
+import TimesheetPage from "./modules/Timesheet";
+import TimesheetDayPage from "./modules/Timesheet/DayPage";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
 import BirthdaysPage from "./modules/Reports/Birthdays";
@@ -218,8 +224,11 @@ function App() {
                 <Route path="home" element={<HomeSettingsPage />} />
                 <Route path="general" element={<SettingsGeneralPage />} />
                 <Route path="career-site" element={<CareerSiteSettingsPage />} />
+                <Route path="custom-fields" element={<CustomFieldsSettingsPage />} />
+                <Route path="task-directories" element={<TaskDirectoriesSettingsPage />} />
                 <Route path="positions" element={<PositionsSettingsPage />} />
                 <Route path="experience-levels" element={<ExperienceLevelsSettingsPage />} />
+                <Route path="grade-salaries" element={<GradeMatrixSettingsPage />} />
                 <Route path="locations" element={<LocationsSettingsPage />} />
                 <Route path="employment-types" element={<EmploymentTypesSettingsPage />} />
                 <Route path="divisions" element={<DivisionsSettingsPage />} />
@@ -259,6 +268,8 @@ function App() {
                 <Route path="candidate-sources" element={<CandidateSourcesSettingsPage />} />
               </Route>
 
+              <Route path="/tasks" element={<TasksPage />} />
+
               <Route path="/surveys" element={<SurveysPage />} />
               <Route path="/surveys/new" element={<SurveyEditorPage />} />
               <Route path="/surveys/:id" element={<SurveyDetailPage />} />
@@ -283,6 +294,8 @@ function App() {
               <Route path="/documents/generate/:templateId" element={<EmployeeGenerateDocumentFromTemplatePage />} />
               <Route path="/time" element={<TimeModule />} />
               <Route path="/time-tracking" element={<TimeTrackingModule />} />
+              <Route path="/timesheet" element={<TimesheetPage />} />
+              <Route path="/timesheet/:employeeId/:date" element={<TimesheetDayPage />} />
               <Route path="/calendar" element={<Navigate to="/time?view=calendar" replace />} />
               <Route path="/time/attendance" element={<Navigate to="/time?view=attendance" replace />} />
               <Route path="/reports" element={<ReportsHomePage />} />

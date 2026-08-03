@@ -4,13 +4,14 @@ import {
   BarChart3,
   BookOpen,
   CalendarCheck,
-  Clock,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
   FileText,
   GraduationCap,
   Home,
+  ListTodo,
   Package,
   Settings,
   Target,
@@ -44,7 +45,10 @@ const mainNavItems: NavItem[] = [
 const moduleSections: ModuleSection[] = [
   {
     title: "Задачи и KPI",
-    items: [{ name: "KPI", path: "/kpi", icon: <Target size={18} /> }],
+    items: [
+      { name: "Задачи", path: "/tasks", icon: <ListTodo size={18} /> },
+      { name: "KPI", path: "/kpi", icon: <Target size={18} /> },
+    ],
   },
   {
     title: "Люди",
@@ -63,7 +67,7 @@ const moduleSections: ModuleSection[] = [
     title: "Время",
     items: [
       { name: "Посешаемость", path: "/time", icon: <CalendarCheck size={18} /> },
-      { name: "Учёт времени работы", path: "/time-tracking", icon: <Clock size={18} /> },
+      { name: "Табель времени", path: "/timesheet", icon: <CalendarClock size={18} /> },
     ],
   },
   {
@@ -105,13 +109,14 @@ const ENABLED_PATHS = new Set([
   "/property",
   "/reports",
   "/time",
-  "/time-tracking",
+  "/timesheet",
   "/time/attendance",
   "/reports/attendance",
   "/reports/absence-balance",
   "/calendar",
   "/finance/salary",
   "/kpi",
+  "/tasks",
   "/surveys",
   "/trainings",
   "/settings",

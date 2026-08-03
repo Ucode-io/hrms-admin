@@ -322,6 +322,9 @@ const draftToPayload = (
     notes: draft.notes,
     vacancies_id: draft.vacancyId,
   };
+  // Значения динамических полей: ключ появляется, только когда контейнер
+  // заведён в u-code, иначе items API его всё равно вырежет.
+  if (draft.customData !== undefined) payload.custom_data = draft.customData;
   if (options.includeLegacySource) payload.source = [draft.source];
   return payload;
 };

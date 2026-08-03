@@ -1126,6 +1126,148 @@ span.flatpickr-weekday,
   width: 100%;
 }
 
+/* ── Tasks: month calendar (FullCalendar) ── */
+/* The global `.fc.fc-media-screen { min-height: 100vh }` rule would stretch the
+   month grid to the whole viewport — this view sizes to its content instead. */
+.tasks-fullcalendar .fc.fc-media-screen {
+  min-height: 0;
+}
+
+.tasks-fullcalendar .fc {
+  --fc-border-color: #f1f5f9;
+  --fc-today-bg-color: color-mix(in srgb, var(--company-color, #2980b9) 7%, transparent);
+  --fc-page-bg-color: transparent;
+  font-size: 0.8125rem;
+}
+
+.tasks-fullcalendar .fc .fc-scrollgrid,
+.tasks-fullcalendar .fc .fc-scrollgrid-section > * {
+  border-radius: 0.75rem;
+}
+
+.tasks-fullcalendar .fc .fc-col-header-cell {
+  padding: 8px 4px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: capitalize;
+}
+
+.tasks-fullcalendar .fc .fc-daygrid-day-number {
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.tasks-fullcalendar .fc .fc-day-today .fc-daygrid-day-number {
+  display: inline-flex;
+  min-width: 22px;
+  height: 22px;
+  margin: 4px 6px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--company-color, #2980b9);
+  color: #fff;
+}
+
+.tasks-fullcalendar .fc .fc-day-other .fc-daygrid-day-number {
+  color: #cbd5e1;
+}
+
+.tasks-fullcalendar .fc .fc-daygrid-day-frame {
+  min-height: 96px;
+}
+
+/* Events are styled entirely by eventContent — strip the library chrome. */
+.tasks-fullcalendar .fc .fc-daygrid-event,
+.tasks-fullcalendar .fc .fc-h-event {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 1px 4px;
+}
+
+.tasks-fullcalendar .fc .fc-daygrid-event-harness > .fc-daygrid-event {
+  cursor: pointer;
+}
+
+/* Let the chip use the whole day cell instead of shrinking to its content. */
+.tasks-fullcalendar .fc .fc-daygrid-event-harness,
+.tasks-fullcalendar .fc .fc-event-main,
+.tasks-fullcalendar .fc .fc-event-main > span {
+  width: 100%;
+}
+
+.tasks-fullcalendar .fc .fc-daygrid-more-link {
+  margin: 2px 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--company-color, #2980b9);
+}
+
+.tasks-fullcalendar .fc .fc-popover {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  z-index: 40;
+}
+
+.tasks-fullcalendar .fc .fc-popover-header {
+  background: #f8fafc;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  text-transform: capitalize;
+}
+
+.tasks-fullcalendar .fc .fc-list {
+  border-radius: 0.75rem;
+}
+
+.tasks-fullcalendar .fc .fc-list-day-cushion {
+  background: #f8fafc;
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+
+.tasks-fullcalendar .fc .fc-list-event:hover td {
+  background: #f8fafc;
+}
+
+.tasks-fullcalendar .fc .fc-list-event-dot {
+  display: none;
+}
+
+/* ── Tasks: inline calendar inside a picker popover ── */
+.tasks-calendar .react-datepicker {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  width: 100%;
+}
+
+.tasks-calendar .react-datepicker__header {
+  background: transparent;
+  border-bottom: none;
+  padding-top: 8px;
+}
+
+/* Header padding is smaller here, so the arrows need to ride up with it. */
+.tasks-calendar .react-datepicker__navigation {
+  top: 2px;
+}
+
+.tasks-calendar .react-datepicker__day,
+.tasks-calendar .react-datepicker__day-name {
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+}
+
 /* ── KPI period picker (week/month/quarter/year) ── */
 .kpi-period-calendar.react-datepicker {
   width: 380px;
@@ -1415,6 +1557,84 @@ span.flatpickr-weekday,
   to { transform: rotate(360deg); }
 }
 
+/* Конструктор формы сотрудника: подсветка поля, только что добавленного в карточку. */
+@keyframes employeeFormFieldDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.employee-form-field-added {
+  animation: employeeFormFieldDrop 0.9s ease-out;
+  outline: 2px solid var(--efb-accent, #465fff);
+  outline-offset: 2px;
+  border-radius: 10px;
+  transition: outline-color 0.6s ease-out 0.6s;
+}
+
+.employee-form-field-added-fading {
+  outline-color: transparent;
+}
+
+/* Конструктор формы сотрудника: ресайз плитки за правый край. */
+.efb-resize-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -6px;
+  width: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 3;
+}
+
+.efb-resize-edge > span {
+  width: 3px;
+  height: 0;
+  border-radius: 2px;
+  background-color: var(--efb-accent, #465fff);
+  opacity: 0.6;
+  transition: height 0.12s ease-out, opacity 0.12s ease-out;
+}
+
+.efb-resize-edge:hover > span {
+  height: 55%;
+}
+
+.efb-resize-edge[data-active="true"] > span {
+  height: 72%;
+  opacity: 1;
+}
+
+/* Подсказка-цель во время ресайза: к какой ширине прилипнет плитка. */
+.efb-resize-badge {
+  position: absolute;
+  top: -12px;
+  right: 8px;
+  z-index: 6;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background-color: var(--efb-accent, #465fff);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18);
+  pointer-events: none;
+}
+
 @keyframes documentsViewFade {
   from {
     opacity: 0;
@@ -1455,6 +1675,46 @@ span.flatpickr-weekday,
 .comment-body strong, .rsw-ce strong, .comment-body b, .rsw-ce b { font-weight: 600; }
 .comment-body em, .rsw-ce em { font-style: italic; }
 .comment-body a, .rsw-ce a { color: var(--color-brand-600); text-decoration: underline; }
+.comment-body s, .rsw-ce s, .comment-body del, .rsw-ce del { text-decoration: line-through; }
+.comment-body img, .rsw-ce img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+}
+.comment-body blockquote, .rsw-ce blockquote {
+  margin: 0.5rem 0;
+  padding: 0.15rem 0 0.15rem 0.75rem;
+  border-left: 3px solid var(--color-gray-200);
+  color: var(--color-gray-500);
+}
+.comment-body pre, .rsw-ce pre {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+}
+.comment-body code, .rsw-ce code {
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  background: var(--color-gray-100);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+}
+
+/* The library only shows its placeholder while the node is truly :empty, but a
+   cleared contenteditable keeps a stray <br> — cover that case too. */
+.rsw-ce[contenteditable="true"]:not(:focus):has(> br:only-child)::before {
+  content: attr(placeholder);
+  color: var(--color-gray-400);
+  pointer-events: none;
+}
 
 /* KPI drag-n-drop: fade item rows out before they collapse during a position
    drag, and fade them back in once the drag settles. Animations (not

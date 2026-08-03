@@ -10,6 +10,9 @@ interface PositionTreeSelectProps {
   valueLabel?: string;
   onChange: (id: string, title: string) => void;
   placeholder?: string;
+  /** Показывать строку сброса — для необязательных полей. */
+  allowClear?: boolean;
+  clearLabel?: string;
 }
 
 const ROOT_KEY = "__root__";
@@ -30,6 +33,8 @@ export default function PositionTreeSelect({
   valueLabel,
   onChange,
   placeholder = "Выберите должность",
+  allowClear = false,
+  clearLabel = "— не задана —",
 }: PositionTreeSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -156,7 +161,25 @@ export default function PositionTreeSelect({
             ) : rows.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-gray-400">Ничего не найдено</div>
             ) : (
-              rows.map(({ position, level, hasChildren }) => {
+              <>
+                {/* Сброс — только в дереве: при поиске он был бы лишней строкой
+                    среди совпадений. */}
+                {allowClear && !normalizedSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange("", "");
+                      setIsOpen(false);
+                      setSearch("");
+                    }}
+                    className={`flex w-full items-center rounded-md px-3 py-1.5 text-left text-sm transition ${
+                      value ? "text-gray-500 hover:bg-gray-50" : "bg-brand-50 text-brand-600"
+                    }`}
+                  >
+                    {clearLabel}
+                  </button>
+                )}
+                {rows.map(({ position, level, hasChildren }) => {
                 const isSelected = position.guid === value;
                 return (
                   <div
@@ -194,7 +217,8 @@ export default function PositionTreeSelect({
                     </button>
                   </div>
                 );
-              })
+                })}
+              </>
             )}
           </div>
         </div>

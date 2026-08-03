@@ -1,13 +1,18 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Pencil, Trash2, User } from "lucide-react";
-import DatePicker from "react-datepicker";
-import { InputMask } from "@react-input/mask";
+import { LayoutGrid, Pencil, RotateCcw, Trash2, User } from "lucide-react";
 import { observer } from "mobx-react-lite";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
-import SearchableSelect from "../../../components/ui/searchable-select";
 import companyStore from "../../../store/company.store";
+import { useCustomFieldsSchema } from "../../Settings/CustomFields/useCustomFieldsSchema";
+import { useSalaryPolicy } from "../../Settings/GradeMatrix/useSalaryPolicy";
+import type { CustomField } from "../../Settings/CustomFields/types";
+import FormLayoutArea from "./layout/FormLayoutArea";
+import { dynamicFieldDefault } from "./layout/DynamicFieldControl";
+import { useEmployeeFormLayout } from "./layout/useEmployeeFormLayout";
+import type { StaticFieldContext } from "./layout/staticFields";
 import {
   type Employee,
   useEmployeeQuery,
@@ -36,6 +41,50 @@ const GENDER_OPTIONS: SelectOption[] = [
   { value: "male_slug", label: "Мужчина" },
   { value: "female_slug", label: "Женщина" },
 ];
+
+/**
+ * Значения динамических полей лежат в контейнере `custom_data`. Поле в u-code
+ * имеет тип JSON, а он отдаёт и принимает документ строкой — поэтому на чтении
+ * парсим, на записи сериализуем.
+ */
+const parseCustomData = (raw: unknown): Record<string, unknown> => {
+  if (!raw) return {};
+
+  const parsed = typeof raw === "string" ? safeParseJson(raw) : raw;
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : {};
+};
+
+function safeParseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error("Failed to parse custom_data:", error);
+    return null;
+  }
+}
+
+/**
+ * Оставляем в payload только значения существующих полей: удалённое поле не
+ * должно тащиться в записи сотрудников вечно.
+ */
+const collectCustomData = (
+  values: Record<string, unknown> | undefined,
+  fields: CustomField[]
+): Record<string, unknown> => {
+  const source = values ?? {};
+  const result: Record<string, unknown> = {};
+
+  fields.forEach((field) => {
+    const value = source[field.key];
+    if (value === undefined || value === "" || value === null) return;
+    if (Array.isArray(value) && value.length === 0) return;
+    result[field.key] = value;
+  });
+
+  return result;
+};
 
 const labelStyle: React.CSSProperties = {
   display: "block",
@@ -67,6 +116,8 @@ function EmployeeForm() {
   const isEdit = !!id;
   const brandColor = companyStore.mainColor;
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  /** Режим конструктора: та же форма, но поля и карточки можно перекладывать. */
+  const [builderMode, setBuilderMode] = useState(false);
 
   /* ── react-hook-form ── */
   const {
@@ -76,7 +127,8 @@ function EmployeeForm() {
     reset,
     watch,
     setValue,
-    formState: { isSubmitting },
+    getValues,
+    formState: { isSubmitting, errors },
   } = useForm<EmployeeFormValues>({ defaultValues: employeeFormDefaults });
 
   const photo = watch("photo");
@@ -140,6 +192,60 @@ function EmployeeForm() {
     label: String(item.title || "Без названия"),
   }));
 
+  /* ── Динамические поля user_base и раскладка формы ── */
+  const { schema, getFields } = useCustomFieldsSchema();
+  const dynamicFields = useMemo(
+    () => getFields("user_base").filter((field) => !field.system),
+    [getFields]
+  );
+  /**
+   * Ключ поля-контейнера под значения (`custom_data`), если оно заведено в
+   * u-code. Пока его нет, правила полей всё равно проверяются, но значения в
+   * payload не кладём — items API всё равно вырежет незнакомый ключ.
+   */
+  const valuesField = useMemo(
+    () => schema.entities.find((entity) => entity.id === "user_base")?.valuesField ?? null,
+    [schema.entities]
+  );
+  const dynamicErrors = useMemo(() => {
+    const bag = (errors.custom_data ?? {}) as Record<string, { message?: string }>;
+    const map: Record<string, string> = {};
+
+    dynamicFields.forEach((field) => {
+      const message = bag[field.key]?.message;
+      if (message) map[field.key] = message;
+    });
+
+    return map;
+  }, [errors.custom_data, dynamicFields]);
+  const dynamicFieldIds = useMemo(
+    () => dynamicFields.map((field) => field.id),
+    [dynamicFields]
+  );
+  const layoutApi = useEmployeeFormLayout(dynamicFieldIds);
+
+  /**
+   * Правки раскладки копятся локально и уходят на сервер одним запросом по
+   * «Готово» — из режима конструктора выходим только после успешного сохранения.
+   */
+  const handleToggleBuilder = async () => {
+    if (!builderMode) {
+      setBuilderMode(true);
+      return;
+    }
+
+    try {
+      await layoutApi.save();
+      setBuilderMode(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Не удалось сохранить раскладку формы."
+      );
+    }
+  };
+
   useEffect(() => {
     if (!selectedExperienceLevelId) {
       return;
@@ -152,6 +258,9 @@ function EmployeeForm() {
 
   const createMutation = useCreateEmployee();
   const createEmployeeWorkMutation = useCreateEmployeeWork();
+  // Насколько строго оклад обязан укладываться в матрицу грейдов — настройка
+  // компании на странице «Главная».
+  const salaryPolicy = useSalaryPolicy();
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
 
@@ -182,9 +291,24 @@ function EmployeeForm() {
         // hrms_roles_id is a registered ucode field on user_base, so it rides
         // along with the item read/write — no separate lookup needed.
         hrms_roles_id: employee.hrms_roles_id || "",
+        custom_data: parseCustomData(employee.custom_data),
       });
     }
   }, [employee, isEdit, reset]);
+
+  // Справочник полей приезжает отдельным запросом: как только он готов,
+  // проставляем значения по умолчанию тем полям, которых нет в записи —
+  // переключателю нужен false, мультисписку пустой массив, а не undefined.
+  useEffect(() => {
+    if (dynamicFields.length === 0) return;
+
+    const current = (getValues("custom_data") ?? {}) as Record<string, unknown>;
+    dynamicFields.forEach((field) => {
+      if (current[field.key] === undefined) {
+        setValue(`custom_data.${field.key}` as never, dynamicFieldDefault(field) as never);
+      }
+    });
+  }, [dynamicFields, getValues, setValue]);
 
   /* ── Photo upload ── */
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -265,6 +389,23 @@ function EmployeeForm() {
   const onSubmit = async (data: EmployeeFormValues) => {
     const normalizedEmail = data.email.trim();
 
+    // Уровень и оклад против матрицы грейдов. Здесь запись создаётся сразу, без
+    // гейта с подтверждением, поэтому в мягком режиме предупреждаем и сохраняем,
+    // а в строгом — не даём сохранить вовсе.
+    const gradeCheck = salaryPolicy.check({
+      positionId: data.positions_id,
+      levelId: data.experience_levels_id,
+      salary: normalizeSalaryForBackend(data.salary),
+    });
+    if (gradeCheck.status === "mismatch") {
+      const message = gradeCheck.issues.map((issue) => issue.message).join(" ");
+      if (salaryPolicy.isBlocking) {
+        toast.error(message);
+        return;
+      }
+      toast.warning(message);
+    }
+
     const payload: Partial<Employee> = {
       second_name: data.second_name,
       first_name: data.first_name,
@@ -289,6 +430,14 @@ function EmployeeForm() {
       // Registered ucode field — persists directly through the items API.
       hrms_roles_id: data.hrms_roles_id || null,
     };
+
+    // Значения динамических полей едут тем же запросом, но только если контейнер
+    // заведён в u-code: иначе items API просто выкинет незнакомый ключ.
+    if (valuesField) {
+      payload.custom_data = JSON.stringify(
+        collectCustomData(data.custom_data, dynamicFields)
+      );
+    }
 
     try {
       if (isEdit) {
@@ -339,6 +488,87 @@ function EmployeeForm() {
       (e.currentTarget.style.borderColor = "#e2e8f0"),
   };
 
+  const renderPhoto = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+      <div
+        style={{
+          width: "72px", height: "72px", borderRadius: "50%",
+          border: "2px dashed #e2e8f0", backgroundColor: "#f8fafc",
+          overflow: "hidden", display: "flex", alignItems: "center",
+          justifyContent: "center", flexShrink: 0,
+        }}
+      >
+        {uploadingPhoto ? (
+          <div style={{ width: "24px", height: "24px", borderRadius: "50%", border: "2px solid #e2e8f0", borderTopColor: brandColor, animation: "spin 0.8s linear infinite" }} />
+        ) : photo ? (
+          <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        ) : (
+          <User style={{ width: "28px", height: "28px", color: "#94a3b8" }} />
+        )}
+      </div>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          type="button"
+          onClick={() => !uploadingPhoto && fileInputRef.current?.click()}
+          disabled={uploadingPhoto}
+          style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            padding: "8px 16px", fontSize: "13px", fontWeight: 500,
+            color: "#475569", backgroundColor: "#fff",
+            border: "1px solid #e2e8f0", borderRadius: "8px",
+            cursor: uploadingPhoto ? "default" : "pointer",
+            opacity: uploadingPhoto ? 0.5 : 1,
+          }}
+        >
+          <Pencil style={{ width: "14px", height: "14px" }} />
+          Изменить фото
+        </button>
+        {photo && (
+          <button
+            type="button"
+            onClick={() => setValue("photo", "")}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "36px", height: "36px",
+              border: "1px solid #e2e8f0", borderRadius: "8px",
+              backgroundColor: "#fff", color: "#94a3b8", cursor: "pointer",
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+          >
+            <Trash2 style={{ width: "14px", height: "14px" }} />
+          </button>
+        )}
+      </div>
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoChange} />
+    </div>
+  );
+
+  const fieldContext: StaticFieldContext = {
+    register,
+    control,
+    brandColor,
+    inputStyle,
+    focusHandlers,
+    options: {
+      gender: GENDER_OPTIONS,
+      roles: roleOptions,
+      employmentTypes: employmentTypeOptions,
+      positions: positionOptions,
+      employeeWorkReasons: employeeWorkReasonOptions,
+      departments: departmentOptions,
+      experienceLevels: experienceLevelOptions,
+      divisions: divisionOptions,
+      locations: locationOptions,
+    },
+    experienceLevelPlaceholder: selectedPositionGroupId
+      ? "Выберите уровень"
+      : "Сначала выберите должность",
+    renderPhoto,
+  };
+
+
   if (isEdit && isLoading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
@@ -366,376 +596,84 @@ function EmployeeForm() {
       <form onSubmit={handleSubmit(onSubmit)}>
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: isEdit ? "1fr" : "1fr 400px",
-            gap: "20px",
-            alignItems: "start",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            marginBottom: "20px",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {/* ─── Left: Личное ─── */}
-            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
-              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
-                Личное
-              </div>
-
-              <div style={{ padding: "24px" }}>
-                {/* Photo */}
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "28px" }}>
-                  <div
-                    style={{
-                      width: "72px", height: "72px", borderRadius: "50%",
-                      border: "2px dashed #e2e8f0", backgroundColor: "#f8fafc",
-                      overflow: "hidden", display: "flex", alignItems: "center",
-                      justifyContent: "center", flexShrink: 0,
-                    }}
-                  >
-                    {uploadingPhoto ? (
-                      <div style={{ width: "24px", height: "24px", borderRadius: "50%", border: "2px solid #e2e8f0", borderTopColor: brandColor, animation: "spin 0.8s linear infinite" }} />
-                    ) : photo ? (
-                      <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <User style={{ width: "28px", height: "28px", color: "#94a3b8" }} />
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      type="button"
-                      onClick={() => !uploadingPhoto && fileInputRef.current?.click()}
-                      disabled={uploadingPhoto}
-                      style={{
-                        display: "flex", alignItems: "center", gap: "6px",
-                        padding: "8px 16px", fontSize: "13px", fontWeight: 500,
-                        color: "#475569", backgroundColor: "#fff",
-                        border: "1px solid #e2e8f0", borderRadius: "8px",
-                        cursor: uploadingPhoto ? "default" : "pointer",
-                        opacity: uploadingPhoto ? 0.5 : 1,
-                      }}
-                    >
-                      <Pencil style={{ width: "14px", height: "14px" }} />
-                      Изменить фото
-                    </button>
-                    {photo && (
-                      <button
-                        type="button"
-                        onClick={() => setValue("photo", "")}
-                        style={{
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          width: "36px", height: "36px",
-                          border: "1px solid #e2e8f0", borderRadius: "8px",
-                          backgroundColor: "#fff", color: "#94a3b8", cursor: "pointer",
-                          transition: "color 0.15s",
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#ef4444")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
-                      >
-                        <Trash2 style={{ width: "14px", height: "14px" }} />
-                      </button>
-                    )}
-                  </div>
-                  <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoChange} />
-                </div>
-
-                {/* Fields */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }}>
-                  <div>
-                    <label style={labelStyle}>Фамилия *</label>
-                    <input {...register("second_name", { required: true })} type="text" placeholder="Введите фамилию" style={inputStyle} {...focusHandlers} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Имя *</label>
-                    <input {...register("first_name", { required: true })} type="text" placeholder="Введите имя" style={inputStyle} {...focusHandlers} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Отчество</label>
-                    <input {...register("middle_name")} type="text" placeholder="Введите отчество" style={inputStyle} {...focusHandlers} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Дата рождения</label>
-                    <Controller
-                      control={control}
-                      name="birth_date"
-                      render={({ field }) => (
-                        <DatePicker
-                          selected={field.value}
-                          onChange={field.onChange}
-                          dateFormat="dd.MM.yyyy"
-                          placeholderText="дд.мм.гггг"
-                          showYearDropdown
-                          showMonthDropdown
-                          dropdownMode="select"
-                          maxDate={new Date()}
-                          className="employee-form-datepicker"
-                          wrapperClassName="employee-form-datepicker-wrapper"
-                        />
-                      )}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Пол</label>
-                    <Controller
-                      control={control}
-                      name="gender"
-                      render={({ field }) => (
-                        <SearchableSelect
-                          options={GENDER_OPTIONS}
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder="Выберите пол"
-                          brandColor={brandColor}
-                        />
-                      )}
-                    />
-                  </div>
-
-                </div>
-              </div>
-            </div>
-
-            {/* ─── Left: Контакты ─── */}
-            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
-              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
-                Контакты
-              </div>
-
-              <div style={{ padding: "24px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }}>
-                  <div>
-                    <label style={labelStyle}>Эл. почта *</label>
-                    <input
-                      {...register("email", { required: true })}
-                      type="email"
-                      placeholder="example@company.uz"
-                      style={inputStyle}
-                      {...focusHandlers}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Личная эл. почта</label>
-                    <input {...register("personal_email")} type="email" placeholder="example@mail.com" style={inputStyle} {...focusHandlers} />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Мобильный телефон</label>
-                    <Controller
-                      control={control}
-                      name="phone"
-                      render={({ field }) => (
-                        <InputMask
-                          mask="+___ __ ___ __ __"
-                          replacement={{ _: /\d/ }}
-                          value={field.value}
-                          onChange={(e) => field.onChange(e.target.value)}
-                          placeholder="+998 ** *** ** **"
-                          style={inputStyle}
-                          onFocus={(e) => (e.currentTarget.style.borderColor = brandColor)}
-                          onBlur={(e) => (e.currentTarget.style.borderColor = "#e2e8f0")}
-                        />
-                      )}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Рабочий телефон</label>
-                    <Controller
-                      control={control}
-                      name="work_phone"
-                      render={({ field }) => (
-                        <InputMask
-                          mask="+___ __ ___ __ __"
-                          replacement={{ _: /\d/ }}
-                          value={field.value}
-                          onChange={(e) => field.onChange(e.target.value)}
-                          placeholder="+998 ** *** ** **"
-                          style={inputStyle}
-                          onFocus={(e) => (e.currentTarget.style.borderColor = brandColor)}
-                          onBlur={(e) => (e.currentTarget.style.borderColor = "#e2e8f0")}
-                        />
-                      )}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={labelStyle}>Телеграм</label>
-                    <input
-                      {...register("telegram")}
-                      type="text"
-                      placeholder="@username"
-                      style={inputStyle}
-                      {...focusHandlers}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ─── Left: Доступ ─── */}
-            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
-              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
-                Доступ
-              </div>
-              <div style={{ padding: "24px" }}>
-                <label style={labelStyle}>Роль доступа</label>
-                <Controller
-                  control={control}
-                  name="hrms_roles_id"
-                  render={({ field }) => (
-                    <SearchableSelect
-                      options={roleOptions}
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder="Выберите роль"
-                      brandColor={brandColor}
-                    />
-                  )}
-                />
-                <p style={{ marginTop: "8px", fontSize: "12px", color: "#94a3b8" }}>
-                  Определяет, какие модули доступны сотруднику.
-                </p>
-              </div>
-            </div>
+          <div>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#0f172a" }}>
+              {builderMode ? "Настройка формы" : isEdit ? "Редактирование сотрудника" : "Новый сотрудник"}
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#94a3b8" }}>
+              {builderMode
+                ? "Поля переносятся перетаскиванием, ширина — за правый край плитки. Изменения сохранятся по кнопке «Готово»."
+                : "Расположение полей настраивается кнопкой «Настроить форму»."}
+            </p>
           </div>
 
-          {!isEdit && (
-            <div style={{ borderRadius: "14px", border: "1px solid #e2e8f0", backgroundColor: "#fff" }}>
-              <div style={{ padding: "18px 24px", borderBottom: "1px solid #f1f5f9", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
-                Рабочие данные
-              </div>
-
-              <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
-                <div>
-                  <label style={labelStyle}>Дата начала</label>
-                  <Controller
-                    control={control}
-                    name="date_hire"
-                    render={({ field }) => (
-                      <DatePicker
-                        selected={field.value}
-                        onChange={field.onChange}
-                        dateFormat="dd.MM.yyyy"
-                        placeholderText="дд.мм.гггг"
-                        showYearDropdown
-                        showMonthDropdown
-                        dropdownMode="select"
-                        className="employee-form-datepicker"
-                        wrapperClassName="employee-form-datepicker-wrapper"
-                      />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Тип работы</label>
-                  <Controller
-                    control={control}
-                    name="employment_types_id"
-                    render={({ field }) => (
-                      <SearchableSelect options={employmentTypeOptions} value={field.value} onChange={field.onChange} placeholder="Выберите тип" brandColor={brandColor} />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Должность</label>
-                  <Controller
-                    control={control}
-                    name="positions_id"
-                    render={({ field }) => (
-                      <SearchableSelect options={positionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите должность" brandColor={brandColor} />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Причина изменения</label>
-                  <Controller
-                    control={control}
-                    name="employee_work_reason_id"
-                    render={({ field }) => (
-                      <SearchableSelect
-                        options={employeeWorkReasonOptions}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="Выберите причину"
-                        brandColor={brandColor}
-                      />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Оклад</label>
-                  <input
-                    {...register("salary")}
-                    type="number"
-                    min={0}
-                    placeholder="Например: 15000000"
-                    style={inputStyle}
-                    {...focusHandlers}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Департамент</label>
-                  <Controller
-                    control={control}
-                    name="departments_id"
-                    render={({ field }) => (
-                      <SearchableSelect options={departmentOptions} value={field.value} onChange={field.onChange} placeholder="Выберите департамент" brandColor={brandColor} />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Уровень</label>
-                  <Controller
-                    control={control}
-                    name="experience_levels_id"
-                    render={({ field }) => (
-                      <SearchableSelect
-                        options={experienceLevelOptions}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder={
-                          selectedPositionGroupId
-                            ? "Выберите уровень"
-                            : "Сначала выберите должность"
-                        }
-                        brandColor={brandColor}
-                      />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Подразделение</label>
-                  <Controller
-                    control={control}
-                    name="divisions_id"
-                    render={({ field }) => (
-                      <SearchableSelect options={divisionOptions} value={field.value} onChange={field.onChange} placeholder="Выберите подразделение" brandColor={brandColor} />
-                    )}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Локация</label>
-                  <Controller
-                    control={control}
-                    name="locations_id"
-                    render={({ field }) => (
-                      <SearchableSelect options={locationOptions} value={field.value} onChange={field.onChange} placeholder="Выберите локацию" brandColor={brandColor} />
-                    )}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {builderMode && (
+              <button
+                type="button"
+                onClick={layoutApi.resetLayout}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "8px 14px", fontSize: "13px", fontWeight: 500,
+                  color: "#475569", backgroundColor: "#fff",
+                  border: "1px solid #e2e8f0", borderRadius: "10px", cursor: "pointer",
+                }}
+              >
+                <RotateCcw style={{ width: "14px", height: "14px" }} />
+                Сбросить раскладку
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={layoutApi.isSaving}
+              onClick={handleToggleBuilder}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "8px 14px", fontSize: "13px", fontWeight: 500,
+                color: builderMode ? "#fff" : "#475569",
+                backgroundColor: builderMode ? brandColor : "#fff",
+                border: `1px solid ${builderMode ? brandColor : "#e2e8f0"}`,
+                borderRadius: "10px",
+                cursor: layoutApi.isSaving ? "default" : "pointer",
+                opacity: layoutApi.isSaving ? 0.6 : 1,
+              }}
+            >
+              <LayoutGrid style={{ width: "14px", height: "14px" }} />
+              {builderMode ? (layoutApi.isSaving ? "Сохраняем..." : "Готово") : "Настроить форму"}
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingBottom: "40px" }}>
-          {/* <div style={{ flex: 1 }}> */}
+        <FormLayoutArea
+          layoutApi={layoutApi}
+          dynamicFields={dynamicFields}
+          dynamicErrors={dynamicErrors}
+          fieldContext={fieldContext}
+          builderMode={builderMode}
+          isEdit={isEdit}
+          labelStyle={labelStyle}
+          inputStyle={inputStyle}
+          brandColor={brandColor}
+        />
+
+        {/* В конструкторе форма не сохраняется — только раскладка. */}
+        <div
+          style={{
+            display: builderMode ? "none" : "flex",
+            justifyContent: "flex-end",
+            gap: "12px",
+            marginTop: "24px",
+            paddingBottom: "40px",
+          }}
+        >
           {isEdit && (
             <button
               type="button"
@@ -752,7 +690,7 @@ function EmployeeForm() {
               Удалить
             </button>
           )}
-          {/* </div> */}
+
           <button
             type="button"
             onClick={() => navigate(-1)}

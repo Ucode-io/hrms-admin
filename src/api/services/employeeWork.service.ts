@@ -68,6 +68,11 @@ export interface EmployeeWork {
     [key: string]: unknown;
   } | null;
   work_schedule_id?: string | null;
+  /**
+   * Значения динамических полей (справочник «Динамические поля», таблица
+   * employee_works). Поле типа JSON в u-code, поэтому ездит строкой.
+   */
+  custom_data?: string | Record<string, unknown> | null;
   work_schedule_id_data?: {
     guid?: string;
     title?: string;

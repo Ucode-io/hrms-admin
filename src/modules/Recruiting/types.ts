@@ -223,6 +223,8 @@ export interface Vacancy {
 }
 
 export interface VacancyDraft {
+  /** Контейнер значений динамических полей (сериализованный JSON). */
+  customData?: string;
   title: string;
   departmentId: string | null;
   positionId: string | null;
@@ -542,6 +544,8 @@ export interface Candidate {
 }
 
 export interface CandidateDraft {
+  /** Контейнер значений динамических полей (сериализованный JSON). */
+  customData?: string;
   firstName: string;
   lastName: string;
   photo: string | null;

@@ -59,6 +59,8 @@ import { Modal } from "../../components/ui/modal";
 import { Dropdown } from "../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../components/ui/dropdown/DropdownItem";
 import companyStore from "../../store/company.store";
+import { useDynamicValues } from "../Settings/CustomFields/useDynamicValues";
+import DynamicFieldsBlock from "../Settings/CustomFields/DynamicFieldsBlock";
 import httpRequest from "../../api/httpRequest";
 import settingsDirectoryService from "../../api/services/settingsDirectory.service";
 import RemoteSingleSelect, { type RemoteSelectOption } from "../../components/autocomplete/RemoteSingleSelect";
@@ -119,6 +121,8 @@ type KpiRecord = {
   metric: string | null;
   // Сумма вознаграждения за 100% выполнения (null — не задана).
   rewardAmount: number | null;
+  /** Контейнер значений динамических полей (строка JSON) — из get_kpi_table. */
+  customData: string | null;
   // Привязанные сотрудники (guid из user_base).
   employeeIds: string[];
   children: KpiRecord[];
@@ -990,6 +994,7 @@ const mapApiItem = (item: KpiTableItem): KpiRecord => {
       item.reward_amount === null || item.reward_amount === undefined
         ? null
         : roundToTwo(Number(item.reward_amount) || 0),
+    customData: typeof item.custom_data === "string" ? item.custom_data : null,
     employeeIds: Array.isArray(item.employee_ids)
       ? item.employee_ids.filter((id): id is string => typeof id === "string")
       : [],
@@ -1324,6 +1329,8 @@ function KpiPage() {
   const [createError, setCreateError] = useState("");
   const [isCreateSaving, setIsCreateSaving] = useState(false);
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
+  /** Динамические поля таблицы kpi_items. */
+  const dynamic = useDynamicValues("kpi_items");
   const [actionMenuItemId, setActionMenuItemId] = useState<string | null>(null);
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [kpiToDelete, setKpiToDelete] = useState<KpiRecord | null>(null);
@@ -2020,6 +2027,7 @@ function KpiPage() {
     setCreateError("");
     setEditingKpiId(null);
     setDraft(getDefaultDraft(periodMode));
+    dynamic.reset();
     setIsCreateModalOpen(true);
   };
 
@@ -2081,6 +2089,7 @@ function KpiPage() {
       hasChildren: item.hasChildren && childrenSupported(item.periodType),
       children,
     });
+    dynamic.reset(item.customData);
     setIsCreateModalOpen(true);
   };
 
@@ -2233,6 +2242,11 @@ function KpiPage() {
       setCreateError("Плановое значение должно быть больше 0");
       return;
     }
+    // Правила динамических полей проверяем до запроса.
+    if (!dynamic.validate()) {
+      setCreateError("Проверьте дополнительные поля");
+      return;
+    }
 
     const childrenPayload: Array<{
       guid?: string;
@@ -2308,6 +2322,7 @@ function KpiPage() {
         end_date: draft.endDate,
         plan_total: planTotal,
         reward_amount: rewardAmount,
+        ...dynamic.toPayload(),
         // Сотрудники привязываются к сохраняемому (корневому/дочернему) KPI.
         employee_ids: draft.employeeIds,
         children: draft.hasChildren ? childrenPayload : [],
@@ -3713,6 +3728,14 @@ function KpiPage() {
                   </div>
                 ) : null}
               </div>
+
+              <DynamicFieldsBlock
+                fields={dynamic.fields}
+                values={dynamic.values}
+                errors={dynamic.errors}
+                onChange={dynamic.setValue}
+                brandColor={companyStore.mainColor}
+              />
 
               {createError ? (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">

@@ -5,7 +5,7 @@ import Button from "../../../../../components/ui/button/Button";
 import BottomSheet from "../../../components/BottomSheet";
 import StageListEditor from "../../../components/StageListEditor";
 import { useUpdateVacancyStages } from "../../../../../api/services/vacancy.service";
-import { sanitizeRichText } from "../../../components/RichTextEditor";
+import { sanitizeRichText } from "../../../../../components/form/richText";
 import {
   STAGE_COLOR_CONFIG,
   WORK_MODE_CONFIG,

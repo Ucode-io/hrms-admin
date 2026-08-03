@@ -3,6 +3,23 @@ import httpRequest from "../httpRequest";
 
 export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 
+/**
+ * Насколько строго оклад сотрудника обязан укладываться в матрицу грейдов:
+ * `off` — не проверяем, `warn` — предупреждаем и даём сохранить,
+ * `required` — сохранить нельзя.
+ */
+export type GradeSalaryPolicy = "off" | "warn" | "required";
+
+export const GRADE_SALARY_POLICIES: GradeSalaryPolicy[] = ["off", "warn", "required"];
+
+export const DEFAULT_GRADE_SALARY_POLICY: GradeSalaryPolicy = "off";
+
+/** Неизвестное значение (или ещё не заведённая колонка) читается как «не проверять». */
+export const normalizeGradeSalaryPolicy = (value: unknown): GradeSalaryPolicy =>
+  GRADE_SALARY_POLICIES.includes(value as GradeSalaryPolicy)
+    ? (value as GradeSalaryPolicy)
+    : DEFAULT_GRADE_SALARY_POLICY;
+
 export interface MainSettings {
   guid: string;
   companies_id: string;
@@ -13,6 +30,7 @@ export interface MainSettings {
   show_new_hires_widget: boolean;
   lateness_penalty_coefficient?: number;
   lateness_grace_minutes?: number;
+  grade_salary_policy?: GradeSalaryPolicy;
   created_at: string;
   updated_at: string;
   [key: string]: unknown;
@@ -26,12 +44,14 @@ export type MainSettingsPayload = {
   show_new_hires_widget: boolean;
   lateness_penalty_coefficient: number;
   lateness_grace_minutes: number;
+  grade_salary_policy: GradeSalaryPolicy;
 };
 
 export type MainSettingsSaveData = MainSettingsPayload & Partial<MainSettings>;
 
 const mainSettingsService = {
   get: async (): Promise<MainSettings | null> => {
+
     const res = await httpRequest.get("/v2/items/main_settings", {
       params: { limit: 1, offset: 0 },
     });

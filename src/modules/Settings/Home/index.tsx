@@ -1,15 +1,49 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Checkbox from "../../../components/form/input/Checkbox";
 import {
+  DEFAULT_GRADE_SALARY_POLICY,
+  type GradeSalaryPolicy,
   type MainSettings,
   type MainSettingsPayload,
+  normalizeGradeSalaryPolicy,
   useMainSettingsQuery,
   useSaveMainSettings,
 } from "../../../api/services/mainSettings.service";
+
+/**
+ * Насколько строго оклад обязан укладываться в матрицу грейдов.
+ *
+ * Проверка сравнивает оклад с потолком той ступени, на которой стоит грейд
+ * сотрудника (его должность × уровень опыта). Если такой пары в матрице нет
+ * или у ступени не задан потолок — сравнивать не с чем, и оклад проходит
+ * в любом режиме.
+ */
+const GRADE_SALARY_POLICY_OPTIONS: {
+  value: GradeSalaryPolicy;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "off",
+    label: "Не должен",
+    hint: "Оклад с матрицей грейдов не сверяется.",
+  },
+  {
+    value: "warn",
+    label: "Должен, но не обязательно",
+    hint: "Если оклад выше потолка ступени, покажем предупреждение, но сохранить дадим.",
+  },
+  {
+    value: "required",
+    label: "Должен",
+    hint: "Оклад выше потолка ступени сохранить нельзя.",
+  },
+];
 
 const DEFAULT_LATENESS_COEFFICIENT = 4;
 const DEFAULT_LATENESS_GRACE_MINUTES = 30;
@@ -22,6 +56,7 @@ const DEFAULT_FORM: MainSettingsPayload = {
   show_business_absences: true,
   lateness_penalty_coefficient: DEFAULT_LATENESS_COEFFICIENT,
   lateness_grace_minutes: DEFAULT_LATENESS_GRACE_MINUTES,
+  grade_salary_policy: DEFAULT_GRADE_SALARY_POLICY,
 };
 
 export default function HomeSettingsPage() {
@@ -56,6 +91,7 @@ export default function HomeSettingsPage() {
         Number(data.lateness_grace_minutes) >= 0
           ? Number(data.lateness_grace_minutes)
           : DEFAULT_LATENESS_GRACE_MINUTES,
+      grade_salary_policy: normalizeGradeSalaryPolicy(data.grade_salary_policy),
     };
 
     setForm(next);
@@ -79,6 +115,10 @@ export default function HomeSettingsPage() {
 
   const setLatenessGraceMinutes = (value: number) => {
     setForm((prev) => ({ ...prev, lateness_grace_minutes: value }));
+  };
+
+  const setGradeSalaryPolicy = (value: GradeSalaryPolicy) => {
+    setForm((prev) => ({ ...prev, grade_salary_policy: value }));
   };
 
   const handleSave = async () => {
@@ -206,6 +246,47 @@ export default function HomeSettingsPage() {
                   Это количество минут опоздания вычитается из минут опозданий сотрудника
                   перед расчетом штрафа (не может уйти ниже 0).
                 </p>
+              </div>
+
+              <div className="space-y-2 border-t border-gray-100 pt-4">
+                <p className="text-sm font-medium text-gray-700">
+                  Оклад сотрудника должен соответствовать матрице грейдов
+                </p>
+                <p className="text-sm leading-6 text-gray-500">
+                  Оклад сверяется с потолком той ступени, на которой стоит грейд сотрудника
+                  (его должность × уровень опыта в{" "}
+                  <Link to="/settings/grade-salaries" className="text-brand-500 hover:underline">
+                    зарплатах по грейдам
+                  </Link>
+                  ). Если этой пары в матрице нет или у ступени не задан потолок — сверять не
+                  с чем, и оклад проходит в любом режиме.
+                </p>
+
+                <div className="space-y-2 pt-1">
+                  {GRADE_SALARY_POLICY_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-3 transition hover:border-brand-300 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50/40"
+                    >
+                      <input
+                        type="radio"
+                        name="grade-salary-policy"
+                        value={option.value}
+                        checked={form.grade_salary_policy === option.value}
+                        onChange={() => setGradeSalaryPolicy(option.value)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-brand-500"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-gray-800">
+                          {option.label}
+                        </span>
+                        <span className="block text-sm leading-6 text-gray-500">
+                          {option.hint}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           )}

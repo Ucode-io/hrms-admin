@@ -172,6 +172,9 @@ const draftToPayload = (
   closed_at: draft.closedAt,
   recruiting_stage_templates_id: draft.stageTemplateId,
   stages: serializeStages ? vacancyStagesToPayload(draft.stages) : stageDefsToPayload(draft.stages),
+  // Значения динамических полей: ключ появляется, только когда контейнер
+  // заведён в u-code, иначе items API его всё равно вырежет.
+  ...(draft.customData === undefined ? {} : { custom_data: draft.customData }),
 });
 
 // ───── Items API CRUD ─────

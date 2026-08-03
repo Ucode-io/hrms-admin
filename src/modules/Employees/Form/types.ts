@@ -24,6 +24,8 @@ export interface EmployeeFormValues {
   employee_work_reason_id: string;
   salary: string;
   hrms_roles_id: string;
+  /** Значения динамических полей: ключ поля → значение. */
+  custom_data: Record<string, unknown>;
 }
 
 export const employeeFormDefaults: EmployeeFormValues = {
@@ -48,4 +50,5 @@ export const employeeFormDefaults: EmployeeFormValues = {
   employee_work_reason_id: "",
   salary: "",
   hrms_roles_id: "",
+  custom_data: {},
 };

@@ -3,22 +3,22 @@ import {
   BriefcaseBusiness,
   ChevronDown,
   ChevronUp,
+  LayoutGrid,
   MoreHorizontal,
   Plus,
+  RotateCcw,
   SquarePen,
   Trash2,
+  TriangleAlert,
   Wallet,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Modal } from "../../../../components/ui/modal";
 import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
-import RemoteSingleSelect, {
-  type RemoteSelectOption,
-} from "../../../../components/autocomplete/RemoteSingleSelect";
+import type { RemoteSelectOption } from "../../../../components/autocomplete/RemoteSingleSelect";
 import httpRequest from "../../../../api/httpRequest";
 import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
 import { usePositionsQuery } from "../../../../api/services/position.service";
@@ -31,8 +31,29 @@ import {
   useEmployeeWorksQuery,
   useUpdateEmployeeWork,
 } from "../../../../api/services/employeeWork.service";
-import { useUpdateEmployee } from "../../../../api/services/employee.service";
+import {
+  useEmployeeQuery,
+  useUpdateEmployee,
+} from "../../../../api/services/employee.service";
+import { useGradeMatrixQuery } from "../../../../api/services/gradeMatrix.service";
+import { formatTenure } from "../../../Settings/GradeMatrix/constants";
+import { useSalaryPolicy } from "../../../Settings/GradeMatrix/useSalaryPolicy";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
+import { useCustomFieldsSchema } from "../../../Settings/CustomFields/useCustomFieldsSchema";
+import { formatDynamicValue } from "../../../Settings/CustomFields/formatValue";
+import {
+  dynamicFieldDefault,
+  validateDynamicValue,
+} from "../../Form/layout/DynamicFieldControl";
+import { useFormLayout } from "../../Form/layout/useEmployeeFormLayout";
+import WorkFieldsArea from "./work-layout/WorkFieldsArea";
+import { createDefaultWorkLayout } from "./work-layout/defaultWorkLayout";
+import {
+  WORK_FIELDS,
+  type WorkFieldContext,
+  type WorkFormState,
+  type WorkModalMode,
+} from "./work-layout/workFields";
 
 type WorkSectionProps = {
   employeeGuid: string;
@@ -43,6 +64,9 @@ type WorkSectionProps = {
 
 type WorkRecord = {
   guid: string;
+  /** Нужны для сверки записи с матрицей грейдов — по названиям её не сделать. */
+  positionId: string;
+  experienceLevelId: string;
   employmentTypeTitle: string;
   departmentTitle: string;
   divisionTitle: string;
@@ -56,23 +80,35 @@ type WorkRecord = {
   dateTo: string;
 };
 
-type WorkFormState = {
-  employmentTypeId: string;
-  departmentId: string;
-  divisionId: string;
-  locationId: string;
-  positionsId: string;
-  experienceLevelId: string;
-  employeeWorkReasonId: string;
-  workScheduleId: string;
-  salary: string;
-  dateFrom: string;
-  dateTo: string;
-};
-
-type WorkModalMode = "create" | "edit" | "return";
 
 const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
+
+/** Таблица динамических полей и раскладки, к которой относится эта модалка. */
+const CUSTOM_FIELDS_ENTITY = "employee_works";
+
+const WORK_LAYOUT_REGISTRY = {
+  createDefault: createDefaultWorkLayout,
+  staticFields: WORK_FIELDS,
+};
+
+/** Значения динамических полей хранятся в контейнере — поле JSON, приходит строкой. */
+const parseCustomData = (raw: unknown): Record<string, unknown> => {
+  if (!raw) return {};
+
+  if (typeof raw !== "string") {
+    return typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (error) {
+    console.error("Failed to parse custom_data:", error);
+    return {};
+  }
+};
 const RETURN_WORK_REASON_TITLE = "Обратный прием";
 
 const INPUT_CLASSNAME =
@@ -248,6 +284,8 @@ const compareEmployeeWorks = (left: EmployeeWork, right: EmployeeWork): number =
 const normalizeRecord = (row: EmployeeWork): WorkRecord => {
   return {
     guid: row.guid,
+    positionId: readString(row.positions_id),
+    experienceLevelId: readString(row.experience_levels_id),
     employmentTypeTitle:
       (typeof row.employment_types_id_data?.title === "string" &&
         row.employment_types_id_data.title) ||
@@ -317,7 +355,7 @@ function TimelineTag({
   brandColor,
 }: {
   children: ReactNode;
-  tone?: "neutral" | "brand" | "success";
+  tone?: "neutral" | "brand" | "success" | "warning" | "error";
   brandColor?: string;
 }) {
   const styles =
@@ -326,15 +364,25 @@ function TimelineTag({
           backgroundColor: "#dcfce7",
           color: "#166534",
         }
-      : tone === "brand"
+      : tone === "warning"
         ? {
-            backgroundColor: `${brandColor || "#0f172a"}14`,
-            color: brandColor || "#0f172a",
+            backgroundColor: "#fef3c7",
+            color: "#b45309",
           }
-        : {
-            backgroundColor: "#f1f5f9",
-            color: "#475569",
-          };
+        : tone === "error"
+          ? {
+              backgroundColor: "#fee2e2",
+              color: "#b91c1c",
+            }
+          : tone === "brand"
+            ? {
+                backgroundColor: `${brandColor || "#0f172a"}14`,
+                color: brandColor || "#0f172a",
+              }
+            : {
+                backgroundColor: "#f1f5f9",
+                color: "#475569",
+              };
 
   return (
     <span className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold" style={styles}>
@@ -347,12 +395,18 @@ function WorkTimelineCard({
   record,
   brandColor,
   isCurrent,
+  customValues,
+  gradeMismatch,
   onToggleActions,
   actionButtonRef,
 }: {
   record: WorkRecord;
   brandColor: string;
   isCurrent: boolean;
+  /** Заполненные динамические поля записи: подпись → значение. */
+  customValues: Array<{ key: string; label: string; text: string }>;
+  /** Расхождение с матрицей грейдов: цвет задаёт настройка компании. */
+  gradeMismatch: { tone: "warning" | "error"; messages: string[] } | null;
   onToggleActions: () => void;
   actionButtonRef: (element: HTMLButtonElement | null) => void;
 }) {
@@ -409,6 +463,12 @@ function WorkTimelineCard({
                     {record.employmentTypeTitle}
                   </TimelineTag>
                 ) : null}
+                {gradeMismatch ? (
+                  <TimelineTag tone={gradeMismatch.tone}>
+                    <TriangleAlert size={12} className="mr-1" />
+                    Не по матрице грейдов
+                  </TimelineTag>
+                ) : null}
               </div>
               <p className="m-0 mt-1 text-[14px] leading-6 text-slate-500">
                 {primaryMeta.length > 0 ? primaryMeta.join(" • ") : "Структура не указана"}
@@ -432,6 +492,24 @@ function WorkTimelineCard({
               </button>
             </div>
           </div>
+
+          {/* Что именно разошлось — рядом с меткой, а не в подсказке: иначе
+              «не по матрице» приходится расшифровывать, открывая форму. */}
+          {gradeMismatch ? (
+            <div
+              className={`mt-3 rounded-xl border px-3 py-2 text-[13px] leading-5 ${
+                gradeMismatch.tone === "error"
+                  ? "border-error-200 bg-error-50 text-error-600"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              }`}
+            >
+              {gradeMismatch.messages.map((message) => (
+                <p key={message} className="m-0">
+                  {message}
+                </p>
+              ))}
+            </div>
+          ) : null}
 
           <div className="mt-5 border-t border-slate-100 pt-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -457,6 +535,18 @@ function WorkTimelineCard({
                 </div>
               </div>
             </div>
+
+            {/* Динамические поля записи — только заполненные, чтобы не разду­вать карточку */}
+            {customValues.length > 0 ? (
+              <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                {customValues.map((item) => (
+                  <div key={item.key} className="flex items-baseline gap-2">
+                    <span className="text-[13px] text-slate-400">{item.label}</span>
+                    <span className="text-[13px] font-medium text-slate-700">{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -479,7 +569,13 @@ export default function WorkSection({
   const [modalSourceGuid, setModalSourceGuid] = useState<string | null>(null);
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const [form, setForm] = useState<WorkFormState>(createEmptyFormState());
+  const [customData, setCustomData] = useState<Record<string, unknown>>({});
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
   const [returnWorkReasonId, setReturnWorkReasonId] = useState("");
+  /** Непустой список открывает модал-предупреждение перед сохранением. */
+  const [dateWarnings, setDateWarnings] = useState<string[]>([]);
+  /** Расхождения с матрицей грейдов в строгом режиме — запрет, а не вопрос. */
+  const [gradeErrors, setGradeErrors] = useState<string[]>([]);
 
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const lastReturnRequestKeyRef = useRef(0);
@@ -489,6 +585,17 @@ export default function WorkSection({
     limit: 100,
     offset: 0,
   });
+  // Дата приёма живёт в карточке сотрудника, а не в записях о работе — сверять
+  // с ней даты должностей можно только вытащив её отдельно.
+  const { data: employeeData } = useEmployeeQuery(employeeGuid);
+  // Грейды нужны ради минимального стажа уровня: он выводится из матрицы
+  // грейдов (стаж задаёт колонка), а проверять его надо здесь, при назначении
+  // уровня сотруднику.
+  const { data: gradeData } = useGradeMatrixQuery();
+  // Насколько строго оклад обязан укладываться в матрицу грейдов — настройка
+  // компании на странице «Главная».
+  const salaryPolicy = useSalaryPolicy();
+  const { check: checkGrades, tone: gradeTone } = salaryPolicy;
   const { data: departmentsData } = useDepartmentsSettingsQuery({
     params: { limit: 200, offset: 0 },
   });
@@ -496,6 +603,64 @@ export default function WorkSection({
   const { data: experienceLevelsData } = useExperienceLevelsQuery({
     params: { limit: 1000, offset: 0 },
   });
+
+  /* ── Динамические поля таблицы employee_works ── */
+  const { schema, getFields } = useCustomFieldsSchema();
+  const dynamicFields = useMemo(
+    () => getFields(CUSTOM_FIELDS_ENTITY).filter((field) => !field.system),
+    [getFields]
+  );
+  /** Контейнер под значения появляется, только когда он заведён в u-code. */
+  const valuesField = useMemo(
+    () =>
+      schema.entities.find((entity) => entity.id === CUSTOM_FIELDS_ENTITY)?.valuesField ??
+      null,
+    [schema.entities]
+  );
+
+  const workLayout = useFormLayout(
+    CUSTOM_FIELDS_ENTITY,
+    useMemo(() => dynamicFields.map((field) => field.id), [dynamicFields]),
+    WORK_LAYOUT_REGISTRY
+  );
+  const [builderMode, setBuilderMode] = useState(false);
+
+  /**
+   * Правки раскладки копятся локально и уходят одним запросом по «Готово» —
+   * из конструктора выходим только после успешного сохранения.
+   */
+  const handleToggleBuilder = async () => {
+    if (!builderMode) {
+      setBuilderMode(true);
+      return;
+    }
+
+    try {
+      await workLayout.save();
+      setBuilderMode(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "Не удалось сохранить раскладку формы."
+      );
+    }
+  };
+
+  /** Значения записи + дефолты для полей, которых в ней ещё нет. */
+  const buildCustomData = useCallback(
+    (record: EmployeeWork | null): Record<string, unknown> => {
+      const stored = parseCustomData(record?.custom_data);
+      const next: Record<string, unknown> = { ...stored };
+
+      dynamicFields.forEach((field) => {
+        if (next[field.key] === undefined) next[field.key] = dynamicFieldDefault(field);
+      });
+
+      return next;
+    },
+    [dynamicFields]
+  );
 
   const createEmployeeWork = useCreateEmployeeWork();
   const updateEmployeeWork = useUpdateEmployeeWork();
@@ -524,12 +689,38 @@ export default function WorkSection({
   const currentGuid = currentRaw?.guid || null;
 
   const timelineRecords = useMemo(() => {
-    return sortedRecords.map((rawRecord) => ({
-      raw: rawRecord,
-      record: normalizeRecord(rawRecord),
-      isCurrent: rawRecord.guid === currentGuid,
-    }));
-  }, [currentGuid, sortedRecords]);
+    return sortedRecords.map((rawRecord) => {
+      const stored = parseCustomData(rawRecord.custom_data);
+      const record = normalizeRecord(rawRecord);
+
+      // Сверяем каждую запись, а не только текущую: расхождение в истории
+      // видно там же, где его завели, и не приходится открывать форму.
+      const gradeCheck = checkGrades({
+        positionId: record.positionId,
+        levelId: record.experienceLevelId,
+        salary: record.salary,
+      });
+
+      return {
+        raw: rawRecord,
+        record,
+        isCurrent: rawRecord.guid === currentGuid,
+        gradeMismatch:
+          gradeCheck.status === "mismatch"
+            ? { tone: gradeTone, messages: gradeCheck.issues.map((issue) => issue.message) }
+            : null,
+        // В карточке показываем только заполненные поля: пустые строки её бы
+        // растянули без пользы (в отличие от списка полей на детальной).
+        customValues: dynamicFields
+          .map((field) => ({
+            key: field.key,
+            label: field.label,
+            text: formatDynamicValue(field, stored[field.key]).text,
+          }))
+          .filter((item) => item.text),
+      };
+    });
+  }, [checkGrades, currentGuid, dynamicFields, gradeTone, sortedRecords]);
 
   const currentTimelineRecord = useMemo(() => {
     return timelineRecords.find((item) => item.isCurrent) || timelineRecords[0] || null;
@@ -556,6 +747,106 @@ export default function WorkSection({
     return recordByGuid.get(modalSourceGuid) || null;
   }, [modalSourceGuid, recordByGuid]);
 
+  const hireDate = readString(employeeData?.date_hire);
+
+  const gradeByLevelId = useMemo(
+    () =>
+      new Map(
+        (gradeData?.levels ?? []).map((level) => [
+          level.id,
+          { title: level.title, minMonths: level.minMonths },
+        ])
+      ),
+    [gradeData]
+  );
+
+  /**
+   * Форма против матрицы грейдов: уровень должен быть в лестнице должности, а
+   * оклад — не выше потолка его ступени. Нечисловой оклад здесь игнорируем:
+   * его ловит отдельная проверка при сохранении.
+   */
+  const checkFormAgainstGrades = () => {
+    const parsed = Number(form.salary.trim().replace(/\s+/g, ""));
+    return salaryPolicy.check({
+      positionId: form.positionsId,
+      levelId: form.experienceLevelId,
+      salary: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+    });
+  };
+
+  /** Полных месяцев между датами; отрицательный результат обрезается до нуля. */
+  const monthsBetween = (fromIso: string, toIso: string): number => {
+    const from = new Date(fromIso);
+    const to = new Date(toIso);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 0;
+
+    let months =
+      (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+    // Неполный последний месяц не засчитывается: 01.01 → 02.08 это 7 месяцев,
+    // а не 8.
+    if (to.getDate() < from.getDate()) months -= 1;
+    return Math.max(0, months);
+  };
+
+  /**
+   * Расхождения между датой приёма на работу и датой начала должности.
+   *
+   * Это предупреждение, а не запрет: в жизни бывают и задним числом
+   * оформленные переводы, и исправления даты приёма. Задача — чтобы человек
+   * увидел несостыковку и подтвердил её осознанно, а не наткнулся на неё через
+   * полгода в отчёте по стажу.
+   *
+   * Проверяем два случая. Начало раньше приёма — противоречие в любой записи.
+   * Первая запись в истории — это и есть приём на работу, и её дата обязана
+   * совпадать с `date_hire`; у последующих переводов дата законно другая, и
+   * ругаться на них было бы шумом.
+   */
+  const collectDateWarnings = (): string[] => {
+    const warnings: string[] = [];
+
+    if (hireDate && form.dateFrom) {
+      if (form.dateFrom < hireDate) {
+        warnings.push(
+          `Должность начинается ${formatDate(form.dateFrom)}, а сотрудник принят на работу ${formatDate(hireDate)} — должность не может начаться раньше приёма.`
+        );
+      } else {
+        const otherStartDates = sortedRecords
+          .filter((record) => record.guid !== editingRaw?.guid)
+          .map((record) => readString(record.date_from))
+          .filter(Boolean);
+
+        const isEarliest =
+          otherStartDates.length === 0 ||
+          form.dateFrom <= otherStartDates.reduce((min, date) => (date < min ? date : min));
+
+        if (isEarliest && form.dateFrom !== hireDate) {
+          warnings.push(
+            `Это первая запись в истории работы, значит она и есть приём на работу. Но начинается она ${formatDate(form.dateFrom)}, а в карточке сотрудника дата приёма — ${formatDate(hireDate)}.`
+          );
+        }
+      }
+    }
+
+    // Стаж против требования грейда: ступени задан минимальный стаж в
+    // настройках зарплат, и назначать её человеку, который столько не
+    // отработал, — повод переспросить.
+    const grade = form.experienceLevelId ? gradeByLevelId.get(form.experienceLevelId) : null;
+    if (grade?.minMonths && hireDate && form.dateFrom) {
+      const tenure = monthsBetween(hireDate, form.dateFrom);
+      if (tenure < grade.minMonths) {
+        warnings.push(
+          `Для уровня ${grade.title} нужен стаж ${formatTenure(grade.minMonths)}, а на ${formatDate(form.dateFrom)} у сотрудника будет ${formatTenure(tenure)} (принят ${formatDate(hireDate)}).`
+        );
+      }
+    }
+
+    // Расхождения с матрицей грейдов — в мягком режиме это предупреждение, в
+    // строгом запись до сюда не доходит (её останавливает проверка в submit).
+    checkFormAgainstGrades().issues.forEach((issue) => warnings.push(issue.message));
+
+    return warnings;
+  };
+
   const deletingTimelineRecord = useMemo(() => {
     if (!recordToDeleteGuid) return null;
     return timelineRecords.find((item) => item.record.guid === recordToDeleteGuid) || null;
@@ -581,10 +872,19 @@ export default function WorkSection({
       : null;
   }, [positionsList, form.positionsId]);
 
+  /**
+   * Уровни, доступные выбранной должности.
+   *
+   * Пустое множество, а не `null`, когда должность не выбрана или не привязана
+   * к лестнице: раньше в этом случае фильтр выключался и в списке оказывались
+   * все уровни компании разом — у должности Backend предлагались и PM1…PM6.
+   * Показывать заведомо неподходящие ступени хуже, чем не показывать ничего:
+   * выбранный «не тот» уровень уезжает в employee_works и ломает отчёты.
+   */
   const allowedExperienceLevelIds = useMemo(() => {
-    if (!selectedPositionGroupId) return null;
-
     const ids = new Set<string>();
+    if (!selectedPositionGroupId) return ids;
+
     for (const level of experienceLevelsList) {
       if (level.experience_level_groups_id === selectedPositionGroupId) {
         ids.add(level.guid);
@@ -605,7 +905,7 @@ export default function WorkSection({
       return;
     }
 
-    if (allowedExperienceLevelIds && !allowedExperienceLevelIds.has(form.experienceLevelId)) {
+    if (!allowedExperienceLevelIds.has(form.experienceLevelId)) {
       setForm((prev) => ({ ...prev, experienceLevelId: "" }));
     }
   }, [allowedExperienceLevelIds, form.experienceLevelId]);
@@ -695,12 +995,53 @@ export default function WorkSection({
     );
   }, [form.workScheduleId, modalSourceRecord]);
 
+  /** Всё, что нужно реестру полей модалки для рендера контролов. */
+  const workFieldContext: WorkFieldContext = {
+    form,
+    setForm,
+    mode: modalMode,
+    disabled: isSaving,
+    inputClassName: INPUT_CLASSNAME,
+    menuPortalTarget,
+    loadOptionsBySlug: loadRemoteOptionsBySlug,
+    fallbackOptions: {
+      employmentType: employmentTypeFallbackOption,
+      department: departmentFallbackOption,
+      division: divisionFallbackOption,
+      location: locationFallbackOption,
+      position: positionFallbackOption,
+      experienceLevel: experienceLevelFallbackOption,
+      workReason: workReasonFallbackOption,
+      workSchedule: workScheduleFallbackOption,
+    },
+    allowedExperienceLevelIds,
+    hasPositionGroup: Boolean(selectedPositionGroupId),
+    parseIsoDate,
+    toIsoDate,
+    employeeWorkReasonSlug: EMPLOYEE_WORK_REASON_SLUG,
+  };
+
+  const handleCustomChange = (key: string, value: unknown) => {
+    setCustomData((prev) => ({ ...prev, [key]: value }));
+    // Ошибку убираем сразу, как только поле тронули.
+    setCustomErrors((prev) => {
+      if (!prev[key]) return prev;
+      const rest = { ...prev };
+      delete rest[key];
+      return rest;
+    });
+  };
+
   const resetEditModal = () => {
     setIsEditModalOpen(false);
+    setDateWarnings([]);
+    setBuilderMode(false);
     setModalMode("create");
     setEditingRecordGuid(null);
     setModalSourceGuid(null);
     setForm(createEmptyFormState());
+    setCustomData({});
+    setCustomErrors({});
   };
 
   const openCreateModal = () => {
@@ -708,6 +1049,9 @@ export default function WorkSection({
     setEditingRecordGuid(null);
     setModalSourceGuid(currentRaw?.guid || null);
     setForm(buildFormState(currentRaw, "create"));
+    // Новая запись о должности — значения динамических полей начинаются с нуля.
+    setCustomData(buildCustomData(null));
+    setCustomErrors({});
     setIsEditModalOpen(true);
   };
 
@@ -716,9 +1060,11 @@ export default function WorkSection({
     setEditingRecordGuid(null);
     setModalSourceGuid(currentRaw?.guid || null);
     setForm(buildFormState(currentRaw, "return"));
+    setCustomData(buildCustomData(null));
+    setCustomErrors({});
     setOpenActionsFor(null);
     setIsEditModalOpen(true);
-  }, [currentRaw]);
+  }, [buildCustomData, currentRaw]);
 
   const openEditModal = (guid: string) => {
     const selectedRecord = recordByGuid.get(guid);
@@ -728,6 +1074,8 @@ export default function WorkSection({
     setEditingRecordGuid(guid);
     setModalSourceGuid(guid);
     setForm(buildFormState(selectedRecord, "edit"));
+    setCustomData(buildCustomData(selectedRecord));
+    setCustomErrors({});
     setOpenActionsFor(null);
     setIsEditModalOpen(true);
   };
@@ -823,7 +1171,7 @@ export default function WorkSection({
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (skipDateWarnings = false) => {
     if (!form.positionsId) {
       toast.error("Выберите должность");
       return;
@@ -845,6 +1193,28 @@ export default function WorkSection({
       return;
     }
 
+    // Строгий режим сверки с матрицей грейдов: расхождение не сохраняем и
+    // показываем его отдельным окном — тост тут проходит мимо внимания, а
+    // человеку надо вернуться в форму и поправить уровень или оклад. В мягком
+    // режиме то же расхождение уходит в предупреждения ниже, и решает он сам.
+    if (salaryPolicy.isBlocking) {
+      const gradeCheck = checkFormAgainstGrades();
+      if (gradeCheck.status === "mismatch") {
+        setGradeErrors(gradeCheck.issues.map((issue) => issue.message));
+        return;
+      }
+    }
+
+    // Гейт стоит после жёстких проверок: сначала форма должна быть валидной,
+    // и только потом есть смысл спрашивать про даты.
+    if (!skipDateWarnings) {
+      const warnings = collectDateWarnings();
+      if (warnings.length > 0) {
+        setDateWarnings(warnings);
+        return;
+      }
+    }
+
     const employeeWorkReasonId =
       modalMode === "return" ? returnWorkReasonId : form.employeeWorkReasonId;
 
@@ -864,7 +1234,21 @@ export default function WorkSection({
       salaryValue = parsedSalary;
     }
 
-    const payload = {
+    // Правила динамических полей проверяем до запроса — иначе сервер молча
+    // сохранит запись с незаполненным обязательным полем.
+    const nextCustomErrors: Record<string, string> = {};
+    dynamicFields.forEach((field) => {
+      const message = validateDynamicValue(field, customData[field.key]);
+      if (message) nextCustomErrors[field.key] = message;
+    });
+    setCustomErrors(nextCustomErrors);
+
+    if (Object.keys(nextCustomErrors).length > 0) {
+      toast.error("Проверьте дополнительные поля");
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
       employment_types_id: form.employmentTypeId || null,
       departments_id: form.departmentId || null,
       divisions_id: form.divisionId || null,
@@ -877,6 +1261,19 @@ export default function WorkSection({
       date_from: form.dateFrom,
       date_to: modalMode === "edit" ? form.dateTo || null : null,
     };
+
+    // Значения кладём только если контейнер заведён в u-code: иначе items API
+    // всё равно вырежет незнакомый ключ.
+    if (valuesField) {
+      const collected: Record<string, unknown> = {};
+      dynamicFields.forEach((field) => {
+        const value = customData[field.key];
+        if (value === undefined || value === null || value === "") return;
+        if (Array.isArray(value) && value.length === 0) return;
+        collected[field.key] = value;
+      });
+      payload.custom_data = JSON.stringify(collected);
+    }
 
     try {
       if (modalMode === "edit") {
@@ -1130,6 +1527,8 @@ export default function WorkSection({
                         record={item.record}
                         brandColor={brandColor}
                         isCurrent={item.isCurrent}
+                        customValues={item.customValues}
+                        gradeMismatch={item.gradeMismatch}
                         onToggleActions={() => toggleActionsMenu(item.record.guid)}
                         actionButtonRef={(element) => {
                           actionButtonRefs.current[item.record.guid] = element;
@@ -1170,332 +1569,192 @@ export default function WorkSection({
         className="relative z-[120000] w-full max-w-[700px] overflow-visible p-0"
       >
         <div className="border-b border-slate-200 px-6 py-5">
-          <h4 className="m-0 text-[24px] font-bold text-slate-900">
-            {modalMode === "return"
-              ? "Вернуть сотрудника"
-              : modalMode === "create"
-                ? "Добавить должность"
-                : "Редактировать должность"}
-          </h4>
-          <p className="m-0 mt-1 text-[13px] text-slate-500">
-            {modalMode === "return"
-              ? "Новая запись станет текущей, а статус сотрудника изменится на активный."
-              : modalMode === "create"
-                ? "Новая запись станет текущей, а предыдущая должность завершится выбранной датой."
-                : "Обновите данные по выбранной записи в истории работы."}
-          </p>
+          <div className="min-w-0">
+            <h4 className="m-0 text-[24px] font-bold text-slate-900">
+              {builderMode
+                ? "Настройка формы"
+                : modalMode === "return"
+                  ? "Вернуть сотрудника"
+                  : modalMode === "create"
+                    ? "Добавить должность"
+                    : "Редактировать должность"}
+            </h4>
+            <p className="m-0 mt-1 text-[13px] text-slate-500">
+              {builderMode
+                ? "Порядок и ширина полей. Изменения сохранятся по кнопке «Готово»."
+                : modalMode === "return"
+                  ? "Новая запись станет текущей, а статус сотрудника изменится на активный."
+                  : modalMode === "create"
+                    ? "Новая запись станет текущей, а предыдущая должность завершится выбранной датой."
+                    : "Обновите данные по выбранной записи в истории работы."}
+            </p>
+          </div>
         </div>
 
         <div className="space-y-4 px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Тип работы
-              </label>
-              <RemoteSingleSelect
-                value={form.employmentTypeId}
-                loadOptions={({ search, limit, offset }) =>
-                  loadRemoteOptionsBySlug({
-                    slug: "employment_types",
-                    search,
-                    limit,
-                    offset,
-                  })
-                }
-                fallbackOption={employmentTypeFallbackOption}
-                onChange={(value) =>
-                  setForm((prev) => ({ ...prev, employmentTypeId: value }))
-                }
-                placeholder="Выберите тип"
-                disabled={isSaving}
-                menuPortalTarget={menuPortalTarget}
-                classNamePrefix="work-employment-type-select"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Департамент
-              </label>
-              <RemoteSingleSelect
-                value={form.departmentId}
-                loadOptions={({ search, limit, offset }) =>
-                  loadRemoteOptionsBySlug({
-                    slug: "departments",
-                    search,
-                    limit,
-                    offset,
-                  })
-                }
-                fallbackOption={departmentFallbackOption}
-                onChange={(value) => setForm((prev) => ({ ...prev, departmentId: value }))}
-                placeholder="Выберите департамент"
-                disabled={isSaving}
-                menuPortalTarget={menuPortalTarget}
-                classNamePrefix="work-department-select"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Уровень
-              </label>
-              <RemoteSingleSelect
-                value={form.experienceLevelId}
-                loadOptions={async ({ search, limit, offset }) => {
-                  const res = await loadRemoteOptionsBySlug({
-                    slug: "experience_levels",
-                    search,
-                    limit,
-                    offset,
-                  });
-
-                  return {
-                    count: res.count,
-                    options: res.options.filter(
-                      (item) =>
-                        !allowedExperienceLevelIds || allowedExperienceLevelIds.has(item.value)
-                    ),
-                  };
-                }}
-                fallbackOption={experienceLevelFallbackOption}
-                onChange={(value) =>
-                  setForm((prev) => ({ ...prev, experienceLevelId: value }))
-                }
-                placeholder={
-                  selectedPositionGroupId ? "Выберите уровень" : "Сначала выберите должность"
-                }
-                disabled={isSaving}
-                menuPortalTarget={menuPortalTarget}
-                classNamePrefix="work-experience-level-select"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Подразделение
-              </label>
-              <RemoteSingleSelect
-                value={form.divisionId}
-                loadOptions={({ search, limit, offset }) =>
-                  loadRemoteOptionsBySlug({
-                    slug: "divisions",
-                    search,
-                    limit,
-                    offset,
-                  })
-                }
-                fallbackOption={divisionFallbackOption}
-                onChange={(value) => setForm((prev) => ({ ...prev, divisionId: value }))}
-                placeholder="Выберите подразделение"
-                disabled={isSaving}
-                menuPortalTarget={menuPortalTarget}
-                classNamePrefix="work-division-select"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Локация
-              </label>
-              <RemoteSingleSelect
-                value={form.locationId}
-                loadOptions={({ search, limit, offset }) =>
-                  loadRemoteOptionsBySlug({
-                    slug: "locations",
-                    search,
-                    limit,
-                    offset,
-                  })
-                }
-                fallbackOption={locationFallbackOption}
-                onChange={(value) => setForm((prev) => ({ ...prev, locationId: value }))}
-                placeholder="Выберите локацию"
-                disabled={isSaving}
-                menuPortalTarget={menuPortalTarget}
-                classNamePrefix="work-location-select"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Должность
-              </label>
-              <RemoteSingleSelect
-                value={form.positionsId}
-                loadOptions={({ search, limit, offset }) =>
-                  loadRemoteOptionsBySlug({
-                    slug: "positions",
-                    search,
-                    limit,
-                    offset,
-                  })
-                }
-                fallbackOption={positionFallbackOption}
-                onChange={(value) => setForm((prev) => ({ ...prev, positionsId: value }))}
-                placeholder="Выберите должность"
-                disabled={isSaving}
-                menuPortalTarget={menuPortalTarget}
-                classNamePrefix="work-position-select"
-              />
-            </div>
-          </div>
-
-          {modalMode !== "return" ? (
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Причина изменения
-              </label>
-              <RemoteSingleSelect
-                value={form.employeeWorkReasonId}
-                loadOptions={({ search, limit, offset }) =>
-                  loadRemoteOptionsBySlug({
-                    slug: EMPLOYEE_WORK_REASON_SLUG,
-                    search,
-                    limit,
-                    offset,
-                  })
-                }
-                fallbackOption={workReasonFallbackOption}
-                onChange={(value) =>
-                  setForm((prev) => ({ ...prev, employeeWorkReasonId: value }))
-                }
-                placeholder="Выберите причину"
-                disabled={isSaving}
-                menuPortalTarget={menuPortalTarget}
-                classNamePrefix="work-reason-select"
-              />
-            </div>
-          ) : null}
-
-          <div>
-            <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              График работы
-            </label>
-            <RemoteSingleSelect
-              value={form.workScheduleId}
-              loadOptions={({ search, limit, offset }) =>
-                loadRemoteOptionsBySlug({
-                  slug: "work_schedule",
-                  search,
-                  limit,
-                  offset,
-                })
-              }
-              fallbackOption={workScheduleFallbackOption}
-              onChange={(value) =>
-                setForm((prev) => ({ ...prev, workScheduleId: value }))
-              }
-              placeholder="Выберите график"
+          <WorkFieldsArea
+            layoutApi={workLayout}
+            fieldContext={workFieldContext}
+            dynamicFields={dynamicFields}
+            customData={customData}
+            customErrors={customErrors}
+            onCustomChange={handleCustomChange}
+            builderMode={builderMode}
+            brandColor={brandColor}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
+          {/* Слева — тихое второстепенное действие: в шапке кнопка спорила с заголовком и крестиком */}
+          {builderMode ? (
+            <button
+              type="button"
+              onClick={workLayout.resetLayout}
+              disabled={workLayout.isSaving}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Сбросить раскладку
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleToggleBuilder}
               disabled={isSaving}
-              menuPortalTarget={menuPortalTarget}
-              classNamePrefix="work-schedule-select"
-            />
+              title="Настроить расположение полей"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Настроить форму
+            </button>
+          )}
+
+          <div className="flex items-center gap-2">
+            {builderMode ? null : (
+              <button
+                type="button"
+                onClick={closeEditModal}
+                disabled={isSaving}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Отмена
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={builderMode ? handleToggleBuilder : () => handleSave()}
+              disabled={builderMode ? workLayout.isSaving : isSaving}
+              className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ backgroundColor: brandColor }}
+            >
+              {builderMode
+                ? workLayout.isSaving
+                  ? "Сохраняем..."
+                  : "Готово"
+                : isSaving
+                  ? modalMode === "return"
+                    ? "Возврат..."
+                    : modalMode === "create"
+                      ? "Добавление..."
+                      : "Сохранение..."
+                  : modalMode === "return"
+                    ? "Вернуть"
+                    : modalMode === "create"
+                      ? "Добавить"
+                      : "Сохранить"}
+            </button>
           </div>
+        </div>
+      </Modal>
 
-          <div className={`grid grid-cols-1 gap-4 ${modalMode === "edit" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Оклад
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                placeholder="Например: 15000000"
-                className={INPUT_CLASSNAME}
-                value={form.salary}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, salary: event.target.value }))
-                }
-                disabled={isSaving}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Дата начала
-              </label>
-              <DatePicker
-                selected={parseIsoDate(form.dateFrom)}
-                onChange={(date) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    dateFrom: date ? toIsoDate(date) : "",
-                  }))
-                }
-                dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
-                showMonthDropdown
-                showYearDropdown
-                dropdownMode="select"
-                popperClassName="work-date-picker-popper"
-                calendarClassName="work-date-picker-calendar"
-                wrapperClassName="work-date-picker-wrapper"
-                showPopperArrow={false}
-                className={INPUT_CLASSNAME}
-                disabled={isSaving}
-              />
-            </div>
-
-            {modalMode === "edit" ? (
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                  Дата окончания
-                </label>
-                <DatePicker
-                  selected={parseIsoDate(form.dateTo)}
-                  onChange={(date) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      dateTo: date ? toIsoDate(date) : "",
-                    }))
-                  }
-                  isClearable
-                  dateFormat="dd.MM.yyyy"
-                  placeholderText="Оставьте пустым для текущей"
-                  showMonthDropdown
-                  showYearDropdown
-                  dropdownMode="select"
-                  popperClassName="work-date-picker-popper"
-                  calendarClassName="work-date-picker-calendar"
-                  wrapperClassName="work-date-picker-wrapper"
-                  showPopperArrow={false}
-                  className={INPUT_CLASSNAME}
-                  disabled={isSaving}
-                />
-              </div>
-            ) : null}
+      {/* Расхождение с матрицей грейдов в строгом режиме — запрет: сохранить
+          нельзя, форма остаётся открытой, чтобы поправить уровень или оклад. */}
+      <Modal
+        isOpen={gradeErrors.length > 0}
+        onClose={() => setGradeErrors([])}
+        showCloseButton={false}
+        className="mx-4 w-full max-w-[420px] overflow-hidden rounded-2xl border border-gray-200 p-0 shadow-xl"
+      >
+        <div className="border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-error-50 text-error-500">
+              <TriangleAlert size={16} />
+            </span>
+            <h3 className="text-base font-semibold text-gray-900">
+              Не соответствует матрице грейдов
+            </h3>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
+        <div className="space-y-2 px-4 py-4">
+          {gradeErrors.map((message) => (
+            <p key={message} className="text-sm leading-relaxed text-gray-700">
+              {message}
+            </p>
+          ))}
+          <p className="text-sm text-gray-500">
+            В настройках компании оклад обязан соответствовать матрице грейдов — сохранить
+            такую запись нельзя.
+          </p>
+        </div>
+
+        <div className="flex justify-end border-t border-gray-200 px-4 py-3">
           <button
             type="button"
-            onClick={closeEditModal}
-            disabled={isSaving}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => setGradeErrors([])}
+            className="inline-flex h-10 items-center rounded-lg bg-error-500 px-4 text-sm font-semibold text-white transition hover:bg-error-600"
           >
-            Отмена
+            Исправить
+          </button>
+        </div>
+      </Modal>
+
+      {/* Предупреждение о датах и грейдах — не запрет: подтверждение продолжает
+          сохранение с тем же payload, повторно валидировать форму не нужно. */}
+      <Modal
+        isOpen={dateWarnings.length > 0}
+        onClose={() => setDateWarnings([])}
+        showCloseButton={false}
+        className="mx-4 w-full max-w-[420px] overflow-hidden rounded-2xl border border-gray-200 p-0 shadow-xl"
+      >
+        <div className="border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+              <TriangleAlert size={16} />
+            </span>
+            <h3 className="text-base font-semibold text-gray-900">Проверьте данные</h3>
+          </div>
+        </div>
+
+        <div className="space-y-2 px-4 py-4">
+          {dateWarnings.map((warning) => (
+            <p key={warning} className="text-sm leading-relaxed text-gray-700">
+              {warning}
+            </p>
+          ))}
+          <p className="text-sm text-gray-500">
+            Сохранить всё равно можно — проверьте, что дата указана верно.
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setDateWarnings([])}
+            className="inline-flex h-10 items-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            Исправить
           </button>
           <button
             type="button"
-            onClick={handleSave}
             disabled={isSaving}
-            className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => {
+              setDateWarnings([]);
+              void handleSave(true);
+            }}
+            className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-white transition disabled:opacity-60"
             style={{ backgroundColor: brandColor }}
           >
-            {isSaving
-              ? modalMode === "return"
-                ? "Возврат..."
-                : modalMode === "create"
-                ? "Добавление..."
-                : "Сохранение..."
-              : modalMode === "return"
-                ? "Вернуть"
-                : modalMode === "create"
-                ? "Добавить"
-                : "Сохранить"}
+            {isSaving ? "Сохранение..." : "Всё равно сохранить"}
           </button>
         </div>
       </Modal>

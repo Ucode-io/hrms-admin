@@ -40,7 +40,20 @@ import SkillsSection from "./components/SkillsSection";
 import WorkSection from "./components/WorkSection";
 import CompensationSection from "./components/CompensationSection";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
+import { useCustomFieldsSchema } from "../../Settings/CustomFields/useCustomFieldsSchema";
+import { formatDynamicValue } from "../../Settings/CustomFields/formatValue";
+import { useEmployeeFormLayout } from "../Form/layout/useEmployeeFormLayout";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
+
+/**
+ * Карточки конструктора формы, которым на детальной странице соответствует уже
+ * существующая секция: их динамические поля дописываются в конец этой секции.
+ * Остальные карточки раскладки становятся отдельными секциями.
+ */
+const DETAIL_CARD_SECTIONS = {
+  personal: "crd_personal",
+  contacts: "crd_contacts",
+} as const;
 
 const PRIMARY_TABS = [
   "Личное",
@@ -259,6 +272,76 @@ function EmployeeDetail() {
   const employeeCover = companyStore.company?.employee_cover;
 
   const { data: emp, isLoading } = useEmployeeQuery(id || "");
+
+  /* ── Динамические поля: показываем по той же раскладке, что настроена в форме ── */
+  const { getFields } = useCustomFieldsSchema();
+  const dynamicFields = useMemo(
+    () => getFields("user_base").filter((field) => !field.system),
+    [getFields]
+  );
+  const layoutApi = useEmployeeFormLayout(
+    useMemo(() => dynamicFields.map((field) => field.id), [dynamicFields])
+  );
+
+  /** Значения лежат в контейнере `custom_data` — поле типа JSON, приходит строкой. */
+  const customValues = useMemo((): Record<string, unknown> => {
+    const raw = emp?.custom_data;
+    if (!raw) return {};
+
+    if (typeof raw !== "string") {
+      return typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : {};
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (error) {
+      console.error("Failed to parse custom_data:", error);
+      return {};
+    }
+  }, [emp?.custom_data]);
+
+  /** Динамические поля одной карточки раскладки, в её же порядке. */
+  const dynamicRowsOfCard = useMemo(() => {
+    const byId = new Map(dynamicFields.map((field) => [field.id, field]));
+
+    return (cardId: string) =>
+      layoutApi.layout.items
+        .filter((item) => item.kind === "dynamic" && item.cardId === cardId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => byId.get(item.id))
+        .filter((field): field is NonNullable<typeof field> => Boolean(field));
+  }, [dynamicFields, layoutApi.layout.items]);
+
+  /**
+   * Карточки раскладки, которых на детальной ещё нет (созданные админом плюс
+   * «Доступ»), но в которых лежат динамические поля — рисуем своими секциями.
+   */
+  const extraDynamicCards = useMemo(() => {
+    const mapped = new Set<string>(Object.values(DETAIL_CARD_SECTIONS));
+
+    return layoutApi.layout.cards
+      .filter((card) => !card.locked && !mapped.has(card.id))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((card) => ({ card, fields: dynamicRowsOfCard(card.id) }))
+      .filter((entry) => entry.fields.length > 0);
+  }, [layoutApi.layout.cards, dynamicRowsOfCard]);
+
+  const renderDynamicRows = (cardId: string) =>
+    dynamicRowsOfCard(cardId).map((field) => {
+      const view = formatDynamicValue(field, customValues[field.key]);
+
+      return (
+        <InfoRow
+          key={field.id}
+          label={field.label}
+          value={view.text || "—"}
+          linkType={view.text ? view.linkType : undefined}
+        />
+      );
+    });
   const { data: userAccess } = useUserAccessQuery(id || "");
   const accessRoleTitle = userAccess?.role?.title || "—";
   const breadcrumbEmployeeName = [emp?.first_name, emp?.second_name].filter(Boolean).join(" ").trim();
@@ -809,6 +892,7 @@ function EmployeeDetail() {
                   <InfoRow label="Причина увольнения" value={dismissalReasonLabel} />
                 </>
               ) : null}
+              {renderDynamicRows(DETAIL_CARD_SECTIONS.personal)}
             </InfoSection>
 
             {/* Контакты */}
@@ -823,7 +907,32 @@ function EmployeeDetail() {
               <InfoRow label="Мобильный телефон" value={emp.phone} linkType="phone" />
               <InfoRow label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
               <InfoRow label="Телеграм" value={emp.telegram || ""} />
+              {renderDynamicRows(DETAIL_CARD_SECTIONS.contacts)}
             </InfoSection>
+
+            {/* Карточки из конструктора формы, которых нет на детальной */}
+            {extraDynamicCards.map(({ card, fields }) => (
+              <InfoSection
+                key={card.id}
+                title={card.title}
+                icon={null}
+                brandColor={brandColor}
+                showAction={false}
+              >
+                {fields.map((field) => {
+                  const view = formatDynamicValue(field, customValues[field.key]);
+
+                  return (
+                    <InfoRow
+                      key={field.id}
+                      label={field.label}
+                      value={view.text || "—"}
+                      linkType={view.text ? view.linkType : undefined}
+                    />
+                  );
+                })}
+              </InfoSection>
+            ))}
 
             {/* Интересы */}
             <InterestsSection employeeGuid={emp.guid} brandColor={brandColor} />

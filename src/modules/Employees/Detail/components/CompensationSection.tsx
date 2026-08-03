@@ -11,6 +11,8 @@ import {
   useUpdateEmployeeCompensation,
 } from "../../../../api/services/employeeCompensation.service";
 import { COMPANY_ID, useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
+import { useDynamicValues } from "../../../Settings/CustomFields/useDynamicValues";
+import DynamicFieldsBlock from "../../../Settings/CustomFields/DynamicFieldsBlock";
 
 type CompensationSectionProps = {
   employeeGuid: string;
@@ -28,6 +30,8 @@ type CompensationRecord = {
   compensationTypeId: string;
   compensationTypeTitle: string;
   operationType: OperationType;
+  /** Контейнер значений динамических полей, как пришёл из записи. */
+  customData: unknown;
 };
 
 type CompensationDraft = {
@@ -151,6 +155,8 @@ const resolveOperationType = (value: unknown): OperationType => {
 };
 
 function CompensationSection({ employeeGuid, brandColor }: CompensationSectionProps) {
+  /** Динамические поля таблицы employee_compensations. */
+  const dynamic = useDynamicValues("employee_compensations");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGuid, setEditingGuid] = useState<string | null>(null);
   const [draft, setDraft] = useState<CompensationDraft>(getDefaultDraft());
@@ -214,6 +220,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
             ? item.compensation_types_id_data.title
             : "",
         operationType: resolveOperationType(item.operation_type),
+        customData: (item as { custom_data?: unknown }).custom_data,
       };
     });
 
@@ -223,6 +230,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
   const openCreate = () => {
     setEditingGuid(null);
     setDraft(getDefaultDraft());
+    dynamic.reset();
     setError("");
     setIsModalOpen(true);
   };
@@ -236,6 +244,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
       compensationTypeId: record.compensationTypeId,
       operationType: record.operationType,
     });
+    dynamic.reset(record.customData);
     setError("");
     setIsModalOpen(true);
   };
@@ -280,6 +289,12 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
       return;
     }
 
+    // Правила динамических полей проверяем до запроса.
+    if (!dynamic.validate()) {
+      setError("Проверьте дополнительные поля.");
+      return;
+    }
+
     const payload = {
       user_base_id: employeeGuid,
       companies_id: companyStore.company?.guid || COMPANY_ID,
@@ -288,6 +303,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
       description: draft.description.trim() || null,
       compensation_types_id: draft.compensationTypeId,
       operation_type: [draft.operationType],
+      ...dynamic.toPayload(),
     };
 
     try {
@@ -590,6 +606,14 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
             />
           </div>
+
+          <DynamicFieldsBlock
+            fields={dynamic.fields}
+            values={dynamic.values}
+            errors={dynamic.errors}
+            onChange={dynamic.setValue}
+            brandColor={brandColor}
+          />
 
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-600">

@@ -24,6 +24,8 @@ import {
   type CandidateDraft,
 } from "../../types";
 import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
+import { useDynamicValues } from "../../../Settings/CustomFields/useDynamicValues";
+import DynamicFieldsBlock from "../../../Settings/CustomFields/DynamicFieldsBlock";
 
 const CANDIDATE_SOURCES_SLUG = "candidate_sources";
 
@@ -95,6 +97,8 @@ export default function CandidateForm() {
   const [draft, setDraft] = useState<CandidateDraft>(() =>
     createEmptyCandidateDraft(presetVacancyId)
   );
+  /** Динамические поля таблицы candidates. */
+  const dynamic = useDynamicValues("candidates");
   const [error, setError] = useState("");
 
   const { data: sourcesData } = useSettingsDirectoryQuery({
@@ -117,7 +121,10 @@ export default function CandidateForm() {
   );
 
   useEffect(() => {
-    if (isEdit && candidate) setDraft(candidateDraftFromItem(candidate));
+    if (isEdit && candidate) {
+      setDraft(candidateDraftFromItem(candidate));
+      dynamic.reset((candidate as { custom_data?: unknown }).custom_data);
+    }
   }, [isEdit, candidate]);
 
   const vacancyOptions = useMemo(
@@ -151,9 +158,17 @@ export default function CandidateForm() {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+    // Правила динамических полей проверяем до запроса.
+    if (!dynamic.validate()) {
+      setError("Проверьте дополнительные поля");
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      return;
+    }
+
     try {
       const payload = {
         ...draft,
+        ...dynamic.toPayload("customData"),
         firstName: draft.firstName.trim(),
         lastName: draft.lastName.trim(),
       };
@@ -272,6 +287,14 @@ export default function CandidateForm() {
                 />
               </Field>
             </div>
+
+            <DynamicFieldsBlock
+              fields={dynamic.fields}
+              values={dynamic.values}
+              errors={dynamic.errors}
+              onChange={dynamic.setValue}
+              brandColor="#465FFF"
+            />
           </div>
         </Card>
 

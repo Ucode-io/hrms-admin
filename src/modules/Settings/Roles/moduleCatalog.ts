@@ -7,6 +7,7 @@ import {
   FileText,
   GraduationCap,
   Home,
+  ListTodo,
   Package,
   Settings as SettingsIcon,
   Target,
@@ -23,6 +24,7 @@ import {
  */
 export type ModuleKey =
   | "dashboard"
+  | "tasks"
   | "kpi"
   | "employees"
   | "recruiting"
@@ -53,6 +55,13 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
     paths: ["/dashboard"],
   },
   {
+    key: "tasks",
+    label: "Задачи",
+    description: "Задачи сотрудников",
+    icon: ListTodo,
+    paths: ["/tasks"],
+  },
+  {
     key: "kpi",
     label: "Задачи и KPI",
     description: "Цели и показатели",
@@ -76,9 +85,11 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   {
     key: "time",
     label: "Время",
-    description: "Посещаемость и календарь",
+    description: "Посещаемость, табель и календарь",
     icon: CalendarCheck,
-    paths: ["/time", "/calendar"],
+    // "/timesheet" — отдельный путь, а не подпуть "/time": проверка доступа
+    // сравнивает по сегментам, и "/timesheet" под "/time" не подпадает.
+    paths: ["/time", "/timesheet", "/calendar"],
   },
   {
     key: "documents",

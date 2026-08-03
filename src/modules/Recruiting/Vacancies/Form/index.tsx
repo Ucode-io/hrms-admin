@@ -9,7 +9,8 @@ import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbCo
 import FormSelect from "../../components/FormSelect";
 import FormDatePicker from "../../components/FormDatePicker";
 import TagsInput from "../../components/TagsInput";
-import RichTextEditor, { sanitizeRichText } from "../../components/RichTextEditor";
+import RichTextEditor from "../../../../components/form/RichTextEditor";
+import { sanitizeRichText } from "../../../../components/form/richText";
 import { MOCK_DEPARTMENTS, MOCK_LOCATIONS, MOCK_POSITIONS } from "../../mock/mockApi";
 import { RECRUITING_USE_MOCK } from "../../mock/mockConfig";
 import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
@@ -25,6 +26,8 @@ import {
   mapStageTemplateRow,
   useStageTemplatesQuery,
 } from "../../../../api/services/stageTemplate.service";
+import { useDynamicValues } from "../../../Settings/CustomFields/useDynamicValues";
+import DynamicFieldsBlock from "../../../Settings/CustomFields/DynamicFieldsBlock";
 import {
   STAGE_COLOR_CONFIG,
   VACANCY_PRIORITY_CONFIG,
@@ -129,6 +132,8 @@ export default function VacancyForm() {
   const updateMutation = useUpdateVacancy();
 
   const [draft, setDraft] = useState<VacancyDraft>(createEmptyVacancyDraft);
+  /** Динамические поля таблицы vacancies. */
+  const dynamic = useDynamicValues("vacancies");
   const [error, setError] = useState("");
   const [templateApplied, setTemplateApplied] = useState(false);
 
@@ -170,6 +175,7 @@ export default function VacancyForm() {
   useEffect(() => {
     if (isEdit && vacancyRow) {
       setDraft(vacancyDraftFromItem(mapVacancyRow(vacancyRow)));
+      dynamic.reset((vacancyRow as { custom_data?: unknown }).custom_data);
       setTemplateApplied(true);
     }
   }, [isEdit, vacancyRow]);
@@ -224,9 +230,16 @@ export default function VacancyForm() {
       setError("У всех этапов должно быть название");
       return;
     }
+    // Правила динамических полей проверяем до запроса.
+    if (!dynamic.validate()) {
+      setError("Проверьте дополнительные поля");
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      return;
+    }
     try {
       const payload = {
         ...draft,
+        ...dynamic.toPayload("customData"),
         title: draft.title.trim(),
         description: sanitizeRichText(draft.description),
         responsibilities: "",
@@ -336,6 +349,18 @@ export default function VacancyForm() {
                 placeholder="Введите навык и нажмите Enter"
               />
             </Field>
+
+            {dynamic.fields.length > 0 && (
+              <div className="sm:col-span-2">
+                <DynamicFieldsBlock
+                  fields={dynamic.fields}
+                  values={dynamic.values}
+                  errors={dynamic.errors}
+                  onChange={dynamic.setValue}
+                  brandColor="#465FFF"
+                />
+              </div>
+            )}
           </div>
         </Card>
 

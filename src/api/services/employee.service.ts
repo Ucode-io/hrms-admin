@@ -94,6 +94,12 @@ export interface Employee {
   // HRMS application-level access role (separate from the ucode role_id above).
   hrms_roles_id?: string | null;
 
+  /**
+   * Значения динамических полей (справочник «Динамические поля»), ключ поля →
+   * значение. Поле типа JSON в u-code, поэтому ездит строкой.
+   */
+  custom_data?: string | Record<string, unknown> | null;
+
   dismissal_types_id?: string | null;
   dismissial_types_id?: string | null;
   dismissal_types_id_data?: {

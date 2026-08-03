@@ -1330,6 +1330,8 @@ export type KpiTableItem = {
   metric?: string | null;
   // Payout for 100% completion (proportional to percent). null = not set.
   reward_amount?: number | null;
+  /** Контейнер значений динамических полей (строка JSON). */
+  custom_data?: string | null;
   // Employees (user_base guids) attached to this KPI.
   employee_ids?: string[];
   children: KpiTableItem[];
