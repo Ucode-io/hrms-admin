@@ -171,9 +171,17 @@ export const useTimesheetTimelineQuery = (
     }
   );
 
+/**
+ * День сотрудника.
+ *
+ * `keepPreviousData` держит страницу собранной при переходе на соседний день:
+ * сам сотрудник не меняется, поэтому шапка остаётся на месте, а блоки дня
+ * подменяются скелетоном — вместо того чтобы всей странице схлопываться в
+ * спиннер. Признак подмены — `isPreviousData`.
+ */
 export const useTimesheetDayQuery = (employeeId: string, date: string) =>
   useQuery(
     [TIMESHEET_QUERY_KEY, "day", employeeId, date],
     () => invoke<TimesheetDayResult>(DAY_METHOD, { employee_id: employeeId, date }),
-    { enabled: Boolean(employeeId && date) }
+    { enabled: Boolean(employeeId && date), keepPreviousData: true }
   );

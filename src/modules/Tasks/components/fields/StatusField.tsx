@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { chipStyle, findDirectoryItem } from "../../constants";
+import { STATUS_GROUP_META } from "../../statusGroups";
 import type { TaskDirectoryItem } from "../../types";
 import Popover from "../ui/Popover";
 import OptionPicker, { type PickerOption } from "../ui/OptionPicker";
@@ -20,10 +21,14 @@ export default function StatusField({ value, statuses, onChange, variant }: Stat
   const [open, setOpen] = useState(false);
   const current = findDirectoryItem(statuses, value);
 
+  // Статусы приходят уже отсортированными по группе (сервис справочников), так
+  // что заголовки секций расставляются по смене группы — переупорядочивать
+  // здесь нечего.
   const options: PickerOption[] = statuses.map((status) => ({
     value: status.id,
     label: status.title,
     icon: <StatusDot status={status} />,
+    group: { key: status.group, label: STATUS_GROUP_META[status.group].label },
   }));
 
   return (

@@ -8,6 +8,7 @@ import {
   GraduationCap,
   Home,
   ListTodo,
+  Calculator,
   Package,
   Settings as SettingsIcon,
   Target,
@@ -25,6 +26,7 @@ import {
 export type ModuleKey =
   | "dashboard"
   | "tasks"
+  | "budgeting"
   | "kpi"
   | "employees"
   | "recruiting"
@@ -62,6 +64,13 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
     paths: ["/tasks"],
   },
   {
+    key: "budgeting",
+    label: "Бюджетирование",
+    description: "План и факт фонда оплаты труда",
+    icon: Calculator,
+    paths: ["/budgeting"],
+  },
+  {
     key: "kpi",
     label: "Задачи и KPI",
     description: "Цели и показатели",
@@ -73,7 +82,8 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
     label: "Сотрудники",
     description: "Люди и профили",
     icon: UserRoundCheck,
-    paths: ["/employees"],
+    // Оргструктура — тот же модуль «Люди», отдельный корень маршрута.
+    paths: ["/employees", "/organization"],
   },
   {
     key: "recruiting",

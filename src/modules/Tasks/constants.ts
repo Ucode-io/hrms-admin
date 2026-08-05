@@ -9,6 +9,7 @@ import type {
   Task,
   TaskDirectories,
   TaskDirectoryItem,
+  TaskStatusGroup,
   TasksViewKey,
 } from "./types";
 
@@ -18,8 +19,8 @@ const UNKNOWN: TaskDirectoryItem = {
   title: "—",
   color: "#94a3b8",
   icon: "",
+  group: "todo",
   isInitial: false,
-  isFinal: false,
   isDefault: false,
   sortOrder: 0,
 };
@@ -49,11 +50,23 @@ export const initialStatus = (directories: TaskDirectories): TaskDirectoryItem |
 export const defaultPriority = (directories: TaskDirectories): TaskDirectoryItem | null =>
   directories.priorities.find((item) => item.isDefault) ?? directories.priorities[0] ?? null;
 
+/** Группа статуса задачи: от неё зависят даты, которые ставит сервер. */
+export const statusGroupOf = (
+  directories: TaskDirectories,
+  statusId: string | null | undefined
+): TaskStatusGroup => statusOf(directories, statusId).group;
+
 /** «Работа закончена»: по таким статусам сервер проставляет дату окончания. */
 export const isFinalStatus = (
   directories: TaskDirectories,
   statusId: string | null | undefined
-): boolean => statusOf(directories, statusId).isFinal;
+): boolean => statusGroupOf(directories, statusId) === "completed";
+
+/** Статусы одной группы — колонки доски внутри секции. */
+export const statusesOfGroup = (
+  directories: TaskDirectories,
+  group: TaskStatusGroup
+): TaskDirectoryItem[] => directories.statuses.filter((item) => item.group === group);
 
 /**
  * Цвет элемента справочника → инлайновые стили плашки. Палитра приходит из

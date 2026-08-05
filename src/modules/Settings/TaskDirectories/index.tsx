@@ -1,4 +1,23 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
+import { useQueryClient } from "react-query";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -6,14 +25,26 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import {
+  TASK_DIRECTORIES_KEY,
+  taskDirectoriesService,
   useDeleteTaskDirectory,
   useSaveTaskDirectory,
   useTaskDirectoriesQuery,
 } from "../../../api/services/taskDirectories.service";
-import type { TaskDirectoryItem, TaskDirectoryKind } from "../../Tasks/types";
+import { STATUS_GROUP_META, STATUS_GROUP_ORDER } from "../../Tasks/statusGroups";
+import type {
+  TaskDirectories,
+  TaskDirectoryItem,
+  TaskDirectoryKind,
+  TaskStatusGroup,
+} from "../../Tasks/types";
 
 /**
  * Справочники модуля «Задачи»: статусы, приоритеты, типы и теги.
+ *
+ * Статусы разложены по трём группам (`todo` / `in_progress` / `completed`):
+ * группа определяет, какие даты сервер проставит задаче при переходе, поэтому
+ * статус заводится сразу внутрь группы, а не помечается флагом «завершающий».
  *
  * Флаги `is_initial` / `is_default` уникальны в пределах компании — их снимает
  * сервер, поэтому после сохранения справочники перечитываются целиком.
@@ -24,32 +55,34 @@ import type { TaskDirectoryItem, TaskDirectoryKind } from "../../Tasks/types";
 
 type TabKey = Extract<TaskDirectoryKind, "status" | "priority" | "type" | "tag">;
 
+/**
+ * `listKey` задан явно, а не как `key + "s"`: из «priority» получилось бы
+ * «prioritys», и вкладка приоритетов всегда была бы пустой, хотя справочник
+ * загружен.
+ */
 const TABS: {
   key: TabKey;
+  listKey: keyof TaskDirectories;
   title: string;
   hint: string;
   hasIcon: boolean;
   flag?: { field: "isInitial" | "isDefault"; label: string; hint: string };
-  extraFlag?: { field: "isFinal"; label: string; hint: string };
 }[] = [
   {
     key: "status",
+    listKey: "statuses",
     title: "Статусы",
-    hint: "Колонки доски. Порядок задаёт порядок колонок.",
+    hint: "Колонки доски. Группа задаёт, какие даты проставятся задаче при переходе.",
     hasIcon: false,
     flag: {
       field: "isInitial",
       label: "Стартовый",
       hint: "В этот статус попадает новая задача. Может быть только один.",
     },
-    extraFlag: {
-      field: "isFinal",
-      label: "Завершающий",
-      hint: "При переходе сюда проставляется дата окончания. Их может быть несколько.",
-    },
   },
   {
     key: "priority",
+    listKey: "priorities",
     title: "Приоритеты",
     hint: "Порядок задаёт сортировку «по важности».",
     hasIcon: true,
@@ -59,8 +92,20 @@ const TABS: {
       hint: "Подставляется новой задаче. Может быть только один.",
     },
   },
-  { key: "type", title: "Типы", hint: "Задача, ошибка, доработка…", hasIcon: true },
-  { key: "tag", title: "Теги", hint: "Метки задач с собственным цветом.", hasIcon: false },
+  {
+    key: "type",
+    listKey: "types",
+    title: "Типы",
+    hint: "Задача, ошибка, доработка…",
+    hasIcon: true,
+  },
+  {
+    key: "tag",
+    listKey: "tags",
+    title: "Теги",
+    hint: "Метки задач с собственным цветом.",
+    hasIcon: false,
+  },
 ];
 
 const PALETTE = [
@@ -92,17 +137,17 @@ type DraftItem = {
   title: string;
   color: string;
   icon: string;
+  group: TaskStatusGroup;
   isInitial: boolean;
-  isFinal: boolean;
   isDefault: boolean;
 };
 
-const emptyDraft = (): DraftItem => ({
+const emptyDraft = (group: TaskStatusGroup = "todo"): DraftItem => ({
   title: "",
   color: PALETTE[1],
   icon: "",
+  group,
   isInitial: false,
-  isFinal: false,
   isDefault: false,
 });
 
@@ -111,24 +156,148 @@ const toDraft = (item: TaskDirectoryItem): DraftItem => ({
   title: item.title,
   color: item.color || PALETTE[0],
   icon: item.icon,
+  group: item.group,
   isInitial: item.isInitial,
-  isFinal: item.isFinal,
   isDefault: item.isDefault,
 });
+
+/**
+ * Новый порядок вкладки после перетаскивания.
+ *
+ * `scope` — список, внутри которого шло перетаскивание: у статусов это одна
+ * группа, у остальных справочников — вся вкладка. Элементы вне `scope` остаются
+ * на своих местах, а `sortOrder` пересчитывается по всей вкладке, чтобы
+ * значения не пересекались между группами.
+ *
+ * Чистая функция и экспортируется отдельно от компонента: перестановка — это то,
+ * что реально может сломаться, и её нужно уметь проверить без событий мыши.
+ */
+export const reorderDirectoryItems = (
+  items: TaskDirectoryItem[],
+  scope: TaskDirectoryItem[],
+  activeId: string,
+  overId: string
+): { nextList: TaskDirectoryItem[]; changed: TaskDirectoryItem[] } | null => {
+  if (activeId === overId) return null;
+
+  const from = scope.findIndex((item) => item.id === activeId);
+  const to = scope.findIndex((item) => item.id === overId);
+  if (from < 0 || to < 0) return null;
+
+  const queue = arrayMove(scope, from, to);
+  const scopeIds = new Set(scope.map((item) => item.id));
+  let cursor = 0;
+
+  const nextList = items
+    .map((item) => (scopeIds.has(item.id) ? queue[cursor++] ?? item : item))
+    .map((item, index) => ({ ...item, sortOrder: index }));
+
+  return {
+    nextList,
+    changed: nextList.filter((item, index) => items[index]?.id !== item.id),
+  };
+};
+
+/**
+ * Строка справочника: перетаскивается за ручку.
+ *
+ * Слушатели drag висят только на ручке, а не на всей строке — иначе клик по
+ * строке (открыть редактор) и по корзине конфликтовали бы с началом
+ * перетаскивания.
+ */
+function SortableDirectoryRow({
+  item,
+  onEdit,
+  onDelete,
+}: {
+  item: TaskDirectoryItem;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { setNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
+    id: item.id,
+  });
+
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    ...(isDragging ? { zIndex: 5, position: "relative" as const } : {}),
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex w-full items-center gap-3 border-b border-gray-50 bg-white px-4 py-3 last:border-b-0 ${
+        isDragging ? "shadow-md" : "hover:bg-gray-50"
+      }`}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="shrink-0 cursor-grab text-gray-300 transition hover:text-gray-500 active:cursor-grabbing"
+        aria-label={`Перетащить «${item.title}»`}
+      >
+        <GripVertical size={14} />
+      </button>
+
+      <button
+        type="button"
+        onClick={onEdit}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <span
+          className="h-3 w-3 shrink-0 rounded-full"
+          style={{ backgroundColor: item.color || "#94a3b8" }}
+        />
+        <span className="min-w-0 flex-1 truncate text-sm text-gray-800">{item.title}</span>
+
+        {item.isInitial && (
+          <span className="rounded-md bg-blue-light-50 px-2 py-0.5 text-[11px] font-medium text-blue-light-600">
+            стартовый
+          </span>
+        )}
+        {item.isDefault && (
+          <span className="rounded-md bg-blue-light-50 px-2 py-0.5 text-[11px] font-medium text-blue-light-600">
+            по умолчанию
+          </span>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={onDelete}
+        className="shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-error-50 hover:text-error-600"
+        aria-label={`Удалить «${item.title}»`}
+      >
+        <Trash2 size={15} />
+      </button>
+    </div>
+  );
+}
 
 export default function TaskDirectoriesSettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("status");
   const [draft, setDraft] = useState<DraftItem | null>(null);
   const [toDelete, setToDelete] = useState<TaskDirectoryItem | null>(null);
 
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useTaskDirectoriesQuery();
   const saveMutation = useSaveTaskDirectory();
   const deleteMutation = useDeleteTaskDirectory();
 
+  // Порог в 4px: без него любое нажатие на ручку считалось бы началом
+  // перетаскивания и «съедало» бы фокус. Клавиатурный сенсор — не только
+  // доступность: порядок можно менять с клавиатуры (Space — взять, стрелки —
+  // двигать, Space — положить).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   const tab = TABS.find((item) => item.key === activeTab) ?? TABS[0];
-  const items: TaskDirectoryItem[] =
-    (data && data[`${tab.key === "status" ? "statuses" : `${tab.key}s`}` as keyof typeof data]) ||
-    [];
+  const items: TaskDirectoryItem[] = data?.[tab.listKey] ?? [];
 
   const handleSave = async () => {
     if (!draft || !draft.title.trim()) return;
@@ -140,8 +309,8 @@ export default function TaskDirectoriesSettingsPage() {
         title: draft.title.trim(),
         color: draft.color,
         icon: tab.hasIcon ? draft.icon : undefined,
+        group: tab.key === "status" ? draft.group : undefined,
         isInitial: draft.isInitial,
-        isFinal: draft.isFinal,
         isDefault: draft.isDefault,
       });
       setDraft(null);
@@ -163,6 +332,78 @@ export default function TaskDirectoriesSettingsPage() {
       toast.error(error instanceof Error ? error.message : "Не удалось удалить.");
     }
   };
+
+  /**
+   * Сохранение нового порядка.
+   *
+   * Сначала пишем результат в кэш: без этого строка отпрыгивала бы на место до
+   * ответа сервера. Затем сохраняем только сдвинувшиеся элементы — частичного
+   * метода нет, `task_directory_save` перезаписывает элемент целиком, поэтому в
+   * запрос уходят все поля, а не один `sortOrder` (иначе сервер обнулил бы цвет
+   * и снял флаг «стартовый»).
+   */
+  const handleDragEnd = async (event: DragEndEvent, scope: TaskDirectoryItem[]) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const result = reorderDirectoryItems(items, scope, String(active.id), String(over.id));
+    if (!result || result.changed.length === 0) return;
+
+    const { nextList, changed } = result;
+    const previousData = data;
+
+    queryClient.setQueryData(TASK_DIRECTORIES_KEY, {
+      ...(previousData ?? {}),
+      [tab.listKey]: nextList,
+    });
+
+    try {
+      for (const item of changed) {
+        await taskDirectoriesService.save({
+          kind: tab.key,
+          id: item.id,
+          title: item.title,
+          color: item.color,
+          icon: tab.hasIcon ? item.icon : undefined,
+          group: tab.key === "status" ? item.group : undefined,
+          isInitial: item.isInitial,
+          isDefault: item.isDefault,
+          sortOrder: item.sortOrder,
+        });
+      }
+    } catch (error) {
+      if (previousData) queryClient.setQueryData(TASK_DIRECTORIES_KEY, previousData);
+      toast.error(error instanceof Error ? error.message : "Не удалось изменить порядок.");
+    } finally {
+      queryClient.invalidateQueries(TASK_DIRECTORIES_KEY);
+    }
+  };
+
+  /** Сортируемый список: и плоская вкладка, и группа статусов рисуются им. */
+  const renderList = (list: TaskDirectoryItem[]) => (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToVerticalAxis]}
+      onDragEnd={(event) => {
+        void handleDragEnd(event, list);
+      }}
+    >
+      <SortableContext
+        items={list.map((item) => item.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {list.map((item) => (
+          <SortableDirectoryRow
+            key={item.id}
+            item={item}
+            onEdit={() => setDraft(toDraft(item))}
+            onDelete={() => setToDelete(item)}
+          />
+        ))}
+      </SortableContext>
+    </DndContext>
+  );
 
   return (
     <>
@@ -202,14 +443,18 @@ export default function TaskDirectoriesSettingsPage() {
               <p className="text-[15px] font-semibold text-gray-900">{tab.title}</p>
               <p className="mt-0.5 text-xs text-gray-500">{tab.hint}</p>
             </div>
-            <Button
-              size="sm"
-              className="h-9"
-              startIcon={<Plus size={15} />}
-              onClick={() => setDraft(emptyDraft())}
-            >
-              Добавить
-            </Button>
+            {/* У статусов кнопка добавления живёт в каждой группе: без выбора
+                группы непонятно, какие даты будет ставить новый статус. */}
+            {tab.key !== "status" && (
+              <Button
+                size="sm"
+                className="h-9"
+                startIcon={<Plus size={15} />}
+                onClick={() => setDraft(emptyDraft())}
+              >
+                Добавить
+              </Button>
+            )}
           </div>
 
           {isLoading ? (
@@ -221,55 +466,50 @@ export default function TaskDirectoriesSettingsPage() {
             <p className="px-6 py-12 text-center text-sm text-error-500">
               Не удалось загрузить справочники. Обновите страницу.
             </p>
+          ) : tab.key === "status" ? (
+            STATUS_GROUP_ORDER.map((group) => {
+              const meta = STATUS_GROUP_META[group];
+              const groupItems = items.filter((item) => item.group === group);
+
+              return (
+                <div key={group} className="border-b border-gray-100 last:border-b-0">
+                  <div className="flex items-center justify-between gap-3 bg-gray-50/70 px-4 py-2.5">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-[13px] font-semibold text-gray-800">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: meta.color }}
+                        />
+                        {meta.label}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-gray-500">{meta.hint}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDraft(emptyDraft(group))}
+                      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-[12px] font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-600"
+                    >
+                      <Plus size={14} />
+                      Статус
+                    </button>
+                  </div>
+
+                  {groupItems.length === 0 ? (
+                    <p className="px-4 py-4 text-[13px] text-gray-400">
+                      В этой группе пока нет статусов
+                    </p>
+                  ) : (
+                    renderList(groupItems)
+                  )}
+                </div>
+              );
+            })
           ) : items.length === 0 ? (
             <p className="px-6 py-12 text-center text-sm text-gray-500">
               Пока пусто — добавьте первый элемент
             </p>
           ) : (
-            items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setDraft(toDraft(item))}
-                className="flex w-full items-center gap-3 border-b border-gray-50 px-4 py-3 text-left transition last:border-b-0 hover:bg-gray-50"
-              >
-                <GripVertical size={14} className="shrink-0 text-gray-300" />
-                <span
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: item.color || "#94a3b8" }}
-                />
-                <span className="min-w-0 flex-1 truncate text-sm text-gray-800">{item.title}</span>
-
-                {item.isInitial && (
-                  <span className="rounded-md bg-blue-light-50 px-2 py-0.5 text-[11px] font-medium text-blue-light-600">
-                    стартовый
-                  </span>
-                )}
-                {item.isFinal && (
-                  <span className="rounded-md bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-700">
-                    завершающий
-                  </span>
-                )}
-                {item.isDefault && (
-                  <span className="rounded-md bg-blue-light-50 px-2 py-0.5 text-[11px] font-medium text-blue-light-600">
-                    по умолчанию
-                  </span>
-                )}
-
-                <span
-                  role="button"
-                  tabIndex={-1}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setToDelete(item);
-                  }}
-                  className="shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-error-50 hover:text-error-600"
-                  aria-label={`Удалить «${item.title}»`}
-                >
-                  <Trash2 size={15} />
-                </span>
-              </button>
-            ))
+            renderList(items)
           )}
         </div>
       </div>
@@ -302,6 +542,33 @@ export default function TaskDirectoriesSettingsPage() {
                   className="h-10 w-full rounded-lg border border-slate-200 px-3 text-[13px] outline-none transition focus:border-brand-300"
                 />
               </div>
+
+              {tab.key === "status" && (
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
+                    Группа
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {STATUS_GROUP_ORDER.map((group) => (
+                      <button
+                        key={group}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, group })}
+                        className={`rounded-lg border px-2 py-2 text-[12px] font-medium transition ${
+                          draft.group === group
+                            ? "border-brand-500 bg-brand-50 text-brand-600"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {STATUS_GROUP_META[group].label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[12px] text-slate-400">
+                    {STATUS_GROUP_META[draft.group].hint}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Цвет</label>
@@ -360,23 +627,6 @@ export default function TaskDirectoriesSettingsPage() {
                       {tab.flag.label}
                     </span>
                     <span className="block text-[12px] text-slate-400">{tab.flag.hint}</span>
-                  </span>
-                </label>
-              )}
-
-              {tab.extraFlag && (
-                <label className="flex cursor-pointer items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={draft.isFinal}
-                    onChange={(event) => setDraft({ ...draft, isFinal: event.target.checked })}
-                    className="mt-0.5 h-4 w-4"
-                  />
-                  <span>
-                    <span className="block text-[13px] font-medium text-slate-700">
-                      {tab.extraFlag.label}
-                    </span>
-                    <span className="block text-[12px] text-slate-400">{tab.extraFlag.hint}</span>
                   </span>
                 </label>
               )}

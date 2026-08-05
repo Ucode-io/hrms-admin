@@ -738,16 +738,19 @@ export default function TaskDetailModal({
                     {history.map((entry) => {
                       const author = employeeById(entry.authorId);
                       return (
-                        <li key={entry.id} className="flex items-center gap-2.5 py-2">
+                        // Фразы истории теперь со значениями («статус: «X» →
+                        // «Y»») и в строку не помещаются — перенос вместо
+                        // обрезки, иначе главное в записи и терялось.
+                        <li key={entry.id} className="flex items-start gap-2.5 py-2">
                           <EmployeeAvatar employee={author} size={22} />
-                          <span className="min-w-0 flex-1 truncate text-sm text-gray-500 dark:text-gray-400">
+                          <span className="min-w-0 flex-1 text-sm leading-[22px] text-gray-500 dark:text-gray-400">
                             <span className="font-medium text-gray-700 dark:text-gray-200">
                               {author?.name ?? "Система"}
                             </span>
                             <span className="px-1.5 text-gray-300">·</span>
                             {entry.text}
                           </span>
-                          <span className="shrink-0 text-theme-xs text-gray-400">
+                          <span className="shrink-0 pt-0.5 text-theme-xs text-gray-400">
                             {relativeTime(entry.at)}
                           </span>
                         </li>
@@ -873,9 +876,15 @@ export default function TaskDetailModal({
                     {formatDateTime(task.updatedAt)}
                   </dd>
                 </div>
-                {/* Не редактируется: сервер ставит `end_date` вместе с
-                    `completed_at` при переходе в финальный статус. Показываем
-                    только дату — время там всегда полночь. */}
+                {/* Не редактируются: даты начала и окончания ставит сервер по
+                    группе статуса — «В работе» и «Завершено». Показываем только
+                    дату: время начала здесь не нужно, а у окончания его нет. */}
+                <div className="flex justify-between gap-2">
+                  <dt>Начата</dt>
+                  <dd className="text-gray-500 dark:text-gray-400">
+                    {task.beginAt ? formatTaskDate(task.beginAt) : "—"}
+                  </dd>
+                </div>
                 <div className="flex justify-between gap-2">
                   <dt>Завершена</dt>
                   <dd className="text-gray-500 dark:text-gray-400">

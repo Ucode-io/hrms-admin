@@ -17,6 +17,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   reports: "Отчеты",
   kpi: "KPI",
   tasks: "Задачи",
+  budgeting: "Бюджетирование",
   "age-distribution": "Возрастное распределение",
   "gender-distribution": "Гендерное распределение",
   "staff-count": "Численность сотрудников",
@@ -134,6 +135,7 @@ const AppHeader: React.FC = () => {
     { pattern: /^\/surveys\/.+/, listPath: "/surveys" },
     { pattern: /^\/trainings\/.+/, listPath: "/trainings" },
     { pattern: /^\/settings\/.+/, listPath: "/settings" },
+    { pattern: /^\/timesheet\/.+/, listPath: "/timesheet" },
   ];
   const backButtonPage = BACK_BUTTON_PAGES.find((page) => page.pattern.test(location.pathname));
   const showBackButton = Boolean(backButtonPage) || isDocumentsFolderView;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, Plus, Search } from "lucide-react";
 
 export interface PickerOption {
@@ -7,6 +7,12 @@ export interface PickerOption {
   /** Secondary text on the right of a row (position, count, …). */
   hint?: string;
   icon?: ReactNode;
+  /**
+   * Optional section the row belongs to. A header is drawn whenever `key`
+   * changes, so options must arrive already sorted by section — the picker
+   * does not regroup them.
+   */
+  group?: { key: string; label: string };
 }
 
 interface OptionPickerProps {
@@ -135,9 +141,22 @@ export default function OptionPicker({
       <div ref={listRef} className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-1.5">
         {filtered.map((option, index) => {
           const isSelected = selectedValues.includes(option.value);
+          // Headers sit between rows and are not selectable, so they stay out
+          // of the index space that ↑/↓ walks.
+          const groupHeader =
+            option.group && option.group.key !== filtered[index - 1]?.group?.key ? (
+              <p
+                key={`group-${option.group.key}`}
+                className="px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 first:pt-1"
+              >
+                {option.group.label}
+              </p>
+            ) : null;
+
           return (
+            <Fragment key={option.value}>
+              {groupHeader}
             <button
-              key={option.value}
               type="button"
               data-index={index}
               onMouseEnter={() => setActiveIndex(index)}
@@ -157,6 +176,7 @@ export default function OptionPicker({
               )}
               {isSelected && <Check size={15} className="shrink-0 text-brand-500" />}
             </button>
+            </Fragment>
           );
         })}
 

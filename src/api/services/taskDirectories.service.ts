@@ -13,7 +13,9 @@ import type {
   TaskDirectories,
   TaskDirectoryItem,
   TaskDirectoryKind,
+  TaskStatusGroup,
 } from "../../modules/Tasks/types";
+import { STATUS_GROUP_ORDER, normalizeStatusGroup } from "../../modules/Tasks/statusGroups";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
 const REPORTS_FUNCTION_PATH =
@@ -89,8 +91,10 @@ const mapItem = (raw: unknown, index: number): TaskDirectoryItem | null => {
     title: str(raw.title),
     color: str(raw.color),
     icon: str(raw.icon),
+    // `isFinal` — legacy-флаг сервера: пока группа не забэкфилена, он остаётся
+    // единственным признаком «Завершено».
+    group: normalizeStatusGroup(raw.group, raw.isFinal ? "completed" : "todo"),
     isInitial: Boolean(raw.isInitial),
-    isFinal: Boolean(raw.isFinal),
     isDefault: Boolean(raw.isDefault),
     sortOrder: num(raw.sortOrder, index),
   };
@@ -104,6 +108,18 @@ const mapList = (raw: unknown): TaskDirectoryItem[] =>
         .sort((a, b) => a.sortOrder - b.sortOrder)
     : [];
 
+/**
+ * Статусы дополнительно сортируются по группе: колонки доски должны идти
+ * «К выполнению → В работе → Завершено» независимо от того, в каком порядке их
+ * заводили. Внутри группы порядок задаёт `sortOrder`.
+ */
+const mapStatuses = (raw: unknown): TaskDirectoryItem[] =>
+  mapList(raw).sort(
+    (a, b) =>
+      STATUS_GROUP_ORDER.indexOf(a.group) - STATUS_GROUP_ORDER.indexOf(b.group) ||
+      a.sortOrder - b.sortOrder
+  );
+
 export const EMPTY_DIRECTORIES: TaskDirectories = {
   statuses: [],
   priorities: [],
@@ -113,7 +129,7 @@ export const EMPTY_DIRECTORIES: TaskDirectories = {
 };
 
 const mapDirectories = (result: Record<string, unknown> | null): TaskDirectories => ({
-  statuses: mapList(result?.statuses),
+  statuses: mapStatuses(result?.statuses),
   priorities: mapList(result?.priorities),
   types: mapList(result?.types),
   tags: mapList(result?.tags),
@@ -126,8 +142,9 @@ export type TaskDirectoryInput = {
   title: string;
   color?: string;
   icon?: string;
+  /** Только для `kind: "status"`. */
+  group?: TaskStatusGroup;
   isInitial?: boolean;
-  isFinal?: boolean;
   isDefault?: boolean;
   sortOrder?: number;
 };
@@ -143,8 +160,8 @@ export const taskDirectoriesService = {
       title: input.title,
       color: input.color,
       icon: input.icon,
+      group: input.group,
       isInitial: input.isInitial,
-      isFinal: input.isFinal,
       isDefault: input.isDefault,
       sortOrder: input.sortOrder,
     });

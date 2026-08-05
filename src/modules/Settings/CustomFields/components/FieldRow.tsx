@@ -71,11 +71,8 @@ export default function FieldRow({
               {field.label || "Без названия"}
             </p>
             {field.rules.required && <span className="text-error-500">*</span>}
-            {isProtected && (
-              <span className="flex items-center gap-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
-                <Lock size={9} /> статичное
-              </span>
-            )}
+            {/* Бейджа «статичное» рядом с названием нет: он говорил ровно то
+                же, что метка «защищено» справа в строке. */}
           </div>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">

@@ -51,6 +51,8 @@ export type ApiTask = {
   /** Пишет сервер по финальному статусу — в форме не редактируется. */
   endDate: string | null;
   deadline: string | null;
+  /** Пишет сервер по группе статуса «В работе». */
+  beginAt: string | null;
   completedAt: string | null;
   order: number;
   commentCount: number;
@@ -126,6 +128,7 @@ export const mapApiTask = (raw: unknown): ApiTask | null => {
     startDate: nullableStr(raw.startDate),
     endDate: nullableStr(raw.endDate),
     deadline: nullableStr(raw.deadline),
+    beginAt: nullableStr(raw.beginAt),
     completedAt: nullableStr(raw.completedAt),
     order: num(raw.order),
     commentCount: num(raw.commentCount),

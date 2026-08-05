@@ -3,8 +3,9 @@
 Трекер задач внутри HRMS-фронтенда (`hrms-front`). Доска/таблица/график/календарь,
 детальная карточка задачи в стиле Jira, создание в стиле Linear.
 
-**Статус: этап 1 — UI готов, бэкенда нет.** Все данные лежат в localStorage
-(mock-слой). Переключатель — `mock/mockConfig.ts`.
+**Статус: подключён бэкенд** — методы `task_*` в `udevs-hrms-reports`
+(`TASKS_DB_SCHEMA.md`). Mock-слоя больше нет; на localStorage остались только
+листы задач (§9).
 
 ---
 
@@ -38,6 +39,7 @@
 | Пункт меню «Задачи» (секция «Задачи и KPI») | `src/layout/AppSidebar.tsx` |
 | Ключ модуля `tasks` для ролей/доступов | `src/modules/Settings/Roles/moduleCatalog.ts` |
 | Подпись хлебных крошек | `src/layout/AppHeader.tsx` |
+| CRUD справочников (статусы/приоритеты/типы/теги) | `src/modules/Settings/TaskDirectories`, роут `/settings/task-directories`, пункт каталога в `src/modules/Settings/index.tsx` |
 
 > ⚠️ Каталог модулей на бэкенде (`hrms-roles-common.js` в `udevs-hrms-reports`)
 > ключом `tasks` **ещё не синхронизирован** — сделать при подключении API.
@@ -50,7 +52,8 @@
 src/modules/Tasks/
 ├── index.tsx                 # страница: тулбар, листы, фильтры, выбор view, модалки
 ├── types.ts                  # доменные типы (единственный источник правды)
-├── constants.ts              # STATUS/PRIORITY/TYPE/VIEW_META, форматтеры дат, subtasksOf
+├── constants.ts              # доступ к справочникам, VIEW_META, форматтеры дат, subtasksOf
+├── statusGroups.ts           # три группы статусов: порядок, подписи, нормализация
 ├── sheets.tsx                # листы задач: useTaskSheets + TaskSheetSelect (см. §9)
 ├── fileUtils.ts              # чтение файлов в data URL, лимит размера, formatFileSize
 │
@@ -87,18 +90,14 @@ src/modules/Tasks/
 │       ├── AutoTextarea.tsx
 │       ├── AutoSaveText.tsx
 │       └── RichTextField.tsx
-│
-└── mock/
-    ├── mockConfig.ts         # TASKS_USE_MOCK
-    ├── seed.ts               # 18 демо-задач + 6 сотрудников, SEED_VERSION
-    ├── mockDb.ts             # localStorage `hrms.tasks.mock.v1`, миграции
-    └── mockApi.ts            # CRUD + генерация записей истории
 ```
 
 Вне модуля, но используется им:
 
 ```
 src/api/services/task.service.ts        # react-query хуки (см. §5)
+src/api/services/tasksApi.ts            # клиент методов task_* в reports-шлюзе
+src/api/services/taskDirectories.service.ts  # справочники: чтение и CRUD
 src/components/form/RichTextEditor.tsx  # общий rich-text редактор (и для Рекрутинга)
 src/components/form/richText.ts         # sanitizeRichText / richTextToPlain / isRichTextEmpty
 src/components/ui/modal/index.tsx       # общая модалка приложения
@@ -110,35 +109,64 @@ src/components/form/ExpandableSearchInput.tsx
 ## 4. Доменная модель (`types.ts`)
 
 ```ts
-type TaskStatus   = "todo" | "in_progress" | "done" | "blocked";
-type TaskPriority = "low" | "medium" | "high" | "urgent";
-type TaskType     = "task" | "bug" | "feature" | "meeting" | "research";
+// Статусы, приоритеты, типы и теги — справочники компании (правятся в
+// «Настройки → Справочники задач»), поэтому в задаче лежат id, а подписи и
+// цвета берутся из `TaskDirectories` хелперами из constants.ts.
+type TaskStatusGroup = "todo" | "in_progress" | "completed";
+
+interface TaskDirectoryItem {
+  id: string;
+  title: string;
+  color: string;             // "#RRGGBB", "" — не задан
+  icon: string;              // ключ lucide (типы и приоритеты)
+  group: TaskStatusGroup;    // только у статусов
+  isInitial: boolean;        // статус новой задачи, ровно один
+  isDefault: boolean;        // приоритет новой задачи, ровно один
+  sortOrder: number;
+}
 
 interface Task {
   id: string;
-  code: string;              // "TASK-001", генерируется счётчиком
+  code: string;              // "TASK-001", генерирует сервер
   title: string;
   description: string;       // HTML (санитайзится DOMPurify), не plain text
-  type: TaskType;
-  location: string;          // произвольное место, "" — не указано
-  status: TaskStatus;
-  priority: TaskPriority;
+  typeId: string | null;
+  statusId: string | null;
+  priorityId: string | null;
+  locationId: string | null; // существующий справочник HRMS (`locations`)
+  sheetId: string | null;
   assigneeIds: string[];     // НЕСКОЛЬКО исполнителей, не один
-  tags: string[];
+  tagIds: string[];
   startDate: string | null;  // ISO-дата "YYYY-MM-DD", без времени
-  endDate: string | null;    // плановое окончание работ
+  endDate: string | null;    // фактическое окончание, пишет сервер
   deadline: string | null;   // крайний срок (просрочка считается по нему)
   createdAt: string;         // ISO datetime
   updatedAt: string;         // ISO datetime, обновляется любой записью
+  beginAt: string | null;    // начало работ, пишет сервер
   completedAt: string | null;
   parentId: string | null;   // родительская задача
   checklist: ChecklistItem[];
-  comments: TaskComment[];
   attachments: TaskAttachment[];
-  history: TaskHistoryEntry[];
+  commentCount: number;      // сами комментарии грузит `task_activity_get`
   order: number;             // позиция внутри колонки доски
 }
 ```
+
+### Группы статусов
+
+Статус принадлежит одной из трёх групп (`statusGroups.ts`), и групп ровно три —
+от группы зависят даты, которые проставляет **сервер**, а не форма:
+
+| группа | подпись | что делает при переходе |
+|---|---|---|
+| `todo` | К выполнению | очищает `beginAt`, `endDate`, `completedAt` |
+| `in_progress` | В работе | ставит `beginAt`, если он пустой |
+| `completed` | Завершено | ставит `endDate` + `completedAt` (и `beginAt`, если задачу закрыли минуя «В работе») |
+
+Статусов внутри группы сколько угодно — они и дают колонки доски. Колонки идут
+в порядке групп: сервис справочников сортирует статусы по группе, затем по
+`sortOrder`. «Завершена ли задача» нигде не проверяется по названию — только
+`isFinalStatus(directories, statusId)`, то есть `group === "completed"`.
 
 Важные детали:
 
@@ -157,9 +185,11 @@ interface Task {
 - **`TaskAttachment.url`** на этапе 1 — `data:`-URL внутри localStorage.
   При появлении бэкенда это будет ссылка на объектное хранилище.
 - **`TaskHistoryEntry.text`** — готовая русская фраза, намеренно **безличная и без
-  рода**: «задача создана», «статус: Выполнено», «описание изменено»,
-  «добавлены исполнители: …». Рендерится как `Имя · фраза`, поэтому глаголы
-  прошедшего времени («создал/создала») использовать нельзя.
+  рода**, и со значениями: «статус: «К выполнению» → «В работе»», «дедлайн:
+  12.08.2026 → 20.08.2026», «исполнители: добавлены Петров Пётр», «комментарий:
+  «…»». Рендерится как `Имя · фраза`, поэтому глаголы прошедшего времени
+  («создал/создала») использовать нельзя. Названия в фразу подставляет сервер в
+  момент записи — переименование статуса задним числом историю не переписывает.
 - `TaskDraft` — то, что отдаёт форма создания/редактирования (без служебных полей).
 
 ---

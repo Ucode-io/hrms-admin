@@ -64,6 +64,7 @@ const toTask = (api: ApiTask): Task => ({
   startDate: api.startDate,
   endDate: api.endDate,
   deadline: api.deadline,
+  beginAt: api.beginAt,
   createdAt: api.createdAt ?? "",
   updatedAt: api.updatedAt ?? "",
   completedAt: api.completedAt,

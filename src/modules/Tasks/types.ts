@@ -6,7 +6,12 @@
 
 export type TaskDirectoryKind = "status" | "priority" | "type" | "tag" | "sheet";
 
-
+/**
+ * Группа статуса. Групп ровно три и они не настраиваются: от группы зависят
+ * даты, которые проставляет сервер (`beginAt` и `completedAt`), а сколько
+ * угодно статусов внутри группы задаёт компания.
+ */
+export type TaskStatusGroup = "todo" | "in_progress" | "completed";
 
 export interface TaskDirectoryItem {
   id: string;
@@ -15,10 +20,10 @@ export interface TaskDirectoryItem {
   color: string;
   /** Ключ иконки lucide (типы и приоритеты). */
   icon: string;
+  /** Только у статусов: группа доски. У остальных справочников — `"todo"`. */
+  group: TaskStatusGroup;
   /** Статус новой задачи — ровно один на компанию. */
   isInitial: boolean;
-  /** «Работа закончена»: по нему сервер проставляет дату окончания. */
-  isFinal: boolean;
   /** Приоритет новой задачи — ровно один на компанию. */
   isDefault: boolean;
   sortOrder: number;
@@ -80,12 +85,17 @@ export type TaskHistoryKind =
   | "type"
   | "location"
   | "parent"
+  | "comment"
   | "updated";
 
 export interface TaskHistoryEntry {
   id: string;
   kind: TaskHistoryKind;
-  /** Готовая безличная фраза: «статус изменён», «задача создана». */
+  /**
+   * Готовая безличная фраза со значениями: «статус: «В работе» → «Готово»».
+   * Названия подставил сервер в момент записи — переименование статуса задним
+   * числом историю не переписывает.
+   */
   text: string;
   authorId: string | null;
   at: string;
@@ -123,6 +133,11 @@ export interface Task {
   deadline: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Когда работа началась. **Не редактируется**: сервер ставит его при
+   * переходе в статус группы «В работе» и очищает при возврате в «К выполнению».
+   */
+  beginAt: string | null;
   completedAt: string | null;
   /**
    * Родительская задача. Подзадач как поля нет — это задачи, у которых

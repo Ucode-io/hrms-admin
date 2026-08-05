@@ -34,6 +34,7 @@ import PositionsSettingsPage from "./modules/Settings/Positions";
 import ExperienceLevelsSettingsPage from "./modules/Settings/ExperienceLevels";
 import GradeMatrixSettingsPage from "./modules/Settings/GradeMatrix";
 import TasksPage from "./modules/Tasks";
+import BudgetingPage from "./modules/Budgeting";
 import SurveysPage from "./modules/Surveys";
 import SurveyEditorPage from "./modules/Surveys/Editor";
 import SurveyDetailPage from "./modules/Surveys/Detail";
@@ -269,6 +270,7 @@ function App() {
               </Route>
 
               <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/budgeting" element={<BudgetingPage />} />
 
               <Route path="/surveys" element={<SurveysPage />} />
               <Route path="/surveys/new" element={<SurveyEditorPage />} />

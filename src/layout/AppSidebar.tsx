@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Home,
   ListTodo,
+  Network,
   Package,
   Settings,
   Target,
@@ -19,6 +20,7 @@ import {
   UserSearch,
   Users,
   WalletCards,
+  Calculator,
 } from "lucide-react";
 import { useSidebar } from "../context/SidebarContext";
 import companyStore from "../store/company.store";
@@ -39,7 +41,7 @@ type ModuleSection = {
 };
 
 const mainNavItems: NavItem[] = [
-  { icon: <Home size={20} />, name: "Главная страница", path: "/dashboard" },
+  { icon: <Home size={20} />, name: "Дашборд", path: "/dashboard" },
 ];
 
 const moduleSections: ModuleSection[] = [
@@ -54,6 +56,7 @@ const moduleSections: ModuleSection[] = [
     title: "Люди",
     items: [
       { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
+      { name: "Орг структура", path: "/organization/structure", icon: <Network size={18} /> },
     ],
   },
   {
@@ -66,34 +69,31 @@ const moduleSections: ModuleSection[] = [
   {
     title: "Время",
     items: [
-      { name: "Посешаемость", path: "/time", icon: <CalendarCheck size={18} /> },
+      { name: "Посещаемость", path: "/time", icon: <CalendarCheck size={18} /> },
       { name: "Табель времени", path: "/timesheet", icon: <CalendarClock size={18} /> },
     ],
   },
   {
-    title: "Документы",
+    title: "Обучение",
     items: [
-      { name: "Документы", path: "/documents", icon: <FileText size={18} /> },
+      { name: "Тренинги", path: "/trainings", icon: <GraduationCap size={18} /> },
       { name: "База знаний", path: "/knowledge-base", icon: <BookOpen size={18} /> },
-      { name: "Имущество", path: "/property", icon: <Package size={18} /> },
+      { name: "Опросы", path: "/surveys", icon: <ClipboardList size={18} /> },
     ],
   },
   {
-    title: "Опросы",
-    items: [{ name: "Опросники", path: "/surveys", icon: <ClipboardList size={18} /> }],
-  },
-  {
-    title: "Обучение",
-    items: [{ name: "Тренинги", path: "/trainings", icon: <GraduationCap size={18} /> }],
-  },
-  {
     title: "Финансы",
-    items: [{ name: "Зарплата", path: "/finance/salary", icon: <WalletCards size={18} /> }],
+    items: [
+      { name: "Зарплата", path: "/finance/salary", icon: <WalletCards size={18} /> },
+      { name: "Бюджет", path: "/budgeting", icon: <Calculator size={18} /> },
+    ],
   },
   {
     title: "Система",
     items: [
       { name: "Отчеты", path: "/reports", icon: <BarChart3 size={18} /> },
+      { name: "Документы", path: "/documents", icon: <FileText size={18} /> },
+      { name: "Имущество", path: "/property", icon: <Package size={18} /> },
       { name: "Настройки", path: "/settings", icon: <Settings size={18} /> },
     ],
   },
@@ -102,6 +102,7 @@ const moduleSections: ModuleSection[] = [
 const ENABLED_PATHS = new Set([
   "/dashboard",
   "/employees",
+  "/organization/structure",
   "/recruiting/vacancies",
   "/recruiting/candidates",
   "/documents",
@@ -115,6 +116,7 @@ const ENABLED_PATHS = new Set([
   "/reports/absence-balance",
   "/calendar",
   "/finance/salary",
+  "/budgeting",
   "/kpi",
   "/tasks",
   "/surveys",
