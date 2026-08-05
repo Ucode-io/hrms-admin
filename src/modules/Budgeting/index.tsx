@@ -27,10 +27,7 @@ import {
   type PeriodView,
   type VisibleColumns,
   currentPeriodIndex,
-  diffOf,
   emptyMonths,
-  formatPercent,
-  formatTotal,
   matchesSearch,
   periodsOf,
   sumMonths,
@@ -232,7 +229,6 @@ export default function BudgetingPage() {
   );
 
   const year_ = totalsYear(departments);
-  const yearDiff = diffOf(year_);
   const activeColumns = COLUMN_LABELS.filter((item) => columns[item.key]).length;
 
   const toggleDepartment = (id: string) =>
@@ -341,30 +337,6 @@ export default function BudgetingPage() {
         {/* Тулбар во всю ширину — как в KPI и «Сотрудниках»: страница начинается
             с действий, заголовок несут хлебные крошки. */}
         <div className="z-30 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2 lg:px-6">
-          {/* Итоги года строкой, а не карточками: цифры те же, а полсотни
-              пикселей высоты остаются таблице. */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px]">
-            <span className="font-semibold text-slate-700">{year}</span>
-            <span className="text-slate-500">
-              План&nbsp;
-              <b className="tabular-nums text-slate-900">{formatTotal(year_.plan)}</b>
-            </span>
-            <span className="text-slate-500">
-              Факт&nbsp;
-              <b className="tabular-nums text-brand-600">{formatTotal(year_.fact)}</b>
-            </span>
-            <span className="text-slate-500">
-              Разница&nbsp;
-              <b
-                className={`tabular-nums ${
-                  yearDiff.diff > 0 ? "text-error-500" : "text-success-600"
-                }`}
-              >
-                {formatTotal(yearDiff.diff)} ({formatPercent(yearDiff.percent)})
-              </b>
-            </span>
-          </div>
-
           <div className="flex flex-wrap items-center justify-end gap-2">
             <ExpandableSearchInput
               value={search}

@@ -4,6 +4,7 @@ import { Building2, LayoutGrid, List, Mail, Phone, SlidersHorizontal, Plus } fro
 import Select from "react-select";
 import { observer } from "mobx-react-lite";
 import PageMeta from "../../../components/common/PageMeta";
+import ViewSwitcher from "../../../components/common/ViewSwitcher";
 import companyStore from "../../../store/company.store";
 import pageSessionStore from "../../../store/pageSession.store";
 import {
@@ -419,90 +420,18 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               borderRadius: "0",
             }}
           >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              padding: "3px",
-              borderRadius: "12px",
-              border: "1px solid #e2e8f0",
-              backgroundColor: "#f8fafc",
-              height: "38px",
-            }}
-          >
-            <button
-              id="employees-view-list"
-              onClick={() => setViewMode("list")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                height: "30px",
-                padding: "0 12px",
-                border: viewMode === "list" ? "1px solid var(--color-brand-100)" : "1px solid transparent",
-                borderRadius: "8px",
-                backgroundColor: viewMode === "list" ? "#fff" : "transparent",
-                color: viewMode === "list" ? "var(--company-color)" : "#64748b",
-                fontWeight: 600,
-                fontSize: "13px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                boxShadow: viewMode === "list" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
-              }}
-            >
-              <List style={{ width: "17px", height: "17px" }} />
-              Таблица
-            </button>
-
-            <button
-              id="employees-view-grid"
-              onClick={() => setViewMode("grid")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                height: "30px",
-                padding: "0 12px",
-                border: viewMode === "grid" ? "1px solid var(--color-brand-100)" : "1px solid transparent",
-                borderRadius: "8px",
-                backgroundColor: viewMode === "grid" ? "#fff" : "transparent",
-                color: viewMode === "grid" ? "var(--company-color)" : "#64748b",
-                fontWeight: 600,
-                fontSize: "13px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                boxShadow: viewMode === "grid" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
-              }}
-            >
-              <LayoutGrid style={{ width: "17px", height: "17px" }} />
-              Сетка
-            </button>
-
-            <button
-              id="employees-view-org-structure"
-              onClick={() => setViewMode("org")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                height: "30px",
-                padding: "0 12px",
-                border: viewMode === "org" ? "1px solid var(--color-brand-100)" : "1px solid transparent",
-                borderRadius: "8px",
-                backgroundColor: viewMode === "org" ? "#fff" : "transparent",
-                color: viewMode === "org" ? "var(--company-color)" : "#64748b",
-                fontWeight: 600,
-                fontSize: "13px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                boxShadow: viewMode === "org" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
-              }}
-            >
-              <Building2 style={{ width: "17px", height: "17px" }} />
-              Орг структура
-            </button>
-          </div>
+          <ViewSwitcher
+            value={viewMode}
+            onChange={setViewMode}
+            buttonId={(view) =>
+              view === "org" ? "employees-view-org-structure" : `employees-view-${view}`
+            }
+            items={[
+              { key: "list", label: "Таблица", icon: <List size={16} /> },
+              { key: "grid", label: "Сетка", icon: <LayoutGrid size={16} /> },
+              { key: "org", label: "Орг структура", icon: <Building2 size={16} /> },
+            ]}
+          />
 
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexWrap: "nowrap", justifyContent: "flex-end" }}>
             <ExpandableSearchInput

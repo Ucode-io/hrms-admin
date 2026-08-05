@@ -4,6 +4,7 @@ import { Boxes, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react";
 import Select, { type SingleValue, type StylesConfig } from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
+import ViewSwitcher from "../../../components/common/ViewSwitcher";
 import Button from "../../../components/ui/button/Button";
 import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
 import { useHeaderBreadcrumbItems } from "../../../context/HeaderBreadcrumbContext";
@@ -195,16 +196,14 @@ function PropertyList() {
           }}
         >
           {/* View select */}
-          <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-            {(["table", "grid"] as ViewMode[]).map((mode) => (
-              <button key={mode} type="button" onClick={() => setViewMode(mode)}
-                className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium transition ${
-                  viewMode === mode ? "bg-white text-brand-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}>
-                {mode === "table" ? <><List size={16} />Таблица</> : <><LayoutGrid size={16} />Сетка</>}
-              </button>
-            ))}
-          </div>
+          <ViewSwitcher
+            value={viewMode}
+            onChange={setViewMode}
+            items={[
+              { key: "table", label: "Таблица", icon: <List size={16} /> },
+              { key: "grid", label: "Сетка", icon: <LayoutGrid size={16} /> },
+            ]}
+          />
 
           {/* Right toolbar */}
           <div className="ml-auto flex items-center gap-2">

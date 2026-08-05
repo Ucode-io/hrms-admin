@@ -20,6 +20,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import type { StylesConfig } from "react-select";
 import Button from "../../../../components/ui/button/Button";
+import ViewSwitcher from "../../../../components/common/ViewSwitcher";
 import { Modal } from "../../../../components/ui/modal";
 import EmployeeInfiniteSelect from "../../../../components/autocomplete/EmployeeInfiniteSelect";
 import { useHeaderBreadcrumbItems } from "../../../../context/HeaderBreadcrumbContext";
@@ -279,32 +280,14 @@ const ViewToggle = ({
   value: DocumentsViewMode;
   onChange: (mode: DocumentsViewMode) => void;
 }) => (
-  <div className="inline-flex h-[38px] items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-[3px]">
-    <button
-      type="button"
-      onClick={() => onChange("list")}
-      className={`inline-flex h-[30px] items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition ${
-        value === "list"
-          ? "border border-blue-100 bg-white text-blue-600 shadow-sm"
-          : "border border-transparent text-slate-500 hover:text-slate-700"
-      }`}
-    >
-      <List className="h-[17px] w-[17px]" />
-      Список
-    </button>
-    <button
-      type="button"
-      onClick={() => onChange("grid")}
-      className={`inline-flex h-[30px] items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition ${
-        value === "grid"
-          ? "border border-blue-100 bg-white text-blue-600 shadow-sm"
-          : "border border-transparent text-slate-500 hover:text-slate-700"
-      }`}
-    >
-      <LayoutGrid className="h-[17px] w-[17px]" />
-      Сетка
-    </button>
-  </div>
+  <ViewSwitcher
+    value={value}
+    onChange={onChange}
+    items={[
+      { key: "list", label: "Список", icon: <List size={16} /> },
+      { key: "grid", label: "Сетка", icon: <LayoutGrid size={16} /> },
+    ]}
+  />
 );
 
 export default function EmployeeDocumentsSection({
@@ -701,13 +684,26 @@ export default function EmployeeDocumentsSection({
 
   return (
     <>
+      {/* На своей странице (/documents) переключатель живёт в тулбаре, как на
+          остальных страницах; внутри карточки сотрудника секция остаётся
+          вложенным блоком, и тулбара у неё быть не должно. */}
+      {isGlobalMode ? (
+        <div className="-mx-3 -mt-3 mb-4 md:-mx-4 md:-mt-4">
+          <div className="flex flex-wrap items-center gap-3 border-x border-b border-slate-200 bg-white px-4 py-2.5 lg:px-6">
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         {activeFolder ? (
           <div key={activeFolder.guid} className="documents-view-enter">
             <div className="px-6 py-5">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <ViewToggle value={viewMode} onChange={setViewMode} />
+                  {!isGlobalMode ? (
+                    <ViewToggle value={viewMode} onChange={setViewMode} />
+                  ) : null}
                   {!isGlobalMode ? (
                     <button
                       type="button"
@@ -994,9 +990,11 @@ export default function EmployeeDocumentsSection({
           </div>
         ) : (
           <div key="documents-folders-root" className="documents-view-enter">
-            <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-3">
-              <ViewToggle value={viewMode} onChange={setViewMode} />
-            </div>
+            {!isGlobalMode ? (
+              <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-3">
+                <ViewToggle value={viewMode} onChange={setViewMode} />
+              </div>
+            ) : null}
             {viewMode === "grid" ? (
             <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-3">
               {folders.map((folder) => {

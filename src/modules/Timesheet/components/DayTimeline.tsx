@@ -50,18 +50,41 @@ type Segment = {
 
 const MIN_SPAN_MINUTES = 6 * 60;
 
+/** Промежуток без записей: по клику по нему заводится ручное время. */
+export type TimelineGap = { startTime: string; endTime: string };
+
 export default function DayTimeline({
   date,
   entries,
   hoveredEntryId = null,
   onHoverEntry,
+  onGapClick,
+  draftRange = null,
 }: {
   date: string;
   entries: TimesheetEntry[];
   /** Общая с таблицей записей подсветка: наведение работает в обе стороны. */
   hoveredEntryId?: string | null;
   onHoverEntry?: (entryId: string | null) => void;
+  /** Клик по пустому месту дорожки — открывает строку ввода в таблице. */
+  onGapClick?: (gap: TimelineGap) => void;
+  /**
+   * Открытый черновик — рисуется отдельным блоком и едет за полями формы:
+   * видно, куда именно встанет запись, пока правишь начало и окончание.
+   */
+  draftRange?: TimelineGap | null;
 }) {
+  // Черновик участвует в расчёте шкалы наравне с записями: иначе, сдвинув
+  // начало за её край, пользователь терял бы блок из виду ровно в тот момент,
+  // когда смотрит, куда он встанет.
+  const draftBounds = useMemo(() => {
+    if (!draftRange) return null;
+    const from = clockToMinutes(draftRange.startTime);
+    const to = clockToMinutes(draftRange.endTime);
+    if (from === null || to === null) return null;
+    return { from, to: Math.max(to, from + 1) };
+  }, [draftRange]);
+
   const { segments, skipped, axisFrom, axisTo, ticks, sources } = useMemo(() => {
     const built: Segment[] = [];
     let skippedCount = 0;
@@ -79,7 +102,7 @@ export default function DayTimeline({
       built.push({ entry, from, to: Math.max(to, from + 1) });
     });
 
-    if (built.length === 0) {
+    if (built.length === 0 && !draftBounds) {
       return {
         segments: built,
         skipped: skippedCount,
@@ -90,8 +113,12 @@ export default function DayTimeline({
       };
     }
 
-    const minFrom = Math.min(...built.map((segment) => segment.from));
-    const maxTo = Math.max(...built.map((segment) => segment.to));
+    const bounds = [
+      ...built.map((segment) => ({ from: segment.from, to: segment.to })),
+      ...(draftBounds ? [draftBounds] : []),
+    ];
+    const minFrom = Math.min(...bounds.map((item) => item.from));
+    const maxTo = Math.max(...bounds.map((item) => item.to));
 
     let start = Math.max(0, Math.floor(minFrom / 60) * 60 - 30);
     let end = Math.ceil(maxTo / 60) * 60 + 30;
@@ -126,10 +153,48 @@ export default function DayTimeline({
       ticks: tickList,
       sources: present,
     };
-  }, [entries, date]);
+  }, [entries, date, draftBounds]);
 
   const span = Math.max(1, axisTo - axisFrom);
   const percent = (minutes: number) => ((minutes - axisFrom) / span) * 100;
+
+  /**
+   * Промежутки без записей — то самое «пустое место», по которому кликают,
+   * чтобы завести время. Считаются слиянием занятых отрезков: записи трекера
+   * часто перекрываются (перерыв внутри сессии), и наивная разность соседних
+   * границ дала бы отрицательные окна.
+   *
+   * Всё, что за полночь, отсекаем: запись табеля принадлежит одному дню, и
+   * форма всё равно не приняла бы интервал через сутки.
+   */
+  const gaps = useMemo(() => {
+    const dayEnd = 24 * 60 - 1;
+    const busy = segments
+      .map(({ from, to }) => ({ from: Math.max(0, from), to: Math.min(to, dayEnd) }))
+      .filter((item) => item.to > item.from)
+      .sort((left, right) => left.from - right.from);
+
+    const merged: { from: number; to: number }[] = [];
+    for (const item of busy) {
+      const last = merged[merged.length - 1];
+      if (last && item.from <= last.to) last.to = Math.max(last.to, item.to);
+      else merged.push({ ...item });
+    }
+
+    const windowFrom = Math.max(0, axisFrom);
+    const windowTo = Math.min(axisTo, dayEnd);
+    const result: { from: number; to: number }[] = [];
+    let cursor = windowFrom;
+
+    for (const item of merged) {
+      if (item.from > cursor) result.push({ from: cursor, to: Math.min(item.from, windowTo) });
+      cursor = Math.max(cursor, item.to);
+    }
+    if (cursor < windowTo) result.push({ from: cursor, to: windowTo });
+
+    // Окна тоньше пяти минут кликом не поймать, а мусорных полосок дают много.
+    return result.filter((item) => item.to - item.from >= 5);
+  }, [segments, axisFrom, axisTo]);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -154,12 +219,19 @@ export default function DayTimeline({
         </div>
       </div>
 
-      {segments.length === 0 ? (
+      {segments.length === 0 && !onGapClick ? (
         <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
           Нет записей со временем за этот день
         </p>
       ) : (
         <>
+          {segments.length === 0 && (
+            // Пустой день всё равно рисуем дорожкой: по ней и заводят время,
+            // когда трекер не работал вовсе.
+            <p className="mb-2 text-xs text-gray-400">
+              Записей со временем нет — кликните по дорожке, чтобы добавить время
+            </p>
+          )}
           {/* Шкала часов */}
           <div className="relative h-5 select-none">
             {ticks.map((tick) => (
@@ -182,6 +254,33 @@ export default function DayTimeline({
                 style={{ left: `${percent(tick)}%` }}
               />
             ))}
+
+            {/* Пустые окна кликабельны: это основной способ завести ручное
+                время — как в Time Doctor, где по промежутку открывается
+                строка ввода. Рисуются под сегментами, чтобы не перехватывать
+                наведение на записи. */}
+            {onGapClick &&
+              gaps.map((gap) => {
+                const left = percent(gap.from);
+                const width = Math.max(0.4, percent(gap.to) - left);
+                const startTime = clock(gap.from);
+                const endTime = clock(gap.to);
+
+                return (
+                  <button
+                    key={`gap-${gap.from}-${gap.to}`}
+                    type="button"
+                    onClick={() => onGapClick({ startTime, endTime })}
+                    title={`Добавить время ${startTime} – ${endTime}`}
+                    className="group absolute inset-y-2 flex items-center justify-center rounded-md border border-dashed border-transparent transition hover:border-brand-300 hover:bg-brand-50/60"
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                  >
+                    <span className="text-[11px] font-semibold text-brand-500 opacity-0 transition group-hover:opacity-100">
+                      {width > 6 ? "+ добавить" : "+"}
+                    </span>
+                  </button>
+                );
+              })}
 
             {segments.map(({ entry, from, to }) => {
               const meta = SOURCE_META[entry.source] ?? SOURCE_META.other;
@@ -225,6 +324,32 @@ export default function DayTimeline({
                 </span>
               );
             })}
+
+            {/* Черновик поверх всего и пунктиром: он ещё не запись, но видно,
+                куда встанет и какой ширины будет. Двигается вместе с полями
+                «начало»/«окончание» в строке ввода. */}
+            {draftBounds && (
+              <span
+                className="pointer-events-none absolute inset-y-1 flex items-center justify-center rounded-md border-2 border-dashed"
+                style={{
+                  left: `${percent(draftBounds.from)}%`,
+                  width: `${Math.max(0.6, percent(draftBounds.to) - percent(draftBounds.from))}%`,
+                  borderColor: SOURCE_META.hrms_manual.color,
+                  backgroundColor: `${SOURCE_META.hrms_manual.bar}80`,
+                }}
+              >
+                <span
+                  className="truncate px-1 text-[11px] font-semibold"
+                  style={{ color: SOURCE_META.hrms_manual.color }}
+                >
+                  {percent(draftBounds.to) - percent(draftBounds.from) > 12
+                    ? `Новая запись · ${formatDuration(
+                        Math.max(0, draftBounds.to - draftBounds.from) * 60
+                      )}`
+                    : ""}
+                </span>
+              </span>
+            )}
           </div>
 
           {skipped > 0 && (

@@ -639,7 +639,9 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
           aria-haspopup="menu"
           aria-expanded={open}
           title={activeSheet?.name}
-          className="inline-flex h-10 max-w-[220px] items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-100"
+          // Оформление общее с селектом листа в задачах: тулбары страниц
+          // должны читаться одинаково.
+          className="inline-flex h-10 max-w-[220px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
         >
           <span
             aria-hidden="true"

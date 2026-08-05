@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { observer } from "mobx-react-lite";
-import { ArrowLeft, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import Select, { type SingleValue, type StylesConfig } from "react-select";
 import {
@@ -21,6 +21,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import PageMeta from "../../../components/common/PageMeta";
+import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
 import Spinner from "../../../components/ui/Spinner";
 import { Modal } from "../../../components/ui/modal";
 import companyStore from "../../../store/company.store";
@@ -1407,7 +1408,6 @@ function OrganizationStructureModule({
   const isEmployeesLoading = false;
 
   const result = data?.result;
-  const cards = result?.cards || {};
   const departmentChartNodes = (result?.chart?.nodes || []) as OrgStructureDisplayNode[];
   const filterDepartments = result?.filters?.departments || [];
   const filterLevels = result?.filters?.levels || [];
@@ -1594,10 +1594,6 @@ function OrganizationStructureModule({
       setSelectedNodeId(null);
     }
   }, [layout.graphNodes, selectedNodeId]);
-  const chartHeight = useMemo(
-    () => Math.max(540, layout.maxDepth * (NODE_HEIGHT + VERTICAL_GAP) + CHART_PADDING * 2),
-    [layout.maxDepth]
-  );
   const activeFiltersCount =
     structureViewMode === "departments"
       ? [selectedDepartmentId, selectedHierarchyLevel].filter(Boolean).length
@@ -1642,25 +1638,7 @@ function OrganizationStructureModule({
     });
   }, [flowInstance, highlightedGraphNodes, searchInput]);
 
-  const totalEmployees = Number(cards.total_employees || 0);
-  const departmentsCount = Number(cards.departments_count || 0);
-  const managersCount = Number(cards.managers_count || 0);
-  const hierarchyLevels = Number(cards.hierarchy_levels || 0);
   const isPositionsMode = structureViewMode === "positions";
-  const positionsCount = Number(cards.departments_count || 0);
-  const occupiedPositionIds = new Set(
-    chartNodes
-      .map((node) =>
-        typeof node.department_guid === "string" && node.department_guid.trim()
-          ? node.department_guid.trim()
-          : ""
-      )
-      .filter((guid) => guid && guid !== UNASSIGNED_POSITION_KEY)
-  );
-  const positionsWithoutEmployees = departmentOptions.filter(
-    (position) => !occupiedPositionIds.has(position.value)
-  ).length;
-  const positionsLevels = Number(cards.hierarchy_levels || 0);
   const moduleLoading = isLoading;
 
   const nodeTypes = useMemo(() => ({ orgNode: OrgNodeCard }), []);
@@ -1774,7 +1752,9 @@ function OrganizationStructureModule({
   }, [structureViewMode]);
 
   const graphContent = (
-    <div className={embedded ? "relative h-full" : "relative"}>
+    // Схема всегда занимает высоту родителя: и встроенная в «Сотрудники», и
+    // отдельная страница дают ей ограниченный по высоте контейнер.
+    <div className="relative h-full">
       {isFetching ? (
         <div className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white/95 px-3 py-2 text-xs font-medium text-gray-600 shadow-sm">
           <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
@@ -1783,11 +1763,11 @@ function OrganizationStructureModule({
       ) : null}
 
       {layout.graphNodes.length === 0 ? (
-        <div className={embedded ? "flex h-full items-center justify-center text-sm text-gray-500" : "flex h-[440px] items-center justify-center text-sm text-gray-500"}>
+        <div className="flex h-full items-center justify-center text-sm text-gray-500">
           Нет данных по выбранным фильтрам
         </div>
       ) : (
-        <div style={{ height: embedded ? "100%" : chartHeight }}>
+        <div className="h-full">
           <ReactFlow
             nodes={layout.graphNodes}
             edges={layout.graphEdges}
@@ -2103,130 +2083,112 @@ function OrganizationStructureModule({
           {filtersOpen ? (
             <div className="border-b border-gray-100 px-4 py-3">
               <div className="flex flex-wrap items-center gap-3">
-                {structureViewMode === "departments" ? (
-                  <>
-                    <div className="min-w-[230px] flex-1 md:flex-none">
-                      <Select<DepartmentTreeOption, false>
-                        options={departmentOptions}
-                        value={selectedDepartmentOption}
-                        onChange={(option: SingleValue<DepartmentTreeOption>) =>
-                          setSelectedDepartmentId(option?.value || "")
-                        }
-                        placeholder="Все отделы"
-                        isSearchable
-                        isClearable
-                        styles={getFilterSelectStyles<DepartmentTreeOption>()}
-                        menuPortalTarget={selectPortalTarget}
-                        menuPosition="fixed"
-                        noOptionsMessage={() => "Отделы не найдены"}
-                      />
-                    </div>
+            {structureViewMode === "departments" ? (
+              <>
+                <div className="min-w-[230px] flex-1 md:flex-none">
+                  <Select<DepartmentTreeOption, false>
+                    options={departmentOptions}
+                    value={selectedDepartmentOption}
+                    onChange={(option: SingleValue<DepartmentTreeOption>) =>
+                      setSelectedDepartmentId(option?.value || "")
+                    }
+                    placeholder="Все отделы"
+                    isSearchable
+                    isClearable
+                    styles={getFilterSelectStyles<DepartmentTreeOption>()}
+                    menuPortalTarget={selectPortalTarget}
+                    menuPosition="fixed"
+                    noOptionsMessage={() => "Отделы не найдены"}
+                  />
+                </div>
 
-                    <div className="min-w-[210px] flex-1 md:flex-none">
-                      <Select<LevelFilterOption, false>
-                        options={levelOptions}
-                        value={selectedLevelOption}
-                        onChange={(option: SingleValue<LevelFilterOption>) =>
-                          setSelectedHierarchyLevel(option?.value || "")
-                        }
-                        placeholder="Все уровни"
-                        isSearchable={false}
-                        isClearable
-                        styles={getFilterSelectStyles<LevelFilterOption>()}
-                        menuPortalTarget={selectPortalTarget}
-                        menuPosition="fixed"
-                        noOptionsMessage={() => "Уровни не найдены"}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-sm font-medium text-slate-500">
-                    Для режима Сотрудники фильтры по отделам и уровням не применяются.
-                  </p>
-                )}
+                <div className="min-w-[210px] flex-1 md:flex-none">
+                  <Select<LevelFilterOption, false>
+                    options={levelOptions}
+                    value={selectedLevelOption}
+                    onChange={(option: SingleValue<LevelFilterOption>) =>
+                      setSelectedHierarchyLevel(option?.value || "")
+                    }
+                    placeholder="Все уровни"
+                    isSearchable={false}
+                    isClearable
+                    styles={getFilterSelectStyles<LevelFilterOption>()}
+                    menuPortalTarget={selectPortalTarget}
+                    menuPosition="fixed"
+                    noOptionsMessage={() => "Уровни не найдены"}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-sm font-medium text-slate-500">
+                Для режима Сотрудники фильтры по отделам и уровням не применяются.
+              </p>
+            )}
 
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="ml-auto inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-                >
-                  Сбросить
-                </button>
-              </div>
-            </div>
-          ) : null}
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="ml-auto inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+            >
+              Сбросить
+            </button>
+          </div>
+        </div>
+      ) : null}
 
-          {graphContent}
-        </section>
-        {nodeDetailsModal}
-        {upsertModal}
-        {deleteModal}
-      </>
-    );
+      {graphContent}
+    </section>
+    {nodeDetailsModal}
+    {upsertModal}
+    {deleteModal}
+  </>
+);
   }
 
   return (
-    <>
-      <PageMeta title="Орг структура | HRMS" description="Оргструктура компании" />
+<>
+  <PageMeta title="Орг структура | HRMS" description="Оргструктура компании" />
 
-      <div className="space-y-4">
-        <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-          <div className="border-b border-gray-100 px-6 py-4">
-            <Link
-              to="/dashboard"
-              className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
-            >
-              <ArrowLeft size={14} />
-              Назад
-            </Link>
-            <h1 className="text-2xl font-semibold text-gray-900">Орг структура</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Визуальная структура подразделений и руководителей компании
-            </p>
-          </div>
+  {/* ── Toolbar ─────────────────────────────────────────────────────── */}
+  {/* Тот же тулбар, что у задач и табеля: страница жила со своей шапкой
+      («Назад» + заголовок + подзаголовок), хотя заголовок уже есть в
+      хлебных крошках, а фильтры выглядели иначе, чем на остальных
+      страницах. */}
+  <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
+    <div
+      className="flex flex-wrap items-center gap-3 px-4 py-2.5 lg:px-6"
+      style={{
+        backgroundColor: "#fff",
+        border: "1px solid #e2e8f0",
+        borderTop: "none",
+      }}
+    >
+          {structureViewMode === "departments" ? (
+            <>
+              <div className="min-w-[230px] flex-1 md:flex-none">
+                <Select<DepartmentTreeOption, false>
+                  options={departmentOptions}
+                  value={selectedDepartmentOption}
+                  onChange={(option: SingleValue<DepartmentTreeOption>) =>
+                    setSelectedDepartmentId(option?.value || "")
+                  }
+                  placeholder="Все отделы"
+                  isSearchable
+                  isClearable
+                  styles={getFilterSelectStyles<DepartmentTreeOption>()}
+                  menuPortalTarget={selectPortalTarget}
+                  menuPosition="fixed"
+                  noOptionsMessage={() => "Отделы не найдены"}
+                  formatOptionLabel={(option, meta) => {
+                    if (meta.context === "value") {
+                      return <span>{option.label}</span>;
+                    }
 
-          <div className="border-b border-gray-100 px-6 py-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="relative w-full md:max-w-[270px]">
-                <Search
-                  size={17}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder={structureViewMode === "positions" ? "Поиск должности..." : "Поиск отдела..."}
-                  className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
-                />
-              </label>
-
-              {structureViewMode === "departments" ? (
-                <>
-                  <div className="min-w-[230px] flex-1 md:flex-none">
-                    <Select<DepartmentTreeOption, false>
-                      options={departmentOptions}
-                      value={selectedDepartmentOption}
-                      onChange={(option: SingleValue<DepartmentTreeOption>) =>
-                        setSelectedDepartmentId(option?.value || "")
-                      }
-                      placeholder="Все отделы"
-                      isSearchable
-                      isClearable
-                      styles={getFilterSelectStyles<DepartmentTreeOption>()}
-                      menuPortalTarget={selectPortalTarget}
-                      menuPosition="fixed"
-                      noOptionsMessage={() => "Отделы не найдены"}
-                      formatOptionLabel={(option, meta) => {
-                        if (meta.context === "value") {
-                          return <span>{option.label}</span>;
-                        }
-
-                        return (
-                          <div className="flex items-center gap-2">
-                            {option.hierarchyLevel > 1 ? (
-                              <span className="text-xs text-slate-300">└</span>
-                            ) : null}
+                    return (
+                      <div className="flex items-center gap-2">
+                        {option.hierarchyLevel > 1 ? (
+                          <span className="text-xs text-slate-300">└</span>
+                        ) : null}
                             <span className="font-medium text-slate-700">{option.label}</span>
                             <span className="ml-auto text-xs text-slate-400">L{option.hierarchyLevel}</span>
                           </div>
@@ -2254,46 +2216,38 @@ function OrganizationStructureModule({
                 </>
               ) : null}
 
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="ml-auto inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
-              >
-                Сбросить
-              </button>
-            </div>
-          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <ExpandableSearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              inputId="org-structure-search"
+              placeholder={
+                structureViewMode === "positions" ? "Поиск должности..." : "Поиск отдела..."
+              }
+              expandedWidth={300}
+              collapsedSize={40}
+              brandColor={companyStore.mainColor}
+            />
 
-          <div className="grid gap-4 border-b border-gray-100 px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
-            <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
-              <p className="text-sm text-gray-500">Всего сотрудников</p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">
-                {isPositionsMode ? Number(cards.total_employees || 0) : totalEmployees}
-              </p>
-            </article>
-            <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
-              <p className="text-sm text-gray-500">{isPositionsMode ? "Должностей" : "Отделов"}</p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">
-                {isPositionsMode ? positionsCount : departmentsCount}
-              </p>
-            </article>
-            <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
-              <p className="text-sm text-gray-500">
-                {isPositionsMode ? "Позиций без сотрудников" : "Менеджеров"}
-              </p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">
-                {isPositionsMode ? positionsWithoutEmployees : managersCount}
-              </p>
-            </article>
-            <article className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4">
-              <p className="text-sm text-gray-500">Уровней иерархии</p>
-              <p className="mt-2 text-4xl font-semibold text-gray-900">
-                {isPositionsMode ? positionsLevels : hierarchyLevels}
-              </p>
-            </article>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Сбросить
+            </button>
           </div>
+        </div>
+      </div>
 
-          {graphContent}
+      {/* Схема занимает весь оставшийся экран и скроллится внутри себя:
+          страница не должна вытягиваться под высоту дерева — иначе на большой
+          компании до низа графа приходится листать всю страницу, а панорама и
+          зум внутри ReactFlow становятся бесполезны.
+          6.5rem = шапка приложения (4rem) + вертикальные отступы контента. */}
+      <div className="mt-4 h-[calc(100vh-6.5rem)] min-h-[420px]">
+        <section className="h-full min-h-0 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          <div className="h-full min-h-0">{graphContent}</div>
         </section>
       </div>
 

@@ -50,6 +50,11 @@ const DELETE_ABSENCE_METHOD = "delete_absence";
 const GET_RECRUITING_FUNNEL_METHOD = "get_recruiting_funnel";
 const GET_RECRUITING_SOURCES_METHOD = "get_recruiting_sources";
 const GET_RECRUITING_CLOSURE_TIMES_METHOD = "get_recruiting_closure_times";
+const GET_TASKS_BY_STATUS_METHOD = "get_tasks_by_status";
+const GET_TASKS_BY_STATUS_TABLE_METHOD = "get_tasks_by_status_table";
+const GET_TASKS_BY_EMPLOYEE_METHOD = "get_tasks_by_employee";
+const GET_TIMESHEET_REPORT_METHOD = "get_timesheet_report";
+const GET_TIMESHEET_REPORT_TABLE_METHOD = "get_timesheet_report_table";
 const GET_WORK_SCHEDULES_METHOD = "get_work_schedules";
 const SAVE_WORK_SCHEDULE_METHOD = "save_work_schedule";
 const DELETE_WORK_SCHEDULE_METHOD = "delete_work_schedule";
@@ -1131,6 +1136,299 @@ export type RecruitingFunnelResult = {
 export type RecruitingFunnelInvokeResponse = {
   method: typeof GET_RECRUITING_FUNNEL_METHOD;
   result: RecruitingFunnelResult;
+};
+
+/**
+ * Отчёт «Задачи»: два разреза одного набора — по статусам (количество) и по
+ * срокам. Срок считается только у незавершённых задач, завершённые уходят в
+ * бакет `completed`, а их своевременность лежит в карточках отчёта.
+ */
+export type TaskDeadlineBucketKey =
+  | "overdue"
+  | "today"
+  | "week"
+  | "later"
+  | "no_deadline"
+  | "completed";
+
+export type TaskStatusGroupKey = "todo" | "in_progress" | "completed";
+
+export type TasksByStatusItem = {
+  status_id: string | null;
+  title: string;
+  color: string;
+  group: TaskStatusGroupKey;
+  count: number;
+  share: number;
+  buckets: Record<TaskDeadlineBucketKey, number>;
+};
+
+export type TasksCountItem = {
+  key: string;
+  label: string;
+  count: number;
+};
+
+export type TasksUpcomingItem = {
+  id: string;
+  code: string;
+  title: string;
+  deadline: string | null;
+  days_left: number | null;
+  deadline_bucket: TaskDeadlineBucketKey;
+  status_title: string;
+  status_color: string;
+};
+
+export type TasksOverdueItem = {
+  id: string;
+  code: string;
+  title: string;
+  deadline: string | null;
+  completion_date: string | null;
+  overdue_days: number;
+  status_title: string;
+  status_color: string;
+  status_group: TaskStatusGroupKey;
+  is_completed: boolean;
+  assignees: string;
+};
+
+export type TasksByStatusCards = {
+  total?: number;
+  todo?: number;
+  in_progress?: number;
+  completed?: number;
+  open?: number;
+  overdue?: number;
+  due_today?: number;
+  due_week?: number;
+  no_deadline?: number;
+  completed_on_time?: number;
+  completed_late?: number;
+  completed_without_deadline?: number;
+  completion_rate?: number;
+  on_time_rate?: number;
+  late_days_completed?: number;
+  late_days_open?: number;
+  late_days_total?: number;
+  max_overdue_days?: number;
+  avg_overdue_days?: number;
+  tasks_with_delay?: number;
+};
+
+export type TasksByStatusResult = {
+  cards?: TasksByStatusCards;
+  charts?: {
+    by_status?: TasksByStatusItem[];
+    by_group?: TasksCountItem[];
+    by_deadline?: TasksCountItem[];
+    upcoming?: TasksUpcomingItem[];
+    top_overdue?: TasksOverdueItem[];
+  };
+  filters?: {
+    deadline_buckets?: { key: TaskDeadlineBucketKey; label: string }[];
+    status_groups?: { key: TaskStatusGroupKey; label: string }[];
+  };
+  filters_applied?: JsonRecord;
+};
+
+export type TasksByStatusInvokeResponse = {
+  method: typeof GET_TASKS_BY_STATUS_METHOD;
+  result: TasksByStatusResult;
+};
+
+export type TasksTableAssignee = {
+  id: string;
+  name: string;
+  photo: string;
+};
+
+export type TasksByStatusTableItem = {
+  id: string;
+  code: string;
+  title: string;
+  status: {
+    id: string | null;
+    title: string;
+    color: string;
+    group: TaskStatusGroupKey;
+  };
+  priority: { title: string; color: string } | null;
+  deadline: string | null;
+  days_left: number | null;
+  deadline_bucket: TaskDeadlineBucketKey;
+  overdue_days: number;
+  is_overdue: boolean;
+  completed_on_time: boolean | null;
+  completion_date: string | null;
+  assignees: TasksTableAssignee[];
+};
+
+export type TasksByStatusTableResult = {
+  items: TasksByStatusTableItem[];
+  pagination: AttendanceTablePagination;
+  filters_applied?: JsonRecord;
+};
+
+export type TasksByStatusTableInvokeResponse = {
+  method: typeof GET_TASKS_BY_STATUS_TABLE_METHOD;
+  result: TasksByStatusTableResult;
+};
+
+/**
+ * Дисциплина сроков по исполнителям. Задача с несколькими исполнителями
+ * считается каждому из них, поэтому сумма по строкам больше числа задач;
+ * задачи без исполнителя не попадают ни в одну строку и отдаются в `unassigned`.
+ */
+export type TasksByEmployeeItem = {
+  id: string;
+  employee: string;
+  photo: string;
+  department: string;
+  position: string;
+  total: number;
+  open: number;
+  completed: number;
+  completed_on_time: number;
+  completed_late: number;
+  on_time_rate: number;
+  overdue_open: number;
+  late_days_completed: number;
+  late_days_open: number;
+  late_days_total: number;
+  max_overdue_days: number;
+  tasks_with_delay: number;
+  avg_overdue_days: number;
+};
+
+export type TasksByEmployeeResult = {
+  items: TasksByEmployeeItem[];
+  unassigned: number;
+  pagination: AttendanceTablePagination;
+  filters_applied?: JsonRecord;
+};
+
+export type TasksByEmployeeInvokeResponse = {
+  method: typeof GET_TASKS_BY_EMPLOYEE_METHOD;
+  result: TasksByEmployeeResult;
+};
+
+/**
+ * Отчёт по табелю времени: факт против плана. Считается тем же кодом, что и
+ * сам табель, поэтому цифры отчёта и модуля совпадают; ручное время входит
+ * только подтверждённое, ожидающее отдаётся отдельным счётчиком.
+ */
+export type TimesheetReportCards = {
+  from?: string;
+  to?: string;
+  days?: number;
+  employees_count?: number;
+  active_employees?: number;
+  idle_employees?: number;
+  worked_seconds?: number;
+  worked_hours?: number;
+  break_seconds?: number;
+  plan_seconds?: number;
+  plan_hours?: number;
+  completion_rate?: number;
+  overtime_seconds?: number;
+  shortfall_seconds?: number;
+  manual_seconds?: number;
+  manual_pending_seconds?: number;
+  manual_pending_count?: number;
+  entry_count?: number;
+  avg_day_seconds?: number;
+};
+
+export type TimesheetReportDay = {
+  date: string;
+  worked_seconds: number;
+  worked_hours: number;
+  break_seconds: number;
+  plan_seconds: number;
+  plan_hours: number;
+  completion_rate: number;
+  entry_count: number;
+  employees_count: number;
+  holiday: string | null;
+  is_day_off: boolean;
+};
+
+export type TimesheetReportSourceItem = {
+  key: string;
+  seconds: number;
+  hours: number;
+};
+
+export type TimesheetReportDeviationItem = {
+  employee_id: string;
+  name: string;
+  department: string;
+  worked_seconds: number;
+  plan_seconds: number;
+  deviation_seconds: number;
+};
+
+export type TimesheetReportResult = {
+  cards?: TimesheetReportCards;
+  charts?: {
+    by_day?: TimesheetReportDay[];
+    by_source?: TimesheetReportSourceItem[];
+    top_shortfall?: TimesheetReportDeviationItem[];
+    top_overtime?: TimesheetReportDeviationItem[];
+  };
+  filters_applied?: JsonRecord;
+};
+
+export type TimesheetReportInvokeResponse = {
+  method: typeof GET_TIMESHEET_REPORT_METHOD;
+  result: TimesheetReportResult;
+};
+
+export type TimesheetReportTableItem = {
+  employee_id: string;
+  name: string;
+  photo: string;
+  department: string;
+  position: string;
+  worked_seconds: number;
+  worked_hours: number;
+  break_seconds: number;
+  plan_seconds: number;
+  plan_hours: number;
+  completion_rate: number;
+  deviation_seconds: number;
+  tracker_seconds: number;
+  mobile_seconds: number;
+  td_manual_seconds: number;
+  manual_seconds: number;
+  entry_count: number;
+  active_days: number;
+  working_days: number;
+  missed_days: number;
+  avg_day_seconds: number;
+};
+
+export type TimesheetReportTableResult = {
+  from: string;
+  to: string;
+  items: TimesheetReportTableItem[];
+  pagination: {
+    limit: number;
+    offset: number;
+    total_count: number;
+    from: number;
+    to: number;
+    has_previous_page: boolean;
+    has_next_page: boolean;
+  };
+  filters_applied?: JsonRecord;
+};
+
+export type TimesheetReportTableInvokeResponse = {
+  method: typeof GET_TIMESHEET_REPORT_TABLE_METHOD;
+  result: TimesheetReportTableResult;
 };
 
 export type RecruitingSourceOption = {
@@ -3727,6 +4025,93 @@ const reportsService = {
       GET_RECRUITING_CLOSURE_TIMES_METHOD
     );
   },
+  getTasksByStatus: async (
+    requestData: JsonRecord = {}
+  ): Promise<TasksByStatusInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_TASKS_BY_STATUS_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<TasksByStatusInvokeResponse>(
+      response.data,
+      GET_TASKS_BY_STATUS_METHOD
+    );
+  },
+  getTasksByStatusTable: async (
+    requestData: JsonRecord = {},
+    pagination: { page?: number; limit?: number } = {}
+  ): Promise<TasksByStatusTableInvokeResponse> => {
+    const page = Number.isFinite(Number(pagination.page)) ? Number(pagination.page) : 1;
+    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 20;
+
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_TASKS_BY_STATUS_TABLE_METHOD,
+        data: { ...requestData, page, limit },
+      },
+    });
+
+    return normalizeGatewayResponse<TasksByStatusTableInvokeResponse>(
+      response.data,
+      GET_TASKS_BY_STATUS_TABLE_METHOD
+    );
+  },
+  getTasksByEmployee: async (
+    requestData: JsonRecord = {},
+    pagination: { page?: number; limit?: number } = {}
+  ): Promise<TasksByEmployeeInvokeResponse> => {
+    const page = Number.isFinite(Number(pagination.page)) ? Number(pagination.page) : 1;
+    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 20;
+
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_TASKS_BY_EMPLOYEE_METHOD,
+        data: { ...requestData, page, limit },
+      },
+    });
+
+    return normalizeGatewayResponse<TasksByEmployeeInvokeResponse>(
+      response.data,
+      GET_TASKS_BY_EMPLOYEE_METHOD
+    );
+  },
+  getTimesheetReport: async (
+    requestData: JsonRecord = {}
+  ): Promise<TimesheetReportInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_TIMESHEET_REPORT_METHOD,
+        data: requestData,
+      },
+    });
+
+    return normalizeGatewayResponse<TimesheetReportInvokeResponse>(
+      response.data,
+      GET_TIMESHEET_REPORT_METHOD
+    );
+  },
+  getTimesheetReportTable: async (
+    requestData: JsonRecord = {},
+    pagination: { limit?: number; offset?: number } = {}
+  ): Promise<TimesheetReportTableInvokeResponse> => {
+    const limit = Number.isFinite(Number(pagination.limit)) ? Number(pagination.limit) : 50;
+    const offset = Number.isFinite(Number(pagination.offset)) ? Number(pagination.offset) : 0;
+
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: {
+        method: GET_TIMESHEET_REPORT_TABLE_METHOD,
+        data: { ...requestData, limit, offset },
+      },
+    });
+
+    return normalizeGatewayResponse<TimesheetReportTableInvokeResponse>(
+      response.data,
+      GET_TIMESHEET_REPORT_TABLE_METHOD
+    );
+  },
   getSalaryExcelTemplate: async (
     requestData: JsonRecord = {}
   ): Promise<SalaryExcelTemplateInvokeResponse> => {
@@ -4087,6 +4472,76 @@ export const useRecruitingSourcesReportQuery = (
     queryKey: ["REPORTS", "RECRUITING_SOURCES", requestData],
     queryFn: () => reportsService.getRecruitingSources(requestData),
     staleTime: 60_000,
+  });
+};
+
+export const useTasksByStatusReportQuery = (requestData: JsonRecord = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "TASKS_BY_STATUS", requestData],
+    queryFn: () => reportsService.getTasksByStatus(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const useTasksByStatusTableQuery = ({
+  requestData = {},
+  page = 1,
+  limit = 20,
+}: {
+  requestData?: JsonRecord;
+  page?: number;
+  limit?: number;
+} = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "TASKS_BY_STATUS_TABLE", requestData, page, limit],
+    queryFn: () => reportsService.getTasksByStatusTable(requestData, { page, limit }),
+    keepPreviousData: true,
+    staleTime: 30_000,
+  });
+};
+
+export const useTasksByEmployeeQuery = ({
+  requestData = {},
+  page = 1,
+  limit = 20,
+  enabled = true,
+}: {
+  requestData?: JsonRecord;
+  page?: number;
+  limit?: number;
+  enabled?: boolean;
+} = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "TASKS_BY_EMPLOYEE", requestData, page, limit],
+    queryFn: () => reportsService.getTasksByEmployee(requestData, { page, limit }),
+    keepPreviousData: true,
+    staleTime: 30_000,
+    enabled,
+  });
+};
+
+export const useTimesheetReportQuery = (requestData: JsonRecord = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "TIMESHEET", requestData],
+    queryFn: () => reportsService.getTimesheetReport(requestData),
+    staleTime: 60_000,
+  });
+};
+
+export const useTimesheetReportTableQuery = ({
+  requestData = {},
+  limit = 50,
+  offset = 0,
+}: {
+  requestData?: JsonRecord;
+  limit?: number;
+  offset?: number;
+} = {}) => {
+  return useQuery({
+    queryKey: ["REPORTS", "TIMESHEET_TABLE", requestData, limit, offset],
+    queryFn: () => reportsService.getTimesheetReportTable(requestData, { limit, offset }),
+    keepPreviousData: true,
+    staleTime: 30_000,
   });
 };
 

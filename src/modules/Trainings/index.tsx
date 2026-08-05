@@ -7,6 +7,7 @@ import { CalendarDays, GraduationCap, List, MoreHorizontal, Plus, X } from "luci
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
+import ViewSwitcher from "../../components/common/ViewSwitcher";
 import {
   Table,
   TableBody,
@@ -267,31 +268,14 @@ export default function TrainingsPage() {
             border: "1px solid #e2e8f0", borderTop: "none",
           }}
         >
-          {/* View toggle */}
-          <div className="flex items-center gap-0.5 rounded-xl border border-gray-200 bg-gray-50 p-0.5">
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-[10px] px-3 text-sm font-medium transition ${
-                view === "list"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <List size={15} /> Список
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("calendar")}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-[10px] px-3 text-sm font-medium transition ${
-                view === "calendar"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <CalendarDays size={15} /> Календарь
-            </button>
-          </div>
+          <ViewSwitcher
+            value={view}
+            onChange={setView}
+            items={[
+              { key: "list", label: "Список", icon: <List size={16} /> },
+              { key: "calendar", label: "Календарь", icon: <CalendarDays size={16} /> },
+            ]}
+          />
 
           <div className="ml-auto flex items-center gap-2">
             <ExpandableSearchInput

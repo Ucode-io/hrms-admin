@@ -54,6 +54,7 @@ import {
 import Select, { type StylesConfig } from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
+import ViewSwitcher from "../../components/common/ViewSwitcher";
 import ExpandableSearchInput from "../../components/form/ExpandableSearchInput";
 import { Modal } from "../../components/ui/modal";
 import { Dropdown } from "../../components/ui/dropdown/Dropdown";
@@ -2781,58 +2782,14 @@ function KpiPage() {
             borderBottom: isFiltersOpen ? "none" : "1px solid #e2e8f0",
           }}
         >
-          <div
-            className="inline-flex items-center rounded-2xl border border-slate-200 bg-slate-50 p-1"
-            style={{ marginLeft: "2px" }}
-          >
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                height: "30px",
-                padding: "0 12px",
-                border: viewMode === "list" ? "1px solid var(--color-brand-100)" : "1px solid transparent",
-                borderRadius: "8px",
-                backgroundColor: viewMode === "list" ? "#fff" : "transparent",
-                color: viewMode === "list" ? "var(--company-color)" : "#64748b",
-                fontWeight: 600,
-                fontSize: "13px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                boxShadow: viewMode === "list" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
-              }}
-            >
-              <List style={{ width: "17px", height: "17px" }} />
-              Таблица
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewMode("calendar")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                height: "30px",
-                padding: "0 12px",
-                border: viewMode === "calendar" ? "1px solid var(--color-brand-100)" : "1px solid transparent",
-                borderRadius: "8px",
-                backgroundColor: viewMode === "calendar" ? "#fff" : "transparent",
-                color: viewMode === "calendar" ? "var(--company-color)" : "#64748b",
-                fontWeight: 600,
-                fontSize: "13px",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                boxShadow: viewMode === "calendar" ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
-              }}
-            >
-              <LayoutGrid style={{ width: "17px", height: "17px" }} />
-              Сетка
-            </button>
-          </div>
+          <ViewSwitcher
+            value={viewMode}
+            onChange={setViewMode}
+            items={[
+              { key: "list", label: "Таблица", icon: <List size={16} /> },
+              { key: "calendar", label: "Сетка", icon: <LayoutGrid size={16} /> },
+            ]}
+          />
 
           <KpiSheetSelect api={sheetsApi} />
 

@@ -4,7 +4,8 @@
 
 export type ApprovalProcessType =
   | "absence_approval"
-  | "attendance_change_approval";
+  | "attendance_change_approval"
+  | "manual_time_approval";
 
 export interface ApprovalRef {
   id: string;
@@ -31,6 +32,7 @@ export interface ApprovalProcess {
 export const PROCESS_TYPES: { value: ApprovalProcessType; label: string }[] = [
   { value: "absence_approval", label: "Одобрение отсутствия" },
   { value: "attendance_change_approval", label: "Одобрение изменения по посещаемости" },
+  { value: "manual_time_approval", label: "Одобрение ручного времени в табеле" },
 ];
 
 export const getProcessTypeLabel = (type: ApprovalProcessType): string =>

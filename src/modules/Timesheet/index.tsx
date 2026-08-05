@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { Download } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
 import Spinner from "../../components/ui/Spinner";
@@ -20,14 +20,38 @@ import {
   toIsoDate,
 } from "./constants";
 import FiltersPanel, { EMPTY_FILTERS, FiltersToolbar } from "./components/FiltersBar";
-import PeriodNavigator from "./components/PeriodNavigator";
-import SummaryCards, { type SummaryItem } from "./components/SummaryCards";
+import {
+  PeriodRangeNavigator,
+  PeriodScaleTabs,
+} from "./components/PeriodNavigator";
 import ViewSwitcher from "./components/ViewSwitcher";
 import { SourceLegend } from "./components/badges";
 import TableView from "./views/TableView";
 import TimelineView from "./views/TimelineView";
 import { buildTimesheetCsv, downloadCsv } from "./exportCsv";
-import type { TimelineScale, TimesheetFilters, TimesheetView } from "./types";
+import ManualTimeModal from "./components/ManualTimeModal";
+import ConfirmDeleteModal from "./components/ConfirmDeleteModal";
+import ApprovalProcessModal from "../../components/approvals/ApprovalProcessModal";
+import ApprovalProgressButton from "../../components/approvals/ApprovalProgressButton";
+import {
+  useDeleteManualTime,
+  useSaveManualTime,
+  type ManualTimeSavePayload,
+} from "../../api/services/manualTime.service";
+import { useManualTimeApproval } from "./useManualTimeApproval";
+import type {
+  ManualTimeStatus,
+  TimelineScale,
+  TimesheetEntry,
+  TimesheetFilters,
+  TimesheetView,
+} from "./types";
+
+const STATUS_META: Record<ManualTimeStatus, { label: string; className: string }> = {
+  pending: { label: "Ожидает", className: "bg-amber-100 text-amber-700" },
+  approved: { label: "Подтверждено", className: "bg-emerald-100 text-emerald-700" },
+  rejected: { label: "Отклонено", className: "bg-rose-100 text-rose-700" },
+};
 
 const BREADCRUMBS = [{ label: "Табель времени", to: "/timesheet" }];
 
@@ -121,41 +145,61 @@ export default function TimesheetPage() {
   const tasks = data?.tasks ?? listQuery.data?.tasks ?? [];
   const totals = data?.totals ?? null;
 
-  const planSeconds = view === "timeline" ? timelineHead?.planSeconds ?? 0 : 0;
+  // ── Ручное время ────────────────────────────────────────────────────────
+  const [manualModalEntry, setManualModalEntry] = useState<TimesheetEntry | null>(null);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const [entryToDelete, setEntryToDelete] = useState<TimesheetEntry | null>(null);
 
-  const summaryItems = useMemo<SummaryItem[]>(() => {
-    if (!totals) return [];
+  const saveManual = useSaveManualTime();
+  const deleteManual = useDeleteManualTime();
 
-    const items: SummaryItem[] = [
-      {
-        label: "Отработано",
-        value: formatDuration(totals.workedSeconds),
-        hint: `${totals.entryCount} записей`,
-        color: brandColor,
-      },
-      { label: "Перерывы", value: formatDuration(totals.breakSeconds) },
-    ];
+  const tableEntries = useMemo(
+    () => listQuery.data?.entries ?? [],
+    [listQuery.data?.entries]
+  );
 
-    if (view === "timeline") {
-      const percent =
-        planSeconds > 0 ? Math.round((totals.workedSeconds / planSeconds) * 100) : 0;
-      items.push({
-        label: "План",
-        value: formatDuration(planSeconds),
-        hint: planSeconds > 0 ? `Выполнено ${percent}%` : undefined,
-      });
+  const approval = useManualTimeApproval(
+    tableEntries,
+    (entry) =>
+      entry.departmentId ??
+      employees.find((item) => item.employeeId === entry.employeeId)?.departmentId
+  );
+
+  const openManualModal = (entry: TimesheetEntry | null) => {
+    setManualError("");
+    setManualModalEntry(entry);
+    setIsManualModalOpen(true);
+  };
+
+  const handleManualSubmit = async (payload: ManualTimeSavePayload) => {
+    try {
+      setManualError("");
+      await saveManual.mutateAsync(payload);
+      setIsManualModalOpen(false);
+      setManualModalEntry(null);
+      toast.success(
+        payload.guid ? "Запись обновлена и снова ждёт согласования." : "Запись отправлена на согласование."
+      );
+    } catch (error) {
+      setManualError(
+        error instanceof Error ? error.message : "Не удалось сохранить запись."
+      );
     }
+  };
 
-    items.push(
-      { label: "Трекер", value: formatDuration(totals.bySource.tracker) },
-      {
-        label: "Вручную / Mobile",
-        value: formatDuration(totals.bySource.manual + totals.bySource.mobile),
-      }
-    );
+  /** Удаление необратимо для пользователя, поэтому всегда через подтверждение. */
+  const confirmDelete = async () => {
+    if (!entryToDelete) return;
+    try {
+      await deleteManual.mutateAsync(entryToDelete.id);
+      setEntryToDelete(null);
+      toast.success("Запись удалена.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить запись.");
+    }
+  };
 
-    return items;
-  }, [totals, view, planSeconds, brandColor]);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -203,13 +247,6 @@ export default function TimesheetPage() {
         >
           <ViewSwitcher value={view} onChange={(next) => patchParams({ view: next })} />
 
-          <PeriodNavigator
-            scale={scale}
-            anchor={anchor}
-            onScaleChange={(next) => patchParams({ scale: next })}
-            onAnchorChange={(next) => patchParams({ date: next })}
-          />
-
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <FiltersToolbar
               filters={filters}
@@ -243,21 +280,30 @@ export default function TimesheetPage() {
         )}
       </div>
 
-      {/* ── Итоги периода ───────────────────────────────────────────────── */}
-      {summaryItems.length > 0 && (
-        <div className="mt-4">
-          <SummaryCards items={summaryItems} />
-        </div>
-      )}
+      {/* ── Период и активное представление ─────────────────────────────── */}
+      {/* Период живёт в шапке карточки, как строка периодов в KPI: масштаб
+          слева, даты справа. В верхнем тулбаре он занимал всю середину строки
+          и вытеснял фильтры на вторую строку на ноутбуке. */}
+      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+          <PeriodScaleTabs
+            scale={scale}
+            onScaleChange={(next) => patchParams({ scale: next })}
+          />
 
-      {view === "timeline" && (
-        <div className="mt-3">
-          <SourceLegend sources={SOURCE_ORDER.filter((source) => source !== "other")} />
+          <div className="flex flex-wrap items-center gap-3">
+            {view === "timeline" && (
+              <SourceLegend sources={SOURCE_ORDER.filter((source) => source !== "other")} />
+            )}
+            <PeriodRangeNavigator
+              scale={scale}
+              anchor={anchor}
+              onAnchorChange={(next) => patchParams({ date: next })}
+            />
+          </div>
         </div>
-      )}
 
-      {/* ── Активное представление ──────────────────────────────────────── */}
-      <div className="mt-4">
+        <div className="p-3 md:p-4">
         {activeQuery.isError ? (
           <div className="rounded-2xl border border-error-200 bg-error-50 px-5 py-8 text-center text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10">
             {activeQuery.error instanceof Error
@@ -276,6 +322,72 @@ export default function TimesheetPage() {
             offset={offset}
             isFetching={listQuery.isFetching}
             onOffsetChange={setOffset}
+            renderManualStatus={(entry) => {
+              const meta = STATUS_META[entry.status ?? "pending"];
+              return (
+                <span
+                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${meta.className}`}
+                  title={entry.reviewComment || undefined}
+                >
+                  {meta.label}
+                </span>
+              );
+            }}
+            renderManualActions={(entry) => {
+              const { process, total, approved } = approval.stagesOf(entry);
+              const isPending = (entry.status ?? "pending") === "pending";
+
+              return (
+                <span className="inline-flex items-center justify-end gap-1.5">
+                  {isPending && (
+                    <>
+                      <ApprovalProgressButton
+                        approvedStages={approved}
+                        totalStages={total || 1}
+                        onClick={() => void approval.confirm(entry)}
+                        disabled={approval.isReviewing}
+                        label="Подтвердить"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void approval.review(entry, "rejected")}
+                        disabled={approval.isReviewing}
+                        className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[12px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
+                      >
+                        Отклонить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openManualModal(entry)}
+                        className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                      >
+                        Изменить
+                      </button>
+                    </>
+                  )}
+                  {!isPending && process && (
+                    // Финализированную запись всё равно можно раскрыть: модалка
+                    // в режиме истории показывает, кто и когда одобрял.
+                    <button
+                      type="button"
+                      onClick={() => approval.openApproval(entry)}
+                      className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                    >
+                      Согласование
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setEntryToDelete(entry)}
+                    disabled={deleteManual.isLoading}
+                    title="Удалить запись"
+                    className="rounded-lg border border-gray-200 p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-60 dark:border-gray-700"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </span>
+              );
+            }}
           />
         ) : (
           <TimelineView
@@ -292,11 +404,11 @@ export default function TimesheetPage() {
             scale={scale}
           />
         )}
-      </div>
+        </div>
 
-      {/* Легенда источников под таблицей — те же цвета, что у бейджей. */}
-      {view === "table" && totals && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        {/* Легенда источников под таблицей — те же цвета, что у бейджей. */}
+        {view === "table" && totals && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-gray-100 px-4 py-3 dark:border-gray-800">
           {SOURCE_ORDER.filter((source) => totals.bySource[source] > 0).map((source) => (
             <span
               key={source}
@@ -306,11 +418,38 @@ export default function TimesheetPage() {
                 className="h-2.5 w-2.5 rounded-sm"
                 style={{ backgroundColor: SOURCE_META[source].color }}
               />
-              {SOURCE_META[source].label}: {formatDuration(totals.bySource[source])}
-            </span>
-          ))}
-        </div>
-      )}
+                {SOURCE_META[source].label}: {formatDuration(totals.bySource[source])}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ManualTimeModal
+        isOpen={isManualModalOpen}
+        onClose={() => {
+          if (saveManual.isLoading) return;
+          setIsManualModalOpen(false);
+          setManualModalEntry(null);
+        }}
+        employees={employees}
+        projects={projects}
+        tasks={tasks}
+        entry={manualModalEntry}
+        defaultDate={anchor}
+        isSaving={saveManual.isLoading}
+        error={manualError}
+        onSubmit={(payload) => void handleManualSubmit(payload)}
+      />
+
+      <ApprovalProcessModal {...approval.modalProps} />
+
+      <ConfirmDeleteModal
+        entry={entryToDelete}
+        isDeleting={deleteManual.isLoading}
+        onCancel={() => setEntryToDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </>
   );
 }

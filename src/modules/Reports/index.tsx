@@ -11,6 +11,7 @@ import {
   Filter,
   HandCoins,
   LineChart,
+  ListTodo,
   PieChart,
   Search,
   UserMinus,
@@ -164,6 +165,14 @@ const reportSections: ReportSection[] = [
       ],
       [
         {
+          id: "timesheet",
+          title: "Табель времени",
+          icon: Clock3,
+          path: "/reports/timesheet",
+          subtitle: "Факт против плана, переработки и недоработки",
+          keywords: ["табель", "время", "план", "факт", "переработка", "недоработка", "time doctor"],
+        },
+        {
           id: "sport-attendance",
           title: "Посещение спорта",
           icon: Dumbbell,
@@ -172,6 +181,23 @@ const reportSections: ReportSection[] = [
           keywords: ["спорт", "посещение", "фитнес"],
         },
       ],
+    ],
+  },
+  {
+    id: "tasks",
+    title: "Задачи",
+    columns: [
+      [
+        {
+          id: "tasks",
+          title: "Задачи по статусам",
+          icon: ListTodo,
+          path: "/reports/tasks",
+          subtitle: "Количество и сроки в разрезе статусов",
+          keywords: ["задачи", "статусы", "дедлайн", "срок", "просрочено", "tasks"],
+        },
+      ],
+      [],
     ],
   },
   {

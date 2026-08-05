@@ -93,6 +93,8 @@ import TenurePage from "./modules/Reports/Tenure";
 import AbsenceBalancePage from "./modules/Reports/AbsenceBalance";
 import AttendancePage from "./modules/Reports/Attendance";
 import LatenessPage from "./modules/Reports/Lateness";
+import TasksReportPage from "./modules/Reports/Tasks";
+import TimesheetReportPage from "./modules/Reports/Timesheet";
 import SportAttendancePage from "./modules/Reports/SportAttendance";
 import BonusDeductionsPage from "./modules/Reports/BonusDeductions";
 import RecruitingFunnelPage from "./modules/Reports/RecruitingFunnel";
@@ -310,6 +312,8 @@ function App() {
               <Route path="/reports/absence-balance" element={<AbsenceBalancePage />} />
               <Route path="/reports/attendance" element={<AttendancePage />} />
               <Route path="/reports/lateness" element={<LatenessPage />} />
+              <Route path="/reports/tasks" element={<TasksReportPage />} />
+              <Route path="/reports/timesheet" element={<TimesheetReportPage />} />
               <Route path="/reports/sport-attendance" element={<SportAttendancePage />} />
               <Route path="/reports/bonus-deductions" element={<BonusDeductionsPage />} />
               <Route path="/reports/recruiting-funnel" element={<RecruitingFunnelPage />} />

@@ -49,6 +49,14 @@ export const SOURCE_META: Record<
     bar: "#b3a8e8",
   },
   break: { label: "Перерыв", short: "Перерыв", color: "#94a3b8", bar: "#cbd5e1" },
+  // Ручное время HRMS — такое же отработанное, поэтому в полосе тот же синий
+  // ряд, но темнее мобильного: по бейджу его отличают от правки в Time Doctor.
+  hrms_manual: {
+    label: "Ручное время (HRMS)",
+    short: "Ручное",
+    color: "#0e7490",
+    bar: "#7dd3e8",
+  },
   other: { label: "Другое", short: "Другое", color: "#64748b", bar: "#cbd5e1" },
 };
 
@@ -57,6 +65,7 @@ export const SOURCE_ORDER: TimesheetSource[] = [
   "manual",
   "mobile",
   "break",
+  "hrms_manual",
   "other",
 ];
 

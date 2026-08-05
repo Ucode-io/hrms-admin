@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
+import ViewSwitcher from "../../../../components/common/ViewSwitcher";
 import Button from "../../../../components/ui/button/Button";
 import ExpandableSearchInput from "../../../../components/form/ExpandableSearchInput";
 import { Modal } from "../../../../components/ui/modal";
@@ -169,30 +170,14 @@ function VacanciesList() {
             borderBottom: isFiltersOpen ? "none" : "1px solid #e2e8f0",
           }}
         >
-          <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-            {(["cards", "table"] as ViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setViewMode(mode)}
-                className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium transition ${
-                  viewMode === mode ? "bg-white text-brand-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {mode === "cards" ? (
-                  <>
-                    <LayoutGrid size={16} />
-                    Карточки
-                  </>
-                ) : (
-                  <>
-                    <List size={16} />
-                    Таблица
-                  </>
-                )}
-              </button>
-            ))}
-          </div>
+          <ViewSwitcher
+            value={viewMode}
+            onChange={setViewMode}
+            items={[
+              { key: "cards", label: "Карточки", icon: <LayoutGrid size={16} /> },
+              { key: "table", label: "Таблица", icon: <List size={16} /> },
+            ]}
+          />
 
           <div className="ml-auto flex items-center gap-2">
             <ExpandableSearchInput

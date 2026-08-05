@@ -1,5 +1,20 @@
-/** Источник записи времени — производная от `mode` в Time Doctor. */
-export type TimesheetSource = "tracker" | "manual" | "mobile" | "break" | "other";
+/**
+ * Источник записи времени — производная от `mode` в Time Doctor.
+ *
+ * `hrms_manual` — ручное время, заведённое в HRMS и прошедшее согласование;
+ * от `manual` (правка в самом Time Doctor) отличается принципиально: у него
+ * есть статус и автор.
+ */
+export type TimesheetSource =
+  | "tracker"
+  | "manual"
+  | "mobile"
+  | "break"
+  | "hrms_manual"
+  | "other";
+
+/** Статус ручной записи: заводится как `pending`, дальше решение согласующего. */
+export type ManualTimeStatus = "pending" | "approved" | "rejected";
 
 export type TimesheetView = "table" | "timeline";
 
@@ -43,7 +58,17 @@ export type TimesheetEntry = {
   employeeName: string;
   employeePhoto: string;
   department: string;
+  /** Нужен, чтобы найти процесс согласования записи (процесс задан на отдел). */
+  departmentId?: string | null;
   position: string;
+  /** Ниже — только у ручных записей HRMS. */
+  isManual?: boolean;
+  status?: ManualTimeStatus;
+  createdBy?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  reviewComment?: string;
+  createdAt?: string | null;
 };
 
 export type TimesheetTotals = {
@@ -66,6 +91,8 @@ export type TimesheetListResult = {
   limit: number;
   offset: number;
   totals: TimesheetTotals;
+  /** Ручное время, ещё не прошедшее согласование: показано, но в итоги не входит. */
+  pendingManual?: { count: number; seconds: number };
   entries: TimesheetEntry[];
   employees: TimesheetEmployee[];
   projects: TimesheetDirectoryItem[];
@@ -163,6 +190,9 @@ export type TimesheetDayResult = {
   employee: TimesheetEmployee;
   day: TimesheetDaySummary;
   entries: TimesheetEntry[];
+  /** Справочники для формы ручного времени прямо на странице дня. */
+  projects: TimesheetDirectoryItem[];
+  tasks: TimesheetDirectoryItem[];
   byProject: TimesheetProjectGroup[];
   history: TimesheetHistoryDay[];
 };

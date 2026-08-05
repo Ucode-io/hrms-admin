@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Clock, PencilLine } from "lucide-react";
 import { Link } from "react-router";
 import {
@@ -18,6 +19,12 @@ interface TableViewProps {
   offset: number;
   isFetching: boolean;
   onOffsetChange: (offset: number) => void;
+  /**
+   * Статус и действия ручной записи рисует страница: там живут процессы
+   * согласования и мутации, а таблица остаётся представлением.
+   */
+  renderManualStatus?: (entry: TimesheetEntry) => ReactNode;
+  renderManualActions?: (entry: TimesheetEntry) => ReactNode;
 }
 
 const HEADERS = [
@@ -30,6 +37,8 @@ const HEADERS = [
   "Задача",
   "Причина",
   "Источник",
+  "Статус",
+  "",
 ];
 
 export default function TableView({
@@ -39,6 +48,8 @@ export default function TableView({
   offset,
   isFetching,
   onOffsetChange,
+  renderManualStatus,
+  renderManualActions,
 }: TableViewProps) {
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + limit, total);
@@ -148,6 +159,16 @@ export default function TableView({
                       />
                     )}
                   </span>
+                </TableCell>
+
+                <TableCell className="whitespace-nowrap px-5 py-3">
+                  {entry.isManual ? renderManualStatus?.(entry) ?? null : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
+                </TableCell>
+
+                <TableCell className="whitespace-nowrap px-5 py-3 text-right">
+                  {entry.isManual ? renderManualActions?.(entry) ?? null : null}
                 </TableCell>
               </TableRow>
             ))}
