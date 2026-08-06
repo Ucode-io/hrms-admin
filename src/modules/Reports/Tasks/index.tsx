@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw, Search } from "lucide-react";
 import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
+import type { StylesConfig } from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
+import EmployeeInfiniteSelect from "../../../components/autocomplete/EmployeeInfiniteSelect";
 import {
   type TaskDeadlineBucketKey,
   type TasksByStatusItem,
@@ -17,6 +19,71 @@ import {
 const TABLE_PAGE_LIMIT = 20;
 
 type DetailTab = "tasks" | "employees";
+
+/** Глобальный период отчёта — пресет плюс стрелки «назад/вперёд». */
+type PeriodPreset = "week" | "month" | "year" | "all";
+
+type DateRange = { from: string; to: string };
+
+const PERIOD_PRESETS: { key: PeriodPreset; label: string }[] = [
+  { key: "week", label: "Неделя" },
+  { key: "month", label: "Месяц" },
+  { key: "year", label: "Год" },
+  { key: "all", label: "Всё время" },
+];
+
+const DEFAULT_PERIOD: PeriodPreset = "year";
+
+const pad = (value: number): string => String(value).padStart(2, "0");
+
+const toIsoDate = (date: Date): string =>
+  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+
+const parseIsoDate = (value: string): Date => {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year || 1970, (month || 1) - 1, day || 1);
+};
+
+/**
+ * Границы периода вокруг опорной даты. Неделя считается с понедельника —
+ * отчёт про рабочие сроки, и воскресный старт резал бы рабочую неделю пополам.
+ */
+const periodRange = (preset: PeriodPreset, anchor: string): DateRange => {
+  const date = parseIsoDate(anchor);
+
+  if (preset === "week") {
+    const start = new Date(date);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { from: toIsoDate(start), to: toIsoDate(end) };
+  }
+
+  if (preset === "month") {
+    return {
+      from: toIsoDate(new Date(date.getFullYear(), date.getMonth(), 1)),
+      to: toIsoDate(new Date(date.getFullYear(), date.getMonth() + 1, 0)),
+    };
+  }
+
+  return { from: `${date.getFullYear()}-01-01`, to: `${date.getFullYear()}-12-31` };
+};
+
+/**
+ * Сдвиг периода стрелками. Опорная дата всегда хранится как начало периода:
+ * от 31-го числа `setMonth(+1)` перепрыгнуло бы февраль.
+ */
+const shiftPeriod = (preset: PeriodPreset, anchor: string, direction: 1 | -1): string => {
+  const date = parseIsoDate(anchor);
+
+  if (preset === "week") date.setDate(date.getDate() + direction * 7);
+  else if (preset === "month") date.setMonth(date.getMonth() + direction);
+  else date.setFullYear(date.getFullYear() + direction);
+
+  return periodRange(preset, toIsoDate(date)).from;
+};
+
+const defaultAnchor = (): string => periodRange(DEFAULT_PERIOD, toIsoDate(new Date())).from;
 
 /**
  * Порядок и цвета бакетов срока — общие для диаграммы, фильтра и таблицы,
@@ -196,6 +263,179 @@ function Pagination({
   );
 }
 
+/** Один сотрудник за раз: фильтр отвечает на вопрос «а как у него», не «у группы». */
+const employeeSelectStyles: StylesConfig<{ value: string; label: string }, false> = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 40,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderColor: state.isFocused ? "#cbd5e1" : "#e5e7eb",
+    boxShadow: "none",
+    "&:hover": { borderColor: "#cbd5e1" },
+  }),
+  valueContainer: (base) => ({ ...base, padding: "2px 10px" }),
+  placeholder: (base) => ({ ...base, color: "#94a3b8", fontSize: 13 }),
+  input: (base) => ({ ...base, color: "#1e293b", fontSize: 13, margin: 0, padding: 0 }),
+  singleValue: (base) => ({ ...base, color: "#1e293b", fontSize: 13, fontWeight: 500 }),
+  indicatorSeparator: () => ({ display: "none" }),
+  dropdownIndicator: (base) => ({ ...base, color: "#94a3b8", padding: 6 }),
+  clearIndicator: (base) => ({ ...base, color: "#94a3b8", padding: 6 }),
+  menu: (base) => ({ ...base, borderRadius: 12, overflow: "hidden", zIndex: 60 }),
+  menuPortal: (base) => ({ ...base, zIndex: 100100 }),
+  // Дефолтные 16px в списке смотрятся крупнее всей панели фильтров.
+  option: (base) => ({ ...base, fontSize: 13, padding: "8px 12px" }),
+  noOptionsMessage: (base) => ({ ...base, fontSize: 13 }),
+  loadingMessage: (base) => ({ ...base, fontSize: 13 }),
+};
+
+const MONTH_NAMES = [
+  "Январь",
+  "Февраль",
+  "Март",
+  "Апрель",
+  "Май",
+  "Июнь",
+  "Июль",
+  "Август",
+  "Сентябрь",
+  "Октябрь",
+  "Ноябрь",
+  "Декабрь",
+];
+
+const periodCaption = (preset: PeriodPreset, range: DateRange): string => {
+  if (preset === "all" || !range.from) return "За всё время";
+  const date = parseIsoDate(range.from);
+  if (preset === "month") return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+  if (preset === "year") return `${date.getFullYear()} год`;
+  return `${formatDate(range.from)} — ${formatDate(range.to)}`;
+};
+
+interface ReportFiltersProps {
+  preset: PeriodPreset;
+  range: DateRange;
+  employeeId: string;
+  isDirty: boolean;
+  onPreset: (preset: PeriodPreset) => void;
+  onShift: (direction: 1 | -1) => void;
+  onEmployee: (id: string) => void;
+  onReset: () => void;
+}
+
+/**
+ * Глобальные фильтры отчёта: они сужают весь отчёт разом — и карточки, и
+ * графики, и обе таблицы, — поэтому стоят над ними, а не в шапке таблицы, где
+ * живут фильтры одного только среза (статус, срок, «только с просрочкой»).
+ */
+function ReportFilters({
+  preset,
+  range,
+  employeeId,
+  isDirty,
+  onPreset,
+  onShift,
+  onEmployee,
+  onReset,
+}: ReportFiltersProps) {
+  const canShift = preset !== "all";
+  const portalTarget = typeof document !== "undefined" ? document.body : undefined;
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Переключатель периода — тот же, что в модуле KPI. */}
+          <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+            {PERIOD_PRESETS.map((item) => {
+              const isActive = preset === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => onPreset(item.key)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    height: "30px",
+                    padding: "0 12px",
+                    border: isActive ? "1px solid var(--color-brand-100)" : "1px solid transparent",
+                    borderRadius: "8px",
+                    backgroundColor: isActive ? "#fff" : "transparent",
+                    color: isActive ? "var(--company-color)" : "#64748b",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    boxShadow: isActive ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="inline-flex h-[38px] items-center rounded-xl border border-slate-200 bg-slate-50 p-[3px]">
+            <button
+              type="button"
+              onClick={() => onShift(-1)}
+              disabled={!canShift}
+              aria-label="Предыдущий период"
+              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
+              {periodCaption(preset, range)}
+            </span>
+            <button
+              type="button"
+              onClick={() => onShift(1)}
+              disabled={!canShift}
+              aria-label="Следующий период"
+              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Ширина селекта фиксирована: имена сотрудников длинные, и «резиновый»
+            селект на каждом выборе переносил бы «Сбросить» на вторую строку. */}
+        <div className="flex items-center gap-2">
+          <div className="w-full min-w-0 sm:w-[280px]">
+            <EmployeeInfiniteSelect
+              value={employeeId}
+              onChange={onEmployee}
+              placeholder="Все сотрудники"
+              styles={employeeSelectStyles}
+              menuPortalTarget={portalTarget}
+              classNamePrefix="tasks-report-employee"
+            />
+          </div>
+
+          {isDirty ? (
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
+            >
+              <RotateCcw size={14} />
+              Сбросить
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <p className="mt-2 text-xs text-gray-400">
+        {range.from && range.to ? `${formatDate(range.from)} — ${formatDate(range.to)} · ` : ""}
+        В отчёт попадают задачи, срок жизни которых пересекается с периодом
+      </p>
+    </section>
+  );
+}
+
 function TasksReportPage() {
   const [tab, setTab] = useState<DetailTab>("tasks");
   const [tablePage, setTablePage] = useState(1);
@@ -204,6 +444,15 @@ function TasksReportPage() {
   const [bucket, setBucket] = useState<TaskDeadlineBucketKey | "">("");
   const [statusId, setStatusId] = useState("");
   const [onlyDelayed, setOnlyDelayed] = useState(false);
+
+  const [preset, setPreset] = useState<PeriodPreset>(DEFAULT_PERIOD);
+  const [anchor, setAnchor] = useState(defaultAnchor);
+  const [employeeId, setEmployeeId] = useState("");
+
+  const range = useMemo<DateRange>(
+    () => (preset === "all" ? { from: "", to: "" } : periodRange(preset, anchor)),
+    [preset, anchor]
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -214,10 +463,28 @@ function TasksReportPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const { data, isLoading, isFetching, isError, error, refetch } = useTasksByStatusReportQuery();
+  // Глобальные фильтры меняют состав данных целиком: остаться на седьмой
+  // странице после смены периода означало бы увидеть пустую таблицу.
+  useEffect(() => {
+    setTablePage(1);
+  }, [range.from, range.to, employeeId]);
+
+  /** Общая часть запроса — период и сотрудник сужают весь отчёт сразу. */
+  const globalRequestData = useMemo(
+    () => ({
+      ...(range.from ? { date_from: range.from } : {}),
+      ...(range.to ? { date_to: range.to } : {}),
+      ...(employeeId ? { employees_ids: [employeeId] } : {}),
+    }),
+    [range.from, range.to, employeeId]
+  );
+
+  const { data, isLoading, isFetching, isError, error, refetch } =
+    useTasksByStatusReportQuery(globalRequestData);
 
   const tasksRequestData = useMemo(
     () => ({
+      ...globalRequestData,
       ...(search ? { search } : {}),
       ...(bucket ? { deadline_bucket: bucket } : {}),
       ...(statusId ? { status_ids: [statusId] } : {}),
@@ -225,15 +492,58 @@ function TasksReportPage() {
       // а не «когда дедлайн».
       ...(onlyDelayed ? { only_delayed: true, sort: "overdue" } : {}),
     }),
-    [search, bucket, statusId, onlyDelayed]
+    [globalRequestData, search, bucket, statusId, onlyDelayed]
   );
 
   const employeesRequestData = useMemo(
     () => ({
+      ...globalRequestData,
       ...(search ? { search } : {}),
       ...(onlyDelayed ? { only_delayed: true } : {}),
     }),
-    [search, onlyDelayed]
+    [globalRequestData, search, onlyDelayed]
+  );
+
+  const isFiltersDirty =
+    preset !== DEFAULT_PERIOD || anchor !== defaultAnchor() || Boolean(employeeId);
+
+  const handlePreset = (next: PeriodPreset) => {
+    if (next === preset) return;
+
+    if (next !== "all") {
+      // Если текущий период включает сегодня — сужаемся к сегодняшнему дню:
+      // переход «2026 год → Месяц» должен давать текущий месяц, а не январь.
+      // Для прошлых периодов остаёмся на их начале.
+      const today = toIsoDate(new Date());
+      const insideRange =
+        (!range.from || range.from <= today) && (!range.to || today <= range.to);
+      setAnchor(periodRange(next, insideRange ? today : range.from || today).from);
+    }
+
+    setPreset(next);
+  };
+
+  const handleShift = (direction: 1 | -1) => {
+    setAnchor((prev) => shiftPeriod(preset, prev, direction));
+  };
+
+  const handleResetFilters = () => {
+    setPreset(DEFAULT_PERIOD);
+    setAnchor(defaultAnchor());
+    setEmployeeId("");
+  };
+
+  const filtersBar = (
+    <ReportFilters
+      preset={preset}
+      range={range}
+      employeeId={employeeId}
+      isDirty={isFiltersDirty}
+      onPreset={handlePreset}
+      onShift={handleShift}
+      onEmployee={setEmployeeId}
+      onReset={handleResetFilters}
+    />
   );
 
   const {
@@ -406,8 +716,11 @@ function TasksReportPage() {
     return (
       <>
         <PageMeta title="Задачи | Отчеты | HRMS" description="Отчет по задачам" />
-        <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
-          <Spinner />
+        <div className="space-y-4">
+          {filtersBar}
+          <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
+            <Spinner />
+          </div>
         </div>
       </>
     );
@@ -417,17 +730,20 @@ function TasksReportPage() {
     return (
       <>
         <PageMeta title="Задачи | Отчеты | HRMS" description="Отчет по задачам" />
-        <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
-          <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
-          <button
-            type="button"
-            onClick={() => {
-              void refetch();
-            }}
-            className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
-          >
-            Повторить
-          </button>
+        <div className="space-y-4">
+          {filtersBar}
+          <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
+            <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
+            <button
+              type="button"
+              onClick={() => {
+                void refetch();
+              }}
+              className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
+            >
+              Повторить
+            </button>
+          </div>
         </div>
       </>
     );
@@ -438,6 +754,8 @@ function TasksReportPage() {
       <PageMeta title="Задачи | Отчеты | HRMS" description="Отчет по задачам" />
 
       <div className="space-y-4">
+        {filtersBar}
+
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard title="Всего задач" value={String(cards.total ?? 0)} />
           <MetricCard

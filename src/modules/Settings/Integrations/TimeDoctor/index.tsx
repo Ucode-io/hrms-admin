@@ -14,6 +14,14 @@ import {
   useTd2SyncStatus,
   type Td2ConfigTestResult,
 } from "../../../../api/services/timedoctor.service";
+import EmployeesScopeTab from "./EmployeesScopeTab";
+
+type SettingsTab = "connection" | "employees";
+
+const TABS: { key: SettingsTab; label: string }[] = [
+  { key: "connection", label: "Подключение" },
+  { key: "employees", label: "Сотрудники" },
+];
 
 const formatDateTime = (value: string | null | undefined): string => {
   if (!value) return "—";
@@ -54,6 +62,7 @@ const getErrorMessage = (error: unknown, fallback: string): string =>
 const nonEmpty = (value: string | undefined | null): string => value?.trim() ?? "";
 
 export default function TimeDoctorIntegrationSettingsPage() {
+  const [tab, setTab] = useState<SettingsTab>("connection");
   const configQuery = useTd2Config();
   const config = configQuery.data ?? null;
 
@@ -191,7 +200,28 @@ export default function TimeDoctorIntegrationSettingsPage() {
         </div>
       </div>
 
-      {configQuery.isLoading ? (
+      {/* Охват трекинга — настройка HRMS, а не Time Doctor, поэтому вкладка
+          доступна и без подключённой интеграции. */}
+      <div className="mb-4 inline-flex rounded-xl border border-gray-200 p-0.5">
+        {TABS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+            style={{
+              backgroundColor: tab === item.key ? "var(--company-color)" : "transparent",
+              color: tab === item.key ? "#ffffff" : "#475569",
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "employees" ? (
+        <EmployeesScopeTab />
+      ) : configQuery.isLoading ? (
         <div className="flex justify-center py-16">
           <Spinner />
         </div>

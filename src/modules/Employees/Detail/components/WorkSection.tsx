@@ -35,6 +35,28 @@ import {
   useEmployeeQuery,
   useUpdateEmployee,
 } from "../../../../api/services/employee.service";
+import {
+  EMPLOYEE_WORK_ENTITY_TYPE,
+  EMPLOYEE_WORK_PROCESS_TYPE,
+  type EmployeeWorkRequest,
+  type EmployeeWorkRequestPayload,
+  useDeleteEmployeeWorkRequest,
+  useEmployeeWorkRequestsQuery,
+  useReviewEmployeeWorkRequest,
+  useSaveEmployeeWorkRequest,
+} from "../../../../api/services/employeeWorkRequest.service";
+import {
+  findApprovalProcessFor,
+  useApprovalProcessesQuery,
+  useApproveStage,
+  useEntityApprovalsQuery,
+} from "../../../../api/services/approval.service";
+import {
+  countApprovedStages,
+  isProcessComplete,
+} from "../../../Settings/Approvals/approvalRuntime";
+import ApprovalProcessModal from "../../../../components/approvals/ApprovalProcessModal";
+import ApprovalProgressButton from "../../../../components/approvals/ApprovalProgressButton";
 import { useGradeMatrixQuery } from "../../../../api/services/gradeMatrix.service";
 import { formatTenure } from "../../../Settings/GradeMatrix/constants";
 import { useSalaryPolicy } from "../../../Settings/GradeMatrix/useSalaryPolicy";
@@ -58,6 +80,8 @@ import {
 type WorkSectionProps = {
   employeeGuid: string;
   brandColor: string;
+  /** Департамент сотрудника — от него зависит процесс согласования изменений. */
+  departmentId?: string | null;
   returnRequestKey?: number;
   onEmployeeReturned?: () => Promise<void> | void;
 };
@@ -557,6 +581,7 @@ function WorkTimelineCard({
 export default function WorkSection({
   employeeGuid,
   brandColor,
+  departmentId,
   returnRequestKey = 0,
   onEmployeeReturned,
 }: WorkSectionProps) {
@@ -667,7 +692,45 @@ export default function WorkSection({
   const deleteEmployeeWork = useDeleteEmployeeWork();
   const updateEmployee = useUpdateEmployee();
 
-  const isSaving = createEmployeeWork.isLoading || updateEmployeeWork.isLoading;
+  // --- Согласование изменений в работе -------------------------------------
+  // Если на департамент сотрудника настроен процесс `employee_work_approval`,
+  // добавление и правка должности уходят в заявку и применяются к
+  // `employee_works` только после всех этапов. Процесса нет — пишем напрямую,
+  // как раньше: иначе фича сломала бы всех, у кого согласование не настроено.
+  const { data: approvalProcesses } = useApprovalProcessesQuery();
+  const workApprovalProcess = useMemo(
+    () => findApprovalProcessFor(approvalProcesses ?? [], EMPLOYEE_WORK_PROCESS_TYPE, departmentId),
+    [approvalProcesses, departmentId]
+  );
+
+  const { data: workRequests } = useEmployeeWorkRequestsQuery(
+    employeeGuid,
+    Boolean(workApprovalProcess)
+  );
+  const saveWorkRequest = useSaveEmployeeWorkRequest();
+  const reviewWorkRequest = useReviewEmployeeWorkRequest();
+  const deleteWorkRequest = useDeleteEmployeeWorkRequest();
+  const approveStage = useApproveStage();
+
+  const [approvalRequest, setApprovalRequest] = useState<EmployeeWorkRequest | null>(null);
+
+  const pendingRequests = useMemo(
+    () => (workRequests ?? []).filter((request) => request.status === "pending"),
+    [workRequests]
+  );
+
+  const pendingRequestIds = useMemo(
+    () => pendingRequests.map((request) => request.guid),
+    [pendingRequests]
+  );
+
+  const { data: approvalProgressMap } = useEntityApprovalsQuery(
+    EMPLOYEE_WORK_ENTITY_TYPE,
+    pendingRequestIds
+  );
+
+  const isSaving =
+    createEmployeeWork.isLoading || updateEmployeeWork.isLoading || saveWorkRequest.isLoading;
   const isDeleting = deleteEmployeeWork.isLoading;
 
   const sourceRecords = useMemo(() => {
@@ -1275,6 +1338,36 @@ export default function WorkSection({
       payload.custom_data = JSON.stringify(collected);
     }
 
+    // Возврат сотрудника идёт мимо согласования: он меняет ещё и статус
+    // сотрудника (`onEmployeeReturned`), а отложить это до одобрения нельзя —
+    // уволенный остался бы уволенным с висящей заявкой на должность.
+    if (workApprovalProcess && modalMode !== "return") {
+      if (modalMode === "edit" && !editingRaw) {
+        toast.error("Не удалось найти запись для редактирования");
+        return;
+      }
+
+      try {
+        await saveWorkRequest.mutateAsync({
+          userBaseId: employeeGuid,
+          action: modalMode === "edit" ? "update" : "create",
+          employeeWorksId: modalMode === "edit" ? editingRaw!.guid : null,
+          payload: payload as EmployeeWorkRequestPayload,
+        });
+        toast.success(
+          modalMode === "edit"
+            ? "Заявка на изменение отправлена на согласование"
+            : "Заявка на добавление должности отправлена на согласование"
+        );
+        resetEditModal();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Не удалось отправить заявку"
+        );
+      }
+      return;
+    }
+
     try {
       if (modalMode === "edit") {
         if (!editingRaw) {
@@ -1360,6 +1453,88 @@ export default function WorkSection({
     }
   };
 
+  /**
+   * Что именно предлагает заявка — человеческим языком.
+   *
+   * Разрешаем только справочники, уже загруженные секцией (должность, отдел,
+   * уровень): тянуть ради подписи ещё пять справочников незачем, а поля без
+   * подписи в сводку просто не попадают.
+   */
+  const describeRequest = (request: EmployeeWorkRequest): { label: string; value: string }[] => {
+    const payload = request.payload;
+    const rows: { label: string; value: string }[] = [];
+
+    const titleOf = (list: { guid: string; title?: string }[], id: unknown): string => {
+      if (typeof id !== "string" || !id) return "";
+      return list.find((item) => item.guid === id)?.title || "";
+    };
+
+    if ("positions_id" in payload) {
+      rows.push({ label: "Должность", value: titleOf(positionsList, payload.positions_id) || "—" });
+    }
+    if ("departments_id" in payload) {
+      rows.push({
+        label: "Отдел",
+        value: titleOf(departmentOptions, payload.departments_id) || "—",
+      });
+    }
+    if ("experience_levels_id" in payload) {
+      rows.push({
+        label: "Уровень",
+        value: titleOf(experienceLevelsList, payload.experience_levels_id) || "—",
+      });
+    }
+    if ("salary" in payload) {
+      rows.push({
+        label: "Оклад",
+        value: formatSalary(typeof payload.salary === "number" ? payload.salary : null),
+      });
+    }
+    if ("date_from" in payload) {
+      rows.push({ label: "Дата начала", value: formatDate(payload.date_from || "") });
+    }
+    if ("date_to" in payload && payload.date_to) {
+      rows.push({ label: "Дата окончания", value: formatDate(payload.date_to) });
+    }
+
+    return rows;
+  };
+
+  /** Итог по заявке: применение к `employee_works` делает сервер. */
+  const reviewRequest = async (
+    request: EmployeeWorkRequest,
+    status: "approved" | "rejected",
+    comment = ""
+  ) => {
+    try {
+      await reviewWorkRequest.mutateAsync({ guid: request.guid, status, comment });
+      setApprovalRequest(null);
+
+      if (status === "approved") {
+        try {
+          await syncUserBaseFromCurrentWork();
+        } catch (syncError) {
+          console.error("Request applied but user_base sync failed:", syncError);
+          toast.error("Изменения применены, но профиль сотрудника не синхронизирован.");
+        }
+      }
+
+      toast.success(status === "approved" ? "Изменения применены" : "Заявка отклонена");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось изменить статус заявки");
+    }
+  };
+
+  const withdrawRequest = async (request: EmployeeWorkRequest) => {
+    try {
+      await deleteWorkRequest.mutateAsync(request.guid);
+      setApprovalRequest(null);
+      toast.success("Заявка отозвана");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось отозвать заявку");
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deletingTimelineRecord) return;
 
@@ -1429,6 +1604,66 @@ export default function WorkSection({
             Добавить должность
           </button>
         </div>
+
+        {/* Заявки на согласовании — история работы до одобрения не меняется. */}
+        {workApprovalProcess && pendingRequests.length > 0 ? (
+          <div className="border-b border-slate-100 bg-amber-50/50 px-5 py-4 sm:px-6">
+            <p className="m-0 text-[13px] font-semibold text-amber-800">
+              На согласовании: {pendingRequests.length}
+            </p>
+            <div className="mt-3 space-y-2">
+              {pendingRequests.map((request) => {
+                const progress = approvalProgressMap?.[request.guid] ?? null;
+                const approvedStages = countApprovedStages(workApprovalProcess, progress);
+
+                return (
+                  <div
+                    key={request.guid}
+                    className="rounded-xl border border-amber-200 bg-white px-4 py-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="m-0 text-[13px] font-semibold text-slate-900">
+                          {request.action === "create"
+                            ? "Добавление должности"
+                            : "Изменение должности"}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+                          {describeRequest(request).map((row) => (
+                            <span key={row.label} className="text-[12px] text-slate-500">
+                              {row.label}:{" "}
+                              <span className="font-medium text-slate-700">{row.value}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <ApprovalProgressButton
+                          approvedStages={approvedStages}
+                          totalStages={workApprovalProcess.stages.length}
+                          onClick={() => setApprovalRequest(request)}
+                          disabled={reviewWorkRequest.isLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void withdrawRequest(request);
+                          }}
+                          disabled={deleteWorkRequest.isLoading}
+                          className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          title="Отозвать заявку"
+                        >
+                          Отозвать
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <div className="px-5 py-5 sm:px-6">
           {isLoading ? (
@@ -1807,6 +2042,38 @@ export default function WorkSection({
           </div>
         </div>
       </Modal>
+
+      <ApprovalProcessModal
+        isOpen={Boolean(approvalRequest)}
+        onClose={() => setApprovalRequest(null)}
+        process={workApprovalProcess ?? null}
+        progress={approvalRequest ? approvalProgressMap?.[approvalRequest.guid] ?? null : null}
+        onApproveStage={(stageId, comment) => {
+          if (!approvalRequest || !workApprovalProcess) return;
+          void approveStage.mutateAsync({
+            entityType: EMPLOYEE_WORK_ENTITY_TYPE,
+            entityId: approvalRequest.guid,
+            processId: workApprovalProcess.id,
+            stageId,
+            comment,
+          });
+        }}
+        isApprovingStage={approveStage.isLoading}
+        onConfirm={() => {
+          // Кнопку модалка показывает только когда все этапы пройдены, но
+          // проверяем и здесь: применение необратимо.
+          if (!approvalRequest || !workApprovalProcess) return;
+          const progress = approvalProgressMap?.[approvalRequest.guid] ?? null;
+          if (!isProcessComplete(workApprovalProcess, progress)) return;
+          void reviewRequest(approvalRequest, "approved");
+        }}
+        isConfirming={reviewWorkRequest.isLoading}
+        onReject={(comment) => {
+          if (approvalRequest) void reviewRequest(approvalRequest, "rejected", comment);
+        }}
+        isRejecting={reviewWorkRequest.isLoading}
+        confirmLabel="Применить изменения"
+      />
     </>
   );
 }

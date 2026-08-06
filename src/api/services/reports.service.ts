@@ -4479,6 +4479,9 @@ export const useTasksByStatusReportQuery = (requestData: JsonRecord = {}) => {
   return useQuery({
     queryKey: ["REPORTS", "TASKS_BY_STATUS", requestData],
     queryFn: () => reportsService.getTasksByStatus(requestData),
+    // Глобальные фильтры отчёта меняют ключ запроса: без этого смена периода
+    // роняла бы страницу в спиннер вместо перерисовки цифр.
+    keepPreviousData: true,
     staleTime: 60_000,
   });
 };

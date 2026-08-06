@@ -1,8 +1,9 @@
 // Табель времени — чтение интеграции Time Doctor через шлюз udevs-hrms-reports.
 //
 // Методы `timesheet_*` только читают: worklog'и пересоздаёт синхронизация Time
-// Doctor, поэтому редактировать их из HRMS нечего. Слой соответственно без
-// мутаций — одни query-хуки.
+// Doctor, поэтому редактировать их из HRMS нечего. Единственная мутация здесь —
+// охват тайм-трекинга (`time_tracking_employees_*`): это настройка HRMS, а не
+// данные Time Doctor, и живёт она в собственной таблице.
 //
 // Время приходит с сервера уже в локальном поясе компании строкой без Z
 // («2026-06-15T09:05:00»). Оборачивать его в Date на клиенте нельзя: браузер
@@ -10,7 +11,7 @@
 // строки, а Date используется только для календарных дат (без времени).
 
 import axios from "axios";
-import { useInfiniteQuery, useQuery } from "react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "react-query";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 import authStore from "../../store/auth.store";
 import { handleUnauthorizedError } from "../unauthorizedHandler";
@@ -28,8 +29,11 @@ const REPORTS_FUNCTION_PATH =
 const LIST_METHOD = "timesheet_list";
 const TIMELINE_METHOD = "timesheet_timeline";
 const DAY_METHOD = "timesheet_day";
+const SCOPE_GET_METHOD = "time_tracking_employees_get";
+const SCOPE_SAVE_METHOD = "time_tracking_employees_save";
 
 export const TIMESHEET_QUERY_KEY = "timesheet";
+export const TIMESHEET_SCOPE_QUERY_KEY = "timesheet-scope";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -185,3 +189,58 @@ export const useTimesheetDayQuery = (employeeId: string, date: string) =>
     () => invoke<TimesheetDayResult>(DAY_METHOD, { employee_id: employeeId, date }),
     { enabled: Boolean(employeeId && date), keepPreviousData: true }
   );
+
+// --- Охват тайм-трекинга --------------------------------------------------
+// Кто участвует в табеле. Настраивается во вкладке «Сотрудники» страницы
+// /settings/integrations/timedoctor; трекинг есть не у всего штата, и остальные
+// раньше занимали в табеле строки с прочерками.
+
+export interface TimeTrackingScopeEmployee {
+  employeeId: string;
+  name: string;
+  photo: string;
+  departmentId: string | null;
+  department: string;
+  positionId: string | null;
+  position: string;
+  isEnabled: boolean;
+  /** Без маппинга в Time Doctor часов не будет, даже если сотрудник включён. */
+  hasMapping: boolean;
+  email: string;
+}
+
+export interface TimeTrackingScopeResult {
+  employees: TimeTrackingScopeEmployee[];
+  departments: { id: string; title: string }[];
+  /** `false` — охват ещё не настраивали, в табель попадают все. */
+  configured: boolean;
+  enabled_count: number;
+  total_count: number;
+}
+
+export const useTimeTrackingScopeQuery = (enabled = true) =>
+  useQuery(
+    [TIMESHEET_SCOPE_QUERY_KEY],
+    () => invoke<TimeTrackingScopeResult>(SCOPE_GET_METHOD, {}),
+    { enabled, staleTime: 60_000 }
+  );
+
+export const useTimeTrackingScopeSaveMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    (employeeIds: string[]) =>
+      invoke<{ enabled_count: number; total_count: number; configured: boolean }>(
+        SCOPE_SAVE_METHOD,
+        { employee_ids: employeeIds }
+      ),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([TIMESHEET_SCOPE_QUERY_KEY]);
+        // Табель и его отчёт считаются по этому же охвату — их кэш устарел.
+        queryClient.invalidateQueries([TIMESHEET_QUERY_KEY]);
+        queryClient.invalidateQueries(["REPORTS"]);
+      },
+    }
+  );
+};

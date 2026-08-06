@@ -1054,6 +1054,7 @@ function EmployeeDetail() {
         <WorkSection
           employeeGuid={emp.guid}
           brandColor={brandColor}
+          departmentId={employeeDepartmentId}
           returnRequestKey={returnEmployeeRequestKey}
           onEmployeeReturned={handleEmployeeReturned}
         />
