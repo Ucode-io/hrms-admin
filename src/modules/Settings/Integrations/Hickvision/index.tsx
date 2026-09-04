@@ -147,6 +147,7 @@ export default function HickvisionIntegrationSettingsPage() {
   const [macPage, setMacPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
   const [recordsPage, setRecordsPage] = useState(1);
+  const [recordsTotalHint, setRecordsTotalHint] = useState(0);
   const [newMacAddress, setNewMacAddress] = useState("");
   const [deletingGuid, setDeletingGuid] = useState<string | null>(null);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -197,14 +198,25 @@ export default function HickvisionIntegrationSettingsPage() {
   );
 
   const recordsQueryParams = useMemo(
-    () => ({
-      with_relations: true,
-      data: encodeJsonToUrlParam({
-        limit: PAGE_SIZE,
-        offset: (recordsPage - 1) * PAGE_SIZE,
-      }),
-    }),
-    [recordsPage]
+    () => {
+      // The generic items endpoint returns attendance_records oldest-first
+      // and ignores order_by for this table. Translate the UI's newest-first
+      // page number into an offset from the end, then reverse that window
+      // before rendering below.
+      const remaining = recordsTotalHint - (recordsPage - 1) * PAGE_SIZE;
+      const limit = recordsTotalHint > 0
+        ? Math.max(1, Math.min(PAGE_SIZE, remaining))
+        : PAGE_SIZE;
+      const offset = recordsTotalHint > 0
+        ? Math.max(0, recordsTotalHint - recordsPage * PAGE_SIZE)
+        : 0;
+
+      return {
+        with_relations: true,
+        data: encodeJsonToUrlParam({ limit, offset }),
+      };
+    },
+    [recordsPage, recordsTotalHint]
   );
 
   const macAddressesQuery = useSettingsDirectoryQuery({
@@ -245,7 +257,7 @@ export default function HickvisionIntegrationSettingsPage() {
   const usersTotalCount = Number(usersQuery.data?.count || 0);
   const usersTotalPages = Math.max(1, Math.ceil(usersTotalCount / PAGE_SIZE));
 
-  const records = (recordsQuery.data?.response || []) as AttendanceRecordItem[];
+  const records = ([...(recordsQuery.data?.response || [])] as AttendanceRecordItem[]).reverse();
   const recordsTotalCount = Number(recordsQuery.data?.count || 0);
   const recordsTotalPages = Math.max(1, Math.ceil(recordsTotalCount / PAGE_SIZE));
 
@@ -261,6 +273,7 @@ export default function HickvisionIntegrationSettingsPage() {
 
   useEffect(() => {
     if (typeof recordsQuery.data?.count !== "number") return;
+    setRecordsTotalHint(recordsQuery.data.count);
     if (recordsPage > recordsTotalPages) setRecordsPage(recordsTotalPages);
   }, [recordsPage, recordsTotalPages, recordsQuery.data?.count]);
 
