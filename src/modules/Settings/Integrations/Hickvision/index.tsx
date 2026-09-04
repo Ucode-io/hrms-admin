@@ -57,6 +57,7 @@ type UniqueUserItem = {
 
 type AttendanceRecordItem = {
   guid: string;
+  hikvision_id?: string | null;
   action?: string[] | string | null;
   action_time?: string | null;
   date?: string | null;
@@ -109,15 +110,21 @@ const formatDateTime = (value: string | null | undefined): string => {
   });
 };
 
-const resolveEmployeeName = (item: AttendanceRecordItem): string => {
+const resolveEmployeeName = (
+  item: AttendanceRecordItem,
+  uniqueUser?: UniqueUserItem
+): string => {
   const relation = item.user_base_id_data;
-  if (!relation || typeof relation !== "object") return "—";
-
-  const first = typeof relation.first_name === "string" ? relation.first_name : "";
-  const second = typeof relation.second_name === "string" ? relation.second_name : "";
-  const fullName = [second, first].filter(Boolean).join(" ").trim();
-  if (fullName) return fullName;
-  if (typeof relation.name === "string" && relation.name.trim()) return relation.name.trim();
+  if (relation && typeof relation === "object") {
+    const first = typeof relation.first_name === "string" ? relation.first_name : "";
+    const second = typeof relation.second_name === "string" ? relation.second_name : "";
+    const fullName = [second, first].filter(Boolean).join(" ").trim();
+    if (fullName) return fullName;
+    if (typeof relation.name === "string" && relation.name.trim()) return relation.name.trim();
+  }
+  if (typeof uniqueUser?.full_name === "string" && uniqueUser.full_name.trim()) {
+    return uniqueUser.full_name.trim();
+  }
   return "—";
 };
 
@@ -246,6 +253,16 @@ export default function HickvisionIntegrationSettingsPage() {
     },
   });
 
+  const recordsUsersQuery = useSettingsDirectoryQuery({
+    slug: UNIQUE_USERS_SLUG,
+    params: {
+      data: encodeJsonToUrlParam({ limit: 500, offset: 0 }),
+    },
+    querySettings: {
+      enabled: activeTab === "records",
+    },
+  });
+
   const createMacMutation = useCreateSettingsDirectoryItem(COMPANY_MAC_ADDRESSES_SLUG);
   const deleteMacMutation = useDeleteSettingsDirectoryItem(COMPANY_MAC_ADDRESSES_SLUG);
 
@@ -260,6 +277,14 @@ export default function HickvisionIntegrationSettingsPage() {
   const records = ([...(recordsQuery.data?.response || [])] as AttendanceRecordItem[]).reverse();
   const recordsTotalCount = Number(recordsQuery.data?.count || 0);
   const recordsTotalPages = Math.max(1, Math.ceil(recordsTotalCount / PAGE_SIZE));
+  const recordUserByHikvisionId = useMemo(() => {
+    const map = new Map<string, UniqueUserItem>();
+    for (const user of (recordsUsersQuery.data?.response || []) as UniqueUserItem[]) {
+      const id = String(user.hikvision_id || "").trim();
+      if (id) map.set(id, user);
+    }
+    return map;
+  }, [recordsUsersQuery.data?.response]);
 
   useEffect(() => {
     if (typeof macAddressesQuery.data?.count !== "number") return;
@@ -634,6 +659,9 @@ export default function HickvisionIntegrationSettingsPage() {
                   <TableHeader className="border-b border-gray-100">
                     <TableRow>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                        Фото
+                      </TableCell>
+                      <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                         Employee
                       </TableCell>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
@@ -655,6 +683,9 @@ export default function HickvisionIntegrationSettingsPage() {
                       Array.from({ length: 6 }).map((_, index) => (
                         <TableRow key={`records-skeleton-${index}`}>
                           <TableCell className="px-4 py-4">
+                            <div className="h-10 w-10 animate-pulse rounded-xl bg-gray-200" />
+                          </TableCell>
+                          <TableCell className="px-4 py-4">
                             <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
                           </TableCell>
                           <TableCell className="px-4 py-4">
@@ -673,20 +704,33 @@ export default function HickvisionIntegrationSettingsPage() {
                       ))
                     ) : records.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                        <TableCell colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
                           Записи не найдены.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      records.map((item) => (
+                      records.map((item) => {
+                        const uniqueUser = recordUserByHikvisionId.get(
+                          String(item.hikvision_id || "").trim()
+                        );
+                        return (
                         <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
-                          <TableCell className="px-4 py-3 text-sm text-gray-800">{resolveEmployeeName(item)}</TableCell>
+                          <TableCell className="px-4 py-3">
+                            <HickvisionUserPicture
+                              picture={uniqueUser?.picture}
+                              name={resolveEmployeeName(item, uniqueUser)}
+                            />
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-sm text-gray-800">
+                            {resolveEmployeeName(item, uniqueUser)}
+                          </TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{getActionLabel(item.action)}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.date || "—"}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.event_time || "—"}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.action_time || "—"}</TableCell>
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
