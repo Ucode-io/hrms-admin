@@ -361,8 +361,16 @@ export default function HickvisionIntegrationSettingsPage() {
       });
 
       const summary = response.result.summary;
+      const processedCount = summary.total_events ?? summary.total_pairs ?? 0;
+      const skippedCount =
+        (summary.skipped_manual_accepted ?? 0) +
+        (summary.skipped_attendance_exists ?? 0) +
+        (summary.skipped_non_working_day ?? 0) +
+        (summary.skipped_remote_work_schedule ?? 0) +
+        (summary.skipped_no_company_membership ?? 0) +
+        (summary.no_event ?? 0);
       setSyncNotice(
-        `Синхронизация завершена: событий ${summary.total_events}, добавлено ${summary.inserted_integration}, обновлено ${summary.updated_integration}, пропущено (manual accepted) ${summary.skipped_manual_accepted}.`
+        `Синхронизация завершена: обработано ${processedCount}, добавлено ${summary.inserted_integration}, обновлено ${summary.updated_integration}, пропущено ${skippedCount}.`
       );
 
       setIsSyncModalOpen(false);

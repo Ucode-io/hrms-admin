@@ -11,11 +11,16 @@ const SYNC_ATTENDANCE_METHOD = "sync_attendance_by_date_range";
 type JsonRecord = Record<string, unknown>;
 
 export type SyncAttendanceSummary = {
-  total_events: number;
+  total_events?: number;
+  total_pairs?: number;
   inserted_integration: number;
   updated_integration: number;
-  skipped_manual_accepted: number;
-  skipped_attendance_exists: number;
+  skipped_manual_accepted?: number;
+  skipped_attendance_exists?: number;
+  skipped_non_working_day?: number;
+  skipped_remote_work_schedule?: number;
+  skipped_no_company_membership?: number;
+  no_event?: number;
 };
 
 export type SyncAttendanceByDateRangeResult = {
