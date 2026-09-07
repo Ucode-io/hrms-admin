@@ -1129,6 +1129,7 @@ span.flatpickr-weekday,
 /* ── Tasks: Apple-inspired calendar views ── */
 .tasks-calendar-shell {
   --tasks-calendar-accent: #ff3b30;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   overflow: hidden;
   border-top: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
@@ -1159,7 +1160,8 @@ span.flatpickr-weekday,
   border-radius: 999px;
   padding: 0 13px;
   color: #374151;
-  font-size: 0.8125rem;
+  font-family: inherit;
+  font-size: 0.875rem;
   font-weight: 500;
   transition: background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
 }
@@ -1174,16 +1176,17 @@ span.flatpickr-weekday,
 
 .tasks-calendar-heading {
   display: flex;
-  min-height: 92px;
-  align-items: flex-start;
+  min-height: 72px;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 15px 16px 12px;
+  padding: 9px 16px 7px;
 }
 
 .tasks-calendar-heading h2 {
   margin: 0;
   color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   font-size: clamp(1.65rem, 2.4vw, 2.25rem);
   font-weight: 400;
   line-height: 1.12;
@@ -1194,7 +1197,7 @@ span.flatpickr-weekday,
 .tasks-calendar-heading h2 span { font-weight: 300; }
 
 .tasks-calendar-heading p {
-  margin-top: 9px;
+  margin-top: 5px;
   color: #374151;
   font-size: 1rem;
   text-transform: capitalize;
@@ -1216,6 +1219,7 @@ span.flatpickr-weekday,
   border-radius: 999px;
   background: #f3f4f6;
   color: #374151;
+  font-family: inherit;
   transition: background-color 150ms ease, color 150ms ease;
 }
 
@@ -1375,6 +1379,7 @@ span.flatpickr-weekday,
   --fc-border-color: #e5e7eb;
   --fc-today-bg-color: transparent;
   --fc-page-bg-color: transparent;
+  font-family: inherit;
   font-size: 0.8125rem;
 }
 
@@ -1383,9 +1388,16 @@ span.flatpickr-weekday,
   border-radius: 0;
 }
 
-.tasks-fullcalendar .fc .fc-scrollgrid { border-right: 0; border-left: 0; }
+.tasks-fullcalendar .fc .fc-scrollgrid {
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+}
 
-.tasks-fullcalendar .fc-theme-standard th { background: #fff; }
+.tasks-fullcalendar .fc-theme-standard th {
+  border-top: 0 !important;
+  background: #fff;
+}
 
 .tasks-fullcalendar .fc .fc-daygrid-day { padding: 0; }
 
@@ -1394,16 +1406,22 @@ span.flatpickr-weekday,
 }
 
 .tasks-fullcalendar .fc .fc-col-header-cell {
-  padding: 7px 8px;
+  padding: 0;
   font-weight: 500;
   color: #6b7280;
   text-transform: capitalize;
 }
 
 .tasks-fullcalendar .fc .fc-col-header-cell-cushion {
+  display: flex;
+  min-height: 48px;
   width: 100%;
-  padding: 10px !important;
-  text-align: right;
+  align-items: center;
+  justify-content: center;
+  padding: 8px !important;
+  font-size: 0.8125rem;
+  line-height: 1;
+  text-align: center;
 }
 
 .tasks-fullcalendar .fc-timeGridWeek-view .fc-col-header-cell-cushion {
@@ -1446,13 +1464,19 @@ span.flatpickr-weekday,
 
 .tasks-fullcalendar .fc .fc-day-today .fc-daygrid-day-number {
   display: inline-flex;
-  min-width: 22px;
-  height: 22px;
+  width: 26px;
+  min-width: 26px;
+  max-width: 26px;
+  height: 26px;
+  min-height: 26px;
+  max-height: 26px;
   margin: 4px 6px;
   padding: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  line-height: 26px;
   background: var(--tasks-calendar-accent, #ff3b30);
   color: #fff;
 }
@@ -1467,12 +1491,23 @@ span.flatpickr-weekday,
 
 .tasks-fullcalendar .fc .fc-timegrid-axis-cushion,
 .tasks-fullcalendar .fc .fc-timegrid-slot-label-cushion {
-  padding: 0 9px;
+  padding: 0 9px !important;
   color: #8b8b90;
-  font-size: 0.6875rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .tasks-fullcalendar .fc .fc-timegrid-slot { height: 58px; }
+.tasks-fullcalendar .fc .fc-timegrid-slot-label {
+  border-top-color: transparent;
+  vertical-align: top;
+}
+.tasks-fullcalendar .fc .fc-timegrid-slot-label-frame {
+  position: relative;
+  top: -6px;
+}
 .tasks-fullcalendar .fc .fc-timegrid-slot-minor { border-top-style: solid; }
 .tasks-fullcalendar .fc-timegrid .fc-daygrid-day-frame { min-height: 34px; }
 .tasks-fullcalendar .fc-timegrid .fc-daygrid-day-events { min-height: 0; margin-bottom: 2px; }

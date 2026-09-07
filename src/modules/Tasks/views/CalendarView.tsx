@@ -2,14 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import ruLocale from "@fullcalendar/core/locales/ru";
 import type { DatesSetArg, EventClickArg, EventContentArg, EventInput } from "@fullcalendar/core";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { findDirectoryItem, isTaskOverdue } from "../constants";
 import type { Task, TaskDirectories, TaskEmployee } from "../types";
-import { AvatarStack, PriorityIcon } from "../components/badges";
+import { AvatarStack } from "../components/badges";
 
 interface CalendarViewProps {
   tasks: Task[];
@@ -18,7 +17,7 @@ interface CalendarViewProps {
   onOpenTask: (task: Task) => void;
 }
 
-type FullCalendarViewKey = "timeGridDay" | "timeGridWeek" | "dayGridMonth" | "listMonth";
+type FullCalendarViewKey = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
 type CalendarViewKey = FullCalendarViewKey | "year";
 
 const VIEW_TABS: { key: CalendarViewKey; label: string }[] = [
@@ -26,7 +25,6 @@ const VIEW_TABS: { key: CalendarViewKey; label: string }[] = [
   { key: "timeGridWeek", label: "Неделя" },
   { key: "dayGridMonth", label: "Месяц" },
   { key: "year", label: "Год" },
-  { key: "listMonth", label: "Список" },
 ];
 
 const MONTHS = [
@@ -195,17 +193,6 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
     const statusColor = status.color || "#94a3b8";
     const assignees = task.assigneeIds.map((id) => employeeById.get(id)).filter((employee): employee is TaskEmployee => Boolean(employee));
     const overdue = isTaskOverdue(task, directories);
-    if (arg.view.type === "listMonth") {
-      return (
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: statusColor }} />
-          <span className="shrink-0 text-theme-xs font-semibold uppercase text-gray-400">{task.code}</span>
-          <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{task.title}</span>
-          <PriorityIcon priority={findDirectoryItem(directories.priorities, task.priorityId)} size={14} />
-          <AvatarStack employees={assignees} size={20} max={3} />
-        </span>
-      );
-    }
     return (
       <span
         className={`flex w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-[3px] ${overdue ? "ring-1 ring-error-400" : ""}`}
@@ -259,7 +246,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
             <FullCalendar
               key={view}
               ref={calendarRef}
-              plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView={view as FullCalendarViewKey}
               initialDate={visibleDate}
               locale={ruLocale}
