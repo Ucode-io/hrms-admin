@@ -153,7 +153,6 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
     allDay: true,
     extendedProps: { task },
   })), [tasks]);
-  const withoutDeadline = tasks.length - events.length;
   const selectedStatus = selectedTask ? findDirectoryItem(directories.statuses, selectedTask.statusId) : null;
 
   const runApi = (action: "prev" | "next" | "today") => {
@@ -211,7 +210,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
   const isTimeGrid = view === "timeGridDay" || view === "timeGridWeek";
 
   return (
-    <div className="tasks-calendar-shell bg-white dark:bg-gray-950">
+    <div className={`tasks-calendar-shell ${view === "dayGridMonth" ? "tasks-calendar-shell--month" : ""} bg-white dark:bg-gray-950`}>
       <div className="tasks-calendar-topbar">
         <div className="tasks-calendar-view-switcher" role="tablist" aria-label="Вид календаря">
           {VIEW_TABS.map((tab) => (
@@ -258,7 +257,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
               moreLinkClick="popover"
               moreLinkContent={(arg) => `Ещё ${arg.num}`}
               firstDay={1}
-              height="100%"
+              height={view === "dayGridMonth" ? "auto" : "100%"}
               expandRows={!isTimeGrid}
               eventDisplay="block"
               displayEventTime={false}
@@ -313,16 +312,6 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
           )}
         </div>
       )}
-
-      <div className="tasks-calendar-legend">
-        {directories.statuses.map((status) => (
-          <span key={status.id}><i style={{ backgroundColor: status.color || "#94a3b8" }} />{status.title}</span>
-        ))}
-        <span className="tasks-calendar-legend__note">
-          <CalendarDays size={13} />
-          {withoutDeadline > 0 ? `Без дедлайна: ${withoutDeadline} — не показаны` : "Задача показана на дату дедлайна"}
-        </span>
-      </div>
     </div>
   );
 }
