@@ -241,7 +241,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
       {view === "year" ? (
         <YearView value={visibleDate} onSelect={(date) => switchView("dayGridMonth", date)} />
       ) : (
-        <div className={view === "timeGridDay" ? "tasks-calendar-day-layout" : ""}>
+        <div className={`tasks-calendar-content ${view === "timeGridDay" ? "tasks-calendar-day-layout" : ""}`}>
           <div ref={wrapperRef} className="tasks-fullcalendar">
             <FullCalendar
               key={view}
@@ -258,7 +258,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
               moreLinkClick="popover"
               moreLinkContent={(arg) => `Ещё ${arg.num}`}
               firstDay={1}
-              height={isTimeGrid ? "calc(100vh - 255px)" : "auto"}
+              height="100%"
               expandRows={!isTimeGrid}
               eventDisplay="block"
               displayEventTime={false}
@@ -266,7 +266,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
               noEventsText="Нет задач в этом периоде"
               slotMinTime="00:00:00"
               slotMaxTime="24:00:00"
-              scrollTime="08:00:00"
+              scrollTime="02:30:00"
               slotDuration="01:00:00"
               slotLabelInterval="01:00:00"
               slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}

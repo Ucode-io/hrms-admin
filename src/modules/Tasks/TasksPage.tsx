@@ -253,7 +253,7 @@ export default function TasksPage() {
       </div>
 
       {/* ── Active view ─────────────────────────────────────────────────── */}
-      <div className="mt-4">
+      <div className={!isLoading && view === "calendar" ? "-mx-3 -mb-3 md:-mx-4 md:-mb-4" : "mt-4"}>
         {isLoading ? (
           <div className="flex gap-4 overflow-x-auto pb-2">
             {Array.from({ length: 4 }).map((_, columnIndex) => (
