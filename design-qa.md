@@ -12,15 +12,16 @@
 - User feedback capture, non-full Day: `/var/folders/bh/sn339sh911d44c5l91srlzrr0000gn/T/codex-clipboard-2dc80f36-b3f2-4035-a5d4-146867b78485.png`
 - User feedback capture, Apple time axis: `/var/folders/bh/sn339sh911d44c5l91srlzrr0000gn/T/codex-clipboard-47939225-bf50-4084-841f-f8bfd89d0a16.png`
 - User feedback capture, undersized Month cells: `/var/folders/bh/sn339sh911d44c5l91srlzrr0000gn/T/codex-clipboard-906d86ac-4050-4869-94e4-80ad27dadb72.png`
+- User feedback capture, requested cell-hover quick add: `/var/folders/bh/sn339sh911d44c5l91srlzrr0000gn/T/codex-clipboard-5cdb85d4-7a15-4fb5-af42-c33b89f1a315.png`
 - Apple source dimensions: 2880 x 1800 px at 2x, normalized to 1440 x 900 CSS px.
 
 ## Implementation evidence
 
 - URL: `http://localhost:4173/tasks?view=calendar`
-- Capture source: active Chrome local-calendar tab and a full-page Chrome capture after the Month sizing fix.
-- Implementation screenshot: `/tmp/hrms-calendar-month-qa-2026-09-07.png` (1440 x 992 px full-page capture).
-- Chrome viewport: 1440 x 722 CSS px, device-pixel ratio 2. Browser output was visually normalized to the CSS viewport for comparison.
-- State: light theme, Delever tenant, September 2026 with one visible task.
+- Capture source: active Chrome local-calendar tab after the quick-add implementation.
+- Implementation screenshot: `/tmp/hrms-calendar-hover-qa-2026-09-08.png` (1440 x 778 px viewport capture).
+- Chrome viewport: 1440 x 778 CSS px. The 2880 x 1800 source was treated as a 2x reference and compared at its normalized 1440 px CSS width.
+- State: light theme, Delever tenant, September 2026 with one visible task, 9 September Month cell hovered.
 
 ## Findings
 
@@ -31,6 +32,7 @@ No actionable P0, P1, or P2 mismatch remains in the user-requested areas.
 - Colors and visual tokens: the current-day red remains `#ff3b30`; secondary text, separators, surfaces, and task status colors retain appropriate contrast.
 - Image quality and asset fidelity: the calendar UI contains no raster artwork requiring recreation. Existing product logo and icon-library assets remain untouched and sharp.
 - Copy and content: Russian Day, Week, Month, and Year labels are retained; the List view and its tab were removed as requested.
+- Hover affordance: Month, Week, and Day cells expose one 26 x 26 px circular blue quick-add control with a real Lucide Plus icon; it does not displace cell content.
 
 ## Focused region comparison
 
@@ -39,6 +41,7 @@ No actionable P0, P1, or P2 mismatch remains in the user-requested areas.
 - Day and Week time axis: labels render at 11 px/11 px, align right with a 10 px gap before the grid, and sit centered on the horizontal slot-line boundary. The axis divider and slot-lane left border are removed.
 - Month header/grid boundary: the FullCalendar scroll grid reports a 0 px top border while the lower weekday separator remains visible.
 - Month footer: the status-color legend and deadline note are absent, giving the calendar a cleaner Apple-style ending.
+- Quick-add focused region: the implementation capture shows the blue control aligned to the top-right of the hovered 9 September cell. Its measured geometry is 26 x 26 px, matching the current-day circle, with `rgb(37, 99, 235)` fill and a white 15 px Plus icon. A separate crop was not needed because the control is clearly readable in the full-view capture.
 
 ## Comparison history
 
@@ -49,6 +52,7 @@ No actionable P0, P1, or P2 mismatch remains in the user-requested areas.
 5. The List tab was removed from the view model, FullCalendar plugin list, and UI. A fresh Chrome load showed only Day, Week, Month, and Year.
 6. Follow-up feedback found the time labels visually boxed by an axis divider and the calendar inset by page padding. The divider was removed, labels were aligned to the slot lines, the initial scroll was normalized to show 03:00 like the source, and Calendar mode was expanded edge-to-edge with a `100dvh`-based flex layout. The old fixed Month cell minimum height was also removed so all six calendar weeks fit the available viewport without clipping. Post-fix Day, Week, and Month were captured in Chrome and filled the complete available page area.
 7. Follow-up feedback found the Month grid visually undersized after fitting all six weeks into the remaining viewport. Month was changed to natural document height with a 120 px minimum per date cell, while its controls, title row, and weekday header were compacted. The footer status legend was removed. A full-page Chrome capture confirmed six uniform 120 px rows; Day and Week were rechecked at 596 px shell height with no document overflow.
+8. The requested hover quick-add control was added as a single positioned interactive element driven by the hovered FullCalendar cell. Month, Week, and Day were exercised independently in Chrome; all three produced a 26 x 26 px blue control for the correct date, and Month click-through opened the task form with 9 September preselected. No P0/P1/P2 visual issue was found in the post-fix comparison.
 
 ## Interaction and regression checks
 
@@ -59,8 +63,11 @@ No actionable P0, P1, or P2 mismatch remains in the user-requested areas.
 - Edge-to-edge width and full remaining viewport height in Calendar mode: passed.
 - Month natural-height scrolling and 120 px minimum date cells: passed.
 - Footer status legend removal: passed.
+- Month cell hover and 9 September deadline prefill: passed.
+- Week time-slot hover and correct date targeting: passed.
+- Day time-slot hover and correct date targeting: passed.
 - Fresh Chrome load console errors: none.
-- Production build and targeted ESLint: passed.
+- Production build, TypeScript no-emit check, targeted ESLint, and `git diff --check`: passed.
 
 ## Follow-up polish
 

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import ruLocale from "@fullcalendar/core/locales/ru";
 import type { DatesSetArg, EventClickArg, EventContentArg, EventInput } from "@fullcalendar/core";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { findDirectoryItem, isTaskOverdue } from "../constants";
 import type { Task, TaskDirectories, TaskEmployee } from "../types";
 import { AvatarStack } from "../components/badges";
@@ -15,6 +15,13 @@ interface CalendarViewProps {
   employees: TaskEmployee[];
   directories: TaskDirectories;
   onOpenTask: (task: Task) => void;
+  onCreateTask: (deadline: string) => void;
+}
+
+interface HoveredCalendarCell {
+  date: string;
+  left: number;
+  top: number;
 }
 
 type FullCalendarViewKey = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
@@ -126,12 +133,13 @@ function YearView({ value, onSelect }: { value: Date; onSelect: (date: Date) => 
   );
 }
 
-export default function CalendarView({ tasks, employees, directories, onOpenTask }: CalendarViewProps) {
+export default function CalendarView({ tasks, employees, directories, onOpenTask, onCreateTask }: CalendarViewProps) {
   const calendarRef = useRef<FullCalendar>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<CalendarViewKey>("dayGridMonth");
   const [visibleDate, setVisibleDate] = useState(() => new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<HoveredCalendarCell | null>(null);
 
   useEffect(() => {
     const node = wrapperRef.current;
@@ -169,6 +177,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
   };
 
   const switchView = (next: CalendarViewKey, date = visibleDate) => {
+    setHoveredCell(null);
     if (next === view && next !== "year") {
       calendarRef.current?.getApi().gotoDate(date);
       setVisibleDate(date);
@@ -179,6 +188,52 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
   };
 
   const handleDatesSet = (arg: DatesSetArg) => setVisibleDate(arg.view.calendar.getDate());
+
+  const handleCalendarMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const wrapper = wrapperRef.current;
+    const target = event.target as HTMLElement;
+    if (!wrapper || target.closest(".tasks-calendar-cell-add")) return;
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const dayCell = target.closest<HTMLElement>(".fc-daygrid-day[data-date]");
+    if (dayCell?.dataset.date) {
+      const rect = dayCell.getBoundingClientRect();
+      const next = {
+        date: dayCell.dataset.date,
+        left: rect.right - wrapperRect.left - 34,
+        top: rect.top - wrapperRect.top + 5,
+      };
+      setHoveredCell((current) =>
+        current?.date === next.date && current.left === next.left && current.top === next.top ? current : next
+      );
+      return;
+    }
+
+    const column = Array.from(wrapper.querySelectorAll<HTMLElement>(".fc-timegrid-col[data-date]")).find((node) => {
+      const rect = node.getBoundingClientRect();
+      return event.clientX >= rect.left && event.clientX <= rect.right;
+    });
+    const slot = Array.from(wrapper.querySelectorAll<HTMLElement>(".fc-timegrid-slot-lane[data-time]")).find((node) => {
+      const rect = node.getBoundingClientRect();
+      return event.clientY >= rect.top && event.clientY <= rect.bottom;
+    });
+
+    if (!column?.dataset.date || !slot) {
+      setHoveredCell(null);
+      return;
+    }
+
+    const columnRect = column.getBoundingClientRect();
+    const slotRect = slot.getBoundingClientRect();
+    const next = {
+      date: column.dataset.date,
+      left: columnRect.right - wrapperRect.left - 34,
+      top: slotRect.top - wrapperRect.top + 4,
+    };
+    setHoveredCell((current) =>
+      current?.date === next.date && current.left === next.left && current.top === next.top ? current : next
+    );
+  };
   const handleEventClick = (info: EventClickArg) => {
     const task = info.event.extendedProps.task as Task | undefined;
     if (!task) return;
@@ -241,7 +296,12 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
         <YearView value={visibleDate} onSelect={(date) => switchView("dayGridMonth", date)} />
       ) : (
         <div className={`tasks-calendar-content ${view === "timeGridDay" ? "tasks-calendar-day-layout" : ""}`}>
-          <div ref={wrapperRef} className="tasks-fullcalendar">
+          <div
+            ref={wrapperRef}
+            className="tasks-fullcalendar"
+            onMouseMove={handleCalendarMouseMove}
+            onMouseLeave={() => setHoveredCell(null)}
+          >
             <FullCalendar
               key={view}
               ref={calendarRef}
@@ -288,6 +348,28 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
               }}
               datesSet={handleDatesSet}
             />
+            {hoveredCell && (
+              <button
+                type="button"
+                className="tasks-calendar-cell-add"
+                style={{ left: hoveredCell.left, top: hoveredCell.top }}
+                title="Новая задача"
+                aria-label={`Создать задачу на ${new Date(`${hoveredCell.date}T12:00:00`).toLocaleDateString("ru-RU", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}`}
+                data-date={hoveredCell.date}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const deadline = hoveredCell.date;
+                  setHoveredCell(null);
+                  onCreateTask(deadline);
+                }}
+              >
+                <Plus size={15} strokeWidth={2.25} aria-hidden="true" />
+              </button>
+            )}
           </div>
           {view === "timeGridDay" && (
             <aside className="tasks-calendar-inspector">

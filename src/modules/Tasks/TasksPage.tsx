@@ -64,6 +64,7 @@ export default function TasksPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [formInitialStatusId, setFormInitialStatusId] = useState<string | null>(null);
+  const [formInitialDeadline, setFormInitialDeadline] = useState<string | null>(null);
 
   const { data, isLoading } = useTasksQuery();
   const { data: directoriesData } = useTaskDirectoriesQuery();
@@ -156,6 +157,14 @@ export default function TasksPage() {
   const openCreateForm = useCallback((statusId: string | null = null) => {
     setEditingTask(null);
     setFormInitialStatusId(statusId);
+    setFormInitialDeadline(null);
+    setIsFormOpen(true);
+  }, []);
+
+  const openCreateFormForDate = useCallback((deadline: string) => {
+    setEditingTask(null);
+    setFormInitialStatusId(null);
+    setFormInitialDeadline(deadline);
     setIsFormOpen(true);
   }, []);
 
@@ -303,6 +312,7 @@ export default function TasksPage() {
             employees={employees}
             directories={directories}
             onOpenTask={openTaskDetails}
+            onCreateTask={openCreateFormForDate}
           />
         )}
       </div>
@@ -332,6 +342,7 @@ export default function TasksPage() {
         onClose={() => {
           setIsFormOpen(false);
           setEditingTask(null);
+          setFormInitialDeadline(null);
         }}
         onSubmit={submitForm}
         isSubmitting={createMutation.isLoading || updateMutation.isLoading}
@@ -343,6 +354,7 @@ export default function TasksPage() {
         sheets={sheets}
         initialSheetId={activeSheetId === ALL_SHEETS ? null : activeSheetId}
         initialStatusId={formInitialStatusId}
+        initialDeadline={formInitialDeadline}
         onCreateTag={createTag}
       />
     </>

@@ -49,6 +49,8 @@ interface TaskFormModalProps {
   initialStatusId?: string | null;
   /** Preselected parent for "add a subtask". */
   initialParentId?: string | null;
+  /** Preselected deadline for quick-create from the calendar. */
+  initialDeadline?: string | null;
   /** Создание тега на лету из поля тегов. */
   onCreateTag?: (title: string) => Promise<string | null>;
 }
@@ -62,7 +64,8 @@ const emptyDraft = (
   directories: TaskDirectories,
   statusId: string | null,
   parentId: string | null = null,
-  sheetId: string | null = null
+  sheetId: string | null = null,
+  deadline: string | null = null
 ): TaskDraft => ({
   title: "",
   description: "",
@@ -74,7 +77,7 @@ const emptyDraft = (
   assigneeIds: [],
   tagIds: [],
   startDate: null,
-  deadline: null,
+  deadline,
   parentId,
   checklist: [],
   attachments: [],
@@ -99,10 +102,11 @@ export default function TaskFormModal({
   initialSheetId = null,
   initialStatusId = null,
   initialParentId = null,
+  initialDeadline = null,
   onCreateTag,
 }: TaskFormModalProps) {
   const [draft, setDraft] = useState<TaskDraft>(() =>
-    emptyDraft(directories, initialStatusId, initialParentId, initialSheetId)
+    emptyDraft(directories, initialStatusId, initialParentId, initialSheetId, initialDeadline)
   );
   const [touched, setTouched] = useState(false);
   const [createAnother, setCreateAnother] = useState(false);
@@ -145,13 +149,13 @@ export default function TaskFormModal({
             checklist: task.checklist,
             attachments: task.attachments,
           }
-        : emptyDraft(directories, initialStatusId, initialParentId, initialSheetId)
+        : emptyDraft(directories, initialStatusId, initialParentId, initialSheetId, initialDeadline)
     );
     setShowAttachments(false);
     // Autofocus after the modal paints.
     const timer = window.setTimeout(() => titleRef.current?.focus(), 30);
     return () => window.clearTimeout(timer);
-  }, [isOpen, task, directories, initialStatusId, initialParentId, initialSheetId]);
+  }, [isOpen, task, directories, initialStatusId, initialParentId, initialSheetId, initialDeadline]);
 
   const patch = (partial: Partial<TaskDraft>) => setDraft((prev) => ({ ...prev, ...partial }));
 
@@ -193,7 +197,7 @@ export default function TaskFormModal({
     if (createAnother && !isEdit) {
       // Сохраняем контекст колонки, приоритета, тегов и места — чистим содержание.
       setDraft({
-        ...emptyDraft(directories, draft.statusId, draft.parentId, draft.sheetId),
+        ...emptyDraft(directories, draft.statusId, draft.parentId, draft.sheetId, draft.deadline),
         typeId: draft.typeId,
         locationId: draft.locationId,
         priorityId: draft.priorityId,

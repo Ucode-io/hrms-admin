@@ -1422,6 +1422,54 @@ span.flatpickr-weekday,
   min-height: 0;
 }
 
+.tasks-fullcalendar {
+  position: relative;
+}
+
+.tasks-calendar-cell-add {
+  position: absolute;
+  z-index: 12;
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
+  opacity: 0;
+  transform: scale(0.82);
+  animation: tasks-calendar-add-in 120ms ease-out forwards;
+  transition: background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.tasks-calendar-cell-add:hover {
+  background: #1d4ed8;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.36);
+  transform: scale(1.06);
+}
+
+.tasks-calendar-cell-add:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+@keyframes tasks-calendar-add-in {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tasks-calendar-cell-add {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .tasks-fullcalendar .fc {
   --fc-border-color: #e5e7eb;
   --fc-today-bg-color: transparent;
