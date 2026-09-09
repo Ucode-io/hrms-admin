@@ -718,7 +718,7 @@ export default function TaskDetailModal({
                             <div className="min-w-0 flex-1 rounded-xl bg-gray-50 px-3 py-2 dark:bg-white/5">
                               <div className="flex items-baseline gap-2">
                                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                  {author?.name ?? "Сотрудник"}
+                                  {author?.name ?? "Система"}
                                 </span>
                                 <span className="text-theme-xs text-gray-400">
                                   {relativeTime(comment.createdAt)}
