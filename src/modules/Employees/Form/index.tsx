@@ -470,8 +470,6 @@ function EmployeeForm() {
               toast.success(`Onboarding yaratildi: ${onboardingResult.createdParents} ta task, ${onboardingResult.createdSubtasks} ta subtask`);
             } else if (onboardingResult.reason === "manager_not_configured") {
               toast.warning("Xodim yaratildi, lekin bo‘limda bevosita rahbar belgilanmagan.");
-            } else if (onboardingResult.reason === "active_template_not_found") {
-              toast.warning("Xodim yaratildi, lekin unga mos faol onboarding shabloni topilmadi.");
             }
           } catch (onboardingError) {
             console.error("Failed to create onboarding tasks:", onboardingError);

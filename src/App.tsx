@@ -29,7 +29,6 @@ import SettingsGeneralPage from "./modules/Settings/General";
 import CareerSiteSettingsPage from "./modules/Settings/CareerSite";
 import CustomFieldsSettingsPage from "./modules/Settings/CustomFields";
 import TaskDirectoriesSettingsPage from "./modules/Settings/TaskDirectories";
-import OnboardingTemplatesPage from "./modules/Settings/OnboardingTemplates";
 import HomeSettingsPage from "./modules/Settings/Home";
 import PositionsSettingsPage from "./modules/Settings/Positions";
 import ExperienceLevelsSettingsPage from "./modules/Settings/ExperienceLevels";
@@ -230,7 +229,6 @@ function App() {
                 <Route path="career-site" element={<CareerSiteSettingsPage />} />
                 <Route path="custom-fields" element={<CustomFieldsSettingsPage />} />
                 <Route path="task-directories" element={<TaskDirectoriesSettingsPage />} />
-                <Route path="onboarding-templates" element={<OnboardingTemplatesPage />} />
                 <Route path="positions" element={<PositionsSettingsPage />} />
                 <Route path="experience-levels" element={<ExperienceLevelsSettingsPage />} />
                 <Route path="grade-salaries" element={<GradeMatrixSettingsPage />} />
