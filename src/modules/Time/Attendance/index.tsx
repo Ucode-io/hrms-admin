@@ -30,8 +30,10 @@ import {
   useApproveStage,
   useEntityApprovalsQuery,
 } from "../../../api/services/approval.service";
+import { syncVegapharmCrmAttendance } from "../../../api/services/vegapharmCrm.service";
 
 const ATTENDANCE_ENTITY_TYPE = "attendance";
+const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
 
 type AttendanceItem = {
   guid: string;
@@ -570,6 +572,24 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       keepPreviousData: true,
     },
   });
+
+  // CRM report is refreshed immediately and every five minutes while the
+  // attendance screen is open. Backend also runs the same idempotent sync.
+  useEffect(() => {
+    if (companyStore.company?.guid !== VEGAPHARM_COMPANY_ID) return;
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        await syncVegapharmCrmAttendance(normalizedDateFilter);
+        if (!cancelled) void refetch();
+      } catch (error) {
+        console.error("QuadraSoft CRM attendance sync failed:", error);
+      }
+    };
+    void sync();
+    const timer = window.setInterval(sync, 5 * 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [normalizedDateFilter, refetch]);
 
   const createMutation = useCreateSettingsDirectoryItem(ATTENDANCE_SLUG);
   const updateMutation = useUpdateSettingsDirectoryItem(ATTENDANCE_SLUG);

@@ -99,6 +99,7 @@ export interface Employee {
    * значение. Поле типа JSON в u-code, поэтому ездит строкой.
    */
   custom_data?: string | Record<string, unknown> | null;
+  crm_linked?: boolean;
 
   dismissal_types_id?: string | null;
   dismissial_types_id?: string | null;

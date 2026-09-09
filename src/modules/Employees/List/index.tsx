@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Building2, LayoutGrid, List, Mail, Phone, SlidersHorizontal, Plus } from "lucide-react";
+import { Building2, LayoutGrid, List, Mail, Phone, SlidersHorizontal, Plus, RefreshCw, X } from "lucide-react";
+import { toast } from "sonner";
 import Select from "react-select";
 import { observer } from "mobx-react-lite";
 import PageMeta from "../../../components/common/PageMeta";
@@ -15,10 +16,12 @@ import {
 import EmployeesPaginationFooter from "./components/EmployeesPaginationFooter";
 import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
 import OrganizationStructureModule from "../../Organization/Structure";
+import { useVegapharmCrmImport, useVegapharmCrmPreview, useVegapharmCrmStatus } from "../../../api/services/vegapharmCrm.service";
 
 const PAGE_SIZE = 24;
 const FILTER_SELECT_MAX_WIDTH = 260;
 const DEFAULT_EMPLOYEE_STATUS: EmployeeStatus = "active";
+const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
 
 type PaginationItem = number | string;
 type FilterOption = { value: string; label: string };
@@ -31,6 +34,7 @@ type EmployeesListSessionState = {
   locationFilter: string;
   positionFilter: string;
   statusFilter: EmployeeStatus | "";
+  crmFilter: "" | "linked" | "unlinked";
 };
 
 const EMPLOYEES_LIST_SESSION_KEY = "employees.list";
@@ -42,6 +46,7 @@ const EMPLOYEES_LIST_SESSION_DEFAULTS: EmployeesListSessionState = {
   locationFilter: "",
   positionFilter: "",
   statusFilter: DEFAULT_EMPLOYEE_STATUS,
+  crmFilter: "",
 };
 
 const STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
@@ -142,6 +147,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
     locationFilter,
     positionFilter,
     statusFilter,
+    crmFilter,
   } = pageSessionStore.getState(
     EMPLOYEES_LIST_SESSION_KEY,
     EMPLOYEES_LIST_SESSION_DEFAULTS
@@ -151,9 +157,15 @@ const EmployeesListContent = observer(function EmployeesListContent() {
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
   const [orgFiltersOpen, setOrgFiltersOpen] = useState(false);
   const [orgActiveFiltersCount, setOrgActiveFiltersCount] = useState(0);
+  const [crmModalOpen, setCrmModalOpen] = useState(false);
   const navigate = useNavigate();
 
   const brandColor = companyStore.mainColor;
+  const isVegapharm = companyStore.company?.guid === VEGAPHARM_COMPANY_ID;
+  const crmStatus = useVegapharmCrmStatus(isVegapharm);
+  const crmPreview = useVegapharmCrmPreview(isVegapharm && crmModalOpen);
+  const crmImport = useVegapharmCrmImport();
+  const crmLinkedIds = useMemo(() => new Set((crmStatus.data?.links || []).map((item) => item.user_base_id)), [crmStatus.data]);
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
   const updateListSessionState = (patch: Partial<EmployeesListSessionState>) => {
     pageSessionStore.patchState(
@@ -164,8 +176,8 @@ const EmployeesListContent = observer(function EmployeesListContent() {
   };
 
   const { data: apiData, isLoading, isFetching } = useEmployeesQuery({
-    limit: PAGE_SIZE,
-    offset: (currentPage - 1) * PAGE_SIZE,
+    limit: crmFilter ? 500 : PAGE_SIZE,
+    offset: crmFilter ? 0 : (currentPage - 1) * PAGE_SIZE,
     search: searchQuery || undefined,
     status: statusFilter || undefined,
   });
@@ -175,15 +187,6 @@ const EmployeesListContent = observer(function EmployeesListContent() {
     return (apiData.response || []) as Employee[];
   }, [apiData]);
 
-  const totalCount = apiData?.count ?? employees.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
-  const visibleFrom = totalCount > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
-  const visibleTo = totalCount > 0 ? Math.min(currentPage * PAGE_SIZE, totalCount) : 0;
-
-  const visibleRangeLabel = totalCount > 0
-    ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
-    : "Нет данных";
   const isOrgView = viewMode === "org";
 
   const departmentOptions = useMemo(
@@ -229,9 +232,19 @@ const EmployeesListContent = observer(function EmployeesListContent() {
       if (employmentTypeFilter && employee.employment_types_id !== employmentTypeFilter) return false;
       if (locationFilter && employee.locations_id !== locationFilter) return false;
       if (positionFilter && employee.positions_id !== positionFilter) return false;
+      if (crmFilter === "linked" && !crmLinkedIds.has(employee.guid)) return false;
+      if (crmFilter === "unlinked" && crmLinkedIds.has(employee.guid)) return false;
       return true;
     });
-  }, [employees, departmentFilter, employmentTypeFilter, locationFilter, positionFilter]);
+  }, [employees, departmentFilter, employmentTypeFilter, locationFilter, positionFilter, crmFilter, crmLinkedIds]);
+
+  const totalCount = crmFilter ? filteredEmployees.length : (apiData?.count ?? employees.length);
+  const totalPages = crmFilter ? 1 : Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const visibleFrom = totalCount > 0 ? (crmFilter ? 1 : (currentPage - 1) * PAGE_SIZE + 1) : 0;
+  const visibleTo = totalCount > 0 ? (crmFilter ? totalCount : Math.min(currentPage * PAGE_SIZE, totalCount)) : 0;
+  const visibleRangeLabel = totalCount > 0
+    ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
+    : "Нет данных";
 
   const activeFiltersCount = [
     departmentFilter,
@@ -239,10 +252,27 @@ const EmployeesListContent = observer(function EmployeesListContent() {
     locationFilter,
     positionFilter,
     statusFilter,
+    crmFilter,
   ].filter(Boolean).length;
   const isFilterButtonActive = isOrgView
     ? orgFiltersOpen || orgActiveFiltersCount > 0
     : isFiltersOpen || activeFiltersCount > 0;
+
+  const downloadCrmIds = () => {
+    const linked = (crmPreview.data?.items || []).filter((item) => item.user_base_id);
+    const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["CRM ID", "HRMS ID", "F.I.Sh."],
+      ...linked.map((item) => [item.crm_id, item.user_base_id, item.full_name]),
+    ];
+    const blob = new Blob(["\ufeff" + rows.map((row) => row.map(escape).join(";")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `vegapharm-crm-hrms-ids-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   const filterSelectStyles = useMemo(
     () => ({
@@ -455,6 +485,14 @@ const EmployeesListContent = observer(function EmployeesListContent() {
             />
 
             <button
+              type="button"
+              onClick={() => setCrmModalOpen(true)}
+              style={{ display: isVegapharm && !isOrgView ? "inline-flex" : "none", alignItems: "center", gap: "6px", padding: "8px 12px", fontSize: "13px", fontWeight: 600, color: "#0369a1", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "10px", cursor: "pointer" }}
+            >
+              <RefreshCw size={15} /> Импорт из CRM
+            </button>
+
+            <button
               id="employees-filter-btn"
               type="button"
               onClick={() => {
@@ -568,6 +606,23 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
               }}
             >
+              <div
+                style={{ minWidth: "180px", width: "100%", maxWidth: `${FILTER_SELECT_MAX_WIDTH}px`, flex: `0 1 ${FILTER_SELECT_MAX_WIDTH}px`, display: isVegapharm ? "block" : "none" }}
+              >
+                <Select
+                  inputId="employees-filter-crm"
+                  value={[{ value: "linked", label: "Из QuadraSoft CRM" }, { value: "unlinked", label: "Не связаны с CRM" }].find((option) => option.value === crmFilter) || null}
+                  onChange={(option: any) => updateListSessionState({ crmFilter: option?.value || "", currentPage: 1 })}
+                  options={[{ value: "linked", label: "Из QuadraSoft CRM" }, { value: "unlinked", label: "Не связаны с CRM" }]}
+                  placeholder="Источник"
+                  isSearchable={false}
+                  isClearable
+                  styles={filterSelectStyles}
+                  menuPortalTarget={selectPortalTarget}
+                  menuPosition="fixed"
+                />
+              </div>
+
               <div
                 style={{
                   minWidth: "180px",
@@ -718,6 +773,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                       locationFilter: "",
                       positionFilter: "",
                       statusFilter: "",
+                      crmFilter: "",
                       currentPage: 1,
                     });
                   }}
@@ -803,6 +859,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                       position={getPosition(emp)}
                       department={getDepartment(emp)}
                       location={getLocation(emp)}
+                      crmLinked={crmLinkedIds.has(emp.guid)}
                       onClick={() => navigate(`/employees/${emp.guid}`)}
                     />
                   ))
@@ -886,6 +943,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                                 <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{name}</span>
+                                {crmLinkedIds.has(emp.guid) ? <span style={{ padding: "2px 7px", borderRadius: "999px", background: "#e0f2fe", color: "#0369a1", fontSize: "10px", fontWeight: 700 }}>QuadraSoft CRM</span> : null}
                                 {dismissed ? (
                                   <span
                                     style={{
@@ -937,6 +995,33 @@ const EmployeesListContent = observer(function EmployeesListContent() {
         )}
         </div>
       </div>
+      {crmModalOpen ? (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "min(920px,100%)", maxHeight: "85vh", overflow: "auto", borderRadius: 16, background: "#fff", boxShadow: "0 24px 70px rgba(15,23,42,.25)" }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid #e2e8f0" }}>
+              <div><div style={{ fontSize: 18, fontWeight: 700 }}>Импорт из QuadraSoft CRM</div><div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>Onboarding vazifalari yaratilmaydi</div></div>
+              <button onClick={() => setCrmModalOpen(false)} style={{ marginLeft: "auto", border: 0, background: "transparent", cursor: "pointer" }}><X size={20}/></button>
+            </div>
+            <div style={{ padding: 22 }}>
+              {crmPreview.isLoading ? <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>CRM ma’lumotlari yuklanmoqda…</div> : crmPreview.error ? <div style={{ padding: 16, background: "#fef2f2", color: "#b91c1c", borderRadius: 10 }}>{crmPreview.error instanceof Error ? crmPreview.error.message : "CRM xatosi"}</div> : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 18 }}>
+                    {[['Jami',crmPreview.data?.summary.total],['Yangi',crmPreview.data?.summary.new],['Mavjudga bog‘lanadi',crmPreview.data?.summary.matched],['Tekshirish kerak',crmPreview.data?.summary.ambiguous]].map(([label,value]) => <div key={String(label)} style={{ padding: 13, border: "1px solid #e2e8f0", borderRadius: 10 }}><div style={{ fontSize: 12, color: "#64748b" }}>{label}</div><div style={{ fontSize: 22, fontWeight: 700 }}>{value ?? 0}</div></div>)}
+                  </div>
+                  <div style={{ maxHeight: 380, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
+                    {(crmPreview.data?.items || []).map(item => <div key={item.crm_id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 120px", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9", fontSize: 13 }}><strong>{item.full_name}</strong><span>{item.department || '—'}</span><span>{item.position || '—'}</span><span style={{ color: item.kind==='ambiguous'?'#b45309':item.kind==='new'?'#0369a1':'#15803d' }}>{item.kind==='new'?'Yangi':item.kind==='matched'?'Bog‘lanadi':item.kind==='linked'?'Bog‘langan':'Tekshirish'}</span></div>)}
+                  </div>
+                </>
+              )}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
+              <button disabled={!(crmPreview.data?.items || []).some(item => item.user_base_id)} onClick={downloadCrmIds} style={{ padding: "9px 15px", border: "1px solid #bae6fd", borderRadius: 9, background: "#f0f9ff", color: "#0369a1", cursor: "pointer", marginRight: "auto" }}>Скачать ID для CRM</button>
+              <button onClick={() => setCrmModalOpen(false)} style={{ padding: "9px 15px", border: "1px solid #cbd5e1", borderRadius: 9, background: "#fff", cursor: "pointer" }}>Отмена</button>
+              <button disabled={!crmPreview.data || crmImport.isLoading} onClick={async()=>{ try { const ids=(crmPreview.data?.items||[]).filter(i=>i.kind!=="ambiguous").map(i=>i.crm_id); const result=await crmImport.mutateAsync(ids); toast.success(`CRM import: ${result.created} yangi, ${result.linked} bog‘landi`); setCrmModalOpen(false); } catch(e){ toast.error(e instanceof Error?e.message:"Import xatosi"); } }} style={{ padding: "9px 15px", border: 0, borderRadius: 9, background: brandColor, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{crmImport.isLoading?'Импорт…':'Импортировать'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {viewMode !== "org" ? (
         <EmployeesPaginationFooter
@@ -1053,6 +1138,7 @@ function EmployeeCard({
   position,
   department,
   location,
+  crmLinked,
   onClick,
 }: {
   employee: Employee;
@@ -1060,6 +1146,7 @@ function EmployeeCard({
   position: string;
   department: string;
   location: string;
+  crmLinked?: boolean;
   onClick?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -1115,6 +1202,7 @@ function EmployeeCard({
             >
               {name}
             </div>
+            {crmLinked ? <span style={{ padding: "2px 7px", borderRadius: "999px", background: "#e0f2fe", color: "#0369a1", fontSize: "10px", fontWeight: 700 }}>QuadraSoft CRM</span> : null}
             {isDismissed ? (
               <span
                 style={{
