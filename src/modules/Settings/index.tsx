@@ -113,6 +113,14 @@ export const settingsSections: SettingsSection[] = [
           ],
         },
         {
+          id: "onboarding-templates",
+          title: "Шаблоны адаптации",
+          icon: UserRoundCheck,
+          path: "/settings/onboarding-templates",
+          subtitle: "Excel и автоматические задачи",
+          keywords: ["onboarding", "адаптация", "excel", "задачи", "сотрудники"],
+        },
+        {
           id: "custom-fields",
           title: "Динамические поля",
           icon: Braces,

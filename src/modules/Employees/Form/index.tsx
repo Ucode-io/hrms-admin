@@ -29,7 +29,7 @@ import { useLocationsQuery } from "../../../api/services/location.service";
 import { useDepartmentsSettingsQuery } from "../../../api/services/department.service";
 import { usePositionsQuery } from "../../../api/services/position.service";
 import { useCreateEmployeeWork } from "../../../api/services/employeeWork.service";
-import { createEmployeeOnboardingTasks } from "../../../api/services/onboardingTasks.service";
+import { onboardingTasksService } from "../../../api/services/onboardingTasks.service";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 import { useRolesQuery } from "../../../api/services/role.service";
 import type { EmployeeFormValues, SelectOption } from "./types";
@@ -464,36 +464,18 @@ function EmployeeForm() {
             date_to: null,
           });
 
-          const managerId = departments.find(
-            (department) => department.guid === data.departments_id
-          )?.user_base_id;
-
-          if (managerId) {
-            try {
-              const employeeName = [data.second_name, data.first_name, data.middle_name]
-                .filter(Boolean)
-                .join(" ")
-                .trim();
-              const onboardingResult = await createEmployeeOnboardingTasks({
-                employeeId: createdEmployeeGuid,
-                employeeName: employeeName || createdEmployeeGuid,
-                managerId,
-                hireDate: toISODate(data.date_hire),
-                locationId: data.locations_id || null,
-              });
-              toast.success(
-                `Onboarding yaratildi: ${onboardingResult.createdParents} ta asosiy task, ${onboardingResult.createdSubtasks} ta subtask`
-              );
-            } catch (onboardingError) {
-              console.error("Failed to create onboarding tasks:", onboardingError);
-              toast.warning(
-                "Xodim yaratildi, lekin onboarding vazifalarini yaratib bo‘lmadi. Qayta urinib ko‘ring."
-              );
+          try {
+            const onboardingResult = await onboardingTasksService.createForEmployee(createdEmployeeGuid);
+            if (onboardingResult.status === "created") {
+              toast.success(`Onboarding yaratildi: ${onboardingResult.createdParents} ta task, ${onboardingResult.createdSubtasks} ta subtask`);
+            } else if (onboardingResult.reason === "manager_not_configured") {
+              toast.warning("Xodim yaratildi, lekin bo‘limda bevosita rahbar belgilanmagan.");
+            } else if (onboardingResult.reason === "active_template_not_found") {
+              toast.warning("Xodim yaratildi, lekin unga mos faol onboarding shabloni topilmadi.");
             }
-          } else {
-            toast.warning(
-              "Xodim yaratildi, lekin bo‘limda bevosita rahbar belgilanmagan. Onboarding vazifalari yaratilmadi."
-            );
+          } catch (onboardingError) {
+            console.error("Failed to create onboarding tasks:", onboardingError);
+            toast.warning("Xodim yaratildi, lekin onboarding vazifalarini yaratib bo‘lmadi. Qayta urinib ko‘ring.");
           }
         }
       }
