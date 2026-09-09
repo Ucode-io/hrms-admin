@@ -184,7 +184,10 @@ export default function CandidateForm() {
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить");
+      const message = err instanceof Error ? err.message : "Не удалось сохранить";
+      setError(message);
+      toast.error(message);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
