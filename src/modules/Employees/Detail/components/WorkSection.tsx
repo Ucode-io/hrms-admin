@@ -23,6 +23,7 @@ import httpRequest from "../../../../api/httpRequest";
 import { useDepartmentsSettingsQuery } from "../../../../api/services/department.service";
 import { usePositionsQuery } from "../../../../api/services/position.service";
 import { useExperienceLevelsQuery } from "../../../../api/services/experienceLevel.service";
+import { onboardingTasksService } from "../../../../api/services/onboardingTasks.service";
 import {
   default as employeeWorkService,
   type EmployeeWork,
@@ -1387,6 +1388,20 @@ export default function WorkSection({
           toast.error("Запись сохранена, но профиль сотрудника не синхронизирован.");
         }
 
+        try {
+          const onboardingResult = await onboardingTasksService.createForEmployee(employeeGuid);
+          if (onboardingResult.status === "created") {
+            toast.success(
+              `Onboarding yaratildi: ${onboardingResult.createdParents} ta task, ${onboardingResult.createdSubtasks} ta subtask`
+            );
+          } else if (onboardingResult.reason === "manager_not_configured") {
+            toast.warning("Onboarding uchun departament rahbari belgilanmagan.");
+          }
+        } catch (onboardingError) {
+          console.error("Failed to create onboarding tasks after work update:", onboardingError);
+          toast.warning("Ish ma’lumoti saqlandi, lekin onboarding vazifalarini yaratib bo‘lmadi.");
+        }
+
         toast.success("Запись о работе обновлена");
         resetEditModal();
         return;
@@ -1432,6 +1447,20 @@ export default function WorkSection({
       } catch (syncError) {
         console.error("Work created but user_base sync failed:", syncError);
         toast.error("Должность добавлена, но профиль сотрудника не синхронизирован.");
+      }
+
+      try {
+        const onboardingResult = await onboardingTasksService.createForEmployee(employeeGuid);
+        if (onboardingResult.status === "created") {
+          toast.success(
+            `Onboarding yaratildi: ${onboardingResult.createdParents} ta task, ${onboardingResult.createdSubtasks} ta subtask`
+          );
+        } else if (onboardingResult.reason === "manager_not_configured") {
+          toast.warning("Onboarding uchun departament rahbari belgilanmagan.");
+        }
+      } catch (onboardingError) {
+        console.error("Failed to create onboarding tasks after work creation:", onboardingError);
+        toast.warning("Ish ma’lumoti saqlandi, lekin onboarding vazifalarini yaratib bo‘lmadi.");
       }
 
       if (modalMode === "return" && onEmployeeReturned) {
