@@ -934,9 +934,9 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
       const sourceLabel =
         sourceKind === "manual"
-          ? "Ручной"
+          ? "HRMS"
           : sourceKind === "integration"
-            ? "Интеграция"
+            ? "QuadraSoft"
             : "Источник не указан";
 
       const info: AttendanceCellInfo = {

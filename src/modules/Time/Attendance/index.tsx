@@ -415,14 +415,14 @@ const getSourceTypeTag = (
 ): { label: string; className: string } => {
   if (sourceType === "manual") {
     return {
-      label: "Ручной",
+      label: "HRMS",
       className: "border-blue-200 bg-blue-50 text-blue-700",
     };
   }
 
   if (sourceType === "integration") {
     return {
-      label: "Интеграция",
+      label: "QuadraSoft",
       className: "border-violet-200 bg-violet-50 text-violet-700",
     };
   }
@@ -533,8 +533,8 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
   const sourceTypeFilterOptions = useMemo<SelectOption[]>(
     () => [
-      { value: "manual", label: "Ручной" },
-      { value: "integration", label: "Интеграция" },
+      { value: "manual", label: "HRMS" },
+      { value: "integration", label: "QuadraSoft" },
       { value: "absences", label: "Отсутствие" },
     ],
     []
