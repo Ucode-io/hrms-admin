@@ -58,6 +58,7 @@ type UniqueUserItem = {
 type AttendanceRecordItem = {
   guid: string;
   hikvision_id?: string | null;
+  companies_id?: string | null;
   action?: string[] | string | null;
   action_time?: string | null;
   date?: string | null;
@@ -263,6 +264,20 @@ export default function HickvisionIntegrationSettingsPage() {
     },
   });
 
+  // Terminals, to resolve which company a unique_users row belongs to: the row
+  // carries only the terminal's MAC. Unpaginated on purpose — the settings tab
+  // pages through the same table, and a page of 20 would silently drop
+  // terminals from the lookup below.
+  const recordsMacsQuery = useSettingsDirectoryQuery({
+    slug: COMPANY_MAC_ADDRESSES_SLUG,
+    params: {
+      data: encodeJsonToUrlParam({ limit: 500, offset: 0 }),
+    },
+    querySettings: {
+      enabled: activeTab === "records",
+    },
+  });
+
   const createMacMutation = useCreateSettingsDirectoryItem(COMPANY_MAC_ADDRESSES_SLUG);
   const deleteMacMutation = useDeleteSettingsDirectoryItem(COMPANY_MAC_ADDRESSES_SLUG);
 
@@ -277,14 +292,28 @@ export default function HickvisionIntegrationSettingsPage() {
   const records = ([...(recordsQuery.data?.response || [])] as AttendanceRecordItem[]).reverse();
   const recordsTotalCount = Number(recordsQuery.data?.count || 0);
   const recordsTotalPages = Math.max(1, Math.ceil(recordsTotalCount / PAGE_SIZE));
+  // hikvision_id is only unique within one terminal — every device numbers its
+  // people from 1 — and this list is not scoped to a company, so keying by the
+  // id alone made the last-loaded row win: 367 of the 500 most recent records
+  // showed the face of someone from another company. The record's own
+  // companies_id plus the terminal's company disambiguate it.
   const recordUserByHikvisionId = useMemo(() => {
+    const companyByMac = new Map<string, string>();
+    for (const mac of (recordsMacsQuery.data?.response || []) as CompanyMacAddressItem[]) {
+      const address = String(mac.mac_address || "").trim();
+      if (address && mac.companies_id) companyByMac.set(address, mac.companies_id);
+    }
+
     const map = new Map<string, UniqueUserItem>();
     for (const user of (recordsUsersQuery.data?.response || []) as UniqueUserItem[]) {
       const id = String(user.hikvision_id || "").trim();
-      if (id) map.set(id, user);
+      const company = companyByMac.get(String(user.mac_address || "").trim());
+      // An unregistered terminal leaves the row unusable: showing no face beats
+      // showing a plausible wrong one.
+      if (id && company) map.set(`${id}|${company}`, user);
     }
     return map;
-  }, [recordsUsersQuery.data?.response]);
+  }, [recordsUsersQuery.data?.response, recordsMacsQuery.data?.response]);
 
   useEffect(() => {
     if (typeof macAddressesQuery.data?.count !== "number") return;
@@ -711,7 +740,7 @@ export default function HickvisionIntegrationSettingsPage() {
                     ) : (
                       records.map((item) => {
                         const uniqueUser = recordUserByHikvisionId.get(
-                          String(item.hikvision_id || "").trim()
+                          `${String(item.hikvision_id || "").trim()}|${item.companies_id || ""}`
                         );
                         return (
                         <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
