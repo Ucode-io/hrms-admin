@@ -620,8 +620,12 @@ function DashboardPage() {
     <>
       <PageMeta title="Главная страница" description="Главная страница" />
 
-      <div className="grid gap-4 pb-2 xl:grid-cols-12">
-        <aside className="space-y-4 xl:col-span-4 xl:order-2">
+      {/* @container, not viewport breakpoints: the copilot dock shrinks this
+          column while the viewport stays wide, and a 12-col split at 690px
+          leaves the aside too narrow to render. */}
+      <div className="@container">
+      <div className="grid gap-4 pb-2 @5xl:grid-cols-12">
+        <aside className="space-y-4 @xl:order-2 @5xl:col-span-4">
           <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
@@ -649,16 +653,16 @@ function DashboardPage() {
                     >
                       <div className="text-[11px] font-medium uppercase opacity-70">{day.label}</div>
                       <div className="mt-1 text-lg font-semibold">{day.dateLabel}</div>
+                      {/* Dot, not a text pill: "Выходной" is wider than a day
+                          cell ever is, so the pill overflowed the card. */}
                       {dayStatusLabel ? (
                         <span
-                          className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
-                            dayStatus === "holiday"
-                              ? "bg-rose-100 text-rose-700"
-                              : "bg-sky-100 text-sky-700"
+                          title={dayStatusLabel}
+                          aria-label={dayStatusLabel}
+                          className={`mx-auto mt-1 block h-1.5 w-1.5 rounded-full ${
+                            dayStatus === "holiday" ? "bg-rose-500" : "bg-sky-400"
                           }`}
-                        >
-                          {dayStatusLabel}
-                        </span>
+                        />
                       ) : null}
                     </button>
                   );
@@ -707,20 +711,18 @@ function DashboardPage() {
 
           <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <span
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
                   style={{ backgroundColor: withOpacity(activeVacationColor, 0.14) }}
                 >
                   <Icon icon={activeVacationIcon} width={18} height={18} color={activeVacationColor} />
                 </span>
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    {activeVacation?.policyTitle || "Отпуск"}
-                  </h3>
-                </div>
+                <h3 className="truncate text-xl font-semibold text-gray-900">
+                  {activeVacation?.policyTitle || "Отпуск"}
+                </h3>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1.5">
                 <button
                   type="button"
                   onClick={handleVacationPrev}
@@ -792,7 +794,9 @@ function DashboardPage() {
 
         </aside>
 
-        <main className="space-y-4 xl:col-span-8 xl:order-1">
+        {/* Greeting stays first whenever there is room; only true mobile
+            leads with the agenda. */}
+        <main className="space-y-4 @xl:order-1 @5xl:col-span-8">
           <section
             className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white p-5 sm:p-6"
             style={
@@ -952,6 +956,7 @@ function DashboardPage() {
             ) : null}
           </article>
         </main>
+      </div>
       </div>
 
       <AbsenceRequestModal
