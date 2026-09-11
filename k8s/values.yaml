@@ -1,0 +1,96 @@
+# HRMS admin panel (static Vite build served by nginx).
+# Deployed from GitHub: Ucode-io/hrms-admin -> ghcr.io -> Ucode-io/deployments -> ArgoCD.
+# No Vault: every VITE_* variable is baked into the bundle at build time, and the
+# Vault sidecar would mount over /app and hide the nginx content.
+global:
+  replicaCount: 1
+  environment: {}
+replicaCount: 1
+image:
+  registry: ghcr.io/
+  repository: ucode-io/hrms-admin
+  pullPolicy: IfNotPresent
+  # Bumped by the deploy job to github.run_number on every master push.
+  tag: "1"
+imagePullSecrets: "ghcr-registry"
+nameOverride: ""
+fullnameOverride: ""
+labels:
+  app: hrms-admin
+serviceAccount:
+  create: true
+  annotations: {}
+  name: "vault-auth"
+podLabels:
+  app: hrms-admin
+podSecurityContext: {}
+securityContext: {}
+vault:
+  enabled: false
+  secretName: vault-secrets
+  variables:
+    VAULT_TOKEN: vault_token
+    SECRETS_PATH:
+environment: {}
+volumes:
+  enabled: false
+  pvc:
+    enabled: false
+    existing_claim:
+    name: pvc
+    mountPath: /pv
+    size: 1G
+    class:
+    accessModes:
+      - ReadWriteOnce
+service:
+  type: ClusterIP
+  annotations: {}
+  specs:
+    - port: 80
+      targetPort: 80
+      name: https
+ingress:
+  enabled: true
+  rules:
+    - annotations:
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE"
+        kubernetes.io/ingress.class: nginx
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      type: web
+      hosts:
+        - host: "hrms-admin.u-code.io"
+          path: /
+          servicePort: 80
+      # The explicit tls block is required: cert-manager annotations alone
+      # issue no certificate and the host quietly serves a self-signed one.
+      tls:
+        - secretName: hrms-admin-tls
+          hosts:
+            - "hrms-admin.u-code.io"
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+nodeSelector: {}
+tolerations: []
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: workload
+              operator: In
+              values:
+                - "ucode-prod"
