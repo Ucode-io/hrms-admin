@@ -1,5 +1,7 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { observer } from "mobx-react-lite";
 import { useSidebar } from "../../context/SidebarContext";
+import { copilotStore } from "../../features/copilot";
 
 interface SidebarAwareFixedFooterProps {
   children: ReactNode;
@@ -7,7 +9,7 @@ interface SidebarAwareFixedFooterProps {
   contentStyle?: CSSProperties;
 }
 
-export default function SidebarAwareFixedFooter({
+function SidebarAwareFixedFooter({
   children,
   zIndex = 45,
   contentStyle,
@@ -16,31 +18,48 @@ export default function SidebarAwareFixedFooter({
   const [isDesktop, setIsDesktop] = useState(
     typeof window !== "undefined" ? window.innerWidth >= 1024 : true
   );
+  // The copilot dock only takes space from xl up; below that it is an overlay.
+  const [isWide, setIsWide] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 1280 : true
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const wideQuery = window.matchMedia("(min-width: 1280px)");
     const handleChange = (event: MediaQueryListEvent) => {
       setIsDesktop(event.matches);
     };
+    const handleWide = (event: MediaQueryListEvent) => {
+      setIsWide(event.matches);
+    };
 
     setIsDesktop(mediaQuery.matches);
+    setIsWide(wideQuery.matches);
     mediaQuery.addEventListener("change", handleChange);
+    wideQuery.addEventListener("change", handleWide);
 
     return () => {
       mediaQuery.removeEventListener("change", handleChange);
+      wideQuery.removeEventListener("change", handleWide);
     };
   }, []);
 
   const leftOffset = isDesktop ? (isExpanded ? 290 : 90) : 0;
+  // This bar is fixed to the viewport, so it does not know the dock exists and
+  // would otherwise run underneath it — burying its own right-aligned controls.
+  const rightOffset =
+    isWide && copilotStore.isOpen && !copilotStore.isExpanded
+      ? copilotStore.width
+      : 0;
 
   return (
     <div
       style={{
         position: "fixed",
         left: `${leftOffset}px`,
-        right: 0,
+        right: `${rightOffset}px`,
         bottom: 0,
         zIndex,
       }}
@@ -66,3 +85,5 @@ export default function SidebarAwareFixedFooter({
     </div>
   );
 }
+
+export default observer(SidebarAwareFixedFooter);

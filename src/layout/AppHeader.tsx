@@ -6,6 +6,7 @@ import UserDropdown from "../components/header/UserDropdown";
 import companyStore from "../store/company.store";
 import { observer } from "mobx-react-lite";
 import { ArrowLeft, Bell, Menu, X } from "lucide-react";
+import { CopilotToggle } from "../features/copilot";
 
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: "Главная страница",
@@ -204,6 +205,8 @@ const AppHeader: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-3">
+        <CopilotToggle />
+
         <button
           type="button"
           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 shadow-sm"

@@ -6,6 +6,7 @@ import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
 import AccessGuard from "./AccessGuard";
 import AccessGate from "./AccessGate";
+import { CopilotDock } from "../features/copilot";
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isMobileOpen } = useSidebar();
@@ -28,6 +29,9 @@ const LayoutContent: React.FC = () => {
           </AccessGuard>
         </div>
       </div>
+      {/* Third flex child: the dock shrinks the content column instead of
+          covering it, so the page being asked about stays readable. */}
+      <CopilotDock />
     </div>
   );
 };

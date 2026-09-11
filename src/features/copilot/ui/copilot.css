@@ -1,0 +1,203 @@
+/* Copilot motion.
+ *
+ * Plain keyframes rather than an animation library: the project has none, and
+ * everything here is a fade, a rise or a loop. Every animation is switched off
+ * under prefers-reduced-motion at the bottom of the file — a chat that animates
+ * on every token is exactly the kind of surface that makes people motion-sick.
+ */
+
+/* ── Messages and artifacts entering ─────────────────────────────────────── */
+
+.copilot-enter {
+  animation: copilot-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes copilot-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Cards carry a touch of scale as well — they read as objects arriving, where a
+ * paragraph just fades in. */
+.copilot-artifact-enter {
+  animation: copilot-artifact-enter 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes copilot-artifact-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── The typing caret ────────────────────────────────────────────────────── */
+
+.copilot-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background: currentColor;
+  animation: copilot-caret 1s steps(2, start) infinite;
+}
+
+@keyframes copilot-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ── Thinking ────────────────────────────────────────────────────────────── */
+
+/* The label's text is filled by a light sweep travelling left to right, so the
+ * wait reads as activity rather than as a frozen screen. */
+.copilot-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--copilot-shimmer-base, #94a3b8) 30%,
+    var(--copilot-shimmer-peak, #1e293b) 50%,
+    var(--copilot-shimmer-base, #94a3b8) 70%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: copilot-shimmer 2.2s linear infinite;
+}
+
+@keyframes copilot-shimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+
+.copilot-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: copilot-dot 1.2s ease-in-out infinite;
+}
+
+.copilot-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.copilot-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes copilot-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* A finished step ticks itself off, so the trace of what the copilot did builds
+ * up while it works instead of appearing all at once at the end. */
+.copilot-step-done {
+  animation: copilot-step-done 220ms ease-out both;
+}
+
+@keyframes copilot-step-done {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Motion off ──────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .copilot-enter,
+  .copilot-artifact-enter,
+  .copilot-step-done {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .copilot-caret,
+  .copilot-dot {
+    animation: none;
+    opacity: 1;
+  }
+
+  .copilot-shimmer {
+    animation: none;
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: var(--copilot-shimmer-peak, #1e293b);
+  }
+}
+
+/* ── Chart labels ────────────────────────────────────────────────────────── */
+
+/*
+ * index.css carries `.apexcharts-text { fill: var(--color-gray-700) !important }`
+ * for every chart in the product. A presentation attribute cannot beat that, so
+ * per-slice label colours set through ApexCharts options are silently ignored —
+ * which left the percentage on the dark brand slice unreadable.
+ *
+ * Rather than weaken a rule the Reports pages depend on, the copilot's palette
+ * is kept dark enough for white text and this one scoped rule (more specific,
+ * so it wins the !important contest) applies it.
+ */
+.copilot-chart .apexcharts-pie-label {
+  fill: #ffffff !important;
+}
+
+/* ── Sideways scroll, made visible ───────────────────────────────────────── */
+
+/*
+ * A result with five columns does not fit the dock, and a clipped last column
+ * looks like a rendering bug rather than an invitation to scroll. These are the
+ * classic scroll shadows: two solid gradients pinned to the content (so they
+ * cover the shadow when there is nothing more that way) over two soft ones
+ * pinned to the viewport. No JavaScript and no scroll listener.
+ */
+.copilot-scroll-x {
+  --copilot-card: #ffffff;
+  background:
+    linear-gradient(to right, var(--copilot-card) 30%, rgba(255, 255, 255, 0)) left center / 28px 100% no-repeat,
+    linear-gradient(to left, var(--copilot-card) 30%, rgba(255, 255, 255, 0)) right center / 28px 100% no-repeat,
+    radial-gradient(farthest-side at 0 50%, rgba(16, 24, 40, 0.22), rgba(16, 24, 40, 0)) left center / 18px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, rgba(16, 24, 40, 0.22), rgba(16, 24, 40, 0)) right center / 18px 100% no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
+.dark .copilot-scroll-x {
+  --copilot-card: #101828;
+}
