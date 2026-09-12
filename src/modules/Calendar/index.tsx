@@ -830,6 +830,19 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
   }, [employeesData, employeesChunk, employeesPage]);
 
   const employeeIds = useMemo(() => employees.map((employee) => employee.guid), [employees]);
+  const employeesWithHikvisionId = useMemo(
+    () =>
+      new Set(
+        employees
+          .filter(
+            (employee) =>
+              typeof employee.hikvision_id === "string" &&
+              Boolean(employee.hikvision_id.trim())
+          )
+          .map((employee) => employee.guid)
+      ),
+    [employees]
+  );
 
   const { data: policiesData } = useSettingsDirectoryQuery({
     slug: ABSENCE_POLICIES_SLUG,
@@ -936,7 +949,9 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
         sourceKind === "manual"
           ? "HRMS"
           : sourceKind === "integration"
-            ? "QuadraSoft"
+            ? employeesWithHikvisionId.has(userId)
+              ? "Hikvision"
+              : "QuadraSoft"
             : "Источник не указан";
 
       const info: AttendanceCellInfo = {
@@ -958,7 +973,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     }
 
     return map;
-  }, [attendanceData?.response]);
+  }, [attendanceData?.response, employeesWithHikvisionId]);
 
   if (typeof employeesData?.count === "number" && Number.isFinite(employeesData.count)) {
     lastKnownTotalCountRef.current = employeesData.count;

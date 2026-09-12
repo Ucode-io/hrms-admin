@@ -51,6 +51,7 @@ type AttendanceItem = {
     first_name?: string;
     second_name?: string;
     name?: string;
+    hikvision_id?: string | null;
     [key: string]: unknown;
   } | null;
   [key: string]: unknown;
@@ -73,6 +74,7 @@ type AttendanceRecord = {
   employeeGuid: string;
   employeeName: string;
   departmentId: string;
+  hasHikvisionId: boolean;
 };
 
 type AttendanceDraft = {
@@ -411,7 +413,8 @@ const getWorkflowStatusTag = (
 };
 
 const getSourceTypeTag = (
-  sourceType: AttendanceSourceType
+  sourceType: AttendanceSourceType,
+  hasHikvisionId = false
 ): { label: string; className: string } => {
   if (sourceType === "manual") {
     return {
@@ -422,7 +425,7 @@ const getSourceTypeTag = (
 
   if (sourceType === "integration") {
     return {
-      label: "QuadraSoft",
+      label: hasHikvisionId ? "Hikvision" : "QuadraSoft",
       className: "border-violet-200 bg-violet-50 text-violet-700",
     };
   }
@@ -449,7 +452,7 @@ const getDelayLabel = (delayTime: string, status: AttendanceActionStatus): strin
 
 const getEmployeeInfo = (
   item: AttendanceItem
-): { employeeGuid: string; employeeName: string; departmentId: string } => {
+): { employeeGuid: string; employeeName: string; departmentId: string; hasHikvisionId: boolean } => {
   const relation =
     item.user_base_id_data && typeof item.user_base_id_data === "object"
       ? (item.user_base_id_data as Record<string, unknown>)
@@ -479,7 +482,10 @@ const getEmployeeInfo = (
     (typeof departmentRelation?.guid === "string" ? departmentRelation.guid : "") ||
     "";
 
-  return { employeeGuid, employeeName, departmentId };
+  const hasHikvisionId =
+    typeof relation?.hikvision_id === "string" && Boolean(relation.hikvision_id.trim());
+
+  return { employeeGuid, employeeName, departmentId, hasHikvisionId };
 };
 
 const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
@@ -534,7 +540,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const sourceTypeFilterOptions = useMemo<SelectOption[]>(
     () => [
       { value: "manual", label: "HRMS" },
-      { value: "integration", label: "QuadraSoft" },
+      { value: "integration", label: "Hikvision / QuadraSoft" },
       { value: "absences", label: "Отсутствие" },
     ],
     []
@@ -622,6 +628,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         employeeGuid: employeeInfo.employeeGuid,
         employeeName: employeeInfo.employeeName,
         departmentId: employeeInfo.departmentId,
+        hasHikvisionId: employeeInfo.hasHikvisionId,
       };
     });
 
@@ -1155,7 +1162,10 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                         {pageItems.map((record) => {
                           const actionTag = getActionStatusTag(record.actionStatus);
                           const requestTag = getWorkflowStatusTag(record.requestStatus);
-                          const sourceTag = getSourceTypeTag(record.sourceType);
+                          const sourceTag = getSourceTypeTag(
+                            record.sourceType,
+                            record.hasHikvisionId
+                          );
 
                           const rowProcess = resolveRecordProcess(record);
                           const rowProgress = rowProcess
