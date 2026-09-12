@@ -58,15 +58,26 @@ ingress:
         nginx.ingress.kubernetes.io/cors-allow-origin: "*"
         nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE"
         kubernetes.io/ingress.class: nginx
+        acme.cert-manager.io/http01-edit-in-place: "true"
         cert-manager.io/cluster-issuer: letsencrypt-prod
       type: web
       hosts:
+        # The real address. ucode.co has no wildcard, so this one needs an A
+        # record at the registrar pointing at the ingress, and its certificate
+        # is issued by cert-manager rather than handed down by Cloudflare.
+        - host: "hrms.ucode.co"
+          path: /
+          servicePort: 80
+        # Kept while the move settles; drop once hrms.ucode.co is confirmed.
         - host: "hrms-admin.u-code.io"
           path: /
           servicePort: 80
       # The explicit tls block is required: cert-manager annotations alone
       # issue no certificate and the host quietly serves a self-signed one.
       tls:
+        - secretName: hrms-ucode-co-tls
+          hosts:
+            - "hrms.ucode.co"
         - secretName: hrms-admin-tls
           hosts:
             - "hrms-admin.u-code.io"
