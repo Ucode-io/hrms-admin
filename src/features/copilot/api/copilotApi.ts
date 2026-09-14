@@ -1,4 +1,5 @@
 import authStore from "../../../store/auth.store";
+import { DEFAULT_PROJECT_ID } from "../../../api/httpRequest";
 import type {
   CopilotAttachment,
   CopilotConversationDetail,
@@ -11,12 +12,27 @@ const BASE_URL = (
 ).replace(/\/+$/, "");
 
 /**
+ * Headers every Copilot call carries.
+ *
+ * This bypasses the axios interceptors the rest of the app uses, so both the
+ * token and the project have to be attached by hand. `Project-Id` is what tells
+ * the service which ucode project to read HRMS data from — it used to keep its
+ * own copy of the id in an env var, which only had to be right at deploy time
+ * and silently pointed at the wrong project when it was not.
+ */
+const headers = (): Record<string, string> => {
+  const token = authStore.token;
+  return {
+    "Project-Id": DEFAULT_PROJECT_ID,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
+/**
  * Opens the Copilot stream.
  *
  * Hand-rolled rather than EventSource because EventSource can only issue GET
- * requests, and the message has to go in a body. That also means this bypasses
- * the axios interceptors the rest of the app relies on, so the auth header is
- * attached here explicitly.
+ * requests, and the message has to go in a body.
  */
 const openStream = async (
   endpoint: "/copilot/chat" | "/copilot/confirm",
@@ -24,13 +40,9 @@ const openStream = async (
   onEvent: (event: CopilotStreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> => {
-  const token = authStore.token;
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { "Content-Type": "application/json", ...headers() },
     body: JSON.stringify(body),
     signal,
   });
@@ -106,19 +118,17 @@ export const streamConfirm = (
 export const fetchConversation = async (
   id: string,
 ): Promise<CopilotConversationDetail | null> => {
-  const token = authStore.token;
   const response = await fetch(`${BASE_URL}/copilot/conversations/${id}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: headers(),
   });
   if (!response.ok) return null;
   return (await response.json()) as CopilotConversationDetail;
 };
 
 export const deleteConversation = async (id: string): Promise<boolean> => {
-  const token = authStore.token;
   const response = await fetch(`${BASE_URL}/copilot/conversations/${id}`, {
     method: "DELETE",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: headers(),
   });
   return response.ok;
 };
@@ -126,9 +136,8 @@ export const deleteConversation = async (id: string): Promise<boolean> => {
 export const fetchConversations = async (): Promise<
   CopilotConversationSummary[] | null
 > => {
-  const token = authStore.token;
   const response = await fetch(`${BASE_URL}/copilot/conversations`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: headers(),
   });
   // null, not []: an expired session and a service that is down would otherwise
   // render as "you have no history", which is the one answer nobody questions.

@@ -3,7 +3,12 @@ import authStore from "../store/auth.store";
 import { handleUnauthorizedError } from "./unauthorizedHandler";
 
 const API_BASE_URL = "https://api.admin.u-code.io/";
-const DEFAULT_PROJECT_ID = "9a462573-ce11-4288-928a-a6ba754b6998";
+/**
+ * The ucode project this panel's data lives in. Exported because the Copilot
+ * service now takes it from here instead of keeping its own copy: two
+ * hardcoded ids that must agree is one id that will eventually not.
+ */
+export const DEFAULT_PROJECT_ID = "9a462573-ce11-4288-928a-a6ba754b6998";
 const ENVIRONMENT_ID = "2f73835f-3a29-46c8-951e-75119db9bfc0";
 const API_KEY = "P-aUAOU0KNOuRctMIRJDjVb5kElKgxkYpI";
 
