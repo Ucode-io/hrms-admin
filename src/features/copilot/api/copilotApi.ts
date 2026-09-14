@@ -41,7 +41,7 @@ const openStream = async (
       message:
         response.status === 401
           ? "Сессия истекла. Войдите заново."
-          : "Копилот сейчас недоступен.",
+          : "AI чат сейчас недоступен.",
       code: response.status === 401 ? "forbidden" : "internal",
     });
     return;

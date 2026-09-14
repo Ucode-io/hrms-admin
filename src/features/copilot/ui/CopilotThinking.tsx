@@ -35,7 +35,7 @@ const CopilotThinking: React.FC<{ steps: CopilotStep[] }> = observer(
     if (steps.length === 0) {
       return (
         <div className="copilot-enter flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <span className="copilot-shimmer font-medium">Копилот думает</span>
+          <span className="copilot-shimmer font-medium">AI чат думает</span>
           <span className="flex items-center gap-1 text-gray-400">
             <i className="copilot-dot" />
             <i className="copilot-dot" />

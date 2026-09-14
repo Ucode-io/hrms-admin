@@ -29,8 +29,8 @@ const CopilotToggle: React.FC = observer(() => {
       type="button"
       onClick={() => copilotStore.toggle()}
       aria-pressed={isOpen}
-      title="Копилот (⌘/Ctrl + K)"
-      aria-label="Копилот"
+      title="AI чат (⌘/Ctrl + K)"
+      aria-label="AI чат"
       className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm transition-colors ${
         isOpen
           ? "border-brand-200 bg-brand-50 text-brand-600 hover:bg-brand-100"

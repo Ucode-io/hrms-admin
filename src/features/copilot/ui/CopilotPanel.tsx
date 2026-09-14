@@ -107,7 +107,7 @@ const CopilotPanel: React.FC = observer(() => {
             history list covers the transcript and used to announce itself with
             a second header row and a second ✕ right under this one. */}
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-white/90">
-          {copilotStore.isHistoryOpen ? "История" : "Копилот"}
+          {copilotStore.isHistoryOpen ? "История" : "AI чат"}
         </h2>
         <div className="flex shrink-0 items-center gap-1">
           <button

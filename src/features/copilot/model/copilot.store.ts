@@ -43,8 +43,8 @@ const ERROR_TEXT: Record<CopilotErrorCode, string> = {
   rate_limited: "Слишком много запросов. Подождите немного и повторите.",
   invalid_action: "Это действие больше недоступно.",
   action_expired: "Действие устарело. Повторите запрос.",
-  timeout: "Копилот слишком долго отвечал, запрос остановлен.",
-  unavailable: "Копилот недоступен. Сообщите администратору.",
+  timeout: "AI чат слишком долго отвечал, запрос остановлен.",
+  unavailable: "AI чат недоступен. Сообщите администратору.",
   internal: "Что-то пошло не так. Попробуйте ещё раз.",
 };
 
@@ -374,7 +374,7 @@ class CopilotStore {
     } catch {
       if (!controller.signal.aborted) {
         runInAction(() => {
-          this.error = "Соединение с копилотом прервалось.";
+          this.error = "Соединение с AI чатом прервалось.";
         });
       }
     } finally {
@@ -507,7 +507,7 @@ class CopilotStore {
         // is left guessing whether it is still thinking.
         if (event.stopReason === "max_turns" && !message?.content) {
           this.error =
-            "Копилот не смог собрать ответ за отведённые шаги. Переспросите или сузьте вопрос.";
+            "AI чат не смог собрать ответ за отведённые шаги. Переспросите или сузьте вопрос.";
         }
         this.steps = this.steps.map((step) => ({ ...step, done: true }));
         return;
