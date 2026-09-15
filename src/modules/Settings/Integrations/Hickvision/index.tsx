@@ -59,6 +59,7 @@ type AttendanceRecordItem = {
   guid: string;
   hikvision_id?: string | null;
   companies_id?: string | null;
+  picture?: string | null;
   action?: string[] | string | null;
   action_time?: string | null;
   date?: string | null;
@@ -746,7 +747,7 @@ export default function HickvisionIntegrationSettingsPage() {
                         <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                           <TableCell className="px-4 py-3">
                             <HickvisionUserPicture
-                              picture={uniqueUser?.picture}
+                              picture={item.picture || uniqueUser?.picture}
                               name={resolveEmployeeName(item, uniqueUser)}
                             />
                           </TableCell>
