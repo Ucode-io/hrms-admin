@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local visual QA artifacts
+.qa/
+attendance-preview.png
+attendance-events-integrated.png
+attendance-events-simple-overview.png
+attendance-events-overview-comparison.jpg
+attendance-events-thick-timeline.png
+attendance-events-thick-timeline-comparison.jpg
+public/qa/
+public/qa-comparison.html
