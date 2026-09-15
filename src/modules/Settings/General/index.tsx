@@ -26,6 +26,7 @@ import {
 } from "../../../api/services/companySettings.service";
 import { useUploadFile } from "../../../api/services/file-upload.service";
 import companyStore from "../../../store/company.store";
+import TelegramGroupSection from "./TelegramGroupSection";
 
 type CompanyFormState = {
   guid: string;
@@ -585,6 +586,8 @@ export default function SettingsGeneralPage() {
             </div>
           </div>
         </section>
+
+        <TelegramGroupSection companiesId={form.guid} />
 
         <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-4 backdrop-blur">
           <div className="text-sm text-gray-500">
