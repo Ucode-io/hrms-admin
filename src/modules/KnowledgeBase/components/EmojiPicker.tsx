@@ -41,7 +41,9 @@ export default function EmojiPicker({
     const host = pickerRef.current;
     if (!open || !host) return;
     const picker = document.createElement("emoji-picker");
-    picker.setAttribute("locale", "ru");
+    // The element follows prefers-color-scheme by default; the admin panel is
+    // light-only, so pin it instead of going dark on dark-mode systems.
+    picker.classList.add("light");
     picker.style.setProperty("--num-columns", "8");
     picker.style.height = "22rem";
     const onPick = (e: Event) => {
