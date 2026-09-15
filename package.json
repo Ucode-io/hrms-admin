@@ -39,6 +39,7 @@
     "clsx": "^2.1.1",
     "docx-preview": "^0.3.7",
     "dompurify": "^3.3.3",
+    "emoji-picker-element": "^1.29.1",
     "flatpickr": "^4.6.13",
     "lucide-react": "^0.562.0",
     "mobx": "^6.15.0",
