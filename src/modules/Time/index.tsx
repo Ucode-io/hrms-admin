@@ -1,23 +1,28 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { CalendarCheck, CalendarDays, Plane } from "lucide-react";
+import { CalendarCheck, CalendarDays, List, Plane } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import CalendarModule from "../Calendar";
 import TimeAttendancePage from "./Attendance";
+import AttendanceEventsPage from "./Attendance/AttendanceEventsPage";
 import AbsenceRequestsView from "./components/AbsenceRequestsView";
 
-type TimeView = "calendar" | "attendance" | "absence";
+type TimeView = "calendar" | "attendance" | "events" | "absence";
 
 const VIEW_TABS: { value: TimeView; label: string; icon: typeof CalendarDays }[] = [
   { value: "calendar", label: "Календарь", icon: CalendarDays },
-  { value: "attendance", label: "Посещаемость", icon: CalendarCheck },
+  { value: "attendance", label: "Список", icon: List },
+  { value: "events", label: "Посещаемость", icon: CalendarCheck },
   { value: "absence", label: "Отсутствие", icon: Plane },
 ];
 
 const DEFAULT_VIEW: TimeView = "calendar";
 
 const isTimeView = (value: string | null): value is TimeView =>
-  value === "calendar" || value === "attendance" || value === "absence";
+  value === "calendar" ||
+  value === "attendance" ||
+  value === "events" ||
+  value === "absence";
 
 function TimeModule() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -94,6 +99,7 @@ function TimeModule() {
           of each tab's toolbar row. */}
       {activeView === "calendar" && <CalendarModule leftSlot={viewSelect} />}
       {activeView === "attendance" && <TimeAttendancePage leftSlot={viewSelect} />}
+      {activeView === "events" && <AttendanceEventsPage leftSlot={viewSelect} />}
       {activeView === "absence" && <AbsenceRequestsView leftSlot={viewSelect} />}
     </>
   );
