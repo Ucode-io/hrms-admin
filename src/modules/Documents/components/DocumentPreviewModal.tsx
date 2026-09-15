@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Download, Eye, ExternalLink, FileQuestion, X } from "lucide-react";
 import { renderAsync } from "docx-preview";
 import { Modal } from "../../../components/ui/modal";
@@ -21,9 +22,13 @@ type DocumentPreviewModalProps = {
 };
 
 const getExtension = (value: string): string => {
-  const clean = value.split("?")[0].split("#")[0];
+  const clean = decodeURIComponent(value).split("?")[0].split("#")[0];
   const dot = clean.lastIndexOf(".");
-  return dot >= 0 ? clean.slice(dot + 1).toLowerCase() : "";
+  if (dot < 0) return "";
+  // Trailing junk is normal here: a label like «файл.docx» or a link ending in
+  // a quote would otherwise resolve to the extension `docx»` and fall through
+  // to "unsupported".
+  return (clean.slice(dot + 1).toLowerCase().match(/^[a-z0-9]+/) ?? [""])[0];
 };
 
 /** Office formats the browser can't open itself — handed to Microsoft's public
@@ -219,7 +224,12 @@ export default function DocumentPreviewModal({
     };
   }, [pdfPreviewUrl]);
 
-  return (
+  if (!isOpen) return null;
+
+  // Portalled to <body>: the copilot panel animates its message blocks with a
+  // transform, and a transformed ancestor becomes the containing block for
+  // `position: fixed` — the modal was being squeezed into the 320px panel.
+  return createPortal(
     <Modal
       isOpen={isOpen}
       onClose={onClose}
@@ -327,6 +337,7 @@ export default function DocumentPreviewModal({
           </div>
         )}
       </div>
-    </Modal>
+    </Modal>,
+    document.body
   );
 }

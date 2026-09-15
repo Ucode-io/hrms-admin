@@ -34,6 +34,13 @@ const SUGGESTIONS = [
 /** What the service can actually read; anything else comes back as "not supported". */
 const ACCEPT = ".xlsx,.xlsm,.csv,.tsv,.txt,.md,.json,.pdf,.png,.jpg,.jpeg,.webp,.gif";
 
+/** The label is prose ("Скачать «отчёт.xlsx»"), so the real filename — the
+ *  thing the preview types off — comes from the URL when it has one. */
+const fileNameFromLink = (href: string, label: string): string => {
+  const base = decodeURIComponent(href.split("?")[0].split("#")[0]).split("/").pop() ?? "";
+  return base.includes(".") ? base : label;
+};
+
 /** One builder rather than two class constants: an `active ? "text-brand-600"`
  *  tacked onto a string that already says `text-gray-500` is a coin flip —
  *  which one wins is stylesheet order, not the order they appear here. */
@@ -236,7 +243,7 @@ const CopilotPanel: React.FC = observer(() => {
                       {link.kind === "file" && (
                         <FilePreviewButton
                           fileUrl={link.href}
-                          fileName={link.label}
+                          fileName={fileNameFromLink(link.href, link.label)}
                           size={16}
                           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-200 text-brand-600 transition hover:bg-brand-50 dark:border-brand-500/30 dark:text-brand-400"
                         />

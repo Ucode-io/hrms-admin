@@ -189,9 +189,9 @@ class CopilotStore {
         mediaType: file.type || "application/octet-stream",
         data,
         size: file.size,
-        // ponytail: kept for the lifetime of the tab and never revoked — the
-        // message chip that previews it lives just as long, and a handful of
-        // blob handles per session costs less than tracking their deaths.
+        // ponytail: never revoked — the message chip that previews it lives as
+        // long as the tab does, and a few blob handles per session cost less
+        // than tracking their deaths.
         url: URL.createObjectURL(file),
       };
       this.error = null;
@@ -313,7 +313,7 @@ class CopilotStore {
   private deliver(
     message: string,
     route?: string | null,
-    attachment?: (CopilotAttachment & { size: number; url: string }) | null,
+    attachment?: (CopilotAttachment & { size: number }) | null,
   ): Promise<void> {
     return this.run((onEvent, signal) =>
       streamChat(
