@@ -25,8 +25,12 @@ const hrefFor = (target: string): string =>
 const renderInline = (text: string, keyPrefix: string): React.ReactNode[] =>
   text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g).map((part, i) => {
     const key = `${keyPrefix}-${i}`;
+    // Recurses: the Copilot writes **[Аллерайз](kb:…)** often enough, and the
+    // bold alternative wins the split, so a link inside one would otherwise be
+    // printed as its own brackets and guid. The inner text cannot contain `**`
+    // — the pattern that captured it forbids it — so this cannot run away.
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={key}>{part.slice(2, -2)}</strong>;
+      return <strong key={key}>{renderInline(part.slice(2, -2), key)}</strong>;
     }
     const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
     if (link) {
@@ -41,7 +45,7 @@ const renderInline = (text: string, keyPrefix: string): React.ReactNode[] =>
           rel="noreferrer"
           className="font-medium text-brand-600 underline underline-offset-2 hover:text-brand-700 dark:text-brand-400"
         >
-          {link[1]}
+          {renderInline(link[1], key)}
         </a>
       ) : (
         <Link
@@ -49,7 +53,7 @@ const renderInline = (text: string, keyPrefix: string): React.ReactNode[] =>
           to={href}
           className="font-medium text-brand-600 underline underline-offset-2 hover:text-brand-700 dark:text-brand-400"
         >
-          {link[1]}
+          {renderInline(link[1], key)}
         </Link>
       );
     }
