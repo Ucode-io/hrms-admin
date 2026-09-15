@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router";
 import { Paperclip } from "lucide-react";
 import { useSmoothText } from "../model/useSmoothText";
 import type { CopilotMessage } from "../types";
@@ -6,16 +7,51 @@ import type { CopilotMessage } from "../types";
 /**
  * Minimal markdown for assistant replies.
  *
- * ponytail: covers bullets, numbered lists, bold and inline code, which is
- * everything the Copilot's system prompt actually asks it to produce. Swap in a
- * real markdown renderer if replies ever need tables or links inline — the
- * dependency isn't worth it for four constructs.
+ * ponytail: covers bullets, numbered lists, bold, inline code and links, which
+ * is everything the Copilot's system prompt actually asks it to produce. Swap
+ * in a real markdown renderer if replies ever need tables — the dependency
+ * isn't worth it for five constructs.
  */
+/**
+ * `kb:<guid>` is how the Copilot names an article it is citing — not a path,
+ * because the mini-app files the same article under a different route and the
+ * model should not be the place that knows which client is reading.
+ */
+const hrefFor = (target: string): string =>
+  target.startsWith("kb:")
+    ? `/knowledge-base/articles/${encodeURIComponent(target.slice(3))}`
+    : target;
+
 const renderInline = (text: string, keyPrefix: string): React.ReactNode[] =>
-  text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+  text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g).map((part, i) => {
     const key = `${keyPrefix}-${i}`;
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={key}>{part.slice(2, -2)}</strong>;
+    }
+    const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
+    if (link) {
+      const href = hrefFor(link[2]);
+      // Anything absolute leaves the panel; everything else is a route inside
+      // it, and a full page load would throw away the conversation.
+      return /^https?:\/\//.test(href) ? (
+        <a
+          key={key}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-brand-600 underline underline-offset-2 hover:text-brand-700 dark:text-brand-400"
+        >
+          {link[1]}
+        </a>
+      ) : (
+        <Link
+          key={key}
+          to={href}
+          className="font-medium text-brand-600 underline underline-offset-2 hover:text-brand-700 dark:text-brand-400"
+        >
+          {link[1]}
+        </Link>
+      );
     }
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
