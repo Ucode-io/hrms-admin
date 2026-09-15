@@ -183,5 +183,5 @@ export interface CopilotMessage {
   status?: CopilotMessageStatus;
   truncated?: boolean;
   /** Name and size of the file sent with this message, for the chip on it. */
-  file?: { name: string; size: number; url?: string };
+  file?: { name: string; size: number };
 }

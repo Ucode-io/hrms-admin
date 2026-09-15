@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { Paperclip } from "lucide-react";
-import { FilePreviewButton } from "../../../modules/Documents/components/DocumentPreviewModal";
 import { useSmoothText } from "../model/useSmoothText";
 import type { CopilotMessage } from "../types";
 
@@ -82,14 +81,6 @@ const CopilotBubble: React.FC<{ message: CopilotMessage }> = ({ message }) => {
             <div className="flex items-center gap-1.5 text-xs text-white/90">
               <Paperclip size={12} className="shrink-0" />
               <span className="truncate">{message.file.name}</span>
-              {message.file.url && (
-                <FilePreviewButton
-                  fileUrl={message.file.url}
-                  fileName={message.file.name}
-                  size={13}
-                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-white/80 transition hover:bg-white/20 hover:text-white"
-                />
-              )}
             </div>
           )}
           {message.content && (

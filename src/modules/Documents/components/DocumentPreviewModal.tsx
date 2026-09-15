@@ -270,7 +270,10 @@ export default function DocumentPreviewModal({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">
+      {/* Bounded by its own max-height, not by `flex-1`: Modal wraps children in
+          a plain div, so this is not a flex item of the sized container above
+          and would otherwise grow to the full document height and be clipped. */}
+      <div className="max-h-[80vh] overflow-auto bg-slate-100 p-4">
         {actualKind === "image" ? (
           <div className="flex min-h-full items-center justify-center">
             <img
@@ -283,10 +286,12 @@ export default function DocumentPreviewModal({
           <iframe
             src={pdfPreviewUrl || fileUrl}
             title={fileName}
-            className="h-[78vh] w-full rounded-lg border-0 bg-white shadow-sm"
+            className="h-[72vh] w-full rounded-lg border-0 bg-white shadow-sm"
           />
         ) : actualKind === "docx" ? (
-          <div className="mx-auto max-w-3xl rounded-lg bg-white p-4 shadow-sm">
+          // w-fit, not a max-width: docx-preview lays the document out at a real
+          // page width (~816px), so a narrower card just clips it.
+          <div className="mx-auto w-fit max-w-full rounded-lg bg-white p-4 shadow-sm">
             {isDocxLoading && (
               <div className="py-10 text-center text-sm text-slate-500">Загрузка предпросмотра...</div>
             )}
@@ -297,7 +302,7 @@ export default function DocumentPreviewModal({
           <iframe
             src={officeViewerUrl(fileUrl)}
             title={fileName}
-            className="h-[78vh] w-full rounded-lg border-0 bg-white shadow-sm"
+            className="h-[72vh] w-full rounded-lg border-0 bg-white shadow-sm"
           />
         ) : actualKind === "video" ? (
           <div className="flex min-h-full items-center justify-center">

@@ -93,7 +93,7 @@ class CopilotStore {
    */
   draft = "";
   /** The file staged for the next message, already base64-encoded. */
-  attachment: (CopilotAttachment & { size: number; url: string }) | null = null;
+  attachment: (CopilotAttachment & { size: number }) | null = null;
   isStreaming = false;
   /**
    * What the copilot has done so far this turn, in order.
@@ -189,10 +189,6 @@ class CopilotStore {
         mediaType: file.type || "application/octet-stream",
         data,
         size: file.size,
-        // ponytail: never revoked — the message chip that previews it lives as
-        // long as the tab does, and a few blob handles per session cost less
-        // than tracking their deaths.
-        url: URL.createObjectURL(file),
       };
       this.error = null;
     });
@@ -285,13 +281,7 @@ class CopilotStore {
       createdAt: new Date().toISOString(),
       status: "complete",
       ...(attachment
-        ? {
-            file: {
-              name: attachment.name,
-              size: attachment.size,
-              url: attachment.url,
-            },
-          }
+        ? { file: { name: attachment.name, size: attachment.size } }
         : {}),
     });
 
