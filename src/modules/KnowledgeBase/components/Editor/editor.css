@@ -44,3 +44,34 @@
 .kb-editor .bn-editor:focus-visible {
   outline: none;
 }
+
+/* Eye button on file blocks.
+   Drawn as a pseudo-element because BlockNote owns that subtree — a React node
+   injected into it would be reconciled away. The click is handled by the
+   wrapper's capture listener, which opens the in-app preview modal. */
+.kb-editor [data-content-type="file"] .bn-file-name-with-icon {
+  cursor: pointer;
+}
+
+.kb-editor [data-content-type="file"] .bn-file-name-with-icon::after {
+  content: "";
+  width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  flex: none;
+  border-radius: 6px;
+  opacity: 0.55;
+  background-color: currentColor;
+  -webkit-mask: var(--kb-eye) center / 16px 16px no-repeat;
+  mask: var(--kb-eye) center / 16px 16px no-repeat;
+}
+
+.kb-editor [data-content-type="file"] .bn-file-name-with-icon:hover::after {
+  opacity: 1;
+  background-color: #1570ef;
+}
+
+.kb-editor {
+  /* lucide "eye", inlined so the mask costs no request */
+  --kb-eye: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>');
+}

@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, ExternalLink, FileQuestion, X } from "lucide-react";
+import { Download, Eye, ExternalLink, FileQuestion, X } from "lucide-react";
 import { renderAsync } from "docx-preview";
 import { Modal } from "../../../components/ui/modal";
 
-export type PreviewKind = "image" | "pdf" | "docx" | "unsupported";
+export type PreviewKind =
+  | "image"
+  | "pdf"
+  | "docx"
+  | "office"
+  | "text"
+  | "video"
+  | "audio"
+  | "unsupported";
 
 type DocumentPreviewModalProps = {
   isOpen: boolean;
@@ -18,12 +26,72 @@ const getExtension = (value: string): string => {
   return dot >= 0 ? clean.slice(dot + 1).toLowerCase() : "";
 };
 
+/** Office formats the browser can't open itself — handed to Microsoft's public
+ *  viewer, which only works for a URL it can fetch (so not blob:/data:). */
+const OFFICE_EXT = ["doc", "xls", "xlsx", "xlsm", "xlsb", "ppt", "pptx", "odt", "ods", "odp", "rtf"];
+const TEXT_EXT = [
+  "txt", "csv", "tsv", "md", "json", "log", "xml", "yml", "yaml",
+  "html", "htm", "css", "js", "ts", "tsx", "jsx", "sql", "sh", "py", "go", "java",
+];
+
 export const resolvePreviewKind = (fileUrl: string, fileName: string): PreviewKind => {
   const ext = getExtension(fileName) || getExtension(fileUrl);
-  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"].includes(ext)) return "image";
+  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif", "ico"].includes(ext)) return "image";
   if (ext === "pdf") return "pdf";
   if (ext === "docx") return "docx";
+  if (["mp4", "webm", "ogv", "mov"].includes(ext)) return "video";
+  if (["mp3", "wav", "ogg", "m4a", "aac"].includes(ext)) return "audio";
+  if (TEXT_EXT.includes(ext)) return "text";
+  if (OFFICE_EXT.includes(ext)) {
+    return /^https?:\/\//i.test(fileUrl) ? "office" : "unsupported";
+  }
   return "unsupported";
+};
+
+const officeViewerUrl = (fileUrl: string): string =>
+  `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`;
+
+/**
+ * Eye button that opens the preview modal for one file.
+ *
+ * Owns its own open state so a caller showing a file only has to drop this in
+ * next to the name — no modal wiring per list, per chip, per row.
+ */
+export const FilePreviewButton: React.FC<{
+  fileUrl: string;
+  fileName: string;
+  className?: string;
+  size?: number;
+}> = ({ fileUrl, fileName, className, size = 14 }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  if (!fileUrl) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(true);
+        }}
+        title="Предпросмотр"
+        aria-label="Предпросмотр файла"
+        className={
+          className ??
+          "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-current opacity-70 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+        }
+      >
+        <Eye size={size} />
+      </button>
+      <DocumentPreviewModal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        fileUrl={fileUrl}
+        fileName={fileName}
+      />
+    </>
+  );
 };
 
 export default function DocumentPreviewModal({
@@ -37,6 +105,7 @@ export default function DocumentPreviewModal({
   const [docxError, setDocxError] = useState("");
   const [actualKind, setActualKind] = useState<PreviewKind>("unsupported");
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState("");
+  const [textContent, setTextContent] = useState("");
 
   const kind = resolvePreviewKind(fileUrl, fileName);
 
@@ -97,11 +166,31 @@ export default function DocumentPreviewModal({
     }
   }, [fileUrl]);
 
+  const loadText = useCallback(async () => {
+    if (!fileUrl) return;
+    setIsDocxLoading(true);
+    setDocxError("");
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) throw new Error(`Preview fetch failed: ${response.status}`);
+      const text = await response.text();
+      // ponytail: hard slice instead of virtualised scrolling — a preview isn't
+      // an editor, and 200k chars already fills far more than anyone reads.
+      setTextContent(text.length > 200_000 ? `${text.slice(0, 200_000)}\n…` : text);
+    } catch (error) {
+      console.error("Failed to load text preview:", error);
+      setDocxError("Не удалось загрузить содержимое файла.");
+    } finally {
+      setIsDocxLoading(false);
+    }
+  }, [fileUrl]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     setDocxError("");
     setPdfPreviewUrl("");
+    setTextContent("");
     setActualKind(kind);
     if (docxContainerRef.current) {
       docxContainerRef.current.innerHTML = "";
@@ -114,8 +203,13 @@ export default function DocumentPreviewModal({
 
     if (kind === "pdf") {
       void preparePdf();
+      return;
     }
-  }, [isOpen, kind, preparePdf, renderDocx]);
+
+    if (kind === "text") {
+      void loadText();
+    }
+  }, [isOpen, kind, preparePdf, renderDocx, loadText]);
 
   useEffect(() => {
     return () => {
@@ -188,6 +282,32 @@ export default function DocumentPreviewModal({
             )}
             {docxError && <div className="py-10 text-center text-sm text-rose-600">{docxError}</div>}
             <div ref={docxContainerRef} className="min-h-[320px]" />
+          </div>
+        ) : actualKind === "office" ? (
+          <iframe
+            src={officeViewerUrl(fileUrl)}
+            title={fileName}
+            className="h-[78vh] w-full rounded-lg border-0 bg-white shadow-sm"
+          />
+        ) : actualKind === "video" ? (
+          <div className="flex min-h-full items-center justify-center">
+            <video src={fileUrl} controls className="max-h-[78vh] max-w-full rounded-lg shadow-sm" />
+          </div>
+        ) : actualKind === "audio" ? (
+          <div className="flex min-h-[30vh] items-center justify-center">
+            <audio src={fileUrl} controls className="w-full max-w-xl" />
+          </div>
+        ) : actualKind === "text" ? (
+          <div className="mx-auto max-w-4xl rounded-lg bg-white p-4 shadow-sm">
+            {isDocxLoading && (
+              <div className="py-10 text-center text-sm text-slate-500">Загрузка предпросмотра...</div>
+            )}
+            {docxError && <div className="py-10 text-center text-sm text-rose-600">{docxError}</div>}
+            {!isDocxLoading && !docxError && (
+              <pre className="m-0 max-h-[74vh] overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-slate-800">
+                {textContent}
+              </pre>
+            )}
           </div>
         ) : (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center">

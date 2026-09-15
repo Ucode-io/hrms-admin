@@ -38,7 +38,8 @@ export type CopilotLinkKind =
   | "time"
   | "settings"
   | "knowledge"
-  | "external";
+  | "external"
+  | "file";
 
 export interface CopilotLink {
   id: string;
@@ -182,5 +183,5 @@ export interface CopilotMessage {
   status?: CopilotMessageStatus;
   truncated?: boolean;
   /** Name and size of the file sent with this message, for the chip on it. */
-  file?: { name: string; size: number };
+  file?: { name: string; size: number; url?: string };
 }

@@ -12,6 +12,7 @@ import {
   Square,
   X,
 } from "lucide-react";
+import { FilePreviewButton } from "../../../modules/Documents/components/DocumentPreviewModal";
 import companyStore from "../../../store/company.store";
 import copilotStore from "../model/copilot.store";
 import CopilotBubble from "./CopilotBubble";
@@ -222,11 +223,24 @@ const CopilotPanel: React.FC = observer(() => {
                 ))}
 
                 {/* Links point at where to continue, so they only make sense on
-                    the newest message — an old one would send the person back. */}
-                {isLast &&
-                  message.links?.map((link) => (
-                    <div key={link.id} className="copilot-artifact-enter">
-                      <CopilotLinkButton link={link} />
+                    the newest message — an old one would send the person back.
+                    A file is the exception: it was handed over, not pointed at,
+                    and it stays downloadable however far up the thread it is. */}
+                {message.links
+                  ?.filter((link) => isLast || link.kind === "file")
+                  .map((link) => (
+                    <div key={link.id} className="copilot-artifact-enter flex items-center gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <CopilotLinkButton link={link} />
+                      </div>
+                      {link.kind === "file" && (
+                        <FilePreviewButton
+                          fileUrl={link.href}
+                          fileName={link.label}
+                          size={16}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-200 text-brand-600 transition hover:bg-brand-50 dark:border-brand-500/30 dark:text-brand-400"
+                        />
+                      )}
                     </div>
                   ))}
               </div>
@@ -258,12 +272,18 @@ const CopilotPanel: React.FC = observer(() => {
               <span className="shrink-0 text-gray-400">
                 {Math.max(1, Math.round(attachment.size / 1024))} КБ
               </span>
+              <FilePreviewButton
+                fileUrl={attachment.url}
+                fileName={attachment.name}
+                size={14}
+                className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-200"
+              />
               <button
                 type="button"
                 onClick={() => copilotStore.clearAttachment()}
                 title="Убрать файл"
                 aria-label="Убрать файл"
-                className="ml-auto shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
               >
                 <X size={14} />
               </button>
