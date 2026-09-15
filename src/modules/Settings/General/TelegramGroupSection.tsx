@@ -5,6 +5,39 @@ import {
   telegramGroupService,
   type TelegramGroupPass,
 } from "../../../api/services/telegramGroup.service";
+import hickvisionService, {
+  type TelegramGroupPollResult,
+} from "../../../api/services/hickvision.service";
+
+/**
+ * Почему опрос не привязался — словами.
+ *
+ * Бот пишет то же самое в саму группу, но человек в этот момент смотрит в
+ * админку, и «ничего не произошло» — худший из возможных ответов.
+ */
+const POLL_REASONS: Record<string, string> = {
+  no_updates:
+    "Telegram ничего не прислал. Добавьте бота в группу и нажмите «Проверить» ещё раз.",
+  unknown_employee:
+    "Ваш Telegram не привязан к HRMS. Откройте мини-приложение, затем добавьте бота заново.",
+  ambiguous_company:
+    "Не удалось определить компанию: ваш Telegram привязан к нескольким. Используйте код.",
+  ambiguous_intent:
+    "Открыто несколько подключений к разным компаниям. Дождитесь, пока лишние истекут, и повторите.",
+  group_taken: "Эта группа уже привязана к другой компании.",
+  unknown_token: "Код не подошёл: он уже использован или истёк. Получите новый.",
+  conflict:
+    "Очередь Telegram читает кто-то ещё: у бота выставлен webhook или запущена вторая копия сервиса.",
+};
+
+const describePoll = (result: TelegramGroupPollResult): string => {
+  const refusal = result.results?.find((item) => !item.linked && item.reason);
+  const reason = refusal?.reason || result.reason;
+  return (
+    (reason && POLL_REASONS[reason]) ||
+    "Привязка не подтвердилась. Проверьте, что бот добавлен в группу."
+  );
+};
 
 /**
  * Подключение группы, в которую бот шлёт опоздания и дневной лист посещаемости.
@@ -38,6 +71,32 @@ export default function TelegramGroupSection({ companiesId }: { companiesId: str
       setPass(await telegramGroupService.createPass(companiesId));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось получить код");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  /**
+   * Забрать очередь Telegram сейчас, не дожидаясь крона, и перечитать статус.
+   *
+   * Крон опрашивает раз в пять минут, и без этой кнопки человек после
+   * добавления бота видит ровно ничего — что неотличимо от поломки.
+   */
+  const handleCheck = async () => {
+    setIsBusy(true);
+    try {
+      const result = await hickvisionService.pollTelegramGroupLinks();
+      const linked = await telegramGroupService.status(companiesId);
+      setIsLinked(linked);
+
+      if (linked) {
+        setPass(null);
+        toast.success("Группа подключена.");
+      } else {
+        toast.error(describePoll(result));
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось проверить");
     } finally {
       setIsBusy(false);
     }
@@ -78,9 +137,14 @@ export default function TelegramGroupSection({ companiesId }: { companiesId: str
             </Button>
           </div>
         ) : (
-          <Button size="sm" disabled={isBusy} onClick={handleCreate}>
-            Подключить Telegram-группу
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" disabled={isBusy} onClick={handleCreate}>
+              Подключить Telegram-группу
+            </Button>
+            <Button size="sm" variant="outline" disabled={isBusy} onClick={handleCheck}>
+              Проверить
+            </Button>
+          </div>
         )}
 
         {pass && (
@@ -117,6 +181,16 @@ export default function TelegramGroupSection({ companiesId }: { companiesId: str
               Код одноразовый и действует {pass.expiresInMinutes} минут. Не пересылайте его
               посторонним: он привязывает группу именно к этой компании.
             </p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" disabled={isBusy} onClick={handleCheck}>
+                Проверить
+              </Button>
+              <span className="text-xs text-gray-500">
+                Бот узнаёт о добавлении не мгновенно — нажмите после того, как добавите его
+                в группу.
+              </span>
+            </div>
           </div>
         )}
       </div>

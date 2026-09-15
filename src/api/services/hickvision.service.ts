@@ -100,7 +100,37 @@ const normalizeSyncAttendanceResponse = (
   return value as unknown as SyncAttendanceByDateRangeInvokeResponse;
 };
 
+/** Итог одного опроса очереди Telegram — то же, что видит крон. */
+export type TelegramGroupPollResult = {
+  linked: number;
+  updates?: number;
+  handled?: number;
+  reason?: string;
+  results?: Array<{ chat_id?: string; linked?: boolean; reason?: string; company?: string }>;
+};
+
 const hickvisionService = {
+  /**
+   * Опрос очереди по требованию.
+   *
+   * Крон делает то же самое раз в пять минут, но привязка — событие, которое
+   * случается раз в жизни группы и всегда при живом наблюдателе: человек
+   * добавил бота и ждёт ответа. Дешевле спросить в этот момент, чем держать
+   * webhook ради одного типа апдейтов (см. docs/notifications.md).
+   */
+  pollTelegramGroupLinks: async (): Promise<TelegramGroupPollResult> => {
+    const response = await hickvisionRequest.post(HICKVISION_FUNCTION_PATH, {
+      data: { method: "link_telegram_groups", data: {} },
+    });
+
+    const payload = extractGatewayPayload(response.data);
+    if (!isRecord(payload) || !isRecord(payload.result)) {
+      throw new Error("Unexpected response format for link_telegram_groups");
+    }
+
+    return payload.result as TelegramGroupPollResult;
+  },
+
   syncAttendanceByDateRange: async (requestData: {
     from_date: string;
     to_date: string;
