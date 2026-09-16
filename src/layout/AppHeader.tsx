@@ -40,6 +40,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   salary: "Зарплата",
   time: "Время",
   timesheet: "Табель времени",
+  shifts: "Смены",
   "time-tracking": "Учёт времени работы",
   surveys: "Опросники",
   trainings: "Тренинги",

@@ -5,6 +5,7 @@ import {
   BookOpen,
   CalendarCheck,
   CalendarClock,
+  CalendarRange,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -71,6 +72,7 @@ const moduleSections: ModuleSection[] = [
     items: [
       { name: "Посещаемость", path: "/time", icon: <CalendarCheck size={18} /> },
       { name: "Табель времени", path: "/timesheet", icon: <CalendarClock size={18} /> },
+      { name: "Смены", path: "/shifts", icon: <CalendarRange size={18} /> },
     ],
   },
   {
@@ -111,6 +113,7 @@ const ENABLED_PATHS = new Set([
   "/reports",
   "/time",
   "/timesheet",
+  "/shifts",
   "/time/attendance",
   "/reports/attendance",
   "/reports/absence-balance",

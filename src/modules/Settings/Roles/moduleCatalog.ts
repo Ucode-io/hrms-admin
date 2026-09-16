@@ -95,11 +95,13 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   {
     key: "time",
     label: "Время",
-    description: "Посещаемость, табель и календарь",
+    description: "Посещаемость, табель, смены и календарь",
     icon: CalendarCheck,
-    // "/timesheet" — отдельный путь, а не подпуть "/time": проверка доступа
-    // сравнивает по сегментам, и "/timesheet" под "/time" не подпадает.
-    paths: ["/time", "/timesheet", "/calendar"],
+    // "/timesheet" и "/shifts" — отдельные пути, а не подпути "/time": проверка
+    // доступа сравнивает по сегментам, и под "/time" они не подпадают. Забыть
+    // дописать сюда новый путь — значит получить пункт меню, который просто
+    // не виден всем, у кого назначена роль, без единой ошибки.
+    paths: ["/time", "/timesheet", "/shifts", "/calendar"],
   },
   {
     key: "documents",

@@ -305,7 +305,9 @@ export const settingsSections: SettingsSection[] = [
           title: "График работы",
           icon: ListOrdered,
           path: "/settings/work-schedules",
-          subtitle: "Смены и часы",
+          // Не «смены»: здесь недельные шаблоны, а смены на конкретные даты
+          // живут на отдельном экране /shifts.
+          subtitle: "Недельные шаблоны",
         },
       ],
     ],

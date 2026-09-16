@@ -83,6 +83,7 @@ import PropertyForm from "./modules/Property/Form";
 import TimeModule from "./modules/Time";
 import TimeTrackingModule from "./modules/TimeTracking";
 import TimesheetPage from "./modules/Timesheet";
+import ShiftsPage from "./modules/Shifts";
 import TimesheetDayPage from "./modules/Timesheet/DayPage";
 import ReportsHomePage from "./modules/Reports";
 import AgeDistributionPage from "./modules/Reports/AgeDistribution";
@@ -301,6 +302,7 @@ function App() {
               <Route path="/time" element={<TimeModule />} />
               <Route path="/time-tracking" element={<TimeTrackingModule />} />
               <Route path="/timesheet" element={<TimesheetPage />} />
+              <Route path="/shifts" element={<ShiftsPage />} />
               <Route path="/timesheet/:employeeId/:date" element={<TimesheetDayPage />} />
               <Route path="/calendar" element={<Navigate to="/time?view=calendar" replace />} />
               <Route path="/time/attendance" element={<Navigate to="/time?view=attendance" replace />} />
