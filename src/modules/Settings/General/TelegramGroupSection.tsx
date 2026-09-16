@@ -46,10 +46,28 @@ const describePoll = (result: TelegramGroupPollResult): string => {
  * группу и работает, только если его там ещё нет — иначе членство не меняется и
  * Telegram не присылает ничего. Для группы, где бот уже сидит, остаётся код.
  */
-export default function TelegramGroupSection({ companiesId }: { companiesId: string }) {
+export default function TelegramGroupSection({
+  companiesId,
+  onLinkedChange,
+}: {
+  companiesId: string;
+  /**
+   * Для страниц, у которых от привязки что-то зависит прямо сейчас: на
+   * «Уведомлениях бота» этой секцией разблокируется колонка «В группу», и
+   * ждать перезагрузки после «Проверить» человеку не за что.
+   */
+  onLinkedChange?: (linked: boolean) => void;
+}) {
   const [isLinked, setIsLinked] = useState<boolean | null>(null);
   const [pass, setPass] = useState<TelegramGroupPass | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+
+  // Одна точка смены состояния, чтобы колбэк нельзя было забыть в одной из
+  // четырёх веток.
+  const applyLinked = (linked: boolean) => {
+    setIsLinked(linked);
+    onLinkedChange?.(linked);
+  };
 
   useEffect(() => {
     if (!companiesId) return;
@@ -57,12 +75,13 @@ export default function TelegramGroupSection({ companiesId }: { companiesId: str
 
     telegramGroupService
       .status(companiesId)
-      .then((linked) => !cancelled && setIsLinked(linked))
-      .catch(() => !cancelled && setIsLinked(false));
+      .then((linked) => !cancelled && applyLinked(linked))
+      .catch(() => !cancelled && applyLinked(false));
 
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companiesId]);
 
   const handleCreate = async () => {
@@ -87,7 +106,7 @@ export default function TelegramGroupSection({ companiesId }: { companiesId: str
     try {
       const result = await hickvisionService.pollTelegramGroupLinks();
       const linked = await telegramGroupService.status(companiesId);
-      setIsLinked(linked);
+      applyLinked(linked);
 
       if (linked) {
         setPass(null);
@@ -106,7 +125,7 @@ export default function TelegramGroupSection({ companiesId }: { companiesId: str
     setIsBusy(true);
     try {
       await telegramGroupService.unlink(companiesId);
-      setIsLinked(false);
+      applyLinked(false);
       setPass(null);
       toast.success("Группа отключена.");
     } catch (error) {

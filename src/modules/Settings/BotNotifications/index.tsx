@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 import { toast } from "sonner";
 
 import PageMeta from "../../../components/common/PageMeta";
@@ -7,6 +6,7 @@ import Button from "../../../components/ui/button/Button";
 import Checkbox from "../../../components/form/input/Checkbox";
 import companyStore from "../../../store/company.store";
 import { telegramGroupService } from "../../../api/services/telegramGroup.service";
+import TelegramGroupSection from "../General/TelegramGroupSection";
 import {
   notificationSettingsService,
   type NotificationEvent,
@@ -120,13 +120,17 @@ export default function BotNotificationsSettingsPage() {
           </p>
         </div>
 
+        {/*
+          Пока группы нет, колонка «В группу» ничего не значит — поэтому прямо
+          здесь стоит та же секция подключения, что и в «Общих». Отправлять
+          человека на другую страницу за действием, без которого половина этой
+          не работает, незачем.
+
+          Когда группа подключена, секция не показывается: отключение живёт в
+          «Общих», а тут это лишний повод промахнуться.
+        */}
         {isGroupLinked === false && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-            Группа компании не подключена — колонка «В группу» недоступна.{" "}
-            <Link to="/settings/general" className="font-medium underline">
-              Подключить группу
-            </Link>
-          </div>
+          <TelegramGroupSection companiesId={companiesId} onLinkedChange={setIsGroupLinked} />
         )}
 
         {loadError ? (
