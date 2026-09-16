@@ -5,6 +5,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Checkbox from "../../../components/form/input/Checkbox";
 import companyStore from "../../../store/company.store";
+import { getCompaniesId } from "../../../api/httpRequest";
 import { telegramGroupService } from "../../../api/services/telegramGroup.service";
 import TelegramGroupSection from "../General/TelegramGroupSection";
 import {
@@ -24,7 +25,11 @@ import {
  * отправленное в неё не отзывается.
  */
 export default function BotNotificationsSettingsPage() {
-  const companiesId = companyStore.company?.guid || "";
+  // Тот же источник, что у «Интеграций»: authStore заполнен к моменту, когда
+  // защищённый маршрут вообще отрисовался, а companyStore — observable, и эта
+  // страница не observer. На прямом заходе по ссылке он мог бы ещё не
+  // гидратироваться, и companies_id уехал бы пустым.
+  const companiesId = getCompaniesId() || companyStore.company?.guid || "";
 
   const [events, setEvents] = useState<NotificationEvent[] | null>(null);
   const [loadError, setLoadError] = useState(false);
