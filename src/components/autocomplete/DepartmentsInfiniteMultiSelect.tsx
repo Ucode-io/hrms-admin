@@ -19,6 +19,7 @@ interface DepartmentsInfiniteMultiSelectProps {
   onChange: (value: DepartmentOption[]) => void;
   placeholder?: string;
   menuPortalTarget?: HTMLElement;
+  styles?: StylesConfig<DepartmentOption, true>;
 }
 
 const PAGE_LIMIT = 20;
@@ -71,6 +72,7 @@ export default function DepartmentsInfiniteMultiSelect({
   onChange,
   placeholder = "Выберите департаменты",
   menuPortalTarget,
+  styles,
 }: DepartmentsInfiniteMultiSelectProps) {
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -139,7 +141,7 @@ export default function DepartmentsInfiniteMultiSelect({
       isMulti
       closeMenuOnSelect={false}
       isLoading={isLoading || isFetching}
-      styles={defaultStyles}
+      styles={styles || defaultStyles}
       menuPortalTarget={menuPortalTarget}
       menuPosition="fixed"
       classNamePrefix="departments-infinite-multi-select"

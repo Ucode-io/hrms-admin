@@ -30,6 +30,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   payroll: "ФОТ",
   "bonus-deductions": "Бонусы и удержания",
   settings: "Настройки",
+  "attendance-penalties": "Штрафы",
   "grade-salaries": "Зарплаты по грейдам",
   "experience-levels": "Уровни опыта",
   positions: "Должности",

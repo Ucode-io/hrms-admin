@@ -28,6 +28,7 @@ import {
   UserRoundCheck,
   UserX,
   WalletCards,
+  CircleDollarSign,
 } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 
@@ -308,6 +309,23 @@ export const settingsSections: SettingsSection[] = [
           // Не «смены»: здесь недельные шаблоны, а смены на конкретные даты
           // живут на отдельном экране /shifts.
           subtitle: "Недельные шаблоны",
+        },
+        {
+          id: "attendance-penalties",
+          title: "Штрафы",
+          icon: CircleDollarSign,
+          path: "/settings/attendance-penalties",
+          subtitle: "Опоздания, ранний уход и пропуски",
+          keywords: [
+            "штраф",
+            "опоздание",
+            "ранний уход",
+            "посещаемость",
+            "вычет",
+            "зарплата",
+            "penalty",
+            "attendance",
+          ],
         },
       ],
     ],

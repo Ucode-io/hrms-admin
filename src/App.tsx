@@ -56,6 +56,7 @@ import ApprovalProcessDetailPage from "./modules/Settings/Approvals/Detail";
 import DocumentsSettingsPage from "./modules/Settings/Documents";
 import CreateDocumentTemplatePage from "./modules/Settings/Documents/TemplateCreate";
 import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
+import AttendancePenaltiesSettingsPage from "./modules/Settings/AttendancePenalties";
 import ProbationPoliciesSettingsPage from "./modules/Settings/ProbationPolicies";
 import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
 import RejectionReasonsSettingsPage from "./modules/Settings/RejectionReasons";
@@ -135,6 +136,11 @@ function App() {
   const token = authStore.token;
   const companyId = authStore.companyId;
   const authUserGuid = authStore.user_data?.guid || authStore.user?.guid;
+  const isLocalPenaltyPreview =
+    import.meta.env.DEV &&
+    window.location.pathname === "/settings/attendance-penalties" &&
+    new URLSearchParams(window.location.search).get("preview") === "1";
+  const canEnterApp = isAuth || isLocalPenaltyPreview;
 
   useEffect(() => {
     if (!isAuth) {
@@ -188,7 +194,7 @@ function App() {
           <Routes>
           {/* Dashboard Layout */}
           {
-            isAuth ? <Route path="/" element={<AppLayout />}>
+            canEnterApp ? <Route path="/" element={<AppLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
 
               <Route path="/dashboard" element={<DashboardPage />} />
@@ -253,6 +259,7 @@ function App() {
                 <Route path="documents/templates/:id/edit" element={<CreateDocumentTemplatePage />} />
                 <Route path="documents/templates/:id" element={<CreateDocumentTemplatePage />} />
                 <Route path="work-schedules" element={<WorkSchedulesSettingsPage />} />
+                <Route path="attendance-penalties" element={<AttendancePenaltiesSettingsPage />} />
                 <Route path="probation-policies" element={<ProbationPoliciesSettingsPage />} />
                 <Route path="dismissal-reasons" element={<DismissalReasonsSettingsPage />} />
                 <Route path="dismissal-types" element={<DismissalTypesSettingsPage />} />
