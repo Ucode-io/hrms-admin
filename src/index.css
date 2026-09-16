@@ -292,11 +292,12 @@
 
 @layer utilities {
 
-  /* For Remove Date Icon */
+  /* Прячем только стрелки-крутилки. Кнопку календаря и часов трогать нельзя:
+     это единственный способ открыть нативный пикер мышью. Раньше она пряталась
+     здесь же, глобально, и календарь по клику не открывался ни на одном экране
+     админки. Для точечного скрытия есть класс .input-date-icon ниже. */
   input[type="date"]::-webkit-inner-spin-button,
-  input[type="time"]::-webkit-inner-spin-button,
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="time"]::-webkit-calendar-picker-indicator {
+  input[type="time"]::-webkit-inner-spin-button {
     display: none;
     -webkit-appearance: none;
   }
