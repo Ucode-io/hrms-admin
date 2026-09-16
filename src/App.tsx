@@ -26,6 +26,7 @@ import ProductsList from "./modules/Products/List";
 import ProductFormPage from "./modules/Products/Form";
 import PlatformSettingsPage from "./modules/Settings/PlatformSettings";
 import SettingsGeneralPage from "./modules/Settings/General";
+import BotNotificationsSettingsPage from "./modules/Settings/BotNotifications";
 import CareerSiteSettingsPage from "./modules/Settings/CareerSite";
 import CustomFieldsSettingsPage from "./modules/Settings/CustomFields";
 import TaskDirectoriesSettingsPage from "./modules/Settings/TaskDirectories";
@@ -226,6 +227,7 @@ function App() {
                 <Route path="platform" element={<PlatformSettingsPage />} />
                 <Route path="home" element={<HomeSettingsPage />} />
                 <Route path="general" element={<SettingsGeneralPage />} />
+                <Route path="notifications" element={<BotNotificationsSettingsPage />} />
                 <Route path="career-site" element={<CareerSiteSettingsPage />} />
                 <Route path="custom-fields" element={<CustomFieldsSettingsPage />} />
                 <Route path="task-directories" element={<TaskDirectoriesSettingsPage />} />

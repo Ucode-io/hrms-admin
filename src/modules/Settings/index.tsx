@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
+  BellRing,
   Braces,
   Briefcase,
   BriefcaseBusiness,
@@ -67,6 +68,22 @@ export const settingsSections: SettingsSection[] = [
           icon: Bell,
           path: "/settings/news",
           subtitle: "Лента новостей",
+        },
+        {
+          id: "bot-notifications",
+          title: "Уведомления бота",
+          icon: BellRing,
+          path: "/settings/notifications",
+          subtitle: "Что уходит сотруднику и в группу",
+          keywords: [
+            "уведомления",
+            "бот",
+            "telegram",
+            "группа",
+            "опоздания",
+            "рассылка",
+            "notifications",
+          ],
         },
       ],
       [
