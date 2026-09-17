@@ -19,6 +19,7 @@ import {
   Link2,
   ListChecks,
   ListOrdered,
+  MessageSquare,
   Wallet,
   MapPin,
   Search,
@@ -85,6 +86,14 @@ export const settingsSections: SettingsSection[] = [
             "рассылка",
             "notifications",
           ],
+        },
+        {
+          id: "chats",
+          title: "Чаты",
+          icon: MessageSquare,
+          path: "/settings/chats",
+          subtitle: "Переписки сотрудников с AI чатом",
+          keywords: ["чаты", "переписки", "ai", "чат", "chats"],
         },
       ],
       [

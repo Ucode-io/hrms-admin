@@ -384,7 +384,7 @@ function AccessTimeline({ events }: { events: AccessEvent[] }) {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-sm font-semibold text-slate-800">Таймлайн входов и выходов</h2><p className="mt-0.5 text-xs text-slate-400">Фактические события терминала Hikvision</p></div><div className="flex gap-3 text-xs"><span className="flex items-center gap-1.5 text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Вход</span><span className="flex items-center gap-1.5 text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-blue-600" />Выход</span></div></div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-sm font-semibold text-slate-800">Таймлайн входов и выходов</h2><p className="mt-0.5 text-xs text-slate-400">Отметки терминала и из приложения</p></div><div className="flex gap-3 text-xs"><span className="flex items-center gap-1.5 text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Вход</span><span className="flex items-center gap-1.5 text-slate-500"><span className="h-2.5 w-2.5 rounded-full bg-blue-600" />Выход</span></div></div>
       <div className="relative" style={{ height: `${136 + maxLabelLane * 24}px` }}>
         {ticks.map((tick) => <span key={tick} className="absolute top-0 -translate-x-1/2 text-[11px] text-slate-400" style={{ left: `${((tick - from) / span) * 100}%` }}>{clock(tick)}</span>)}
 
@@ -456,7 +456,7 @@ function EventCards({ events }: { events: AccessEvent[] }) {
   return (
     <>
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-800">Фотоотчёт</h2><p className="mt-0.5 text-xs text-slate-400">Фотографии входов и выходов с терминала Hikvision</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">{events.length}</span></div>
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-800">Фотоотчёт</h2><p className="mt-0.5 text-xs text-slate-400">Фотографии входов и выходов</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">{events.length}</span></div>
         <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
           {events.map((event) => {
             const Icon = event.type === "in" ? LogIn : event.type === "out" ? LogOut : Camera;
@@ -502,22 +502,23 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   });
   const dayRows = useMemo(() => (dayQuery.data?.response ?? []) as DataRow[], [dayQuery.data?.response]);
   const selectedEmployee = useMemo(() => groupAttendance(dayRows)[0] ?? null, [dayRows]);
-  const hikvisionId = selectedEmployee?.hikvisionId ?? "";
 
+  // Фильтр по человеку, а не по `hikvision_id`: отметки «пришёл/ушёл» из webapp
+  // лежат в той же таблице, но терминала у них нет и поле пустое — по нему они
+  // просто выпадали из ленты. `user_base_id` есть у обоих источников.
   const recordsQuery = useSettingsDirectoryQuery({
     slug: "attendance_records",
-    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 200, offset: 0, date: { $gte: anchor, $lte: anchor }, hikvision_id: hikvisionId }) },
-    querySettings: { enabled: Boolean(employeeId && hikvisionId), keepPreviousData: true },
+    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 200, offset: 0, date: { $gte: anchor, $lte: anchor }, user_base_id: employeeId }) },
+    querySettings: { enabled: Boolean(employeeId), keepPreviousData: true },
   });
   const events = useMemo(() => {
     const raw = ((recordsQuery.data?.response ?? []) as DataRow[]).filter((row) => {
-      const rowId = readString(row.hikvision_id);
       const rowDate = readString(row.date).slice(0, 10);
-      return (!hikvisionId || rowId === hikvisionId) && (!rowDate || rowDate === anchor);
+      return !rowDate || rowDate === anchor;
     });
     const rawEvents = buildRawEvents(raw);
     return rawEvents.length ? rawEvents : buildSummaryEvents(dayRows);
-  }, [recordsQuery.data?.response, dayRows, hikvisionId, anchor]);
+  }, [recordsQuery.data?.response, dayRows, anchor]);
 
   const patchParams = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -543,7 +544,7 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
 
   return (
     <>
-      <PageMeta title="Входы и выходы | HRMS" description="Фактические события Hikvision" />
+      <PageMeta title="Входы и выходы | HRMS" description="Входы и выходы сотрудников" />
       <div className="-mx-3 -mt-3 md:-mx-4 md:-mt-4">
         <div className="border border-t-0 border-slate-200 bg-white px-4 py-2 lg:px-6"><div className="flex w-full flex-wrap items-center gap-2">{leftSlot}{!employeeId ? <label className="relative ml-auto block w-full sm:w-[250px]"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Поиск сотрудника" className="h-[38px] w-full rounded-[10px] border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-300" /></label> : null}</div></div>
         <div className="px-4 py-5 lg:px-6">
@@ -559,7 +560,7 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
             />
           </> : <>
             <div className="mb-4 flex flex-wrap items-center gap-3"><button type="button" onClick={() => patchParams({ employee: null })} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"><ArrowLeft size={15} />К сотрудникам</button>{selectedEmployee ? <div className="flex items-center gap-3"><EmployeeAvatar name={selectedEmployee.name} photo={selectedEmployee.photo} seed={selectedEmployee.id} size={42} /><div><h1 className="text-base font-bold text-slate-900">{selectedEmployee.name}</h1>{selectedEmployee.department ? <p className="text-xs text-slate-400">{selectedEmployee.department}</p> : null}</div></div> : null}<div className="ml-auto inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm"><button type="button" aria-label="Предыдущий день" onClick={() => patchParams({ date: shiftDays(anchor, -1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronLeft size={16} /></button><span className="min-w-[145px] px-3 text-center text-xs font-semibold text-slate-700">{formatDateRu(anchor)}</span><button type="button" aria-label="Следующий день" onClick={() => patchParams({ date: shiftDays(anchor, 1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronRight size={16} /></button></div></div>
-            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title="Не удалось загрузить события Hikvision" hint="Проверьте интеграцию и повторите попытку" /> : events.length === 0 ? <EmptyState icon="clock" title={`За ${formatDateRu(anchor)} событий Hikvision нет`} hint="Пустые данные не подменяются тестовыми" /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Первый приход" value={firstEvent?.time || "—"} /><Metric label="Последний уход" value={lastEvent?.time || "—"} /><Metric label="Между первой и последней" value={formatDuration(duration)} /><AttendanceDeviationMetric late={formatMinuteOffset(lateMinutes)} earlyLeave={formatMinuteOffset(earlyLeaveMinutes)} /></div><AccessTimeline events={events} /><EventCards events={events} /></div>}
+            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title="Не удалось загрузить отметки" hint="Проверьте интеграцию и повторите попытку" /> : events.length === 0 ? <EmptyState icon="clock" title={`За ${formatDateRu(anchor)} отметок нет`} hint="Пустые данные не подменяются тестовыми" /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Первый приход" value={firstEvent?.time || "—"} /><Metric label="Последний уход" value={lastEvent?.time || "—"} /><Metric label="Между первой и последней" value={formatDuration(duration)} /><AttendanceDeviationMetric late={formatMinuteOffset(lateMinutes)} earlyLeave={formatMinuteOffset(earlyLeaveMinutes)} /></div><AccessTimeline events={events} /><EventCards events={events} /></div>}
           </>}
         </div>
       </div>

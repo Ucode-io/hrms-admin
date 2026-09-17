@@ -949,8 +949,8 @@ function EmployeeDetail() {
                 }
               />
               <InfoRow
-                label="Писал копилоту"
-                valueNode={<CheckMark checked={hasCopilotChat} title="Писал копилоту" />}
+                label="Писал в AI чат"
+                valueNode={<CheckMark checked={hasCopilotChat} title="Писал в AI чат" />}
               />
               {/* Фиксируется только запуск мини-аппа внутри Telegram: вход из
                   браузера сюда не попадает, «—» значит «с момента выката не

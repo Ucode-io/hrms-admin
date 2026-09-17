@@ -154,7 +154,7 @@ export default function ChatsPage() {
     <>
       <PageMeta
         title="Чаты | HRMS"
-        description="Переписки сотрудников с копилотом"
+        description="Переписки сотрудников с AI чатом"
       />
 
       <div className="flex h-[calc(100vh-140px)] overflow-hidden rounded-2xl border border-gray-200 bg-white">

@@ -83,10 +83,11 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
     description: "Люди и профили",
     icon: UserRoundCheck,
     // Оргструктура — тот же модуль «Люди», отдельный корень маршрута.
-    // Чаты с копилотом здесь же: кто видит карточки сотрудников, видит и их
+    // Чаты с AI здесь же: кто видит карточки сотрудников, видит и их
     // переписки. Отдельный ModuleKey потребовал бы правки каталога в
     // udevs-hrms-reports и переназначения всех существующих ролей.
-    paths: ["/employees", "/organization", "/chats"],
+    // Страница живёт в настройках, но доступом владеет этот модуль.
+    paths: ["/employees", "/organization", "/chats", "/settings/chats"],
   },
   {
     key: "recruiting",
