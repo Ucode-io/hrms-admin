@@ -20,6 +20,7 @@ import authStore from "../../../store/auth.store";
 import EmployeesInfiniteMultiSelect from "../../../components/autocomplete/EmployeesInfiniteMultiSelect";
 import DepartmentsInfiniteMultiSelect, { type DepartmentOption } from "../../../components/autocomplete/DepartmentsInfiniteMultiSelect";
 import LocationsInfiniteMultiSelect from "../../../components/autocomplete/LocationsInfiniteMultiSelect";
+import { useCompanySettingsQuery, useCurrenciesQuery } from "../../../api/services/companySettings.service";
 
 type TimedPenaltyType = "late" | "early_leave";
 type FixedPenaltyType = "missing_checkout" | "absence";
@@ -162,19 +163,17 @@ const Toggle = ({
   </label>
 );
 
-const MoneyInput = ({ value, onChange }: { value: number; onChange: (value: number) => void }) => (
-  <div className="relative">
+const MoneyInput = ({ value, onChange, currency }: { value: number; onChange: (value: number) => void; currency: string }) => (
+  <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-white transition focus-within:border-brand-300 focus-within:ring-3 focus-within:ring-brand-500/10">
     <input
       type="text"
       inputMode="numeric"
       value={formatMoney(value)}
       onChange={(event) => onChange(parseAmount(event.target.value))}
-      className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 pr-12 text-right text-sm font-medium text-gray-800 outline-none transition focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
+      className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-sm font-medium text-gray-800 outline-none"
       aria-label="Сумма штрафа"
     />
-    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-      сум
-    </span>
+    {currency && <span className="shrink-0 pr-3 text-xs text-gray-400">{currency}</span>}
   </div>
 );
 
@@ -239,9 +238,11 @@ const DurationPicker = ({ value, onChange }: { value: number; onChange: (value: 
 const TimedRules = ({
   rules,
   onChange,
+  currency,
 }: {
   rules: PenaltyRule[];
   onChange: (rules: PenaltyRule[]) => void;
+  currency: string;
 }) => {
   const updateRule = (id: string, patch: Partial<PenaltyRule>) =>
     onChange(rules.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule)));
@@ -260,7 +261,7 @@ const TimedRules = ({
               <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2 sm:grid-cols-[minmax(160px,1fr)_minmax(150px,0.8fr)_36px]">
                 <DurationPicker value={rule.thresholdMinutes} onChange={thresholdMinutes => updateRule(rule.id, { thresholdMinutes })} />
                 <div className="sm:col-auto sm:row-auto col-start-1 row-start-2">
-                  <MoneyInput value={rule.amount} onChange={(amount) => updateRule(rule.id, { amount })} />
+                  <MoneyInput value={rule.amount} onChange={(amount) => updateRule(rule.id, { amount })} currency={currency} />
                 </div>
                 <button
                   type="button"
@@ -295,6 +296,9 @@ const TimedRules = ({
 };
 
 export default function AttendancePenaltiesSettingsPage() {
+  const { data: companySettings } = useCompanySettingsQuery();
+  const { data: currencies } = useCurrenciesQuery();
+  const currency = currencies?.find((item) => item.guid === companySettings?.currencies_id)?.title || "";
   const [settings, setSettings] = useState<AttendancePenaltySettings>(() => defaultSettings());
   const [savedSnapshot, setSavedSnapshot] = useState("");
 
@@ -400,24 +404,24 @@ export default function AttendancePenaltiesSettingsPage() {
         </section>
         <div className={`space-y-4 ${settings.enabled ? "" : "pointer-events-none opacity-60"}`}>
             <PenaltyCard title="Опоздание" description="Сотрудник пришёл после начала рабочего дня" icon={<ArrowDownRight size={19} />} enabled={settings.late.enabled} onToggle={(enabled) => updateTimed("late", { enabled })}>
-              <TimedRules rules={settings.late.rules} onChange={(rules) => updateTimed("late", { rules })} />
+              <TimedRules rules={settings.late.rules} onChange={(rules) => updateTimed("late", { rules })} currency={currency} />
             </PenaltyCard>
 
             <PenaltyCard title="Ранний уход" description="Сотрудник ушёл до окончания рабочего дня" icon={<ArrowUpRight size={19} />} enabled={settings.early_leave.enabled} onToggle={(enabled) => updateTimed("early_leave", { enabled })}>
-              <TimedRules rules={settings.early_leave.rules} onChange={(rules) => updateTimed("early_leave", { rules })} />
+              <TimedRules rules={settings.early_leave.rules} onChange={(rules) => updateTimed("early_leave", { rules })} currency={currency} />
             </PenaltyCard>
 
             <PenaltyCard title="Нет отметки выхода" description="Приход отмечен, но выход не зафиксирован" icon={<LogOut size={19} />} enabled={settings.missing_checkout.enabled} onToggle={(enabled) => updateFixed("missing_checkout", { enabled })}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-gray-600">Штраф за каждый случай</span>
-                <div className="w-full sm:w-[190px]"><MoneyInput value={settings.missing_checkout.amount} onChange={(amount) => updateFixed("missing_checkout", { amount })} /></div>
+                <div className="w-full sm:w-[190px]"><MoneyInput value={settings.missing_checkout.amount} onChange={(amount) => updateFixed("missing_checkout", { amount })} currency={currency} /></div>
               </div>
             </PenaltyCard>
 
             <PenaltyCard title="Пропущенный рабочий день" description="Сотрудник не пришёл без подтверждённой причины" icon={<CalendarX2 size={19} />} enabled={settings.absence.enabled} onToggle={(enabled) => updateFixed("absence", { enabled })}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-gray-600">Штраф за каждый рабочий день</span>
-                <div className="w-full sm:w-[190px]"><MoneyInput value={settings.absence.amount} onChange={(amount) => updateFixed("absence", { amount })} /></div>
+                <div className="w-full sm:w-[190px]"><MoneyInput value={settings.absence.amount} onChange={(amount) => updateFixed("absence", { amount })} currency={currency} /></div>
               </div>
             </PenaltyCard>
 
