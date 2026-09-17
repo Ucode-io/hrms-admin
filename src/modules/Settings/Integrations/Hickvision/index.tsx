@@ -64,6 +64,8 @@ type AttendanceRecordItem = {
   action_time?: string | null;
   date?: string | null;
   event_time?: string | null;
+  source?: string | null;
+  location?: string | null;
   user_base_id_data?: {
     first_name?: string | null;
     second_name?: string | null;
@@ -92,6 +94,10 @@ const toIsoDate = (value: Date): string => {
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
+
+// Пусто = событие записано до появления поля, а тогда источник был только один.
+const getSourceLabel = (source: string | null | undefined): string =>
+  String(source || "").trim().toLowerCase() === "webapp" ? "Приложение" : "Турникет";
 
 const getActionLabel = (action: string[] | string | null | undefined): string => {
   if (Array.isArray(action) && action.length > 0) return String(action[0] || "—");
@@ -706,6 +712,12 @@ export default function HickvisionIntegrationSettingsPage() {
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                         Action time
                       </TableCell>
+                      <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                        Источник
+                      </TableCell>
+                      <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                        Гео
+                      </TableCell>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-gray-100">
@@ -730,11 +742,17 @@ export default function HickvisionIntegrationSettingsPage() {
                           <TableCell className="px-4 py-4">
                             <div className="h-4 w-28 animate-pulse rounded bg-gray-200" />
                           </TableCell>
+                          <TableCell className="px-4 py-4">
+                            <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+                          </TableCell>
+                          <TableCell className="px-4 py-4">
+                            <div className="h-4 w-28 animate-pulse rounded bg-gray-200" />
+                          </TableCell>
                         </TableRow>
                       ))
                     ) : records.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                        <TableCell colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
                           Записи не найдены.
                         </TableCell>
                       </TableRow>
@@ -758,6 +776,21 @@ export default function HickvisionIntegrationSettingsPage() {
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.date || "—"}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.event_time || "—"}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.action_time || "—"}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm text-gray-700">{getSourceLabel(item.source)}</TableCell>
+                          <TableCell className="px-4 py-3 text-sm text-gray-700">
+                            {item.location ? (
+                              <a
+                                href={`https://maps.google.com/?q=${encodeURIComponent(item.location)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-brand-500 hover:underline"
+                              >
+                                {item.location}
+                              </a>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
                         </TableRow>
                         );
                       })
