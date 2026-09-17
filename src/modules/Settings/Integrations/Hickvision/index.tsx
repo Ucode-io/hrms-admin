@@ -65,7 +65,7 @@ type AttendanceRecordItem = {
   date?: string | null;
   event_time?: string | null;
   source?: string | null;
-  location?: string | null;
+  map?: string | null;
   user_base_id_data?: {
     first_name?: string | null;
     second_name?: string | null;
@@ -778,14 +778,14 @@ export default function HickvisionIntegrationSettingsPage() {
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{item.action_time || "—"}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{getSourceLabel(item.source)}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">
-                            {item.location ? (
+                            {item.map ? (
                               <a
-                                href={`https://maps.google.com/?q=${encodeURIComponent(item.location)}`}
+                                href={`https://maps.google.com/?q=${encodeURIComponent(item.map)}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="text-brand-500 hover:underline"
                               >
-                                {item.location}
+                                {item.map}
                               </a>
                             ) : (
                               "—"
