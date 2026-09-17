@@ -96,6 +96,21 @@ function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
+/**
+ * Момент, а не день: `last_login_date` пишется при каждом запуске мини-аппа
+ * внутри Telegram (telegram-link.js), и «сегодня в 09:12» отвечает на вопрос
+ * «пользуется ли человек системой» точнее, чем голая дата.
+ */
+function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return `${formatDate(dateStr)}, ${parsed.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
+
 function calcTenure(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   try {
@@ -907,6 +922,13 @@ function EmployeeDetail() {
               <InfoRow label="Мобильный телефон" value={emp.phone} linkType="phone" />
               <InfoRow label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
               <InfoRow label="Телеграм" value={emp.telegram || ""} />
+              {/* Фиксируется только запуск мини-аппа внутри Telegram: вход из
+                  браузера сюда не попадает, «—» значит «с момента выката не
+                  заходил», а не «доступа нет». */}
+              <InfoRow
+                label="Последний вход"
+                value={formatDateTime(emp.last_login_date as string | null | undefined)}
+              />
               {renderDynamicRows(DETAIL_CARD_SECTIONS.contacts)}
             </InfoSection>
 
