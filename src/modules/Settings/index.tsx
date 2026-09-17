@@ -314,31 +314,6 @@ export const settingsSections: SettingsSection[] = [
     ],
   },
   {
-    id: "approvals",
-    title: "Одобрения",
-    columns: [
-      [
-        {
-          id: "approvals",
-          title: "Процессы одобрения",
-          icon: CheckCheck,
-          path: "/settings/approvals",
-          subtitle: "Многоступенчатое одобрение заявок",
-          keywords: [
-            "одобрение",
-            "согласование",
-            "approvals",
-            "отпуск",
-            "посещаемость",
-            "этапы",
-          ],
-        },
-      ],
-      [],
-      [],
-    ],
-  },
-  {
     id: "integrations",
     title: "Интеграции",
     columns: [
@@ -409,6 +384,21 @@ export const settingsSections: SettingsSection[] = [
             "зарплата",
             "penalty",
             "attendance",
+          ],
+        },
+        {
+          id: "approvals",
+          title: "Процессы одобрения",
+          icon: CheckCheck,
+          path: "/settings/approvals",
+          subtitle: "Многоступенчатое одобрение заявок",
+          keywords: [
+            "одобрение",
+            "согласование",
+            "approvals",
+            "отпуск",
+            "посещаемость",
+            "этапы",
           ],
         },
         {
