@@ -830,19 +830,6 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
   }, [employeesData, employeesChunk, employeesPage]);
 
   const employeeIds = useMemo(() => employees.map((employee) => employee.guid), [employees]);
-  const employeesWithHikvisionId = useMemo(
-    () =>
-      new Set(
-        employees
-          .filter(
-            (employee) =>
-              typeof employee.hikvision_id === "string" &&
-              Boolean(employee.hikvision_id.trim())
-          )
-          .map((employee) => employee.guid)
-      ),
-    [employees]
-  );
 
   const { data: policiesData } = useSettingsDirectoryQuery({
     slug: ABSENCE_POLICIES_SLUG,
@@ -945,13 +932,14 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
       const kind = normalizeAttendanceDotKind(row.action_status);
       if (!kind) continue;
 
+      // Не «Hikvision»: отметка могла прийти и из мини-аппа, а строка дня знает
+      // только тип источника, не устройство. Точный источник — в событиях,
+      // Настройки → Интеграции → Записи, там же фото и координаты.
       const sourceLabel =
         sourceKind === "manual"
           ? "HRMS"
           : sourceKind === "integration"
-            ? employeesWithHikvisionId.has(userId)
-              ? "Hikvision"
-              : "QuadraSoft"
+            ? "Интеграция"
             : "Источник не указан";
 
       const info: AttendanceCellInfo = {
@@ -973,7 +961,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     }
 
     return map;
-  }, [attendanceData?.response, employeesWithHikvisionId]);
+  }, [attendanceData?.response]);
 
   if (typeof employeesData?.count === "number" && Number.isFinite(employeesData.count)) {
     lastKnownTotalCountRef.current = employeesData.count;
