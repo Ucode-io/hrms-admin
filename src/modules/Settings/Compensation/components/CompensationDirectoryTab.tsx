@@ -283,7 +283,9 @@ export default function CompensationDirectoryTab({
                         </TableCell>
                       ) : null}
                       <TableCell className="px-4 py-3">
-                        <div className="relative flex items-center justify-end">
+                        {isCompensationTypes && item.slug === "attendance_penalty" ? (
+                          <span className="block text-right text-xs text-gray-500">Автоматически</span>
+                        ) : <div className="relative flex items-center justify-end">
                           <button
                             type="button"
                             onClick={() => toggleActionsMenu(item.guid)}
@@ -316,7 +318,7 @@ export default function CompensationDirectoryTab({
                               Удалить
                             </DropdownItem>
                           </Dropdown>
-                        </div>
+                        </div>}
                       </TableCell>
                     </TableRow>
                   ))

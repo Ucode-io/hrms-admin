@@ -21,6 +21,7 @@ import EmployeesInfiniteMultiSelect from "../../../components/autocomplete/Emplo
 import DepartmentsInfiniteMultiSelect, { type DepartmentOption } from "../../../components/autocomplete/DepartmentsInfiniteMultiSelect";
 import LocationsInfiniteMultiSelect from "../../../components/autocomplete/LocationsInfiniteMultiSelect";
 import { useCompanySettingsQuery, useCurrenciesQuery } from "../../../api/services/companySettings.service";
+import reportsService from "../../../api/services/reports.service";
 
 type TimedPenaltyType = "late" | "early_leave";
 type FixedPenaltyType = "missing_checkout" | "absence";
@@ -170,10 +171,10 @@ const MoneyInput = ({ value, onChange, currency }: { value: number; onChange: (v
       inputMode="numeric"
       value={formatMoney(value)}
       onChange={(event) => onChange(parseAmount(event.target.value))}
-      className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-sm font-medium text-gray-800 outline-none"
+      className="h-full min-w-[90px] flex-1 bg-transparent px-3 text-right text-sm font-medium text-gray-800 outline-none"
       aria-label="Сумма штрафа"
     />
-    {currency && <span className="shrink-0 pr-3 text-xs text-gray-400">{currency}</span>}
+    {currency && <span className="max-w-[72px] shrink-0 truncate pr-3 text-xs text-gray-400" title={currency}>{currency}</span>}
   </div>
 );
 
@@ -301,19 +302,37 @@ export default function AttendancePenaltiesSettingsPage() {
   const currency = currencies?.find((item) => item.guid === companySettings?.currencies_id)?.title || "";
   const [settings, setSettings] = useState<AttendancePenaltySettings>(() => defaultSettings());
   const [savedSnapshot, setSavedSnapshot] = useState("");
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    let active = true;
     const storageKey = getStorageKey();
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      const next = stored ? { ...defaultSettings(), ...(JSON.parse(stored) as AttendancePenaltySettings), version: 2 as const } : defaultSettings();
+    const load = async () => {
+      let serverSettings: AttendancePenaltySettings | null = null;
+      try {
+        const response = await reportsService.getAttendancePenaltySettings();
+        serverSettings = response.settings as AttendancePenaltySettings | null;
+      } catch {
+        toast.error("Не удалось загрузить настройки штрафов из API.");
+      }
+      if (!active) return;
+      let localSettings: AttendancePenaltySettings | null = null;
+      try {
+        const stored = window.localStorage.getItem(storageKey);
+        localSettings = stored ? JSON.parse(stored) as AttendancePenaltySettings : null;
+      } catch { /* Invalid local cache is ignored. */ }
+      const source = serverSettings || localSettings;
+      const next = source ? { ...defaultSettings(), ...source, version: 2 as const } : defaultSettings();
+      next.late.rules = next.late.rules.map((rule) => ({ ...rule, id: rule.id || createId() }));
+      next.early_leave.rules = next.early_leave.rules.map((rule) => ({ ...rule, id: rule.id || createId() }));
       setSettings(next);
-      setSavedSnapshot(JSON.stringify(next));
-    } catch {
-      const next = defaultSettings();
-      setSettings(next);
-      setSavedSnapshot(JSON.stringify(next));
-    }
+      // Cached local rules require an explicit save before payroll uses them.
+      setSavedSnapshot(serverSettings ? JSON.stringify(next) : "");
+      setIsLoadingSettings(false);
+    };
+    void load();
+    return () => { active = false; };
   }, []);
 
   const currentSnapshot = JSON.stringify(settings);
@@ -325,7 +344,7 @@ export default function AttendancePenaltiesSettingsPage() {
   const updateFixed = (type: FixedPenaltyType, patch: Partial<FixedPenaltyConfig>) =>
     setSettings((previous) => ({ ...previous, [type]: { ...previous[type], ...patch } }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const allRules = [...settings.late.rules, ...settings.early_leave.rules];
     if (allRules.some((rule) => rule.thresholdMinutes <= 0)) {
       toast.error("Порог времени должен быть больше нуля.");
@@ -341,9 +360,17 @@ export default function AttendancePenaltiesSettingsPage() {
     if (settings.enabled && settings.applyTo === "departments" && !settings.departmentOptions.length) return toast.error("Выберите отделы.");
     if (settings.enabled && settings.applyTo === "locations" && !settings.locationOptions.length) return toast.error("Выберите филиалы.");
 
-    window.localStorage.setItem(getStorageKey(), currentSnapshot);
-    setSavedSnapshot(currentSnapshot);
-    toast.success("Настройки штрафов сохранены.");
+    setIsSaving(true);
+    try {
+      await reportsService.saveAttendancePenaltySettings(settings);
+      window.localStorage.setItem(getStorageKey(), currentSnapshot);
+      setSavedSnapshot(currentSnapshot);
+      toast.success("Настройки штрафов сохранены.");
+    } catch {
+      toast.error("Не удалось сохранить настройки штрафов в API.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -363,11 +390,11 @@ export default function AttendancePenaltiesSettingsPage() {
           <button
             type="button"
             onClick={handleSave}
-            disabled={!hasChanges}
+            disabled={!hasChanges || isLoadingSettings || isSaving}
             className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {hasChanges ? <Save size={16} /> : <Check size={16} />}
-            {hasChanges ? "Сохранить изменения" : "Сохранено"}
+            {isLoadingSettings ? "Загрузка..." : isSaving ? "Сохранение..." : hasChanges ? "Сохранить изменения" : "Сохранено"}
           </button>
         </div>
 

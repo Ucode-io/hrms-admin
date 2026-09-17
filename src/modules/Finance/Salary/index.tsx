@@ -51,6 +51,7 @@ type CompensationRecord = {
 type CompensationTypeItem = {
   guid: string;
   title?: string;
+  slug?: string;
   operation_type?: string[] | string | null;
   [key: string]: unknown;
 };
@@ -308,6 +309,7 @@ function FinanceSalaryPage() {
   );
   const [createError, setCreateError] = useState("");
   const lastKnownTotalCountRef = useRef(0);
+  const lastPenaltySyncMonthRef = useRef("");
   const excelInputRef = useRef<HTMLInputElement | null>(null);
   const templateMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
@@ -360,6 +362,16 @@ function FinanceSalaryPage() {
     compensationTypeId: compensationTypeFilter || undefined,
   });
 
+  useEffect(() => {
+    if (lastPenaltySyncMonthRef.current === monthKey) return;
+    lastPenaltySyncMonthRef.current = monthKey;
+    let active = true;
+    void reportsService.syncAttendancePenalties(monthKey)
+      .then(() => { if (active) void refetch(); })
+      .catch(() => { if (active) toast.error("Не удалось обновить автоматические штрафы."); });
+    return () => { active = false; };
+  }, [monthKey, refetch]);
+
   const records = useMemo<CompensationRecord[]>(() => {
     const rows = (data?.response || []).map((item) => {
       const amountRaw = item.amount;
@@ -410,10 +422,14 @@ function FinanceSalaryPage() {
     () => (compensationTypesData?.response || []) as CompensationTypeItem[],
     [compensationTypesData?.response]
   );
+  const autoPenaltyTypeIds = useMemo(
+    () => new Set(compensationTypeOptions.filter((item) => item.slug === "attendance_penalty").map((item) => item.guid)),
+    [compensationTypeOptions]
+  );
   const filteredCompensationTypeOptions = useMemo(
     () =>
       compensationTypeOptions.filter(
-        (item) => resolveOperationType(item.operation_type) === editDraft.operationType
+        (item) => item.slug !== "attendance_penalty" && resolveOperationType(item.operation_type) === editDraft.operationType
       ),
     [compensationTypeOptions, editDraft.operationType]
   );
@@ -438,7 +454,7 @@ function FinanceSalaryPage() {
   const createCompensationTypeItems = useMemo(
     () =>
       compensationTypeOptions
-        .filter((item) => typeof item.guid === "string")
+        .filter((item) => typeof item.guid === "string" && item.slug !== "attendance_penalty")
         .map((item) => ({
           guid: item.guid as string,
           title: typeof item.title === "string" && item.title.trim() ? item.title : "Без названия",
@@ -1192,7 +1208,9 @@ function FinanceSalaryPage() {
                           {formatDateTime(record.createdAt)}
                         </td>
                         <td className="py-3 text-right">
-                          <div className="inline-flex items-center gap-1">
+                          {autoPenaltyTypeIds.has(record.compensationTypeId) || record.description.startsWith("Автоматический штраф:") ? (
+                            <span className="text-xs text-slate-500">Автоматически</span>
+                          ) : <div className="inline-flex items-center gap-1">
                             <button
                               type="button"
                               onClick={() => openEditModal(record)}
@@ -1213,7 +1231,7 @@ function FinanceSalaryPage() {
                             >
                               <Trash2 size={14} />
                             </button>
-                          </div>
+                          </div>}
                         </td>
                       </tr>
                     ))}

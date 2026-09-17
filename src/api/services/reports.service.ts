@@ -29,6 +29,9 @@ const GET_SPORT_ATTENDANCE_METHOD = "get_sport_attendance";
 const GET_SPORT_ATTENDANCE_TABLE_METHOD = "get_sport_attendance_table";
 const GET_PAYROLL_METHOD = "get_payroll";
 const GET_PAYROLL_TABLE_METHOD = "get_payroll_table";
+const ATTENDANCE_PENALTIES_GET_METHOD = "attendance_penalties_get";
+const ATTENDANCE_PENALTIES_SAVE_METHOD = "attendance_penalties_save";
+const ATTENDANCE_PENALTIES_SYNC_METHOD = "attendance_penalties_sync";
 const GET_BONUS_DEDUCTIONS_METHOD = "get_bonus_deductions";
 const GET_BONUS_DEDUCTIONS_TABLE_METHOD = "get_bonus_deductions_table";
 const GET_BONUS_DEDUCTIONS_EXCEL_METHOD = "get_bonus_deductions_excel";
@@ -3349,6 +3352,31 @@ export interface SaveWorkScheduleInput {
 }
 
 const reportsService = {
+  getAttendancePenaltySettings: async (): Promise<{ settings: unknown; effective_from: string | null }> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: ATTENDANCE_PENALTIES_GET_METHOD, data: {} },
+    });
+    return normalizeGatewayResponse<{ method: string; result: { settings: unknown; effective_from: string | null } }>(
+      response.data, ATTENDANCE_PENALTIES_GET_METHOD
+    ).result;
+  },
+  saveAttendancePenaltySettings: async (settings: unknown): Promise<void> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: ATTENDANCE_PENALTIES_SAVE_METHOD, data: { settings } },
+    });
+    normalizeGatewayResponse<{ method: string; result: { saved: boolean } }>(
+      response.data, ATTENDANCE_PENALTIES_SAVE_METHOD
+    );
+  },
+  syncAttendancePenalties: async (month: string): Promise<{ created: number; updated: number; removed: number; days: number }> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: ATTENDANCE_PENALTIES_SYNC_METHOD, data: { month } },
+    });
+    return normalizeGatewayResponse<{
+      method: string;
+      result: { created: number; updated: number; removed: number; days: number };
+    }>(response.data, ATTENDANCE_PENALTIES_SYNC_METHOD).result;
+  },
   getWorkSchedules: async (requestData: {
     limit?: number;
     offset?: number;
