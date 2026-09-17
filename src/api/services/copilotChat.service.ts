@@ -12,6 +12,7 @@
 
 import { useInfiniteQuery, useQuery } from "react-query";
 import httpRequest from "../httpRequest";
+import { parseThread } from "../../modules/Chats/projectThread";
 
 const CONVERSATIONS_SLUG = "copilot_conversations";
 const USERS_SLUG = "user_base";
@@ -76,6 +77,33 @@ export const useCopilotConversations = () =>
           ? undefined
           : pages.reduce((sum, page) => sum + page.length, 0),
     }
+  );
+
+/**
+ * Писал ли сотрудник копилоту хоть раз — для отметки в карточке.
+ *
+ * Строка заводится до первого ответа, поэтому пустой тред не считается: иначе
+ * «писал» загоралось бы у того, кто открыл чат и закрыл. Берём несколько
+ * строк, а не одну: первая по порядку вполне может оказаться такой пустышкой.
+ *
+ * `user_id` перепроверяем на выходе. ucode МОЛЧА ВЫБРАСЫВАЕТ фильтр по
+ * колонке, которой нет в его схеме, — дрейф имени превратил бы запрос в «дай
+ * любую переписку компании», и отметка загорелась бы у всех подряд.
+ */
+export const useHasCopilotChat = (userId: string | null | undefined) =>
+  useQuery(
+    ["copilot-chat-exists", userId],
+    async () => {
+      const res = await httpRequest.get(`/v2/items/${CONVERSATIONS_SLUG}`, {
+        params: {
+          data: JSON.stringify({ limit: 5, offset: 0, user_id: userId }),
+        },
+      });
+      return rowsOf<CopilotConversationRow>(res).some(
+        (row) => row.user_id === userId && parseThread(row.thread).length > 0
+      );
+    },
+    { enabled: Boolean(userId) }
   );
 
 /**

@@ -14,6 +14,8 @@ import {
   Building2,
   UserX,
   UserCheck,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { observer } from "mobx-react-lite";
 import { toast } from "sonner";
@@ -24,6 +26,7 @@ import companyStore from "../../../store/company.store";
 import { useEmployeeQuery, useUpdateEmployee } from "../../../api/services/employee.service";
 import { useUserAccessQuery } from "../../../api/services/role.service";
 import { useEmployeeWorksQuery } from "../../../api/services/employeeWork.service";
+import { useHasCopilotChat } from "../../../api/services/copilotChat.service";
 import { useHeaderBreadcrumbLabel } from "../../../context/HeaderBreadcrumbContext";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
@@ -109,6 +112,15 @@ function formatDateTime(dateStr: string | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
+}
+
+/** Галочка или крестик на месте значения — для отметок «да/нет» в карточке. */
+function CheckMark({ checked, title }: { checked: boolean; title: string }) {
+  return checked ? (
+    <CheckCircle2 className="h-4 w-4 text-green-600" aria-label={`${title}: да`} />
+  ) : (
+    <XCircle className="h-4 w-4 text-slate-300" aria-label={`${title}: нет`} />
+  );
 }
 
 function calcTenure(dateStr: string | null | undefined): string {
@@ -366,6 +378,10 @@ function EmployeeDetail() {
     limit: 100,
     offset: 0,
   });
+  // Отдельным запросом: переписки живут в своей таблице, в карточке сотрудника
+  // их нет. Пока запрос идёт — крестик, а не спиннер: отметка справочная, и
+  // мигание индикатора в списке полей шумит больше, чем стоит.
+  const { data: hasCopilotChat = false } = useHasCopilotChat(emp?.guid);
   const managerGuid =
     typeof emp?.departments_id_data?.user_base_id === "string"
       ? emp.departments_id_data.user_base_id
@@ -922,6 +938,20 @@ function EmployeeDetail() {
               <InfoRow label="Мобильный телефон" value={emp.phone} linkType="phone" />
               <InfoRow label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
               <InfoRow label="Телеграм" value={emp.telegram || ""} />
+              {/* Привязка chat_id случается ровно при первом входе в мини-апп
+                  внутри Telegram (telegram-link.js), поэтому она и есть ответ
+                  на «заходил ли вообще». last_login_date для этого не годится:
+                  до его выката поле пустое у всех, включая давних пользователей. */}
+              <InfoRow
+                label="Телеграм бот"
+                valueNode={
+                  <CheckMark checked={Boolean(emp.telegram_chat_id)} title="Телеграм бот" />
+                }
+              />
+              <InfoRow
+                label="Писал копилоту"
+                valueNode={<CheckMark checked={hasCopilotChat} title="Писал копилоту" />}
+              />
               {/* Фиксируется только запуск мини-аппа внутри Telegram: вход из
                   браузера сюда не попадает, «—» значит «с момента выката не
                   заходил», а не «доступа нет». */}
@@ -1504,6 +1534,7 @@ function InfoSection({
 function InfoRow({
   label,
   value,
+  valueNode,
   isLink,
   linkType,
   isStatus,
@@ -1512,6 +1543,8 @@ function InfoRow({
 }: {
   label: string;
   value?: string;
+  /** Значение, которое рисуется вместо текста — галочка, крестик и подобное. */
+  valueNode?: React.ReactNode;
   isLink?: boolean;
   linkType?: "email" | "phone" | "url";
   isStatus?: boolean;
@@ -1537,6 +1570,7 @@ function InfoRow({
         {label}
       </span>
       <div className="flex flex-1 items-center gap-2">
+        {valueNode ?? (
         <Wrapper
           {...(href ? { href, className: "text-[13px] break-words hover:underline" } : { className: "text-[13px] break-words" })}
           style={{
@@ -1555,6 +1589,7 @@ function InfoRow({
         >
           {value || "—"}
         </Wrapper>
+        )}
         {action}
       </div>
     </div>
