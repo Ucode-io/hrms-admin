@@ -47,7 +47,11 @@ const SettingsLayout: React.FC = () => {
 
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4 flex min-h-[calc(100vh-88px)]">
         {/* Settings sidebar */}
-        <aside className="sticky top-0 flex h-[calc(100vh-88px)] w-[300px] shrink-0 flex-col border-r border-gray-200 bg-white">
+        {/* Высота — ровно экран, а не «экран минус шапка»: шапка приложения не
+            sticky и при скролле уезжает, после чего колонка прилипает к верху
+            окна. С вычетом 88px её низ оказывался на 88px выше края экрана —
+            та самая пустая полоса внизу. */}
+        <aside className="sticky top-0 flex h-[100dvh] w-[300px] shrink-0 flex-col border-r border-gray-200 bg-white">
           {/* <div className="border-b border-gray-100 px-4 py-3.5">
             <h2 className="m-0 text-[15px] font-semibold text-gray-900">Настройки</h2>
           </div> */}
