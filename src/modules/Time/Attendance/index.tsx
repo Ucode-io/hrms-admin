@@ -74,7 +74,6 @@ type AttendanceRecord = {
   employeeGuid: string;
   employeeName: string;
   departmentId: string;
-  hasHikvisionId: boolean;
 };
 
 type AttendanceDraft = {
@@ -413,8 +412,7 @@ const getWorkflowStatusTag = (
 };
 
 const getSourceTypeTag = (
-  sourceType: AttendanceSourceType,
-  hasHikvisionId = false
+  sourceType: AttendanceSourceType
 ): { label: string; className: string } => {
   if (sourceType === "manual") {
     return {
@@ -424,8 +422,11 @@ const getSourceTypeTag = (
   }
 
   if (sourceType === "integration") {
+    // Не «Hikvision»: отметка могла прийти и из мини-аппа, а строка дня знает
+    // только тип источника, не устройство. Точный источник — в событиях,
+    // Настройки → Интеграции → Записи, там же фото и координаты.
     return {
-      label: hasHikvisionId ? "Hikvision" : "QuadraSoft",
+      label: "Интеграция",
       className: "border-violet-200 bg-violet-50 text-violet-700",
     };
   }
@@ -452,7 +453,7 @@ const getDelayLabel = (delayTime: string, status: AttendanceActionStatus): strin
 
 const getEmployeeInfo = (
   item: AttendanceItem
-): { employeeGuid: string; employeeName: string; departmentId: string; hasHikvisionId: boolean } => {
+): { employeeGuid: string; employeeName: string; departmentId: string } => {
   const relation =
     item.user_base_id_data && typeof item.user_base_id_data === "object"
       ? (item.user_base_id_data as Record<string, unknown>)
@@ -482,10 +483,7 @@ const getEmployeeInfo = (
     (typeof departmentRelation?.guid === "string" ? departmentRelation.guid : "") ||
     "";
 
-  const hasHikvisionId =
-    typeof relation?.hikvision_id === "string" && Boolean(relation.hikvision_id.trim());
-
-  return { employeeGuid, employeeName, departmentId, hasHikvisionId };
+  return { employeeGuid, employeeName, departmentId };
 };
 
 const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
@@ -628,7 +626,6 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         employeeGuid: employeeInfo.employeeGuid,
         employeeName: employeeInfo.employeeName,
         departmentId: employeeInfo.departmentId,
-        hasHikvisionId: employeeInfo.hasHikvisionId,
       };
     });
 
@@ -1162,10 +1159,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                         {pageItems.map((record) => {
                           const actionTag = getActionStatusTag(record.actionStatus);
                           const requestTag = getWorkflowStatusTag(record.requestStatus);
-                          const sourceTag = getSourceTypeTag(
-                            record.sourceType,
-                            record.hasHikvisionId
-                          );
+                          const sourceTag = getSourceTypeTag(record.sourceType);
 
                           const rowProcess = resolveRecordProcess(record);
                           const rowProgress = rowProcess
