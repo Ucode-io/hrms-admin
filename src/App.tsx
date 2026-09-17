@@ -4,6 +4,7 @@ import LandingPage from "./pages/Landing";
 import NotFound from "./pages/OtherPage/NotFound";
 import UnderDevelopment from "./pages/OtherPage/UnderDevelopment";
 import DashboardPage from "./modules/Dashboard";
+import ChatsPage from "./modules/Chats";
 import NotificationsPage from "./modules/Notifications";
 import NewsFormPage from "./modules/Notifications/Form";
 import MerchantsList from "./modules/Merchant/List";
@@ -293,6 +294,8 @@ function App() {
               <Route path="/trainings/new" element={<TrainingEditorPage />} />
               <Route path="/trainings/:id" element={<TrainingDetailPage />} />
               <Route path="/trainings/:id/edit" element={<TrainingEditorPage />} />
+
+              <Route path="/chats" element={<ChatsPage />} />
 
               <Route path="/employees" element={<EmployeesList />} />
               <Route path="/employees/new" element={<EmployeeForm />} />

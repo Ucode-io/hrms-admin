@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Home,
   ListTodo,
+  MessageSquare,
   Network,
   Package,
   Settings,
@@ -57,6 +58,7 @@ const moduleSections: ModuleSection[] = [
     title: "Люди",
     items: [
       { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
+      { name: "Чаты", path: "/chats", icon: <MessageSquare size={18} /> },
       { name: "Орг структура", path: "/organization/structure", icon: <Network size={18} /> },
     ],
   },
@@ -104,6 +106,7 @@ const moduleSections: ModuleSection[] = [
 const ENABLED_PATHS = new Set([
   "/dashboard",
   "/employees",
+  "/chats",
   "/organization/structure",
   "/recruiting/vacancies",
   "/recruiting/candidates",
