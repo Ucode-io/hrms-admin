@@ -64,7 +64,7 @@ import GridView from "./views/GridView";
 import DayTimelineView from "./views/DayTimelineView";
 import type { GroupBy, ShiftEmployee, ShiftGroup, ShiftsFilters, ShiftsScale, ShiftsView } from "./types";
 
-const BREADCRUMBS = [{ label: "Смены", to: "/shifts" }];
+const BREADCRUMBS = [{ label: "График работы", to: "/shifts" }];
 
 /** Сотрудников на страницу. Столько же, сколько берёт таймлайн табеля. */
 const EMPLOYEE_PAGE_SIZE = 50;
@@ -473,7 +473,7 @@ export default function ShiftsPage() {
   return (
     <>
       <PageMeta
-        title="Смены | HRMS"
+        title="График работы | HRMS"
         description="Планирование смен сотрудников по датам"
       />
 

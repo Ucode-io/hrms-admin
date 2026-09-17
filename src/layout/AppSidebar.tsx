@@ -74,7 +74,7 @@ const moduleSections: ModuleSection[] = [
     items: [
       { name: "Посещаемость", path: "/time", icon: <CalendarCheck size={18} /> },
       { name: "Табель времени", path: "/timesheet", icon: <CalendarClock size={18} /> },
-      { name: "Смены", path: "/shifts", icon: <CalendarRange size={18} /> },
+      { name: "График работы", path: "/shifts", icon: <CalendarRange size={18} /> },
     ],
   },
   {
