@@ -63,6 +63,42 @@ export type ShiftInput = {
   comment: string | null;
 };
 
+/** Итог сохранения пачки: сколько строк реально доехало до базы. */
+export type SaveResult = {
+  updated: number;
+  created: number;
+  failed: number;
+  /** Причина первого отказа словами. Пусто — отказов не было. */
+  reason: string;
+};
+
+/**
+ * Почему запрос не доехал.
+ *
+ * Голое «не удалось 3» несут в поддержку как есть, и дальше начинается
+ * расследование с нуля: конфликт дат, истёкший токен и упавший шлюз
+ * выглядят в тосте одинаково. Причина берётся у первого отказа — в пачке
+ * они почти всегда однотипны, а весь список уходит в консоль.
+ */
+const failureReason = (results: PromiseSettledResult<unknown>[]): string => {
+  const rejected = results.filter((item) => item.status === "rejected");
+  if (rejected.length === 0) return "";
+
+  console.error("Смены: часть запросов не прошла", rejected.map((item) => item.reason));
+
+  const error = rejected[0].reason as {
+    response?: { status?: number; data?: { description?: string } };
+    message?: string;
+  };
+
+  const status = error?.response?.status;
+  // description — поле конверта ucode; при сетевом отказе ответа нет вовсе,
+  // и остаётся сообщение axios.
+  const text = error?.response?.data?.description || error?.message || "неизвестная ошибка";
+
+  return status ? `${status}, ${text}` : text;
+};
+
 export interface ShiftListResponse {
   count: number;
   response: Shift[];
@@ -157,20 +193,45 @@ export const isShiftListTruncated = (result: ShiftListResponse | undefined): boo
  * Сохранение набора смен: повтор по дням недели раскрывается в N независимых
  * записей ещё на фронте, серии как сущности нет (см. CONTEXT.md → Shift).
  *
- * Правка — это всегда одна запись, поэтому `guid` и пачка взаимоисключающи.
+ * Правка тоже приходит пачкой: она может задеть соседние дни серии и завести
+ * недостающие. Что именно попадёт в пачку, решает `Shifts/plan.ts`.
+ *
+ * Транзакции у `/v2/items` нет, поэтому упавшие запросы не откатываются: их
+ * число возвращается наверх и попадает в тост. Молчаливый «успех» на половине
+ * записей был бы хуже честной цифры — грид всё равно перечитается и покажет
+ * фактическое состояние.
  */
 export const useSaveShifts = () => {
   const queryClient = useQueryClient();
 
   return useMutation(
-    async ({ guid, rows }: { guid?: string | null; rows: ShiftInput[] }) => {
-      if (guid) {
-        if (!rows[0]) return null;
-        return shiftService.update(guid, rows[0]);
-      }
-      // Пачка небольшая (максимум длина видимого периода), поэтому шлём
-      // параллельно: последовательный цикл на 31 запрос заметен глазом.
-      return Promise.all(rows.map((row) => shiftService.create(row)));
+    async ({
+      updates = [],
+      creates = [],
+    }: {
+      updates?: { guid: string; patch: Partial<ShiftInput> }[];
+      creates?: ShiftInput[];
+    }): Promise<SaveResult> => {
+      // Пачка небольшая (максимум длина видимого периода на число выбранных
+      // людей), поэтому шлём параллельно: последовательный цикл на 31 запрос
+      // заметен глазом.
+      const results = await Promise.allSettled([
+        ...updates.map((item) => shiftService.update(item.guid, item.patch)),
+        ...creates.map((row) => shiftService.create(row)),
+      ]);
+
+      const succeeded = (from: number, to: number) =>
+        results.slice(from, to).filter((item) => item.status === "fulfilled").length;
+
+      const updated = succeeded(0, updates.length);
+      const created = succeeded(updates.length, results.length);
+
+      return {
+        updated,
+        created,
+        failed: results.length - updated - created,
+        reason: failureReason(results),
+      };
     },
     {
       onSuccess: () => {

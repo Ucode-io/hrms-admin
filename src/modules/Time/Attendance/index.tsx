@@ -31,6 +31,8 @@ import {
   useEntityApprovalsQuery,
 } from "../../../api/services/approval.service";
 import { syncVegapharmCrmAttendance } from "../../../api/services/vegapharmCrm.service";
+import LocationViewLink from "../../../components/map/LocationViewLink";
+import { useOffices } from "../../../components/map/useOffices";
 
 const ATTENDANCE_ENTITY_TYPE = "attendance";
 const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
@@ -57,6 +59,17 @@ type AttendanceItem = {
   [key: string]: unknown;
 };
 
+// Raw Hikvision/webapp check events. Only mobile-app ("webapp") events carry
+// `map` (a "lat,long" string) — turnstile events have none. `attendance` rows
+// don't store geo themselves, so the location column is resolved by matching
+// on `user_base_id` + `date`.
+type AttendanceRecordItem = {
+  user_base_id?: string | null;
+  map?: string | null;
+  date?: string | null;
+  [key: string]: unknown;
+};
+
 type AttendanceWorkflowStatus = "accepted" | "rejected" | "requested" | "unknown";
 type AttendanceActionStatus = "present" | "late" | "absent" | "unknown";
 type AttendanceSourceType = "manual" | "integration" | "absences" | "unknown";
@@ -72,8 +85,10 @@ type AttendanceRecord = {
   sourceType: AttendanceSourceType;
   createdAt: string;
   employeeGuid: string;
+  officeId: string;
   employeeName: string;
   departmentId: string;
+  location: string;
 };
 
 type AttendanceDraft = {
@@ -90,6 +105,7 @@ type SelectOption = {
 type PaginationItem = number | string;
 
 const ATTENDANCE_SLUG = "attendance";
+const ATTENDANCE_RECORDS_SLUG = "attendance_records";
 const PAGE_SIZE = 20;
 const FILTER_SELECT_MAX_WIDTH = 280;
 
@@ -453,7 +469,7 @@ const getDelayLabel = (delayTime: string, status: AttendanceActionStatus): strin
 
 const getEmployeeInfo = (
   item: AttendanceItem
-): { employeeGuid: string; employeeName: string; departmentId: string } => {
+): { employeeGuid: string; employeeName: string; departmentId: string; officeId: string } => {
   const relation =
     item.user_base_id_data && typeof item.user_base_id_data === "object"
       ? (item.user_base_id_data as Record<string, unknown>)
@@ -483,7 +499,11 @@ const getEmployeeInfo = (
     (typeof departmentRelation?.guid === "string" ? departmentRelation.guid : "") ||
     "";
 
-  return { employeeGuid, employeeName, departmentId };
+  // Филиал сотрудника — `user_base.locations_id`; координаты офиса лежат уже
+  // в самой локации, второй уровень связи ucode не разворачивает.
+  const officeId = typeof relation?.locations_id === "string" ? relation.locations_id : "";
+
+  return { employeeGuid, employeeName, departmentId, officeId };
 };
 
 const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
@@ -493,6 +513,7 @@ const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
 
   return {
     employeeGuid: "",
+    officeId: "",
     date: baseDate,
     checkInTime: timeNow,
     checkOutTime: "",
@@ -566,6 +587,38 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     return payload;
   }, [page, normalizedDateFilter, employeeFilter, typeFilter, sourceTypeFilter]);
 
+  // Unpaginated on purpose — bounded to the one visible day, and the table
+  // needs every event for it to find each employee's latest geo-tagged check.
+  const attendanceRecordsQueryParams = useMemo(
+    () => ({
+      data: encodeJsonToUrlParam({
+        limit: 500,
+        offset: 0,
+        date: toExactDateRangeFilter(normalizedDateFilter),
+        companies_id: companyStore.company?.guid || COMPANY_ID,
+      }),
+    }),
+    [normalizedDateFilter]
+  );
+  const { data: attendanceRecordsData } = useSettingsDirectoryQuery({
+    slug: ATTENDANCE_RECORDS_SLUG,
+    params: attendanceRecordsQueryParams,
+  });
+
+  // attendance_records comes back newest-first, so the first match per
+  // employee+date is their latest geo-tagged event.
+  const locationByEmployeeAndDate = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of (attendanceRecordsData?.response || []) as AttendanceRecordItem[]) {
+      const userId = typeof item.user_base_id === "string" ? item.user_base_id : "";
+      const geo = typeof item.map === "string" ? item.map.trim() : "";
+      if (!userId || !geo) continue;
+      const key = `${userId}|${item.date || ""}`;
+      if (!map.has(key)) map.set(key, geo);
+    }
+    return map;
+  }, [attendanceRecordsData?.response]);
+
   const { data, isLoading, isFetching, isError, refetch } = useSettingsDirectoryQuery({
     slug: ATTENDANCE_SLUG,
     params: {
@@ -594,6 +647,10 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     const timer = window.setInterval(sync, 5 * 60 * 1000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [normalizedDateFilter, refetch]);
+
+  // Справочник локаций — один кешированный запрос на все экраны; из него
+  // берутся координаты офиса и его радиус для сверки с отметкой.
+  const offices = useOffices();
 
   const createMutation = useCreateSettingsDirectoryItem(ATTENDANCE_SLUG);
   const updateMutation = useUpdateSettingsDirectoryItem(ATTENDANCE_SLUG);
@@ -624,8 +681,10 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         sourceType: normalizeAttendanceSourceType(item.source_type),
         createdAt: typeof item.created_at === "string" ? item.created_at : "",
         employeeGuid: employeeInfo.employeeGuid,
+        officeId: employeeInfo.officeId,
         employeeName: employeeInfo.employeeName,
         departmentId: employeeInfo.departmentId,
+        location: locationByEmployeeAndDate.get(`${employeeInfo.employeeGuid}|${date}`) || "",
       };
     });
 
@@ -645,7 +704,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
       return toSortTimestamp(rightItem) - toSortTimestamp(leftItem);
     });
-  }, [data?.response]);
+  }, [data?.response, locationByEmployeeAndDate]);
 
   // Resolve the approval process for a row from that employee's department.
   const resolveRecordProcess = (record: AttendanceRecord) =>
@@ -1152,6 +1211,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Статус действия</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Статус заявки</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Источник</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">Локация</th>
                           <th className="py-2 text-right text-[12px] font-semibold text-slate-500">Действия</th>
                         </tr>
                       </thead>
@@ -1228,6 +1288,16 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                 >
                                   {sourceTag.label}
                                 </span>
+                              </td>
+                              <td className="py-3 text-[13px] text-slate-700">
+                                {record.location ? (
+                                  <LocationViewLink
+                                    value={record.location}
+                                    office={offices.get(record.officeId)}
+                                  />
+                                ) : (
+                                  "—"
+                                )}
                               </td>
                               <td className="py-3">
                                 <div className="flex justify-end gap-2">

@@ -22,6 +22,12 @@ interface EmployeesInfiniteMultiSelectProps {
   /** Limit options to employees holding this position (guid). */
   positionsId?: string;
   isDisabled?: boolean;
+  /**
+   * Full cards of the employees loaded so far. The select itself only deals in
+   * guids, but a caller that writes rows per employee (shift planning) needs
+   * their position and location — and anything pickable was loaded here first.
+   */
+  onLoaded?: (employees: Employee[]) => void;
 }
 
 const PAGE_LIMIT = 20;
@@ -63,6 +69,7 @@ export default function EmployeesInfiniteMultiSelect({
   classNamePrefix = "employees-infinite-multi-select",
   positionsId,
   isDisabled = false,
+  onLoaded,
 }: EmployeesInfiniteMultiSelectProps) {
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -72,6 +79,10 @@ export default function EmployeesInfiniteMultiSelect({
   // Labels of every option ever loaded, so selected chips keep their names
   // after the option list is replaced by a new search/filter.
   const seenLabelsRef = useRef<Map<string, string>>(new Map());
+  // Через ref, а не в зависимостях эффекта: новый инлайн-колбэк на каждом
+  // рендере родителя перезапускал бы загрузку страницы по кругу.
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -104,10 +115,15 @@ export default function EmployeesInfiniteMultiSelect({
   const { data, isLoading, isFetching } = useEmployeesQuery(queryParams);
 
   useEffect(() => {
-    const response = ((data?.response || []) as Employee[]).map((item) => ({
+    const loaded = (data?.response || []) as Employee[];
+    const response = loaded.map((item) => ({
       value: item.guid,
       label: resolveEmployeeFullName(item),
     }));
+
+    if (loaded.length > 0) {
+      onLoadedRef.current?.(loaded);
+    }
 
     for (const option of response) {
       seenLabelsRef.current.set(option.value, option.label);

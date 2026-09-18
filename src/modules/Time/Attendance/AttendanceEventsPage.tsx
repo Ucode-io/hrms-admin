@@ -32,6 +32,8 @@ import {
   shiftDays,
   toIsoDate,
 } from "../../Timesheet/constants";
+import LocationViewLink from "../../../components/map/LocationViewLink";
+import { type Office, useOffices } from "../../../components/map/useOffices";
 
 type DataRow = Record<string, unknown>;
 
@@ -42,6 +44,8 @@ type AccessEvent = {
   time: string;
   image: string;
   camera: string;
+  /** Поле MAP из attendance_records: «широта,долгота» либо "". */
+  location: string;
 };
 
 type AttendanceDay = {
@@ -199,6 +203,7 @@ const buildRawEvents = (rows: DataRow[]): AccessEvent[] =>
         time,
         image: resolvePicture(row.picture),
         camera: firstString(row, ["camera_name", "device_name", "terminal_name", "door_name", "location_name", "mac_address"]),
+        location: readString(row.map),
       } satisfies AccessEvent];
     })
     .sort((left, right) => left.time.localeCompare(right.time));
@@ -208,8 +213,8 @@ const buildSummaryEvents = (rows: DataRow[]): AccessEvent[] =>
     const result: AccessEvent[] = [];
     const checkIn = normalizeTime(row.check_in_time);
     const checkOut = normalizeTime(row.check_out_time);
-    if (checkIn) result.push({ id: `${index}-in`, type: "in", label: "Вход", time: checkIn, image: "", camera: "" });
-    if (checkOut) result.push({ id: `${index}-out`, type: "out", label: "Выход", time: checkOut, image: "", camera: "" });
+    if (checkIn) result.push({ id: `${index}-in`, type: "in", label: "Вход", time: checkIn, image: "", camera: "", location: "" });
+    if (checkOut) result.push({ id: `${index}-out`, type: "out", label: "Выход", time: checkOut, image: "", camera: "", location: "" });
     return result;
   }).sort((left, right) => left.time.localeCompare(right.time));
 
@@ -450,7 +455,7 @@ function AccessTimeline({ events }: { events: AccessEvent[] }) {
   );
 }
 
-function EventCards({ events }: { events: AccessEvent[] }) {
+function EventCards({ events, office }: { events: AccessEvent[]; office?: Office }) {
   const [preview, setPreview] = useState<AccessEvent | null>(null);
   if (events.length === 0) return null;
   return (
@@ -462,7 +467,7 @@ function EventCards({ events }: { events: AccessEvent[] }) {
             const Icon = event.type === "in" ? LogIn : event.type === "out" ? LogOut : Camera;
             return <article key={event.id} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/40">
               {event.image ? <button type="button" onClick={() => setPreview(event)} className="group relative block aspect-[16/9] w-full overflow-hidden bg-slate-100"><img src={event.image} alt={`${event.label} ${event.time}`} className="h-full w-full object-cover transition group-hover:scale-[1.02]" onError={(e) => { e.currentTarget.parentElement?.classList.add("hidden"); }} /><span className="absolute right-2 top-2 rounded-lg bg-slate-900/65 p-1.5 text-white"><Maximize2 size={14} /></span></button> : null}
-              <div className="flex items-center gap-3 p-4"><span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${event.type === "in" ? "bg-emerald-100 text-emerald-600" : event.type === "out" ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"}`}><Icon size={18} /></span><div><p className="text-sm font-semibold text-slate-800">{event.label} · {event.time}</p>{event.camera ? <p className="mt-0.5 text-xs text-slate-400">{event.camera}</p> : null}</div></div>
+              <div className="flex items-center gap-3 p-4"><span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${event.type === "in" ? "bg-emerald-100 text-emerald-600" : event.type === "out" ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"}`}><Icon size={18} /></span><div><p className="text-sm font-semibold text-slate-800">{event.label} · {event.time}</p>{event.camera ? <p className="mt-0.5 text-xs text-slate-400">{event.camera}</p> : null}{event.location ? <p className="mt-1 text-xs"><LocationViewLink value={event.location} office={office} /></p> : null}</div></div>
             </article>;
           })}
         </div>
@@ -520,6 +525,18 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
     return rawEvents.length ? rawEvents : buildSummaryEvents(dayRows);
   }, [recordsQuery.data?.response, dayRows, anchor]);
 
+  const offices = useOffices();
+  // Экран всегда про одного сотрудника, поэтому филиал один на все карточки.
+  // Берём его из развёрнутой связи любой отметки — отдельный запрос не нужен.
+  const office = useMemo(() => {
+    for (const row of (recordsQuery.data?.response ?? []) as DataRow[]) {
+      const relation = relationOf(row);
+      const officeId = readString(relation.locations_id);
+      if (officeId) return offices.get(officeId);
+    }
+    return undefined;
+  }, [recordsQuery.data?.response, offices]);
+
   const patchParams = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
     Object.entries(patch).forEach(([key, value]) => value === null ? next.delete(key) : next.set(key, value));
@@ -560,7 +577,7 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
             />
           </> : <>
             <div className="mb-4 flex flex-wrap items-center gap-3"><button type="button" onClick={() => patchParams({ employee: null })} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"><ArrowLeft size={15} />К сотрудникам</button>{selectedEmployee ? <div className="flex items-center gap-3"><EmployeeAvatar name={selectedEmployee.name} photo={selectedEmployee.photo} seed={selectedEmployee.id} size={42} /><div><h1 className="text-base font-bold text-slate-900">{selectedEmployee.name}</h1>{selectedEmployee.department ? <p className="text-xs text-slate-400">{selectedEmployee.department}</p> : null}</div></div> : null}<div className="ml-auto inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm"><button type="button" aria-label="Предыдущий день" onClick={() => patchParams({ date: shiftDays(anchor, -1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronLeft size={16} /></button><span className="min-w-[145px] px-3 text-center text-xs font-semibold text-slate-700">{formatDateRu(anchor)}</span><button type="button" aria-label="Следующий день" onClick={() => patchParams({ date: shiftDays(anchor, 1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronRight size={16} /></button></div></div>
-            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title="Не удалось загрузить отметки" hint="Проверьте интеграцию и повторите попытку" /> : events.length === 0 ? <EmptyState icon="clock" title={`За ${formatDateRu(anchor)} отметок нет`} hint="Пустые данные не подменяются тестовыми" /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Первый приход" value={firstEvent?.time || "—"} /><Metric label="Последний уход" value={lastEvent?.time || "—"} /><Metric label="Между первой и последней" value={formatDuration(duration)} /><AttendanceDeviationMetric late={formatMinuteOffset(lateMinutes)} earlyLeave={formatMinuteOffset(earlyLeaveMinutes)} /></div><AccessTimeline events={events} /><EventCards events={events} /></div>}
+            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title="Не удалось загрузить отметки" hint="Проверьте интеграцию и повторите попытку" /> : events.length === 0 ? <EmptyState icon="clock" title={`За ${formatDateRu(anchor)} отметок нет`} hint="Пустые данные не подменяются тестовыми" /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Первый приход" value={firstEvent?.time || "—"} /><Metric label="Последний уход" value={lastEvent?.time || "—"} /><Metric label="Между первой и последней" value={formatDuration(duration)} /><AttendanceDeviationMetric late={formatMinuteOffset(lateMinutes)} earlyLeave={formatMinuteOffset(earlyLeaveMinutes)} /></div><AccessTimeline events={events} /><EventCards events={events} office={office} /></div>}
           </>}
         </div>
       </div>

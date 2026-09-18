@@ -15,7 +15,6 @@ import {
   UserX,
   UserCheck,
   CheckCircle2,
-  XCircle,
 } from "lucide-react";
 import { observer } from "mobx-react-lite";
 import { toast } from "sonner";
@@ -112,15 +111,6 @@ function formatDateTime(dateStr: string | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
-}
-
-/** Галочка или крестик на месте значения — для отметок «да/нет» в карточке. */
-function CheckMark({ checked, title }: { checked: boolean; title: string }) {
-  return checked ? (
-    <CheckCircle2 className="h-4 w-4 text-green-600" aria-label={`${title}: да`} />
-  ) : (
-    <XCircle className="h-4 w-4 text-slate-300" aria-label={`${title}: нет`} />
-  );
 }
 
 function calcTenure(dateStr: string | null | undefined): string {
@@ -728,6 +718,25 @@ function EmployeeDetail() {
                     {workLocationTitle}
                   </span>
                 )}
+                {/* Привязка chat_id случается ровно при первом входе в мини-апп
+                    внутри Telegram (telegram-link.js), поэтому она и есть ответ
+                    на «заходил ли вообще». */}
+                <span className="flex items-center gap-1">
+                  {emp.telegram_chat_id ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                      Телеграм бот
+                    </>
+                  ) : (
+                    "Телеграм бот: Не подключен"
+                  )}
+                </span>
+                {/* Пишется на каждый запуск веб-аппа (login_touch), в том числе
+                    из браузера и по восстановленной сессии. «—» значит «с
+                    момента выката не заходил», а не «доступа нет». */}
+                <span className="flex items-center gap-1">
+                  Последний вход: {formatDateTime(emp.last_login_date as string | null | undefined)}
+                </span>
               </div>
             </div>
 
@@ -938,27 +947,10 @@ function EmployeeDetail() {
               <InfoRow label="Мобильный телефон" value={emp.phone} linkType="phone" />
               <InfoRow label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
               <InfoRow label="Телеграм" value={emp.telegram || ""} />
-              {/* Привязка chat_id случается ровно при первом входе в мини-апп
-                  внутри Telegram (telegram-link.js), поэтому она и есть ответ
-                  на «заходил ли вообще». last_login_date для этого не годится:
-                  до его выката поле пустое у всех, включая давних пользователей. */}
-              <InfoRow
-                label="Телеграм бот"
-                valueNode={
-                  <CheckMark checked={Boolean(emp.telegram_chat_id)} title="Телеграм бот" />
-                }
-              />
               {/* <InfoRow
                 label="Писал в AI чат"
                 valueNode={<CheckMark checked={hasCopilotChat} title="Писал в AI чат" />}
               /> */}
-              {/* Пишется на каждый запуск веб-аппа (login_touch), в том числе
-                  из браузера и по восстановленной сессии. «—» значит «с
-                  момента выката не заходил», а не «доступа нет». */}
-              <InfoRow
-                label="Последний вход"
-                value={formatDateTime(emp.last_login_date as string | null | undefined)}
-              />
               {renderDynamicRows(DETAIL_CARD_SECTIONS.contacts)}
             </InfoSection>
 

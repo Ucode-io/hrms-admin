@@ -38,12 +38,17 @@ import Select, { type StylesConfig } from "react-select";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
 import { usePositionsQuery } from "../../api/services/position.service";
 import { useDepartmentsSettingsQuery } from "../../api/services/department.service";
-import { useSettingsDirectoryQuery } from "../../api/services/settingsDirectory.service";
+import { COMPANY_ID, useSettingsDirectoryQuery } from "../../api/services/settingsDirectory.service";
 import { useEmployeeAbsenceSummaryQuery } from "../../api/services/employeeAbsenceSummary.service";
 import { useUploadFile } from "../../api/services/file-upload.service";
+import companyStore from "../../store/company.store";
+import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
+import LocationViewLink from "../../components/map/LocationViewLink";
+import { type Office, useOffices } from "../../components/map/useOffices";
 
 const PAGE_SIZE = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ATTENDANCE_RECORDS_SLUG = "attendance_records";
 
 type FilterOption = { value: string; label: string };
 
@@ -453,6 +458,9 @@ type AttendanceCellInfo = {
   checkOutTime: string;
   delayTime: string;
   sourceLabel: string;
+  location: string;
+  /** `user_base.locations_id` — филиал сотрудника, для сверки отметки. */
+  officeId: string;
 };
 
 const normalizeAttendanceDotKind = (value: unknown): AttendanceDotKind | null => {
@@ -912,6 +920,65 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     },
   });
 
+  // Raw Hikvision/webapp check events for the visible month, scoped to this
+  // company. Only mobile-app events carry `map` (a "lat,long" string) —
+  // `attendance` rows don't store geo themselves, so the popover's location
+  // is resolved by matching on user_base_id + date.
+  const attendanceRecordsQueryParams = useMemo(
+    () => ({
+      data: encodeJsonToUrlParam({
+        limit: 2000,
+        offset: 0,
+        date: { $gte: monthStartIso, $lte: monthEndIso },
+        companies_id: companyStore.company?.guid || COMPANY_ID,
+      }),
+    }),
+    [monthStartIso, monthEndIso]
+  );
+  const { data: attendanceRecordsData } = useSettingsDirectoryQuery({
+    slug: ATTENDANCE_RECORDS_SLUG,
+    params: attendanceRecordsQueryParams,
+    querySettings: {
+      enabled: Boolean(monthStartIso) && Boolean(monthEndIso),
+    },
+  });
+
+  // attendance_records comes back newest-first, so the first match per
+  // employee+date is their latest geo-tagged event.
+  const locationByEmployeeAndDate = useMemo(() => {
+    const map = new Map<string, string>();
+    const rows = (attendanceRecordsData?.response || []) as Record<string, unknown>[];
+    for (const row of rows) {
+      const userId = typeof row.user_base_id === "string" ? row.user_base_id : "";
+      const geo = typeof row.map === "string" ? row.map.trim() : "";
+      const dateKey = typeof row.date === "string" ? row.date.slice(0, 10) : "";
+      if (!userId || !geo || !dateKey) continue;
+      const key = `${userId}|${dateKey}`;
+      if (!map.has(key)) map.set(key, geo);
+    }
+    return map;
+  }, [attendanceRecordsData?.response]);
+
+  // Филиал берётся из той же развёрнутой связи, что и имя, — отдельного
+  // запроса за сотрудниками не нужно.
+  const offices = useOffices();
+
+  const officeIdByEmployee = useMemo(() => {
+    const map = new Map<string, string>();
+    const rows = (attendanceRecordsData?.response || []) as Record<string, unknown>[];
+    for (const row of rows) {
+      const userId = typeof row.user_base_id === "string" ? row.user_base_id : "";
+      const relation =
+        row.user_base_id_data && typeof row.user_base_id_data === "object"
+          ? (row.user_base_id_data as Record<string, unknown>)
+          : null;
+      const officeId = typeof relation?.locations_id === "string" ? relation.locations_id : "";
+      if (!userId || !officeId || map.has(userId)) continue;
+      map.set(userId, officeId);
+    }
+    return map;
+  }, [attendanceRecordsData?.response]);
+
   // Map<userBaseId, Map<dateKey, AttendanceCellInfo>> with priority-based dedup
   // (absences > manual > integration) applied per (user, date). Absences-source
   // rows are skipped — those days are already drawn as coloured absence segments.
@@ -950,6 +1017,8 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
           typeof row.check_out_time === "string" ? row.check_out_time : "",
         delayTime: typeof row.delay_time === "string" ? row.delay_time : "",
         sourceLabel,
+        location: locationByEmployeeAndDate.get(`${userId}|${dateKey}`) || "",
+        officeId: officeIdByEmployee.get(userId) || "",
       };
 
       let userMap = map.get(userId);
@@ -961,7 +1030,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     }
 
     return map;
-  }, [attendanceData?.response]);
+  }, [attendanceData?.response, locationByEmployeeAndDate, officeIdByEmployee]);
 
   if (typeof employeesData?.count === "number" && Number.isFinite(employeesData.count)) {
     lastKnownTotalCountRef.current = employeesData.count;
@@ -1599,6 +1668,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
       <AttendanceTooltip
         data={selectedAttendance}
         onClose={() => setSelectedAttendance(null)}
+        offices={offices}
       />
     </>
   );
@@ -1679,9 +1749,11 @@ function useTooltipPosition(
 function AttendanceTooltip({
   data,
   onClose,
+  offices,
 }: {
   data: (AttendanceClickPayload & { employeeName: string }) | null;
   onClose: () => void;
+  offices: Map<string, Office>;
 }) {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
 
@@ -1767,6 +1839,16 @@ function AttendanceTooltip({
         <div>
           <dt className="text-[11px] text-gray-500">Источник</dt>
           <dd className="font-semibold text-gray-900">{data.sourceLabel}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] text-gray-500">Локация</dt>
+          <dd className="font-semibold text-gray-900">
+            {data.location ? (
+              <LocationViewLink value={data.location} office={offices.get(data.officeId)} />
+            ) : (
+              "—"
+            )}
+          </dd>
         </div>
       </dl>
     </div>

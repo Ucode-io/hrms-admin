@@ -6,19 +6,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  GanttChartSquare,
-  Plus,
-  Table2,
-  X,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
 import Spinner from "../../components/ui/Spinner";
-import SharedViewSwitcher from "../../components/common/ViewSwitcher";
+import { Modal } from "../../components/ui/modal";
 import {
   PILL_GROUP,
   PILL_ICON_BUTTON,
@@ -29,6 +21,7 @@ import { useHeaderBreadcrumbItems } from "../../context/HeaderBreadcrumbContext"
 import { useEmployeesQuery, type Employee } from "../../api/services/employee.service";
 import { usePositionsQuery } from "../../api/services/position.service";
 import { useLocationsQuery } from "../../api/services/location.service";
+import { useHolidayDaysQuery } from "../../api/services/holidayPolicy.service";
 import employeeWorkService from "../../api/services/employeeWork.service";
 import reportsService, { type WorkSchedule } from "../../api/services/reports.service";
 import {
@@ -36,33 +29,46 @@ import {
   useDeleteShift,
   useSaveShifts,
   useShiftsQuery,
+  type SaveResult,
   type Shift,
   type ShiftInput,
 } from "../../api/services/shift.service";
+import type { SavePlan } from "./plan";
 import {
   DAY_CODE_TO_DOW,
   GROUP_BY_META,
   GROUP_BY_ORDER,
+  ITEM_BY_META,
+  ITEM_BY_ORDER,
   KIND_META,
   KIND_ORDER,
-  MONTHS_SHORT_RU,
+  LEGEND_ORDER,
   SCALE_META,
   SCALE_ORDER,
-  WEEKDAYS_SHORT_RU,
+  avatarColor,
   datesInRange,
+  formatDateRu,
   formatRangeLabel,
+  formatShiftTime,
   fromIsoDate,
+  getInitials,
+  isWeekend,
   normalizeTime,
   rangeForScale,
   shiftAnchor,
-  shiftDays,
   shiftKind,
   toIsoDate,
 } from "./constants";
 import ShiftModal from "./components/ShiftModal";
 import GridView from "./views/GridView";
-import DayTimelineView from "./views/DayTimelineView";
-import type { GroupBy, ShiftEmployee, ShiftGroup, ShiftsFilters, ShiftsScale, ShiftsView } from "./types";
+import type {
+  GroupBy,
+  ItemBy,
+  ShiftEmployee,
+  ShiftGroup,
+  ShiftsFilters,
+  ShiftsScale,
+} from "./types";
 
 const BREADCRUMBS = [{ label: "График работы", to: "/shifts" }];
 
@@ -76,16 +82,19 @@ const EMPTY_FILTERS: ShiftsFilters = {
   kind: "",
 };
 
-const isView = (value: string | null): value is ShiftsView =>
-  value === "table" || value === "timeline";
-
 const isScale = (value: string | null): value is ShiftsScale =>
   value === "week" || value === "month";
 
 const isGroupBy = (value: string | null): value is GroupBy =>
   value === "employee" || value === "position" || value === "location" || value === "project";
 
+const isItemBy = (value: string | null): value is ItemBy =>
+  value === "employee" || value === "position";
+
 const NO_SHIFTS_KEY = "__none__";
+
+const selectClass =
+  "h-[38px] rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-700 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
 
 const employeeName = (employee: Employee): string =>
   [employee.second_name, employee.first_name].filter(Boolean).join(" ").trim() ||
@@ -126,14 +135,17 @@ export default function ShiftsPage() {
   useHeaderBreadcrumbItems(BREADCRUMBS);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const rawView = searchParams.get("view");
   const rawScale = searchParams.get("scale");
   const rawAnchor = searchParams.get("date");
   const rawGroupBy = searchParams.get("group");
+  const rawItemBy = searchParams.get("rows");
 
-  const view: ShiftsView = isView(rawView) ? rawView : "table";
   const scale: ShiftsScale = isScale(rawScale) ? rawScale : "week";
   const groupBy: GroupBy = isGroupBy(rawGroupBy) ? rawGroupBy : "employee";
+  // На месяце строка-человек нечитаема: 30 колонок по 44px на каждого. Месяц
+  // отвечает на другой вопрос — «сколько людей в смене», а это строка-должность.
+  const itemBy: ItemBy =
+    scale === "month" ? "position" : isItemBy(rawItemBy) ? rawItemBy : "employee";
   const anchor =
     rawAnchor && /^\d{4}-\d{2}-\d{2}$/.test(rawAnchor) ? rawAnchor : toIsoDate(new Date());
 
@@ -148,6 +160,13 @@ export default function ShiftsPage() {
   const [offset, setOffset] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [autofillingId, setAutofillingId] = useState<string | null>(null);
+
+  // Разбор свёрнутой строки-должности: кто из неё в этот день работает.
+  const [breakdown, setBreakdown] = useState<{
+    label: string;
+    employees: ShiftEmployee[];
+    date: string;
+  } | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalShift, setModalShift] = useState<Shift | null>(null);
@@ -164,11 +183,7 @@ export default function ShiftsPage() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Таймлайн — это один день; ось часов на неделе смысла не имеет.
-  const range = useMemo(
-    () => (view === "timeline" ? { from: anchor, to: anchor } : rangeForScale(scale, anchor)),
-    [view, scale, anchor]
-  );
+  const range = useMemo(() => rangeForScale(scale, anchor), [scale, anchor]);
 
   const dates = useMemo(() => datesInRange(range.from, range.to), [range.from, range.to]);
 
@@ -186,6 +201,27 @@ export default function ShiftsPage() {
   const shiftsQuery = useShiftsQuery(range);
   const positionsQuery = usePositionsQuery({ params: { limit: 200 } });
   const locationsQuery = useLocationsQuery({ params: { limit: 200 } });
+  const holidaysQuery = useHolidayDaysQuery();
+
+  /**
+   * Нерабочие даты периода и подпись к ним.
+   *
+   * Выходные берём из календаря, поверх кладём производственный: праздник
+   * делает нерабочим будний день, а перенос рабочего дня — наоборот, снимает
+   * выходной с субботы. Порядок здесь и есть правило.
+   */
+  const offDayByDate = useMemo(() => {
+    const map = new Map<string, string>();
+    dates.forEach((iso) => {
+      if (isWeekend(iso)) map.set(iso, "Выходной");
+    });
+    (holidaysQuery.data?.response ?? []).forEach((day) => {
+      const iso = String(day.date ?? "").slice(0, 10);
+      if (day.is_workday_transfer) map.delete(iso);
+      else map.set(iso, String(day.title || "Праздничный день"));
+    });
+    return map;
+  }, [dates, holidaysQuery.data]);
 
   const employees = useMemo<ShiftEmployee[]>(() => {
     const raw = (employeesQuery.data as { response?: Employee[] } | undefined)?.response;
@@ -319,14 +355,38 @@ export default function ShiftsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (rows: ShiftInput[], guid: string | null) => {
+  /**
+   * Итог сохранения словами.
+   *
+   * Одной цифры «создано N» больше не хватает: одно сохранение может и
+   * обновить соседей по серии, и завести недостающие дни, и обойти занятые, а
+   * часть запросов — упасть (транзакции у `/v2/items` нет). Молчать о
+   * расхождении нельзя: человек ушёл бы с экрана, уверенный в другом.
+   */
+  const saveSummary = (result: SaveResult, skipped: number): string => {
+    const parts: string[] = [];
+    if (result.updated > 0) parts.push(`обновлено ${result.updated}`);
+    if (result.created > 0) parts.push(`создано ${result.created}`);
+    if (skipped > 0) parts.push(`пропущено занятых ${skipped}`);
+    if (result.failed > 0) parts.push(`не удалось ${result.failed}`);
+    if (parts.length === 0) return "Изменений не было.";
+    // Причина рядом с цифрой: без неё «не удалось 3» нечем объяснить и
+    // не с чем идти дальше — подробности всех отказов лежат в консоли.
+    const why = result.reason ? ` Причина: ${result.reason}` : "";
+    return `Смены: ${parts.join(", ")}.${why}`;
+  };
+
+  const handleSubmit = async (plan: SavePlan) => {
     try {
       setModalError("");
-      await saveShifts.mutateAsync({ guid, rows });
+      const result = await saveShifts.mutateAsync({
+        updates: plan.updates,
+        creates: plan.creates,
+      });
       setIsModalOpen(false);
-      toast.success(
-        guid ? "Смена обновлена." : `Создано смен: ${rows.length}.`
-      );
+      const summary = saveSummary(result, plan.skipped);
+      if (result.failed > 0) toast.error(summary);
+      else toast.success(summary);
     } catch (error) {
       setModalError(
         error instanceof Error ? error.message : "Не удалось сохранить смену."
@@ -418,11 +478,11 @@ export default function ShiftsPage() {
         return;
       }
 
-      await saveShifts.mutateAsync({ rows });
+      const saved = await saveShifts.mutateAsync({ creates: rows });
       toast.success(
         skipped > 0
-          ? `Создано смен: ${rows.length}. Пропущено уже занятых дней: ${skipped}.`
-          : `Создано смен: ${rows.length} по графику «${schedule.title}».`
+          ? `Создано смен: ${saved.created}. Пропущено уже занятых дней: ${skipped}.`
+          : `Создано смен: ${saved.created} по графику «${schedule.title}».`
       );
     } catch (error) {
       toast.error(
@@ -446,29 +506,10 @@ export default function ShiftsPage() {
     Boolean
   ).length;
 
-  const stepAnchor = (direction: 1 | -1): string =>
-    view === "timeline" ? shiftDays(anchor, direction) : shiftAnchor(scale, anchor, direction);
-
-  const periodLabel = useMemo(() => {
-    if (view !== "timeline") return formatRangeLabel(scale, range);
-    const date = fromIsoDate(anchor);
-    return `${WEEKDAYS_SHORT_RU[date.getDay()]}, ${date.getDate()} ${
-      MONTHS_SHORT_RU[date.getMonth()]
-    } ${date.getFullYear()}`;
-  }, [view, scale, range, anchor]);
+  const periodLabel = useMemo(() => formatRangeLabel(scale, range), [scale, range]);
 
   const isLoading = employeesQuery.isLoading || shiftsQuery.isLoading;
   const isTruncated = isShiftListTruncated(shiftsQuery.data);
-
-  const timelineOpenShifts = useMemo(
-    () => openShifts.filter((shift) => shift.date === anchor),
-    [openShifts, anchor]
-  );
-
-  const timelineEmployees = useMemo(
-    () => groups.flatMap((group) => group.employees),
-    [groups]
-  );
 
   return (
     <>
@@ -484,31 +525,42 @@ export default function ShiftsPage() {
             isFiltersOpen ? "" : "border-b"
           }`}
         >
-          <SharedViewSwitcher
-            value={view}
-            onChange={(next: ShiftsView) => patchParams({ view: next })}
-            items={[
-              { key: "table", label: "Таблица", icon: <Table2 size={16} /> },
-              { key: "timeline", label: "Таймлайн", icon: <GanttChartSquare size={16} /> },
-            ]}
-          />
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] text-gray-400 dark:text-gray-500">Группировать</span>
+            <select
+              value={groupBy}
+              onChange={(event) => patchParams({ group: event.target.value })}
+              className={selectClass}
+            >
+              {GROUP_BY_ORDER.map((item) => (
+                <option key={item} value={item}>
+                  {GROUP_BY_META[item].label}
+                </option>
+              ))}
+            </select>
 
-          {view === "table" && (
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] text-gray-400 dark:text-gray-500">Группировать</span>
-              <select
-                value={groupBy}
-                onChange={(event) => patchParams({ group: event.target.value })}
-                className="h-[38px] rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-700 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              >
-                {GROUP_BY_ORDER.map((item) => (
-                  <option key={item} value={item}>
-                    {GROUP_BY_META[item].label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+            {/* «Строки» — это не второй уровень группировки, а то, чем строка
+                вообще является: человеком или свёрнутой в сводку должностью. */}
+            <span className="text-[12px] text-gray-400 dark:text-gray-500">Строки</span>
+            <select
+              value={itemBy}
+              onChange={(event) => patchParams({ rows: event.target.value })}
+              title={
+                scale === "month" ? "На месяце строки всегда по должностям" : undefined
+              }
+              className={selectClass}
+            >
+              {ITEM_BY_ORDER.map((item) => (
+                <option
+                  key={item}
+                  value={item}
+                  disabled={scale === "month" && item === "employee"}
+                >
+                  {ITEM_BY_META[item].label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
@@ -617,8 +669,7 @@ export default function ShiftsPage() {
       {/* ── Период и легенда ────────────────────────────────────────────── */}
       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
-          {/* На таймлайне масштаб не нужен: там всегда один день. */}
-          {view === "table" ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className={PILL_GROUP}>
               {SCALE_ORDER.map((item) => (
                 <button
@@ -631,9 +682,10 @@ export default function ShiftsPage() {
                 </button>
               ))}
             </div>
-          ) : (
+
+            {/* Легенда обязательна: в клетках вид смены остался одним цветом. */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              {KIND_ORDER.map((kind) => (
+              {LEGEND_ORDER.map((kind) => (
                 <span
                   key={kind}
                   className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
@@ -646,14 +698,13 @@ export default function ShiftsPage() {
                 </span>
               ))}
             </div>
-          )}
+          </div>
 
-          {/* Шаг стрелок равен видимому периоду: на таймлайне это сутки,
-              в таблице — неделя или месяц. */}
+          {/* Шаг стрелок равен видимому периоду — неделе или месяцу. */}
           <div className={PILL_GROUP}>
             <button
               type="button"
-              onClick={() => patchParams({ date: stepAnchor(-1) })}
+              onClick={() => patchParams({ date: shiftAnchor(scale, anchor, -1) })}
               className={PILL_ICON_BUTTON}
               aria-label="Предыдущий период"
             >
@@ -662,7 +713,7 @@ export default function ShiftsPage() {
             <span className={PILL_LABEL}>{periodLabel}</span>
             <button
               type="button"
-              onClick={() => patchParams({ date: stepAnchor(1) })}
+              onClick={() => patchParams({ date: shiftAnchor(scale, anchor, 1) })}
               className={PILL_ICON_BUTTON}
               aria-label="Следующий период"
             >
@@ -688,12 +739,14 @@ export default function ShiftsPage() {
             <div className="flex justify-center rounded-2xl border border-gray-200 bg-white py-20 dark:border-gray-800 dark:bg-white/[0.03]">
               <Spinner />
             </div>
-          ) : view === "table" ? (
+          ) : (
             <GridView
               dates={dates}
               groups={groups}
               shiftByCell={shiftByCell}
               isMonthScale={scale === "month"}
+              itemBy={itemBy}
+              offDayByDate={offDayByDate}
               collapsedGroups={collapsedGroups}
               showGroupHeaders={groupBy !== "employee"}
               autofillingId={autofillingId}
@@ -701,14 +754,9 @@ export default function ShiftsPage() {
               onCellClick={openModal}
               onOpenShiftsClick={(date, shifts) => openModal(null, date, shifts[0] ?? null)}
               onAutofill={handleAutofill}
-            />
-          ) : (
-            <DayTimelineView
-              date={anchor}
-              employees={timelineEmployees}
-              shiftByCell={shiftByCell}
-              openShifts={timelineOpenShifts}
-              onShiftClick={openModal}
+              onBreakdownClick={(label, members, date) =>
+                setBreakdown({ label, employees: members, date })
+              }
             />
           )}
         </div>
@@ -743,6 +791,61 @@ export default function ShiftsPage() {
         )}
       </div>
 
+      {/* Свёрнутая строка не должна быть тупиком: сводка «3 из 5» полезна ровно
+          до вопроса «а кто эти двое» — ответ здесь же, вместе с правкой. */}
+      <Modal
+        isOpen={Boolean(breakdown)}
+        onClose={() => setBreakdown(null)}
+        className="max-w-[520px] p-5 lg:p-6"
+      >
+        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+          {breakdown?.label} — {formatDateRu(breakdown?.date ?? "")}
+        </h4>
+        <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+          {breakdown?.employees.map((employee) => {
+            const shift = shiftByCell.get(`${employee.id}|${breakdown.date}`) ?? null;
+            const meta = KIND_META[shift ? shiftKind(shift) : "off"];
+            const time = shift ? formatShiftTime(shift) : "";
+            return (
+              <div
+                key={employee.id}
+                className="flex items-center gap-3 rounded-xl border border-gray-100 px-3 py-2 dark:border-gray-800"
+              >
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                  style={{ backgroundColor: avatarColor(employee.id) }}
+                >
+                  {getInitials(employee.name)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[13px] text-gray-700 dark:text-white/90">
+                  {employee.name}
+                </span>
+                <span
+                  className="rounded-lg border px-2 py-1 text-[11px] font-semibold"
+                  style={{
+                    borderColor: meta.color,
+                    backgroundColor: meta.soft,
+                    color: meta.color,
+                  }}
+                >
+                  {time || meta.label}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBreakdown(null);
+                    openModal(employee.id, breakdown.date, shift);
+                  }}
+                  className="text-[12px] font-medium text-brand-500 transition hover:text-brand-600"
+                >
+                  Изменить
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Modal>
+
       <ShiftModal
         isOpen={isModalOpen}
         onClose={() => {
@@ -758,7 +861,7 @@ export default function ShiftsPage() {
         isSaving={saveShifts.isLoading}
         isDeleting={deleteShift.isLoading}
         error={modalError}
-        onSubmit={(rows, guid) => void handleSubmit(rows, guid)}
+        onSubmit={(plan) => void handleSubmit(plan)}
         onDelete={(guid) => void handleDelete(guid)}
       />
     </>

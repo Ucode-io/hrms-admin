@@ -31,6 +31,8 @@ import {
 } from "../../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
 import companyStore from "../../../../store/company.store";
+import LocationViewLink from "../../../../components/map/LocationViewLink";
+import { useOffices } from "../../../../components/map/useOffices";
 
 const UNIQUE_USERS_SLUG = "unique_users";
 const ATTENDANCE_RECORDS_SLUG = "attendance_records";
@@ -70,6 +72,8 @@ type AttendanceRecordItem = {
     first_name?: string | null;
     second_name?: string | null;
     name?: string | null;
+    /** Филиал сотрудника — с ним сверяется координата отметки. */
+    locations_id?: string | null;
   } | null;
 };
 type SyncRangeDraft = {
@@ -296,6 +300,8 @@ export default function HickvisionIntegrationSettingsPage() {
   // id alone made the last-loaded row win: 367 of the 500 most recent records
   // showed the face of someone from another company. The record's own
   // companies_id plus the terminal's company disambiguate it.
+  const offices = useOffices();
+
   const recordUserByHikvisionId = useMemo(() => {
     const companyByMac = new Map<string, string>();
     for (const mac of (recordsMacsQuery.data?.response || []) as CompanyMacAddressItem[]) {
@@ -770,14 +776,11 @@ export default function HickvisionIntegrationSettingsPage() {
                           <TableCell className="px-4 py-3 text-sm text-gray-700">{getSourceLabel(item.source)}</TableCell>
                           <TableCell className="px-4 py-3 text-sm text-gray-700">
                             {item.map ? (
-                              <a
-                                href={`https://maps.google.com/?q=${encodeURIComponent(item.map)}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-brand-500 hover:underline"
-                              >
-                                {item.map}
-                              </a>
+                              <LocationViewLink
+                                value={item.map}
+                                label={item.map}
+                                office={offices.get(item.user_base_id_data?.locations_id || "")}
+                              />
                             ) : (
                               "—"
                             )}

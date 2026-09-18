@@ -28,15 +28,8 @@ import {
   startOfWeek,
   toIsoDate,
 } from "../Timesheet/constants";
-import type { GroupBy, ShiftKind, ShiftsScale, ShiftsView } from "./types";
+import type { CellKind, GroupBy, ItemBy, ShiftKind, ShiftsScale } from "./types";
 import type { Shift } from "../../api/services/shift.service";
-
-export const VIEW_ORDER: ShiftsView[] = ["table", "timeline"];
-
-export const VIEW_META: Record<ShiftsView, { label: string }> = {
-  table: { label: "Таблица" },
-  timeline: { label: "Таймлайн" },
-};
 
 export const SCALE_ORDER: ShiftsScale[] = ["week", "month"];
 
@@ -54,18 +47,30 @@ export const GROUP_BY_META: Record<GroupBy, { label: string }> = {
   project: { label: "Проект" },
 };
 
+export const ITEM_BY_ORDER: ItemBy[] = ["employee", "position"];
+
+export const ITEM_BY_META: Record<ItemBy, { label: string }> = {
+  employee: { label: "Сотрудник" },
+  position: { label: "Должность" },
+};
+
 /**
  * Цвета вида смены. Те же четыре, что в прототипе — но теперь это подсказка,
  * выведенная из данных, а не хранимое поле, которое админ мог проставить
  * вразрез со временем.
  */
-export const KIND_META: Record<ShiftKind, { label: string; color: string; soft: string }> = {
+export const KIND_META: Record<CellKind, { label: string; color: string; soft: string }> = {
   day: { label: "Дневная", color: "#2563eb", soft: "#eff6ff" },
   night: { label: "Ночная", color: "#7c3aed", soft: "#f5f3ff" },
   remote: { label: "Удалённо", color: "#0e7490", soft: "#ecfeff" },
+  off: { label: "Выходной", color: "#94a3b8", soft: "#f8fafc" },
 };
 
+/** Виды смен — то, что можно выбрать фильтром. Выходного среди них нет. */
 export const KIND_ORDER: ShiftKind[] = ["day", "night", "remote"];
+
+/** Легенда над таблицей: в ней выходной есть, потому что клетки им закрашены. */
+export const LEGEND_ORDER: CellKind[] = [...KIND_ORDER, "off"];
 
 /** Локация считается удалённой по названию — отдельного флага у `locations` нет. */
 const REMOTE_LOCATION = /удал|remote|дом/i;
@@ -139,7 +144,7 @@ export const formatShiftTime = (shift: Shift): string => {
   return hours != null ? `${hours}ч/день` : "";
 };
 
-/** Диапазон дат для масштаба. День таймлайна — это ровно одна дата. */
+/** Диапазон дат для масштаба. */
 export const rangeForScale = (
   scale: ShiftsScale,
   anchor: string

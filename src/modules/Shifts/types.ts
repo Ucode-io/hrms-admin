@@ -1,12 +1,17 @@
 import type { Shift } from "../../api/services/shift.service";
 
-export type ShiftsView = "table" | "timeline";
-
-/** Масштаб сетки. День отдан таймлайну — там своя ось. */
+/** Масштаб сетки. */
 export type ShiftsScale = "week" | "month";
 
 /** По чему бьём грид на секции. */
 export type GroupBy = "employee" | "position" | "location" | "project";
+
+/**
+ * Что такое строка внутри секции. «Должность» сворачивает людей в одну строку
+ * со сводкой «работает / всего» — расписание целой команды видно одним взглядом,
+ * а конкретный человек достаётся кликом по ячейке.
+ */
+export type ItemBy = "employee" | "position";
 
 /**
  * Сотрудник как строка грида. Берётся из `user_base`, но должность и локация
@@ -47,6 +52,9 @@ export type ShiftsFilters = {
  * особого вида. Пустая клетка и есть выходной.
  */
 export type ShiftKind = "day" | "night" | "remote";
+
+/** Чем закрашена ячейка грида: смена одного из видов — или выходной, если её нет. */
+export type CellKind = ShiftKind | "off";
 
 export type ShiftGroup = {
   key: string;

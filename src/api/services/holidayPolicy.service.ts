@@ -108,8 +108,9 @@ const holidayPolicyService = {
     return Number((res as Record<string, unknown>)?.count || 0);
   },
 
+  /** Без `holiday_policies_id` отдаёт праздники всех политик компании. */
   getPolicyDays: async (params: {
-    holiday_policies_id: string;
+    holiday_policies_id?: string;
     limit?: number;
     offset?: number;
     search?: string;
@@ -218,6 +219,21 @@ export const useHolidayPolicyDaysQuery = ({
     queryKey: ["HOLIDAY_POLICY_DAYS", policyGuid],
     queryFn: () => holidayPolicyService.getPolicyDays({ holiday_policies_id: policyGuid }),
     enabled: Boolean(policyGuid),
+    ...querySettings,
+  });
+};
+
+/**
+ * Все праздничные дни компании.
+ *
+ * Колонка грида одна на всех, поэтому и политика тут не выбирается: календарь
+ * производственный, а не персональный. Дни за все годы приходят одним запросом
+ * и кэшируются — их сотни, не тысячи.
+ */
+export const useHolidayDaysQuery = (querySettings: Record<string, unknown> = {}) => {
+  return useQuery({
+    queryKey: ["HOLIDAY_POLICY_DAYS", "all"],
+    queryFn: () => holidayPolicyService.getPolicyDays({}),
     ...querySettings,
   });
 };

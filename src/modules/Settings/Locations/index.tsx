@@ -40,6 +40,8 @@ import {
   type HolidayPolicy,
   useHolidayPoliciesQuery,
 } from "../../../api/services/holidayPolicy.service";
+import LocationMapPicker from "../../../components/map/LocationMapPicker";
+import { DEFAULT_OFFICE_RADIUS_M } from "../../../components/map/shared";
 
 const PAGE_SIZE = 20;
 
@@ -141,6 +143,8 @@ export default function LocationsSettingsPage() {
   const [countryId, setCountryId] = useState("");
   const [holidayPolicyId, setHolidayPolicyId] = useState("");
   const [timezone, setTimezone] = useState("");
+  const [coordinates, setCoordinates] = useState("");
+  const [radius, setRadius] = useState("");
 
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -251,6 +255,8 @@ export default function LocationsSettingsPage() {
     setCountryId("");
     setHolidayPolicyId("");
     setTimezone(TIMEZONE_OPTIONS[0]?.value || "GMT+05:00");
+    setCoordinates("");
+    setRadius("");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -262,6 +268,8 @@ export default function LocationsSettingsPage() {
     setCountryId(location.countries_id || "");
     setHolidayPolicyId(location.holiday_policies_id || "");
     setTimezone(location.timezone?.[0] || TIMEZONE_OPTIONS[0]?.value || "GMT+05:00");
+    setCoordinates(String(location.coordinates || ""));
+    setRadius(location.radius ? String(location.radius) : "");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
@@ -274,6 +282,8 @@ export default function LocationsSettingsPage() {
     setCountryId("");
     setHolidayPolicyId("");
     setTimezone("");
+    setCoordinates("");
+    setRadius("");
   };
 
   const handleSubmit = async () => {
@@ -301,6 +311,9 @@ export default function LocationsSettingsPage() {
       countries_id: countryId,
       holiday_policies_id: holidayPolicyId || null,
       timezone: [timezone],
+      coordinates,
+      // Пусто — на фронте подставится DEFAULT_OFFICE_RADIUS_M.
+      radius: radius.trim() ? Number(radius) : null,
     };
 
     try {
@@ -541,7 +554,7 @@ export default function LocationsSettingsPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 px-4 py-4 md:grid-cols-2">
+        <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto px-4 py-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label htmlFor="location-title" className="mb-1.5 block text-sm font-medium text-gray-700">
               Название
@@ -567,6 +580,38 @@ export default function LocationsSettingsPage() {
               placeholder="Введите адрес"
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Точка на карте
+            </label>
+            <LocationMapPicker
+              value={coordinates}
+              onChange={({ coordinates: next, address }) => {
+                setCoordinates(next);
+                if (address) setLocationAddress(address);
+              }}
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label htmlFor="location-radius" className="mb-1.5 block text-sm font-medium text-gray-700">
+              Радиус, м
+            </label>
+            <input
+              id="location-radius"
+              type="number"
+              min={1}
+              value={radius}
+              onChange={(event) => setRadius(event.target.value)}
+              placeholder={`По умолчанию ${DEFAULT_OFFICE_RADIUS_M}`}
+              className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Отметку дальше этого расстояния от точки офиса помечаем предупреждением.
+              Точность GPS на телефоне — десятки метров, меньше сотни ставить не стоит.
+            </p>
           </div>
 
           <div>

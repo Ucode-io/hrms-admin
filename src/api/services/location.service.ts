@@ -25,9 +25,24 @@ export interface Location {
     [key: string]: unknown;
   } | null;
   timezone?: string[];
+  /** Поле типа MAP в ucode — строка «широта,долгота» либо "" (см. parseCoords). */
+  coordinates?: string;
+  /** Радиус офиса в метрах; пусто — берётся DEFAULT_OFFICE_RADIUS_M. */
+  radius?: number | null;
   created_at: string;
   updated_at: string;
   [key: string]: unknown;
+}
+
+export interface LocationUpsertPayload {
+  title: string;
+  address: string;
+  countries_id: string | null;
+  holiday_policies_id?: string | null;
+  timezone: string[];
+  coordinates?: string;
+  radius?: number | null;
+  companies_id?: string;
 }
 
 export interface LocationListResponse {
@@ -73,14 +88,7 @@ const locationService = {
     };
   },
 
-  create: (data: {
-    title: string;
-    address: string;
-    countries_id: string | null;
-    holiday_policies_id?: string | null;
-    timezone: string[];
-    companies_id?: string;
-  }) =>
+  create: (data: LocationUpsertPayload) =>
     httpRequest.post("/v2/items/locations", {
       data: {
         companies_id: COMPANY_ID,
@@ -134,14 +142,7 @@ export const useCreateLocation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: {
-      title: string;
-      address: string;
-      countries_id: string | null;
-      holiday_policies_id?: string | null;
-      timezone: string[];
-      companies_id?: string;
-    }) => locationService.create(data),
+    mutationFn: (data: LocationUpsertPayload) => locationService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries(["LOCATIONS"]);
     },
