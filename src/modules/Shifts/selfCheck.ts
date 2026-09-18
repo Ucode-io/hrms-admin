@@ -25,6 +25,7 @@ import {
 } from "./constants";
 import {
   buildSavePlan,
+  defaultScope,
   resolveAssignee,
   resolveEditedDate,
   type PlanRequest,
@@ -122,6 +123,8 @@ assert.deepEqual(datesInRange("2026-04-10", "2026-04-01"), []);
 
 // ── План сохранения ──────────────────────────────────────────────────────
 const baseOf = (patch: Partial<ShiftBase> = {}): ShiftBase => ({
+  date_from: "2026-04-20",
+  date_to: "2026-04-20",
   start_time: "09:00",
   end_time: "18:00",
   hours_per_day: null,
@@ -132,8 +135,13 @@ const baseOf = (patch: Partial<ShiftBase> = {}): ShiftBase => ({
   ...patch,
 });
 
-const plan = (patch: Partial<PlanRequest>) =>
-  buildSavePlan({
+/**
+ * Период в `base` не задаётся отдельно: форма пишет в него ровно те границы,
+ * которые сама и показывает. Разъехаться они могут только в тесте, и такой
+ * тест проверял бы состояние, которого не бывает.
+ */
+const plan = (patch: Partial<PlanRequest>) => {
+  const request: PlanRequest = {
     original: null,
     employeeIds: [],
     employeeMeta: {},
@@ -146,7 +154,17 @@ const plan = (patch: Partial<PlanRequest>) =>
     conflicts: "skip",
     existing: [],
     ...patch,
+  };
+
+  return buildSavePlan({
+    ...request,
+    base: { ...request.base, date_from: request.dateFrom, date_to: request.dateTo },
   });
+};
+
+/** Правимая смена вместе с периодом, которым её заводили. */
+const seriesShift = (patch: Partial<Shift>): Shift =>
+  shift({ date_from: "2026-04-20", date_to: "2026-04-26", ...patch });
 
 // Мультиселект: строка на человека и дату, должность — своя у каждого.
 const twoPeople = plan({
@@ -196,7 +214,7 @@ assert.deepEqual(
 );
 assert.equal(overwriting.skipped, 0);
 
-const original = shift({ guid: "orig", user_base_id: "a", date: "2026-04-20" });
+const original = seriesShift({ guid: "orig", user_base_id: "a", date: "2026-04-20" });
 const tuesday = shift({ guid: "tue", user_base_id: "a", date: "2026-04-21" });
 const editArgs = {
   original,
@@ -225,7 +243,12 @@ assert.equal("date" in wholePeriod.updates[1].patch, false);
 assert.equal("user_base_id" in wholePeriod.updates[1].patch, false);
 
 // «Следующие дни»: то, что левее правимой смены, остаётся нетронутым.
-const wednesday = shift({ guid: "wed", user_base_id: "a", date: "2026-04-22" });
+const wednesday = seriesShift({
+  guid: "wed",
+  user_base_id: "a",
+  date: "2026-04-22",
+  date_to: "2026-04-24",
+});
 const following = plan({
   ...editArgs,
   original: wednesday,
@@ -240,34 +263,57 @@ assert.deepEqual(
 assert.equal(following.creates.length, 2);
 
 // Растянули, ничего не меняя — это «размножить смену»: пустых PUT не шлём.
+const twoDay = seriesShift({
+  guid: "orig",
+  user_base_id: "a",
+  date: "2026-04-20",
+  date_to: "2026-04-22",
+});
 const cloned = plan({
-  original,
+  original: twoDay,
   employeeIds: ["a"],
   dateTo: "2026-04-22",
-  existing: [original],
+  existing: [twoDay],
 });
 assert.equal(cloned.updates.length, 0);
 assert.equal(cloned.creates.length, 2);
 
-// Схлопнутый диапазон в правке — перенос смены, а не новая серия.
+// Схлопнутый диапазон в правке — перенос смены, а не новая серия. Период
+// переезжает вместе с ней: у однодневной смены он и есть её день.
+const oneDay = seriesShift({
+  guid: "orig",
+  user_base_id: "a",
+  date: "2026-04-20",
+  date_to: "2026-04-20",
+});
 const moved = plan({
-  original,
+  original: oneDay,
   employeeIds: ["a"],
   dateFrom: "2026-04-25",
   dateTo: "2026-04-25",
-  existing: [original],
+  existing: [oneDay],
 });
-assert.deepEqual(moved.updates, [{ guid: "orig", patch: { date: "2026-04-25" } }]);
+assert.deepEqual(moved.updates, [
+  {
+    guid: "orig",
+    patch: { date_from: "2026-04-25", date_to: "2026-04-25", date: "2026-04-25" },
+  },
+]);
 assert.equal(moved.creates.length, 0);
 
 // Убрали человека из списка — смена открывается, а не удаляется.
-const unassigned = plan({ original, employeeIds: [], existing: [original] });
+const unassigned = plan({ original: oneDay, employeeIds: [], existing: [oneDay] });
 assert.deepEqual(unassigned.updates, [{ guid: "orig", patch: { user_base_id: null } }]);
 assert.equal(unassigned.creates.length, 0);
 
 // Замена исполнителя бьёт одну строку: сосед по серии остаётся за прежним.
 const swapped = plan({
-  original,
+  original: seriesShift({
+    guid: "orig",
+    user_base_id: "a",
+    date: "2026-04-20",
+    date_to: "2026-04-21",
+  }),
   employeeIds: ["b"],
   employeeMeta: { b: { positionId: "qa", locationId: null } },
   base: baseOf({ comment: "перенос" }),
@@ -280,16 +326,67 @@ assert.equal("user_base_id" in swapped.updates[1].patch, false);
 // Добавили напарника в правке: он получает смены на весь выбранный период, а
 // правимый день остаётся за своим исполнителем — второй смены ему не заводим.
 const withPartner = plan({
-  original,
+  original: twoDay,
   employeeIds: ["a", "b"],
   employeeMeta: { b: { positionId: "qa", locationId: null } },
   dateTo: "2026-04-22",
-  existing: [original],
+  existing: [twoDay],
 });
 assert.deepEqual(
   withPartner.creates.map((row) => `${row.user_base_id}|${row.date}`),
   ["b|2026-04-20", "a|2026-04-21", "b|2026-04-21", "a|2026-04-22", "b|2026-04-22"]
 );
+
+// Период уезжает в каждую строку одинаковым: по нему форма потом покажет,
+// частью чего была смена, вместо одного её дня.
+const monthly = plan({
+  employeeIds: ["a"],
+  dateFrom: "2026-04-01",
+  dateTo: "2026-04-03",
+});
+assert.deepEqual(
+  monthly.creates.map((row) => [row.date, row.date_from, row.date_to]),
+  [
+    ["2026-04-01", "2026-04-01", "2026-04-03"],
+    ["2026-04-02", "2026-04-01", "2026-04-03"],
+    ["2026-04-03", "2026-04-01", "2026-04-03"],
+  ]
+);
+
+// Сдвинули границу периода — она разливается на всю серию: иначе одна серия,
+// открытая с разных дней, показывала бы разные периоды.
+const shortOriginal = seriesShift({
+  guid: "orig2",
+  user_base_id: "a",
+  date: "2026-04-20",
+  date_to: "2026-04-21",
+});
+const seriesRow = shift({ guid: "tue2", user_base_id: "a", date: "2026-04-21" });
+const stretched = plan({
+  original: shortOriginal,
+  employeeIds: ["a"],
+  dateTo: "2026-04-22",
+  existing: [shortOriginal, seriesRow],
+});
+assert.deepEqual(stretched.updates[1].patch, { date_to: "2026-04-22" });
+// Сам день строки при этом неприкосновенен.
+assert.equal("date" in stretched.updates[1].patch, false);
+
+// Дефолт области действия читается из диффа: комментарий — заметка про день,
+// часы — свойство графика.
+const periodBase = (patch: Partial<ShiftBase> = {}) =>
+  baseOf({ date_from: "2026-04-20", date_to: "2026-04-26", ...patch });
+
+assert.equal(defaultScope(original, periodBase({ comment: "вышел за Иванова" })), "single");
+assert.equal(defaultScope(original, periodBase({ start_time: "10:00" })), "all");
+// Вместе с часами — это уже правка графика, комментарий едет с ней заодно.
+assert.equal(
+  defaultScope(original, periodBase({ comment: "ночь", start_time: "21:00" })),
+  "all"
+);
+// Ничего не меняли, только растянули даты, — это «размножить смену».
+assert.equal(defaultScope(original, periodBase()), "all");
+assert.equal(defaultScope(null, periodBase({ comment: "что угодно" })), "all");
 
 // Правило «кто работает в правимой строке» одно на форму и на план — форма
 // по нему же проверяет, не занята ли новая клетка.
@@ -303,7 +400,13 @@ assert.equal(resolveEditedDate(original, "2026-04-25", "2026-04-25"), "2026-04-2
 assert.equal(resolveEditedDate(original, "2026-04-18", "2026-04-25"), "2026-04-20");
 
 // Серия открытой смены узнаётся по должности — чужой слот не трогаем.
-const openMonday = shift({ guid: "open1", user_base_id: null, date: "2026-04-20", positions_id: "dev" });
+const openMonday = seriesShift({
+  guid: "open1",
+  user_base_id: null,
+  date: "2026-04-20",
+  date_to: "2026-04-22",
+  positions_id: "dev",
+});
 const openTuesday = shift({ guid: "open2", user_base_id: null, date: "2026-04-21", positions_id: "dev" });
 const openOther = shift({ guid: "open3", user_base_id: null, date: "2026-04-21", positions_id: "qa" });
 const openSeries = plan({

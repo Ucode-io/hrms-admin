@@ -456,6 +456,10 @@ export default function ShiftsPage() {
 
         rows.push({
           date: iso,
+          // Автозаполнение — это тоже период: тот, что открыт на экране.
+          // Открыв потом любую из этих смен, человек увидит его целиком.
+          date_from: range.from,
+          date_to: range.to,
           user_base_id: employee.id,
           start_time: start,
           end_time: end,

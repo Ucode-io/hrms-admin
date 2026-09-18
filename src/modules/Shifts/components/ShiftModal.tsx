@@ -27,6 +27,7 @@ import {
 } from "../constants";
 import {
   buildSavePlan,
+  defaultScope,
   resolveAssignee,
   resolveEditedDate,
   type ConflictPolicy,
@@ -198,8 +199,12 @@ export default function ShiftModal({
       setHours(hasHours ? String(savedHours) : "8");
       setStartTime(normalizeTime(shift.start_time) || "09:00");
       setEndTime(normalizeTime(shift.end_time) || "18:00");
-      setDateFrom(shift.date);
-      setDateTo(shift.date);
+      // Период, которым смену заводили, а не её единственный день: человек,
+      // открывший среду из месячного графика, спрашивает про весь график.
+      // У строк без периода (автозаполнение, всё созданное до этих полей)
+      // период — это сам день, и форма ведёт себя как раньше.
+      setDateFrom(shift.date_from || shift.date);
+      setDateTo(shift.date_to || shift.date);
       setPositionId(shift.positions_id ?? "");
       setLocationId(shift.locations_id ?? "");
       setProject(shift.project ?? "");
@@ -222,6 +227,46 @@ export default function ShiftModal({
     setProject("");
     setComment("");
   }, [isOpen, shift, defaults]);
+
+  /**
+   * Чипы дней недели по самой серии.
+   *
+   * Период хранится, а по каким дням недели он занят — нет. Без этого
+   * «полный период» у графика «пн–пт» дорисовал бы субботы и воскресенья:
+   * пустые чипы означают «каждый день диапазона». Спрашиваем сами смены —
+   * они и есть ответ, какие дни в этом периоде рабочие.
+   */
+  useEffect(() => {
+    if (!isOpen || !shift) return;
+
+    const from = shift.date_from || shift.date;
+    const to = shift.date_to || shift.date;
+    if (to <= from) return;
+
+    let cancelled = false;
+    void fetchShifts({ from, to })
+      .then((result) => {
+        if (cancelled) return;
+        const owner = shift.user_base_id;
+        const series = result.response.filter((row) =>
+          owner
+            ? row.user_base_id === owner
+            : !row.user_base_id &&
+              (row.positions_id ?? null) === (shift.positions_id ?? null)
+        );
+        const dows = [...new Set(series.map((row) => fromIsoDate(row.date).getDay()))];
+        // Заняты все семь дней — отмечать нечего: пустые чипы это и значат.
+        if (dows.length > 0 && dows.length < 7) setWeekdays(dows);
+      })
+      .catch(() => {
+        // Не смогли — оставляем чипы пустыми: посчитанные цифры в попапе
+        // всё равно покажут, сколько дней прибавится.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, shift]);
 
   const handleLoadedEmployees = useCallback((list: Employee[]) => {
     setLoadedMeta((current) => {
@@ -370,6 +415,11 @@ export default function ShiftModal({
     }
 
     const base: ShiftBase = {
+      // Период пишется в каждую строку одинаковым: серии как отдельной
+      // записи нет, и это единственный способ ответить потом на вопрос
+      // «частью чего была эта смена».
+      date_from: dateFrom,
+      date_to: rangeTo,
       // Время суток и длительность взаимоисключающи: смена либо стоит в
       // конкретных часах, либо задана объёмом. Записывать оба значения нельзя —
       // иначе непонятно, какое из них правда.
@@ -434,6 +484,7 @@ export default function ShiftModal({
       return;
     }
 
+    setScope(defaultScope(shift, base));
     setPending({ base, existing });
   };
 

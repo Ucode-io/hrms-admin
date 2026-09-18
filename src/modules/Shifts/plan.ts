@@ -57,11 +57,16 @@ export type PlanRequest = {
 /**
  * Поля, которые разливаются на соседей по серии.
  *
- * Даты и исполнителя здесь нет намеренно: перенос смены и смена человека
- * касаются одной строки. Разлив даты схлопнул бы всю серию в один день и
- * упёрся бы в `shift_employee_date_uniq`.
+ * `date` и исполнителя здесь нет намеренно: перенос смены и смена человека
+ * касаются одной строки. Разлив даты схлопнул бы всю серию в один день.
+ *
+ * А вот `date_from`/`date_to` разливаются: это не день строки, а границы
+ * периода, и они обязаны быть одинаковыми у всей серии — иначе одна и та же
+ * серия, открытая с разных дней, показала бы разные периоды.
  */
 const PROPAGATED = [
+  "date_from",
+  "date_to",
   "start_time",
   "end_time",
   "hours_per_day",
@@ -91,6 +96,10 @@ const textValue = (value: unknown): string | null => {
  * считал изменившимся то, чего никто не трогал.
  */
 export const shiftToBase = (shift: Shift): ShiftBase => ({
+  // Дата приезжает из ucode как `YYYY-MM-DD`, но у пустого периода это null,
+  // а не пустая строка — сравнивать надо с тем же, что кладёт форма.
+  date_from: textValue(shift.date_from),
+  date_to: textValue(shift.date_to),
   start_time: timeValue(shift.start_time),
   end_time: timeValue(shift.end_time),
   hours_per_day: numberValue(shift.hours_per_day),
@@ -107,6 +116,26 @@ export const diffBase = (before: ShiftBase, after: ShiftBase): Partial<ShiftInpu
     if (before[key] !== after[key]) patch[key] = after[key];
   });
   return patch as Partial<ShiftInput>;
+};
+
+/**
+ * Что предвыбрать в попапе области действия.
+ *
+ * Дефолт читается из того, что человек изменил. Комментарий — заметка про
+ * конкретный день («вышел за Иванова»), разливать её на месяц незачем. Часы,
+ * место, проект и границы периода — свойства всего графика, и правят их ради
+ * всего графика.
+ *
+ * Пустой дифф — это «растянули диапазон, ничего не меняя», то есть «размножить
+ * смену»: тут полный период и есть всё намерение.
+ */
+export const defaultScope = (original: Shift | null, base: ShiftBase): SaveScope => {
+  if (!original) return "all";
+
+  const changed = Object.keys(diffBase(shiftToBase(original), base));
+  const commentOnly = changed.length > 0 && changed.every((key) => key === "comment");
+
+  return commentOnly ? "single" : "all";
 };
 
 /**

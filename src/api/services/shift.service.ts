@@ -31,6 +31,17 @@ export interface Shift {
     photo?: string | null;
     [key: string]: unknown;
   } | null;
+  /**
+   * Период, которым смену завели: одна и та же пара во всех строках одного
+   * сохранения. Хранится денормализованно, потому что серии как сущности нет
+   * (см. CONTEXT.md → Shift) — а вопрос «частью какого периода была эта
+   * смена» задаёт каждый, кто открыл её на правку.
+   *
+   * Пусто у строк, заведённых до появления полей, и у автозаполнения
+   * по графику: там период — это сам день.
+   */
+  date_from: string | null;
+  date_to: string | null;
   /** `HH:MM`; пусто у смены, заданной длительностью. */
   start_time: string | null;
   end_time: string | null;
@@ -53,6 +64,8 @@ export interface Shift {
 /** Поля, которые пишет форма. `guid` появляется только при правке. */
 export type ShiftInput = {
   date: string;
+  date_from: string | null;
+  date_to: string | null;
   user_base_id: string | null;
   start_time: string | null;
   end_time: string | null;
