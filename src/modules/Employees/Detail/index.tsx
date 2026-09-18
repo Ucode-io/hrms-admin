@@ -100,9 +100,9 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 /**
- * Момент, а не день: `last_login_date` пишется при каждом запуске мини-аппа
- * внутри Telegram (telegram-link.js), и «сегодня в 09:12» отвечает на вопрос
- * «пользуется ли человек системой» точнее, чем голая дата.
+ * Момент, а не день: `last_login_date` пишется при каждом запуске веб-аппа
+ * (login-touch.js), и «сегодня в 09:12» отвечает на вопрос «пользуется ли
+ * человек системой» точнее, чем голая дата.
  */
 function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
@@ -948,13 +948,13 @@ function EmployeeDetail() {
                   <CheckMark checked={Boolean(emp.telegram_chat_id)} title="Телеграм бот" />
                 }
               />
-              <InfoRow
+              {/* <InfoRow
                 label="Писал в AI чат"
                 valueNode={<CheckMark checked={hasCopilotChat} title="Писал в AI чат" />}
-              />
-              {/* Фиксируется только запуск мини-аппа внутри Telegram: вход из
-                  браузера сюда не попадает, «—» значит «с момента выката не
-                  заходил», а не «доступа нет». */}
+              /> */}
+              {/* Пишется на каждый запуск веб-аппа (login_touch), в том числе
+                  из браузера и по восстановленной сессии. «—» значит «с
+                  момента выката не заходил», а не «доступа нет». */}
               <InfoRow
                 label="Последний вход"
                 value={formatDateTime(emp.last_login_date as string | null | undefined)}
