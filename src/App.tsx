@@ -279,7 +279,8 @@ function App() {
                 <Route path="news/:id/edit" element={<NewsFormPage />} />
                 <Route path="stage-templates" element={<StageTemplatesPage />} />
                 <Route path="rejection-reasons" element={<RejectionReasonsSettingsPage />} />
-                <Route path="chats" element={<ChatsPage />} />
+                {/* Страница переехала в сайдбар; путь жив ради старых ссылок. */}
+                <Route path="chats" element={<Navigate to="/chats" replace />} />
                 <Route path="candidate-sources" element={<CandidateSourcesSettingsPage />} />
               </Route>
 
@@ -296,7 +297,7 @@ function App() {
               <Route path="/trainings/:id" element={<TrainingDetailPage />} />
               <Route path="/trainings/:id/edit" element={<TrainingEditorPage />} />
 
-              <Route path="/chats" element={<Navigate to="/settings/chats" replace />} />
+              <Route path="/chats" element={<ChatsPage />} />
 
               <Route path="/employees" element={<EmployeesList />} />
               <Route path="/employees/new" element={<EmployeeForm />} />

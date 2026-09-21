@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Home,
   ListTodo,
+  MessageSquare,
   Network,
   Package,
   Settings,
@@ -58,6 +59,9 @@ const moduleSections: ModuleSection[] = [
     items: [
       { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
       { name: "Орг структура", path: "/organization/structure", icon: <Network size={18} /> },
+      // Чаты здесь, а не в настройках: это переписки людей, и доступом к ним
+      // владеет тот же модуль «Люди» (moduleCatalog: employees).
+      { name: "Чаты", path: "/chats", icon: <MessageSquare size={18} /> },
     ],
   },
   {
@@ -105,6 +109,7 @@ const ENABLED_PATHS = new Set([
   "/dashboard",
   "/employees",
   "/organization/structure",
+  "/chats",
   "/recruiting/vacancies",
   "/recruiting/candidates",
   "/documents",
