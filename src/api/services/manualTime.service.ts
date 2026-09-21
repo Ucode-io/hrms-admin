@@ -9,7 +9,7 @@ import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 import authStore from "../../store/auth.store";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import { TIMESHEET_QUERY_KEY } from "./timesheet.service";
 import type { ManualTimeStatus, TimesheetEntry } from "../../modules/Timesheet/types";
 
@@ -70,10 +70,7 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(request)
 );
 
 const findGatewayResult = (

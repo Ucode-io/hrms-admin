@@ -1,7 +1,7 @@
 import axios from "axios";
 import authStore from "../../store/auth.store";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 
 const API_BASE_URL = "https://api.admin.u-code.io";
 const HICKVISION_FUNCTION_PATH =
@@ -59,10 +59,7 @@ hickvisionRequest.interceptors.request.use((config) => {
 
 hickvisionRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(hickvisionRequest)
 );
 
 const isRecord = (value: unknown): value is JsonRecord =>

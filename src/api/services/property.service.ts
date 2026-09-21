@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import axios from "axios";
 import httpRequest, { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 import authStore from "../../store/auth.store";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import { COMPANY_ID } from "./settingsDirectory.service";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import {
@@ -201,10 +201,7 @@ invokeRequest.interceptors.request.use((config) => {
 
 invokeRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(invokeRequest)
 );
 
 export interface MovePropertyPayload {

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import axios from "axios";
 import authStore from "../../store/auth.store";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import { injectCompaniesIdIntoItemsRequest } from "../httpRequest";
 
 const BASE_URL = "https://api.admin.u-code.io";
@@ -20,6 +21,11 @@ instance.interceptors.request.use((config) => {
   }
   return injectCompaniesIdIntoItemsRequest(config);
 });
+
+instance.interceptors.response.use(
+  (response) => response,
+  retryWithFreshToken(instance)
+);
 
 export interface Agreement {
   guid: string;

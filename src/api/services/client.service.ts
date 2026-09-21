@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "react-query";
 import axios from "axios";
 import authStore from "../../store/auth.store";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import httpRequest, { injectCompaniesIdIntoItemsRequest } from "../httpRequest";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 
@@ -142,6 +143,11 @@ serverInstance.interceptors.request.use((config) => {
   }
   return injectCompaniesIdIntoItemsRequest(config);
 });
+
+serverInstance.interceptors.response.use(
+  (response) => response,
+  retryWithFreshToken(serverInstance)
+);
 
 export interface ServerClient {
   guid: string;

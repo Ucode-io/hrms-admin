@@ -1,6 +1,6 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import axios, { InternalAxiosRequestConfig } from "axios";
 import authStore from "../store/auth.store";
-import { handleUnauthorizedError } from "./unauthorizedHandler";
+import { retryWithFreshToken } from "./unauthorizedHandler";
 
 const API_BASE_URL = "https://api.admin.u-code.io/";
 /**
@@ -163,11 +163,7 @@ httpRequest.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 httpRequest.interceptors.response.use(
   (response) => response?.data?.data?.data ?? response?.data?.data ?? response?.data,
-  (error: AxiosError) => {
-    handleUnauthorizedError(error);
-
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(httpRequest)
 );
 
 export default httpRequest;

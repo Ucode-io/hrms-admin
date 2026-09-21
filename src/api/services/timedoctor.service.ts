@@ -3,7 +3,7 @@ import axios from "axios";
 import authStore from "../../store/auth.store";
 import companyStore from "../../store/company.store";
 import { getCompaniesId } from "../httpRequest";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 
 // --- Time Doctor (TD2) integration gateway -------------------------------
 // Все обработчики живут в одной cloud-функции u-code. Обработчик выбирается
@@ -44,10 +44,7 @@ timedoctorRequest.interceptors.request.use((config) => {
 
 timedoctorRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(timedoctorRequest)
 );
 
 /**

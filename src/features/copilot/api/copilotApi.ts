@@ -1,5 +1,6 @@
 import authStore from "../../../store/auth.store";
 import { DEFAULT_PROJECT_ID } from "../../../api/httpRequest";
+import { ensureFreshToken } from "../../../api/unauthorizedHandler";
 import type {
   CopilotAttachment,
   CopilotConversationDetail,
@@ -29,6 +30,22 @@ const headers = (): Record<string, string> => {
 };
 
 /**
+ * fetch с токеном. Мимо axios-интерцепторов, поэтому и заголовки, и реакция на
+ * протухший токен — руками: обновить и повторить один раз. Access живёт сутки,
+ * без этого чат отваливался до перезагрузки страницы.
+ */
+const authedFetch = async (url: string, init: RequestInit = {}): Promise<Response> => {
+  const send = () => fetch(url, { ...init, headers: { ...init.headers, ...headers() } });
+
+  const response = await send();
+  if (response.status !== 401) {
+    return response;
+  }
+
+  return (await ensureFreshToken()) ? send() : response;
+};
+
+/**
  * Opens the Copilot stream.
  *
  * Hand-rolled rather than EventSource because EventSource can only issue GET
@@ -40,9 +57,9 @@ const openStream = async (
   onEvent: (event: CopilotStreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> => {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await authedFetch(`${BASE_URL}${endpoint}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...headers() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal,
   });
@@ -118,17 +135,14 @@ export const streamConfirm = (
 export const fetchConversation = async (
   id: string,
 ): Promise<CopilotConversationDetail | null> => {
-  const response = await fetch(`${BASE_URL}/copilot/conversations/${id}`, {
-    headers: headers(),
-  });
+  const response = await authedFetch(`${BASE_URL}/copilot/conversations/${id}`);
   if (!response.ok) return null;
   return (await response.json()) as CopilotConversationDetail;
 };
 
 export const deleteConversation = async (id: string): Promise<boolean> => {
-  const response = await fetch(`${BASE_URL}/copilot/conversations/${id}`, {
+  const response = await authedFetch(`${BASE_URL}/copilot/conversations/${id}`, {
     method: "DELETE",
-    headers: headers(),
   });
   return response.ok;
 };
@@ -136,9 +150,7 @@ export const deleteConversation = async (id: string): Promise<boolean> => {
 export const fetchConversations = async (): Promise<
   CopilotConversationSummary[] | null
 > => {
-  const response = await fetch(`${BASE_URL}/copilot/conversations`, {
-    headers: headers(),
-  });
+  const response = await authedFetch(`${BASE_URL}/copilot/conversations`);
   // null, not []: an expired session and a service that is down would otherwise
   // render as "you have no history", which is the one answer nobody questions.
   if (!response.ok) return null;

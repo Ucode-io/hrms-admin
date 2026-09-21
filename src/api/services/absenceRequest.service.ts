@@ -4,7 +4,7 @@ import httpRequest, {
   injectCompaniesIdIntoInvokeFunctionRequest,
 } from "../httpRequest";
 import authStore from "../../store/auth.store";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import { COMPANY_ID } from "./settingsDirectory.service";
 import reportsService from "./reports.service";
@@ -127,10 +127,7 @@ reportsRequest.interceptors.request.use((config) => {
 
 reportsRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(reportsRequest)
 );
 
 const normalizeReportsListResult = (

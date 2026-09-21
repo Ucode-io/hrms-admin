@@ -29,4 +29,34 @@ authRequest.interceptors.response.use(
   (error: AxiosError) => Promise.reject(error)
 );
 
+export interface RefreshedToken {
+  access_token: string;
+  refresh_token: string;
+}
+
+interface RefreshResponse {
+  status: string;
+  description: string;
+  data: { token: RefreshedToken };
+}
+
+/**
+ * Обновление пары токенов. Access живёт сутки, сессия в auth-сервисе — 30 дней,
+ * без этого вызова панель разлогинивает раз в день.
+ *
+ * Роут открытый (до LoginMiddleware), тело — только refresh_token:
+ * role_id/client_type_id/project_id сервис берёт из самой сессии и перетирает
+ * только непустыми. В ответе приходят одни токены, user_data не меняется.
+ *
+ * Живёт здесь, а не в auth.service: тот тянет httpRequest, а httpRequest —
+ * unauthorizedHandler, которому нужен этот вызов. Цикл импортов ни к чему.
+ */
+export const refreshTokens = async (refreshToken: string): Promise<RefreshedToken> => {
+  const response = await authRequest.put<RefreshResponse>("/v2/refresh", {
+    refresh_token: refreshToken,
+  });
+
+  return response.data.data.token;
+};
+
 export default authRequest;

@@ -1,7 +1,7 @@
 import axios from "axios";
 import authStore from "../../store/auth.store";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 
 // Recruiting workflow mutations + nested reads live in the udevs-hrms-reports
 // cloud function (same gateway, routed by `method`). Plain CRUD stays on the
@@ -24,10 +24,7 @@ recruitingRequest.interceptors.request.use((config) => {
 
 recruitingRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(recruitingRequest)
 );
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>

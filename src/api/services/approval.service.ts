@@ -15,7 +15,7 @@ import httpRequest, {
   injectCompaniesIdIntoInvokeFunctionRequest,
 } from "../httpRequest";
 import authStore from "../../store/auth.store";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import type {
   ApprovalProcess,
   ApprovalProcessType,
@@ -52,10 +52,7 @@ reportsRequest.interceptors.request.use((config) => {
 
 reportsRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(reportsRequest)
 );
 
 // The invoke_function response nests the gateway result under a few envelopes;

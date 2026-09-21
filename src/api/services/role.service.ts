@@ -9,7 +9,7 @@ import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 import authStore from "../../store/auth.store";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import type { ModuleKey } from "../../modules/Settings/Roles/moduleCatalog";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
@@ -64,10 +64,7 @@ reportsRequest.interceptors.request.use((config) => {
 
 reportsRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(reportsRequest)
 );
 
 // The invoke_function response nests the gateway result under a few envelopes;

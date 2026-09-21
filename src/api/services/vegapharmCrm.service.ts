@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import authStore from "../../store/auth.store";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 
 const PATH = "/v2/invoke_function/udevs-hrms-reports?project-id=9a462573-ce11-4288-928a-a6ba754b6998";
@@ -9,6 +10,11 @@ request.interceptors.request.use((config) => {
   if (authStore.token) config.headers.Authorization = `Bearer ${authStore.token}`;
   return injectCompaniesIdIntoInvokeFunctionRequest(config);
 });
+
+request.interceptors.response.use(
+  (response) => response,
+  retryWithFreshToken(request)
+);
 
 async function invoke<T>(method: string, data: Record<string, unknown> = {}): Promise<T> {
   const response = await request.post(PATH, { data: { method, data } });

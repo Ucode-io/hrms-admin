@@ -2,7 +2,7 @@ import axios from "axios";
 import { useQuery } from "react-query";
 import authStore from "../../store/auth.store";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 
 const REPORTS_BASE_URL = "https://api.admin.u-code.io";
 const REPORTS_FUNCTION_PATH =
@@ -1786,10 +1786,7 @@ reportsRequest.interceptors.request.use((config) => {
 
 reportsRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(reportsRequest)
 );
 
 const isRecord = (value: unknown): value is JsonRecord =>

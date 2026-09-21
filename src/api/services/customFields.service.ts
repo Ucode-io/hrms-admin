@@ -13,7 +13,7 @@ import axios from "axios";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 import authStore from "../../store/auth.store";
-import { handleUnauthorizedError } from "../unauthorizedHandler";
+import { retryWithFreshToken } from "../unauthorizedHandler";
 import type {
   CustomField,
   CustomFieldEntity,
@@ -54,10 +54,7 @@ reportsRequest.interceptors.request.use((config) => {
 
 reportsRequest.interceptors.response.use(
   (response) => response,
-  (error) => {
-    handleUnauthorizedError(error);
-    return Promise.reject(error);
-  }
+  retryWithFreshToken(reportsRequest)
 );
 
 // Ответ invoke_function завёрнут в несколько конвертов — спускаемся до узла с
