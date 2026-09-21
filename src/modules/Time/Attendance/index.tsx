@@ -31,6 +31,7 @@ import {
   useEntityApprovalsQuery,
 } from "../../../api/services/approval.service";
 import { syncVegapharmCrmAttendance } from "../../../api/services/vegapharmCrm.service";
+import hickvisionService, { type LatenessResult } from "../../../api/services/hickvision.service";
 import LocationViewLink from "../../../components/map/LocationViewLink";
 import { useOffices } from "../../../components/map/useOffices";
 import TimeInput from "../../../components/form/TimeInput";
@@ -113,7 +114,6 @@ const FILTER_SELECT_MAX_WIDTH = 280;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const WORK_DAY_START_MINUTES = 9 * 60;
 
 const getEmployeeSelectStyles = (): StylesConfig<SelectOption, false> => ({
   control: (base, state) => ({
@@ -202,28 +202,6 @@ const normalizeDelayTimeForPayload = (value: string | null | undefined): string 
     return value.trim();
   }
   return "00:00";
-};
-
-const parseTimeToMinutes = (value: string): number | null => {
-  const normalized = normalizeTime(value);
-  if (!normalized) return null;
-  const [hours, minutes] = normalized.split(":").map(Number);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-  return hours * 60 + minutes;
-};
-
-const toDelayString = (minutes: number): string => {
-  const safe = Math.max(0, Math.floor(minutes));
-  const hh = String(Math.floor(safe / 60)).padStart(2, "0");
-  const mm = String(safe % 60).padStart(2, "0");
-  return `${hh}:${mm}`;
-};
-
-const computeDelayTimeFromCheckIn = (checkInTime: string): string => {
-  const checkInMinutes = parseTimeToMinutes(checkInTime);
-  if (checkInMinutes == null) return "00:00";
-  const diff = Math.max(0, checkInMinutes - WORK_DAY_START_MINUTES);
-  return toDelayString(diff);
 };
 
 const toTimestamp = (value: string | null | undefined): number => {
@@ -360,12 +338,19 @@ const normalizeAttendanceSourceType = (value: unknown): AttendanceSourceType => 
   return "unknown";
 };
 
-const resolveActionStatusFromTime = (
-  checkInTime: string
+/**
+ * Статус уже сохранённой строки, у которой он почему-то пуст.
+ *
+ * Читается из её же `delay_time` — он посчитан по графику тем, кто строку
+ * записал. Спрашивать сервер заново незачем: ответ уже лежит в строке, а
+ * согласование отметки не должно падать из-за недоступности расчёта.
+ */
+const resolveActionStatusFromDelay = (
+  checkInTime: string,
+  delayTime: string
 ): Exclude<AttendanceActionStatus, "unknown"> => {
-  const normalizedCheckIn = normalizeTime(checkInTime);
-  if (!normalizedCheckIn) return "absent";
-  return hasDelayValue(computeDelayTimeFromCheckIn(normalizedCheckIn)) ? "late" : "present";
+  if (!normalizeTime(checkInTime)) return "absent";
+  return hasDelayValue(normalizeDelayTime(delayTime)) ? "late" : "present";
 };
 
 const getActionStatusTag = (
@@ -501,7 +486,7 @@ const getEmployeeInfo = (
     "";
 
   // Филиал сотрудника — `user_base.locations_id`; координаты офиса лежат уже
-  // в самой локации, второй уровень связи ucode не разворачивает.
+  // в самом филиале, второй уровень связи ucode не разворачивает.
   const officeId = typeof relation?.locations_id === "string" ? relation.locations_id : "";
 
   return { employeeGuid, employeeName, departmentId, officeId };
@@ -649,7 +634,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [normalizedDateFilter, refetch]);
 
-  // Справочник локаций — один кешированный запрос на все экраны; из него
+  // Справочник филиалов — один кешированный запрос на все экраны; из него
   // берутся координаты офиса и его радиус для сверки с отметкой.
   const offices = useOffices();
 
@@ -811,23 +796,38 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
     const checkInTime = normalizeTime(draft.checkInTime);
     const checkOutTime = normalizeTime(draft.checkOutTime);
-    const delayTime = computeDelayTimeFromCheckIn(checkInTime);
-    const actionStatus = resolveActionStatusFromTime(checkInTime);
 
     if (!checkInTime && !checkOutTime) {
       setFormError("Укажите хотя бы одно время: приход или уход.");
       return;
     }
 
+    const date = toIsoDate(draft.date);
+    const companiesId = companyStore.company?.guid || COMPANY_ID;
+
+    let lateness: LatenessResult;
+    try {
+      lateness = await hickvisionService.computeLateness({
+        user_base_id: employeeGuid,
+        companies_id: companiesId,
+        date,
+        check_in_time: checkInTime,
+      });
+    } catch (latenessError) {
+      console.error("Attendance lateness error:", latenessError);
+      setFormError("Не удалось получить график сотрудника — опоздание не посчитано.");
+      return;
+    }
+
     const payload = {
       user_base_id: employeeGuid,
-      companies_id: companyStore.company?.guid || COMPANY_ID,
-      date: toIsoDate(draft.date),
+      companies_id: companiesId,
+      date,
       ...(checkInTime ? { check_in_time: checkInTime } : {}),
       ...(checkOutTime ? { check_out_time: checkOutTime } : {}),
-      delay_time: normalizeDelayTimeForPayload(delayTime),
+      delay_time: normalizeDelayTimeForPayload(lateness.delay_time),
       status: ["accepted"],
-      action_status: [actionStatus],
+      action_status: [lateness.action_status],
       source_type: [editingRecord?.sourceType === "integration" ? "integration" : "manual"],
     };
 
@@ -875,7 +875,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     status: [status],
     action_status: [
       record.actionStatus === "unknown"
-        ? resolveActionStatusFromTime(record.checkInTime)
+        ? resolveActionStatusFromDelay(record.checkInTime, record.delayTime)
         : record.actionStatus,
     ],
     source_type: [record.sourceType === "integration" ? "integration" : "manual"],
@@ -1212,7 +1212,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Статус действия</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Статус заявки</th>
                           <th className="py-2 text-[12px] font-semibold text-slate-500">Источник</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Локация</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">Филиал</th>
                           <th className="py-2 text-right text-[12px] font-semibold text-slate-500">Действия</th>
                         </tr>
                       </thead>

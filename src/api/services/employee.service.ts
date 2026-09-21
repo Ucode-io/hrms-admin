@@ -75,13 +75,6 @@ export interface Employee {
     [key: string]: any;
   } | null;
 
-  divisions_id: string | null;
-  divisions_id_data: {
-    guid: string;
-    title: string;
-    [key: string]: any;
-  } | null;
-
   locations_id: string | null;
   locations_id_data: {
     guid: string;

@@ -172,11 +172,11 @@ export const settingsSections: SettingsSection[] = [
           subtitle: "Общие настройки организации",
         },
         {
-          id: "locations",
-          title: "Локации",
+          id: "branches",
+          title: "Филиалы",
           icon: MapPin,
-          path: "/settings/locations",
-          subtitle: "Офисы и филиалы",
+          path: "/settings/branches",
+          subtitle: "Места, где отмечаются сотрудники",
         },
         {
           id: "departments",
@@ -195,11 +195,11 @@ export const settingsSections: SettingsSection[] = [
           subtitle: "Справочник ролей",
         },
         {
-          id: "divisions",
-          title: "Подразделение",
-          icon: Briefcase,
-          path: "/settings/divisions",
-          subtitle: "Внутренняя иерархия",
+          id: "regions",
+          title: "Регионы",
+          icon: Globe,
+          path: "/settings/regions",
+          subtitle: "Часы, праздники и язык места",
         },
         {
           id: "employment-types",

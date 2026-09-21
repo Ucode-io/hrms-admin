@@ -8,7 +8,7 @@ interface TaskCardProps {
   assignees: TaskEmployee[];
   /** Справочники компании: из них берутся подписи, цвета и иконки. */
   directories: TaskDirectories;
-  /** Название локации — сама она живёт в справочнике HRMS. */
+  /** Название филиала — сам он живёт в справочнике HRMS. */
   locationTitle?: string;
   /** How many tasks point at this one as their parent. */
   subtaskCount?: number;

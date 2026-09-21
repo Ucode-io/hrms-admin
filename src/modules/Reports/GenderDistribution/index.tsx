@@ -289,8 +289,8 @@ function GenderDistributionPage() {
                     "Уровень",
                     "Должность",
                     "Департамент",
-                    "Подразделение",
-                    "Локация",
+                    "Регион",
+                    "Филиал",
                   ].map((column) => (
                     <th
                       key={column}
@@ -348,7 +348,7 @@ function GenderDistributionPage() {
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.level}</td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.position}</td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.department}</td>
-                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.division}</td>
+                      <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.region}</td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.location}</td>
                     </tr>
                   ))

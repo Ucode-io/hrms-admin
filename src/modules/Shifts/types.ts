@@ -14,7 +14,7 @@ export type GroupBy = "employee" | "position" | "location" | "project";
 export type ItemBy = "employee" | "position";
 
 /**
- * Сотрудник как строка грида. Берётся из `user_base`, но должность и локация
+ * Сотрудник как строка грида. Берётся из `user_base`, но должность и филиал
  * здесь — только для подписи под именем: группировка и фильтры читают поля
  * самой смены, а не карточки (см. CONTEXT.md → Shift).
  */

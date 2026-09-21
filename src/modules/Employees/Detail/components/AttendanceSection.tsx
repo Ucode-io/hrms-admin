@@ -27,6 +27,7 @@ import {
   useEntityApprovalsQuery,
 } from "../../../../api/services/approval.service";
 import TimeInput from "../../../../components/form/TimeInput";
+import hickvisionService, { type LatenessResult } from "../../../../api/services/hickvision.service";
 
 type AttendanceSectionProps = {
   employeeGuid: string;
@@ -77,7 +78,6 @@ const ATTENDANCE_SLUG = "attendance";
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const WORK_DAY_START_MINUTES = 9 * 60;
 
 const normalizeTimeValue = (value: string | null | undefined): string => {
   if (typeof value === "string") {
@@ -110,28 +110,6 @@ const normalizeDelayTimeForPayload = (value: string | null | undefined): string 
   }
 
   return "00:00";
-};
-
-const parseTimeToMinutes = (value: string): number | null => {
-  const normalized = normalizeTimeValue(value);
-  if (!normalized) return null;
-  const [hours, minutes] = normalized.split(":").map(Number);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-  return hours * 60 + minutes;
-};
-
-const toDelayString = (minutes: number): string => {
-  const safe = Math.max(0, Math.floor(minutes));
-  const hh = String(Math.floor(safe / 60)).padStart(2, "0");
-  const mm = String(safe % 60).padStart(2, "0");
-  return `${hh}:${mm}`;
-};
-
-const computeDelayTimeFromCheckIn = (checkInTime: string): string => {
-  const checkInMinutes = parseTimeToMinutes(checkInTime);
-  if (checkInMinutes == null) return "00:00";
-  const diff = Math.max(0, checkInMinutes - WORK_DAY_START_MINUTES);
-  return toDelayString(diff);
 };
 
 const formatDateLabel = (value: string): string => {
@@ -176,12 +154,19 @@ const normalizeAttendanceActionStatus = (value: unknown): AttendanceActionStatus
   return "unknown";
 };
 
-const resolveActionStatusFromTime = (
-  checkInTime: string
+/**
+ * Статус уже сохранённой строки, у которой он почему-то пуст.
+ *
+ * Читается из её же `delay_time` — он посчитан по графику тем, кто строку
+ * записал. Спрашивать сервер заново незачем: ответ уже лежит в строке, а
+ * согласование отметки не должно падать из-за недоступности расчёта.
+ */
+const resolveActionStatusFromDelay = (
+  checkInTime: string,
+  delayTime: string
 ): Exclude<AttendanceActionStatus, "unknown"> => {
-  const normalizedCheckIn = normalizeTimeValue(checkInTime);
-  if (!normalizedCheckIn) return "absent";
-  return hasDelayValue(computeDelayTimeFromCheckIn(normalizedCheckIn)) ? "late" : "present";
+  if (!normalizeTimeValue(checkInTime)) return "absent";
+  return hasDelayValue(normalizeDelayTime(delayTime)) ? "late" : "present";
 };
 
 const getActionStatusTag = (
@@ -424,23 +409,38 @@ export default function AttendanceSection({
 
     const checkInTime = normalizeTimeValue(draft.checkInTime);
     const checkOutTime = normalizeTimeValue(draft.checkOutTime);
-    const delayTime = computeDelayTimeFromCheckIn(checkInTime);
-    const actionStatus = resolveActionStatusFromTime(checkInTime);
 
     if (!checkInTime && !checkOutTime) {
       setError("Укажите хотя бы одно время: приход или уход.");
       return;
     }
 
+    const date = toApiDate(draft.date);
+    const companiesId = companyStore.company?.guid || COMPANY_ID;
+
+    let lateness: LatenessResult;
+    try {
+      lateness = await hickvisionService.computeLateness({
+        user_base_id: employeeGuid,
+        companies_id: companiesId,
+        date,
+        check_in_time: checkInTime,
+      });
+    } catch (latenessError) {
+      console.error("Attendance lateness error:", latenessError);
+      setError("Не удалось получить график сотрудника — опоздание не посчитано.");
+      return;
+    }
+
     const payload = {
       user_base_id: employeeGuid,
-      companies_id: companyStore.company?.guid || COMPANY_ID,
-      date: toApiDate(draft.date),
+      companies_id: companiesId,
+      date,
       ...(checkInTime ? { check_in_time: checkInTime } : {}),
       ...(checkOutTime ? { check_out_time: checkOutTime } : {}),
-      delay_time: normalizeDelayTimeForPayload(delayTime),
+      delay_time: normalizeDelayTimeForPayload(lateness.delay_time),
       status: ["accepted"],
-      action_status: [actionStatus],
+      action_status: [lateness.action_status],
     };
 
     try {
@@ -485,7 +485,7 @@ export default function AttendanceSection({
     status: [status],
     action_status: [
       record.actionStatus === "unknown"
-        ? resolveActionStatusFromTime(record.checkInTime)
+        ? resolveActionStatusFromDelay(record.checkInTime, record.delayTime)
         : record.actionStatus,
     ],
   });

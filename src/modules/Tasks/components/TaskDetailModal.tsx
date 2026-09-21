@@ -802,13 +802,13 @@ export default function TaskDetailModal({
                   />
                 </SidebarField>
 
-                <SidebarField label="Локация">
+                <SidebarField label="Филиал">
                   <LocationField
                     value={task.locationId}
                     locations={locations}
                     onChange={(locationId) => patch({ locationId })}
                     variant="row"
-                    placeholder="Указать локацию"
+                    placeholder="Указать филиал"
                   />
                 </SidebarField>
 

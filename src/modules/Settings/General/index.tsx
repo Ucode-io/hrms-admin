@@ -27,6 +27,10 @@ import {
 import { useUploadFile } from "../../../api/services/file-upload.service";
 import companyStore from "../../../store/company.store";
 import TelegramGroupSection from "./TelegramGroupSection";
+// Часовой пояс компании — запасной циферблат для сотрудника без филиала
+// (ADR-0006, known-gaps §3). Список общий с регионами: два списка зон,
+// которые обязаны совпадать, однажды не совпадут.
+import { TIMEZONE_OPTIONS } from "../../../utils/timezones";
 
 type CompanyFormState = {
   guid: string;
@@ -48,12 +52,6 @@ type Option = {
   value: string;
   label: string;
 };
-
-const TIMEZONE_OPTIONS: Option[] = [
-  { value: "GMT+05:00", label: "(GMT+05:00) Tashkent" },
-  { value: "GMT+04:00", label: "(GMT+04:00) Dubai" },
-  { value: "GMT+03:00", label: "(GMT+03:00) Moscow" },
-];
 
 const NAME_FORMAT_OPTIONS: Option[] = [
   { value: "lf", label: "Фамилия Имя" },

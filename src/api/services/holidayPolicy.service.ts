@@ -97,17 +97,6 @@ const holidayPolicyService = {
     }
   },
 
-  getPolicyLocationCount: async (policyGuid: string): Promise<number> => {
-    const res = await httpRequest.get("/v2/items/locations", {
-      params: {
-        limit: 1,
-        offset: 0,
-        holiday_policies_id: policyGuid,
-      },
-    });
-    return Number((res as Record<string, unknown>)?.count || 0);
-  },
-
   /** Без `holiday_policies_id` отдаёт праздники всех политик компании. */
   getPolicyDays: async (params: {
     holiday_policies_id?: string;
@@ -180,30 +169,6 @@ export const useHolidayPolicyQuery = ({
     queryKey: ["HOLIDAY_POLICY", guid],
     queryFn: () => holidayPolicyService.getPolicyByGuid(guid),
     enabled: Boolean(guid),
-    ...querySettings,
-  });
-};
-
-export const useHolidayPolicyLocationCountsQuery = ({
-  policyIds,
-  querySettings = {},
-}: {
-  policyIds: string[];
-  querySettings?: Record<string, unknown>;
-}) => {
-  return useQuery({
-    queryKey: ["HOLIDAY_POLICY_LOCATION_COUNTS", policyIds],
-    queryFn: async () => {
-      const pairs = await Promise.all(
-        policyIds.map(async (policyId) => {
-          const count = await holidayPolicyService.getPolicyLocationCount(policyId);
-          return [policyId, count] as const;
-        })
-      );
-
-      return Object.fromEntries(pairs) as Record<string, number>;
-    },
-    enabled: policyIds.length > 0,
     ...querySettings,
   });
 };

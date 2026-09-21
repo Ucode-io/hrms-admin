@@ -568,7 +568,7 @@ function TenurePage() {
           />
 
           <ChartBlock
-            title="Средний срок работы по локации"
+            title="Средний срок работы по филиалу"
             subtitle="В годах"
             options={horizontalBarOptions(
               averageTenureByLocations.map((item) => item.label),
@@ -600,7 +600,7 @@ function TenurePage() {
               ) : null}
               {selectedLocationId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Локация: {selectedLocationLabel || "Не указано"}
+                  Филиал: {selectedLocationLabel || "Не указано"}
                 </span>
               ) : null}
               <button

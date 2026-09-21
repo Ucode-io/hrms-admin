@@ -94,7 +94,6 @@ type WorkRecord = {
   experienceLevelId: string;
   employmentTypeTitle: string;
   departmentTitle: string;
-  divisionTitle: string;
   locationTitle: string;
   positionTitle: string;
   experienceLevelTitle: string;
@@ -142,7 +141,6 @@ const INPUT_CLASSNAME =
 const createEmptyFormState = (): WorkFormState => ({
   employmentTypeId: "",
   departmentId: "",
-  divisionId: "",
   locationId: "",
   positionsId: "",
   experienceLevelId: "",
@@ -318,8 +316,6 @@ const normalizeRecord = (row: EmployeeWork): WorkRecord => {
     departmentTitle:
       (typeof row.departments_id_data?.title === "string" && row.departments_id_data.title) ||
       "—",
-    divisionTitle:
-      (typeof row.divisions_id_data?.title === "string" && row.divisions_id_data.title) || "—",
     locationTitle:
       (typeof row.locations_id_data?.title === "string" && row.locations_id_data.title) || "—",
     positionTitle:
@@ -346,7 +342,6 @@ const normalizeRecord = (row: EmployeeWork): WorkRecord => {
 const buildFormState = (record: EmployeeWork | null, mode: WorkModalMode): WorkFormState => ({
   employmentTypeId: readString(record?.employment_types_id),
   departmentId: readString(record?.departments_id),
-  divisionId: readString(record?.divisions_id),
   locationId: readString(record?.locations_id),
   positionsId: readString(record?.positions_id),
   experienceLevelId: readString(record?.experience_levels_id),
@@ -435,7 +430,7 @@ function WorkTimelineCard({
   onToggleActions: () => void;
   actionButtonRef: (element: HTMLButtonElement | null) => void;
 }) {
-  const primaryMeta = [record.departmentTitle, record.divisionTitle, record.locationTitle].filter(
+  const primaryMeta = [record.departmentTitle, record.locationTitle].filter(
     (item) => item && item !== "—"
   );
   const secondaryMeta = [
@@ -1014,15 +1009,6 @@ export default function WorkSection({
     );
   }, [form.experienceLevelId, modalSourceRecord]);
 
-  const divisionFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    return buildFallbackOption(
-      form.divisionId,
-      typeof modalSourceRecord?.divisions_id_data?.title === "string"
-        ? modalSourceRecord.divisions_id_data.title
-        : ""
-    );
-  }, [form.divisionId, modalSourceRecord]);
-
   const locationFallbackOption = useMemo<RemoteSelectOption | null>(() => {
     return buildFallbackOption(
       form.locationId,
@@ -1071,7 +1057,6 @@ export default function WorkSection({
     fallbackOptions: {
       employmentType: employmentTypeFallbackOption,
       department: departmentFallbackOption,
-      division: divisionFallbackOption,
       location: locationFallbackOption,
       position: positionFallbackOption,
       experienceLevel: experienceLevelFallbackOption,
@@ -1228,7 +1213,6 @@ export default function WorkSection({
       guid: employeeGuid,
       employment_types_id: toNullable(current?.employment_types_id),
       departments_id: toNullable(current?.departments_id),
-      divisions_id: toNullable(current?.divisions_id),
       locations_id: toNullable(current?.locations_id),
       positions_id: toNullable(current?.positions_id),
       experience_levels_id: toNullable(current?.experience_levels_id),
@@ -1315,7 +1299,6 @@ export default function WorkSection({
     const payload: Record<string, unknown> = {
       employment_types_id: form.employmentTypeId || null,
       departments_id: form.departmentId || null,
-      divisions_id: form.divisionId || null,
       locations_id: form.locationId || null,
       positions_id: form.positionsId || null,
       experience_levels_id: form.experienceLevelId || null,

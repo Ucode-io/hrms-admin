@@ -438,7 +438,6 @@ function EmployeeDetail() {
     normalizeRelationId(emp.departments_id_data?.guid) ||
     null;
   const locationTitle = emp.locations_id_data?.title || "";
-  const divisionTitle = emp.divisions_id_data?.title || "";
   const employmentTypeTitle = emp.employment_types_id_data?.title || "";
   const experienceLevelTitle = emp.experience_levels_id_data?.title || "";
   const currentWork =
@@ -464,10 +463,6 @@ function EmployeeDetail() {
     (typeof currentWork?.departments_id_data?.title === "string" &&
       currentWork.departments_id_data.title) ||
     departmentTitle;
-  const workDivisionTitle =
-    (typeof currentWork?.divisions_id_data?.title === "string" &&
-      currentWork.divisions_id_data.title) ||
-    divisionTitle;
   const workLocationTitle =
     (typeof currentWork?.locations_id_data?.title === "string" &&
       currentWork.locations_id_data.title) ||
@@ -1005,8 +1000,7 @@ function EmployeeDetail() {
                 <SummaryItem label="Должность" value={workPositionTitle} />
                 <SummaryItem label="Уровень" value={workExperienceLevelTitle} />
                 <SummaryItem label="Департамент" value={workDepartmentTitle} />
-                <SummaryItem label="Подразделение" value={workDivisionTitle} />
-                <SummaryItem label="Локация" value={workLocationTitle} />
+                <SummaryItem label="Филиал" value={workLocationTitle} />
                 <SummaryItem label="Роль доступа" value={accessRoleTitle} />
                 <SummaryItem label="Срок работы" value={calcTenure(workDateFrom)} />
               </div>

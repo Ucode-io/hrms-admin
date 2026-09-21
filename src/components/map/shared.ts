@@ -5,7 +5,7 @@ export type Coords = { lat: number; lon: number };
 /**
  * Значение поля MAP в ucode — строка «широта,долгота» в VARCHAR. Ни объекта,
  * ни GeoJSON там не бывает, поэтому разбор один на все карты: и на выбор точки
- * локации, и на просмотр отметки прихода (`attendance_records.map`).
+ * филиала, и на просмотр отметки прихода (`attendance_records.map`).
  */
 export function parseCoords(value: unknown): Coords | null {
   if (typeof value !== "string") return null;
@@ -58,7 +58,7 @@ export const PIN_ICON = L.divIcon({
  *
  * Точность GPS на телефоне — десятки метров, поэтому порог меньше сотни давал
  * бы предупреждение на людей, стоящих в дверях. 200 м закрывает здание с
- * парковкой; склад или территорию шире — полем `radius` у самой локации.
+ * парковкой; склад или территорию шире — полем `radius` у самого филиала.
  */
 export const DEFAULT_OFFICE_RADIUS_M = 200;
 
@@ -81,7 +81,7 @@ export function distanceMeters(from: Coords, to: Coords): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-/** Радиус из поля локации; пустое, ноль и мусор — падаем на дефолт. */
+/** Радиус из поля филиала; пустое, ноль и мусор — падаем на дефолт. */
 export function officeRadius(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_OFFICE_RADIUS_M;

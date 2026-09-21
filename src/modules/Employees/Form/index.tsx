@@ -23,7 +23,6 @@ import {
 import { Modal } from "../../../components/ui/modal";
 import { useUploadFile } from "../../../api/services/file-upload.service";
 import { useEmploymentTypesQuery } from "../../../api/services/employmentType.service";
-import { useDivisionsQuery } from "../../../api/services/division.service";
 import { useExperienceLevelsQuery } from "../../../api/services/experienceLevel.service";
 import { useLocationsQuery } from "../../../api/services/location.service";
 import { useDepartmentsSettingsQuery } from "../../../api/services/department.service";
@@ -141,7 +140,6 @@ function EmployeeForm() {
   const { data: departmentsData } = useDepartmentsSettingsQuery({ params: { limit: 200 } });
   const { data: positionsData } = usePositionsQuery({ params: { all: true } });
   const { data: employmentTypesData } = useEmploymentTypesQuery({ params: { limit: 200 } });
-  const { data: divisionsData } = useDivisionsQuery({ params: { limit: 200 } });
   const { data: experienceLevelsData } = useExperienceLevelsQuery({ params: { limit: 200 } });
   const { data: locationsData } = useLocationsQuery({ params: { limit: 200 } });
   const { data: employeeWorkReasonsData } = useSettingsDirectoryQuery({
@@ -151,7 +149,6 @@ function EmployeeForm() {
   const departments = departmentsData?.response ?? [];
   const positions = positionsData?.response ?? [];
   const employmentTypes = employmentTypesData?.response ?? [];
-  const divisions = divisionsData?.response ?? [];
   const experienceLevels = experienceLevelsData?.response ?? [];
   const locations = locationsData?.response ?? [];
   const employeeWorkReasons = employeeWorkReasonsData?.response ?? [];
@@ -163,7 +160,6 @@ function EmployeeForm() {
   const departmentOptions: SelectOption[] = departments.map((d) => ({ value: d.guid, label: d.title }));
   const positionOptions: SelectOption[] = positions.map((p) => ({ value: p.guid, label: String(p.title) }));
   const employmentTypeOptions: SelectOption[] = employmentTypes.map((e) => ({ value: e.guid, label: e.title }));
-  const divisionOptions: SelectOption[] = divisions.map((d) => ({ value: d.guid, label: d.title }));
   const selectedPositionGroupId = useMemo(() => {
     if (!selectedPositionId) return null;
     const position = positions.find((item) => item.guid === selectedPositionId);
@@ -285,7 +281,6 @@ function EmployeeForm() {
         personal_email: employee.personal_email || "",
         employment_types_id: employee.employment_types_id || "",
         experience_levels_id: employee.experience_levels_id || "",
-        divisions_id: employee.divisions_id || "",
         locations_id: employee.locations_id || "",
         employee_work_reason_id: "",
         salary: "",
@@ -426,7 +421,6 @@ function EmployeeForm() {
       personal_email: data.personal_email || null,
       employment_types_id: data.employment_types_id || null,
       experience_levels_id: data.experience_levels_id || null,
-      divisions_id: data.divisions_id || null,
       locations_id: data.locations_id || null,
       // Registered ucode field — persists directly through the items API.
       hrms_roles_id: data.hrms_roles_id || null,
@@ -454,7 +448,6 @@ function EmployeeForm() {
             user_base_id: createdEmployeeGuid,
             employment_types_id: data.employment_types_id || null,
             departments_id: data.departments_id || null,
-            divisions_id: data.divisions_id || null,
             locations_id: data.locations_id || null,
             positions_id: data.positions_id || null,
             experience_levels_id: data.experience_levels_id || null,
@@ -572,7 +565,6 @@ function EmployeeForm() {
       employeeWorkReasons: employeeWorkReasonOptions,
       departments: departmentOptions,
       experienceLevels: experienceLevelOptions,
-      divisions: divisionOptions,
       locations: locationOptions,
     },
     experienceLevelPlaceholder: selectedPositionGroupId

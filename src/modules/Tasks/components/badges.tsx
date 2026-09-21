@@ -66,7 +66,7 @@ export const TypeBadge = ({ type }: { type: TaskDirectoryItem }) => (
   </span>
 );
 
-/** Плашка локации — ничего, если место не указано. */
+/** Плашка филиала — ничего, если место не указано. */
 export const LocationBadge = ({ location }: { location: string }) => {
   if (!location) return null;
   return (

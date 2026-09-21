@@ -3,28 +3,28 @@ import httpRequest from "../httpRequest";
 
 export const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
 
-export interface Country {
-  guid: string;
-  slug: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-}
-
+/**
+ * Филиал. Таблица называется `locations` и будет называться так дальше —
+ * слаг в ucode неизменяем (`migrations/2026_09_21_regions.sql`), — но в
+ * интерфейсе это Branch: физическое место, где сотрудник отмечается.
+ *
+ * Собственного у него только точка на карте и радиус. Часы, календарь
+ * праздников и язык дал регион (ADR-0006), поэтому `timezone`,
+ * `holiday_policies_id` и `countries_id` здесь больше не читаются и не
+ * пишутся — колонки остались в схеме мёртвыми.
+ */
 export interface Location {
   guid: string;
   title: string;
   address: string;
   companies_id: string;
-  countries_id: string | null;
-  countries_id_data?: Country | null;
-  holiday_policies_id?: string | null;
-  holiday_policies_id_data?: {
+  regions_id: string | null;
+  regions_id_data?: {
     guid?: string;
     title?: string;
+    timezone?: string | null;
     [key: string]: unknown;
   } | null;
-  timezone?: string[];
   /** Поле типа MAP в ucode — строка «широта,долгота» либо "" (см. parseCoords). */
   coordinates?: string;
   /** Радиус офиса в метрах; пусто — берётся DEFAULT_OFFICE_RADIUS_M. */
@@ -37,9 +37,7 @@ export interface Location {
 export interface LocationUpsertPayload {
   title: string;
   address: string;
-  countries_id: string | null;
-  holiday_policies_id?: string | null;
-  timezone: string[];
+  regions_id: string;
   coordinates?: string;
   radius?: number | null;
   companies_id?: string;
@@ -56,11 +54,6 @@ export interface LocationListParams {
   search?: string;
 }
 
-export interface CountryListResponse {
-  count: number;
-  response: Country[];
-}
-
 const locationService = {
   getList: async (
     params?: LocationListParams
@@ -71,19 +64,6 @@ const locationService = {
       count: Number(res?.count || 0),
       response: Array.isArray(res?.response)
         ? (res.response as Location[])
-        : [],
-    };
-  },
-
-  getCountries: async (): Promise<CountryListResponse> => {
-    const res = await httpRequest.get("/v2/items/countries", {
-      params: { limit: 1000 },
-    });
-
-    return {
-      count: Number(res?.count || 0),
-      response: Array.isArray(res?.response)
-        ? (res.response as Country[])
         : [],
     };
   },
@@ -122,18 +102,6 @@ export const useLocationsQuery = ({
   return useQuery({
     queryKey: ["LOCATIONS", params],
     queryFn: () => locationService.getList(params),
-    ...querySettings,
-  });
-};
-
-export const useCountriesQuery = ({
-  querySettings = {},
-}: {
-  querySettings?: Record<string, unknown>;
-} = {}) => {
-  return useQuery({
-    queryKey: ["COUNTRIES"],
-    queryFn: () => locationService.getCountries(),
     ...querySettings,
   });
 };

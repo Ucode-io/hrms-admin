@@ -29,7 +29,6 @@ export type StaticFieldContext = {
     employeeWorkReasons: SelectOption[];
     departments: SelectOption[];
     experienceLevels: SelectOption[];
-    divisions: SelectOption[];
     locations: SelectOption[];
   };
   /** Подсказка в поле «Уровень» зависит от выбранной должности. */
@@ -276,17 +275,10 @@ export const STATIC_FIELDS: StaticFieldMeta[] = [
       ),
   },
   {
-    key: "divisions_id",
-    label: "Подразделение",
-    defaultWidth: "full",
-    render: (ctx) =>
-      select(ctx, "divisions_id", ctx.options.divisions, "Выберите подразделение"),
-  },
-  {
     key: "locations_id",
-    label: "Локация",
+    label: "Филиал",
     defaultWidth: "full",
-    render: (ctx) => select(ctx, "locations_id", ctx.options.locations, "Выберите локацию"),
+    render: (ctx) => select(ctx, "locations_id", ctx.options.locations, "Выберите филиал"),
   },
 ];
 

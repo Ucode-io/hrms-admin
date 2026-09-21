@@ -37,8 +37,6 @@ const employeeFull = (emp: Rec) => ({
   employment_types_id_data: null,
   experience_levels_id: null,
   experience_levels_id_data: null,
-  divisions_id: null,
-  divisions_id_data: null,
   locations_id: null,
   locations_id_data: null,
   role_id: null,

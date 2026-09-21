@@ -30,9 +30,9 @@ import {
   useCreateHolidayPolicy,
   useDeleteHolidayPolicy,
   useHolidayPoliciesQuery,
-  useHolidayPolicyLocationCountsQuery,
   useUpdateHolidayPolicy,
 } from "../../../api/services/holidayPolicy.service";
+import { useRegionsQuery } from "../../../api/services/region.service";
 
 const PAGE_SIZE = 20;
 
@@ -80,14 +80,19 @@ export default function HolidayPoliciesSettingsPage() {
   const totalCount = data?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const policyIds = useMemo(
-    () => items.map((item) => item.guid),
-    [items]
-  );
+  // Политику держит регион, а не филиал (ADR-0006), поэтому и считаем регионы.
+  // Одним запросом на весь справочник: регионов десятки, а не тысячи, и список
+  // уже лежит в кеше после экранов «Регионы» и «Филиалы».
+  const { data: regionsData } = useRegionsQuery({ params: { limit: 1000, offset: 0 } });
 
-  const { data: locationCounts = {} } = useHolidayPolicyLocationCountsQuery({
-    policyIds,
-  });
+  const regionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const region of regionsData?.response || []) {
+      const policyId = region.holiday_policies_id;
+      if (policyId) counts[policyId] = (counts[policyId] || 0) + 1;
+    }
+    return counts;
+  }, [regionsData?.response]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -220,7 +225,7 @@ export default function HolidayPoliciesSettingsPage() {
                     Название
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Локации
+                    Регионы
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
                     Действия
@@ -261,7 +266,7 @@ export default function HolidayPoliciesSettingsPage() {
                         </Link>
                       </TableCell>
                       <TableCell className="px-4 py-3 text-right text-sm font-medium text-gray-700">
-                        {locationCounts[item.guid] ?? 0}
+                        {regionCounts[item.guid] ?? 0}
                       </TableCell>
                       <TableCell className="px-4 py-3">
                         <div className="relative flex items-center justify-end">

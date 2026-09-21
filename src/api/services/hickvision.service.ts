@@ -106,7 +106,48 @@ export type TelegramGroupPollResult = {
   results?: Array<{ chat_id?: string; linked?: boolean; reason?: string; company?: string }>;
 };
 
+/** Опоздание и статус одной записи, посчитанные по графику сотрудника. */
+export type LatenessResult = {
+  delay_time: string;
+  action_status: "present" | "late" | "absent";
+  /** null — графика на этот день нет, порогом стали дефолтные 09:00. */
+  work_start_minutes: number | null;
+};
+
 const hickvisionService = {
+  /**
+   * Опоздание считает сервер — тот же расчёт, что применяется к проходу через
+   * турникет (`compute_lateness`, он же `attendance-sync-common`).
+   *
+   * Локальной копии здесь нет намеренно: любая такая копия либо повторяет
+   * запрос за графиком, либо вычитает жёсткие 09:00, как делали три копии до
+   * неё. Порог — начало рабочего дня ЭТОГО сотрудника (CONTEXT.md, Lateness).
+   */
+  computeLateness: async (requestData: {
+    user_base_id: string;
+    date: string;
+    check_in_time: string;
+    companies_id?: string;
+  }): Promise<LatenessResult> => {
+    // Нет прихода — считать нечего, и сервер на этот случай отвечает
+    // константой. Гейт стоит здесь, а не у вызывающих: иначе лежащий шлюз
+    // запрещает сохранить правку с одним уходом, где расчёт не участвует.
+    if (!requestData.check_in_time) {
+      return { delay_time: "00:00", action_status: "absent", work_start_minutes: null };
+    }
+
+    const response = await hickvisionRequest.post(HICKVISION_FUNCTION_PATH, {
+      data: { method: "compute_lateness", data: requestData },
+    });
+
+    const payload = extractGatewayPayload(response.data);
+    if (!isRecord(payload) || !isRecord(payload.result)) {
+      throw new Error("Unexpected response format for compute_lateness");
+    }
+
+    return payload.result as LatenessResult;
+  },
+
   /**
    * Опрос очереди по требованию.
    *

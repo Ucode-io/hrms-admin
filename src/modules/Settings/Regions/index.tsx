@@ -28,20 +28,18 @@ import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
 import Pagination from "../../../components/pagination";
 import {
-  type Country,
-  type Location,
-  useCountriesQuery,
-  useCreateLocation,
-  useDeleteLocation,
-  useLocationsQuery,
-  useUpdateLocation,
-} from "../../../api/services/location.service";
+  type Region,
+  useCreateRegion,
+  useDeleteRegion,
+  useRegionsQuery,
+  useUpdateRegion,
+} from "../../../api/services/region.service";
 import {
   type HolidayPolicy,
   useHolidayPoliciesQuery,
 } from "../../../api/services/holidayPolicy.service";
-import LocationMapPicker from "../../../components/map/LocationMapPicker";
-import { DEFAULT_OFFICE_RADIUS_M } from "../../../components/map/shared";
+import { useLanguagesQuery } from "../../../api/services/companySettings.service";
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from "../../../utils/timezones";
 
 const PAGE_SIZE = 20;
 
@@ -49,13 +47,6 @@ type Option = {
   value: string;
   label: string;
 };
-
-const TIMEZONE_OPTIONS: Option[] = [
-  { value: "GMT+05:00", label: "(GMT+05:00) Tashkent" },
-  { value: "GMT+04:00", label: "(GMT+04:00) Dubai" },
-  { value: "GMT+03:00", label: "(GMT+03:00) Moscow" },
-  { value: "GMT+00:00", label: "(GMT+00:00) UTC" },
-];
 
 const getSearchSelectStyles = (): StylesConfig<Option, false> => ({
   control: (base, state) => ({
@@ -100,51 +91,34 @@ const getSearchSelectStyles = (): StylesConfig<Option, false> => ({
   placeholder: (base) => ({ ...base, fontSize: "14px", color: "#9ca3af" }),
 });
 
-const resolveCountryTitle = (
-  location: Location,
-  countriesById: Map<string, Country>
-): string => {
-  const direct = location.countries_id_data?.title;
-  if (direct) return direct;
-
-  if (location.countries_id) {
-    return countriesById.get(location.countries_id)?.title || "—";
-  }
-
-  return "—";
-};
-
 const resolveHolidayPolicyTitle = (
-  location: Location,
+  region: Region,
   holidayPoliciesById: Map<string, HolidayPolicy>
 ): string => {
-  const direct = location.holiday_policies_id_data?.title;
+  const direct = region.holiday_policies_id_data?.title;
   if (direct) return direct;
 
-  if (location.holiday_policies_id) {
-    return holidayPoliciesById.get(location.holiday_policies_id)?.title || "—";
+  if (region.holiday_policies_id) {
+    return String(holidayPoliciesById.get(region.holiday_policies_id)?.title || "—");
   }
 
   return "—";
 };
 
-export default function LocationsSettingsPage() {
+export default function RegionsSettingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [isUpsertModalOpen, setIsUpsertModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-  const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
+  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
+  const [regionToDelete, setRegionToDelete] = useState<Region | null>(null);
 
-  const [locationTitle, setLocationTitle] = useState("");
-  const [locationAddress, setLocationAddress] = useState("");
-  const [countryId, setCountryId] = useState("");
-  const [holidayPolicyId, setHolidayPolicyId] = useState("");
+  const [regionTitle, setRegionTitle] = useState("");
   const [timezone, setTimezone] = useState("");
-  const [coordinates, setCoordinates] = useState("");
-  const [radius, setRadius] = useState("");
+  const [languageId, setLanguageId] = useState("");
+  const [holidayPolicyId, setHolidayPolicyId] = useState("");
 
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -169,28 +143,29 @@ export default function LocationsSettingsPage() {
     [currentPage, debouncedSearch]
   );
 
-  const { data, isLoading } = useLocationsQuery({ params: queryParams });
-  const { data: countriesData } = useCountriesQuery();
+  const { data, isLoading } = useRegionsQuery({ params: queryParams });
+  const { data: languagesData } = useLanguagesQuery();
   const { data: holidayPoliciesData } = useHolidayPoliciesQuery({
     params: { limit: 1000, offset: 0 },
   });
 
-  const createMutation = useCreateLocation();
-  const updateMutation = useUpdateLocation();
-  const deleteMutation = useDeleteLocation();
+  const createMutation = useCreateRegion();
+  const updateMutation = useUpdateRegion();
+  const deleteMutation = useDeleteRegion();
 
-  const locations = useMemo(() => data?.response || [], [data?.response]);
+  const regions = data?.response || [];
   const totalCount = data?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const countries = useMemo(() => countriesData?.response || [], [countriesData?.response]);
+
+  const languages = useMemo(() => languagesData || [], [languagesData]);
   const holidayPolicies = useMemo(
     () => holidayPoliciesData?.response || [],
     [holidayPoliciesData?.response]
   );
 
-  const countriesById = useMemo(
-    () => new Map(countries.map((country) => [country.guid, country])),
-    [countries]
+  const languagesById = useMemo(
+    () => new Map(languages.map((item) => [item.guid, item])),
+    [languages]
   );
   const holidayPoliciesById = useMemo(
     () => new Map(holidayPolicies.map((item) => [item.guid, item])),
@@ -203,23 +178,6 @@ export default function LocationsSettingsPage() {
     }
   }, [currentPage, totalPages]);
 
-  const countryOptions = useMemo<Option[]>(
-    () => countries.map((country) => ({ value: country.guid, label: country.title })),
-    [countries]
-  );
-
-  const selectedCountryOption = useMemo<Option | null>(() => {
-    if (!countryId) return null;
-
-    const fromList = countryOptions.find((option) => option.value === countryId);
-    if (fromList) return fromList;
-
-    return {
-      value: countryId,
-      label: countriesById.get(countryId)?.title || countryId,
-    };
-  }, [countryId, countryOptions, countriesById]);
-
   const selectedTimezoneOption = useMemo<Option | null>(() => {
     if (!timezone) return null;
 
@@ -230,6 +188,23 @@ export default function LocationsSettingsPage() {
       }
     );
   }, [timezone]);
+
+  const languageOptions = useMemo<Option[]>(
+    () => languages.map((item) => ({ value: item.guid, label: String(item.title || item.slug) })),
+    [languages]
+  );
+
+  const selectedLanguageOption = useMemo<Option | null>(() => {
+    if (!languageId) return null;
+
+    const fromList = languageOptions.find((option) => option.value === languageId);
+    if (fromList) return fromList;
+
+    return {
+      value: languageId,
+      label: String(languagesById.get(languageId)?.title || languageId),
+    };
+  }, [languageId, languageOptions, languagesById]);
 
   const holidayPolicyOptions = useMemo<Option[]>(
     () => holidayPolicies.map((item) => ({ value: item.guid, label: String(item.title || "—") })),
@@ -249,57 +224,44 @@ export default function LocationsSettingsPage() {
   }, [holidayPolicyId, holidayPolicyOptions, holidayPoliciesById]);
 
   const openCreateModal = () => {
-    setEditingLocation(null);
-    setLocationTitle("");
-    setLocationAddress("");
-    setCountryId("");
+    setEditingRegion(null);
+    setRegionTitle("");
+    setTimezone(DEFAULT_TIMEZONE);
+    setLanguageId("");
     setHolidayPolicyId("");
-    setTimezone(TIMEZONE_OPTIONS[0]?.value || "GMT+05:00");
-    setCoordinates("");
-    setRadius("");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
 
-  const openEditModal = (location: Location) => {
-    setEditingLocation(location);
-    setLocationTitle(String(location.title || ""));
-    setLocationAddress(String(location.address || ""));
-    setCountryId(location.countries_id || "");
-    setHolidayPolicyId(location.holiday_policies_id || "");
-    setTimezone(location.timezone?.[0] || TIMEZONE_OPTIONS[0]?.value || "GMT+05:00");
-    setCoordinates(String(location.coordinates || ""));
-    setRadius(location.radius ? String(location.radius) : "");
+  const openEditModal = (region: Region) => {
+    setEditingRegion(region);
+    setRegionTitle(String(region.title || ""));
+    setTimezone(String(region.timezone || DEFAULT_TIMEZONE));
+    setLanguageId(region.languages_id || "");
+    setHolidayPolicyId(region.holiday_policies_id || "");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
   };
 
   const closeUpsertModal = () => {
     setIsUpsertModalOpen(false);
-    setEditingLocation(null);
-    setLocationTitle("");
-    setLocationAddress("");
-    setCountryId("");
-    setHolidayPolicyId("");
+    setEditingRegion(null);
+    setRegionTitle("");
     setTimezone("");
-    setCoordinates("");
-    setRadius("");
+    setLanguageId("");
+    setHolidayPolicyId("");
   };
 
   const handleSubmit = async () => {
-    const title = locationTitle.trim();
-    const address = locationAddress.trim();
+    const title = regionTitle.trim();
 
     if (!title) {
-      toast.error("Название локации обязательно.");
+      toast.error("Название региона обязательно.");
       return;
     }
 
-    if (!countryId) {
-      toast.error("Выберите страну.");
-      return;
-    }
-
+    // Часовой пояс — единственное, ради чего регион вообще заводится: по нему
+    // штампуются отметки всех его филиалов (ADR-0005).
     if (!timezone) {
       toast.error("Выберите часовой пояс.");
       return;
@@ -307,58 +269,54 @@ export default function LocationsSettingsPage() {
 
     const payload = {
       title,
-      address,
-      countries_id: countryId,
+      timezone,
+      languages_id: languageId || null,
       holiday_policies_id: holidayPolicyId || null,
-      timezone: [timezone],
-      coordinates,
-      // Пусто — на фронте подставится DEFAULT_OFFICE_RADIUS_M.
-      radius: radius.trim() ? Number(radius) : null,
     };
 
     try {
-      if (editingLocation) {
+      if (editingRegion) {
         await updateMutation.mutateAsync({
-          guid: editingLocation.guid,
+          guid: editingRegion.guid,
           data: {
-            ...editingLocation,
+            ...editingRegion,
             ...payload,
           },
         });
-        toast.success("Локация успешно обновлена.");
+        toast.success("Регион успешно обновлён.");
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Локация успешно создана.");
+        toast.success("Регион успешно создан.");
       }
 
       closeUpsertModal();
     } catch (error) {
-      console.error("Failed to save location:", error);
-      toast.error("Не удалось сохранить локацию. Попробуйте еще раз.");
+      console.error("Failed to save region:", error);
+      toast.error("Не удалось сохранить регион. Попробуйте еще раз.");
     }
   };
 
-  const openDeleteModal = (location: Location) => {
-    setLocationToDelete(location);
+  const openDeleteModal = (region: Region) => {
+    setRegionToDelete(region);
     setIsDeleteModalOpen(true);
     setOpenActionsFor(null);
   };
 
   const closeDeleteModal = () => {
     setIsDeleteModalOpen(false);
-    setLocationToDelete(null);
+    setRegionToDelete(null);
   };
 
   const confirmDelete = async () => {
-    if (!locationToDelete) return;
+    if (!regionToDelete) return;
 
     try {
-      await deleteMutation.mutateAsync(locationToDelete.guid);
-      toast.success("Локация удалена.");
+      await deleteMutation.mutateAsync(regionToDelete.guid);
+      toast.success("Регион удалён.");
       closeDeleteModal();
     } catch (error) {
-      console.error("Failed to delete location:", error);
-      toast.error("Не удалось удалить локацию.");
+      console.error("Failed to delete region:", error);
+      toast.error("Не удалось удалить регион.");
     }
   };
 
@@ -371,11 +329,11 @@ export default function LocationsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Локации | Настройки" description="Список локаций компании" />
+      <PageMeta title="Регионы | Настройки" description="Список регионов компании" />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Локации</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">Регионы</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -416,13 +374,10 @@ export default function LocationsSettingsPage() {
                     Название
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Адрес
-                  </TableCell>
-                  <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Страна
-                  </TableCell>
-                  <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                     Часовой пояс
+                  </TableCell>
+                  <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
+                    Язык
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                     Политика праздников
@@ -436,18 +391,15 @@ export default function LocationsSettingsPage() {
               <TableBody className="divide-y divide-gray-100">
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, index) => (
-                    <TableRow key={`locations-skeleton-${index}`}>
+                    <TableRow key={`regions-skeleton-${index}`}>
                       <TableCell className="px-4 py-4">
-                        <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
-                      </TableCell>
-                      <TableCell className="px-4 py-4">
-                        <div className="h-4 w-56 animate-pulse rounded bg-gray-200" />
+                        <div className="h-4 w-48 animate-pulse rounded bg-gray-200" />
                       </TableCell>
                       <TableCell className="px-4 py-4">
                         <div className="h-4 w-32 animate-pulse rounded bg-gray-200" />
                       </TableCell>
                       <TableCell className="px-4 py-4">
-                        <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
+                        <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
                       </TableCell>
                       <TableCell className="px-4 py-4">
                         <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
@@ -457,59 +409,60 @@ export default function LocationsSettingsPage() {
                       </TableCell>
                     </TableRow>
                   ))
-                ) : locations.length === 0 ? (
+                ) : regions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Локации не найдены
+                    <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                      Регионы не найдены
                     </TableCell>
                   </TableRow>
                 ) : (
-                  locations.map((location) => (
-                    <TableRow key={location.guid} className="hover:bg-gray-50 transition-colors">
+                  regions.map((region) => (
+                    <TableRow key={region.guid} className="hover:bg-gray-50 transition-colors">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(location.title || "Без названия")}
+                        {String(region.title || "Без названия")}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-700">
-                        {String(location.address || "—")}
+                        {String(region.timezone || "—")}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-700">
-                        {resolveCountryTitle(location, countriesById)}
+                        {String(
+                          region.languages_id_data?.title ||
+                            languagesById.get(region.languages_id || "")?.title ||
+                            "—"
+                        )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-700">
-                        {location.timezone?.[0] || "—"}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-sm text-gray-700">
-                        {resolveHolidayPolicyTitle(location, holidayPoliciesById)}
+                        {resolveHolidayPolicyTitle(region, holidayPoliciesById)}
                       </TableCell>
                       <TableCell className="px-4 py-3">
                         <div className="relative flex items-center justify-end">
                           <button
                             type="button"
-                            onClick={() => toggleActionsMenu(location.guid)}
+                            onClick={() => toggleActionsMenu(region.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
                             aria-label="Открыть действия"
                             ref={(el) => {
-                              actionButtonRefs.current[location.guid] = el;
+                              actionButtonRefs.current[region.guid] = el;
                             }}
                           >
                             <MoreHorizontal size={16} />
                           </button>
 
                           <Dropdown
-                            isOpen={openActionsFor === location.guid}
+                            isOpen={openActionsFor === region.guid}
                             onClose={() => setOpenActionsFor(null)}
                             className="w-40 p-1"
                             usePortal
-                            anchorEl={actionButtonRefs.current[location.guid]}
+                            anchorEl={actionButtonRefs.current[region.guid]}
                           >
                             <DropdownItem
-                              onClick={() => openEditModal(location)}
+                              onClick={() => openEditModal(region)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
                               Изменить
                             </DropdownItem>
                             <DropdownItem
-                              onClick={() => openDeleteModal(location)}
+                              onClick={() => openDeleteModal(region)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
                               Удалить
@@ -542,7 +495,7 @@ export default function LocationsSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingLocation ? "Изменить локацию" : "Новая локация"}
+            {editingRegion ? "Изменить регион" : "Новый регион"}
           </h3>
           <button
             type="button"
@@ -556,79 +509,16 @@ export default function LocationsSettingsPage() {
 
         <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto px-4 py-4 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label htmlFor="location-title" className="mb-1.5 block text-sm font-medium text-gray-700">
+            <label htmlFor="region-title" className="mb-1.5 block text-sm font-medium text-gray-700">
               Название
             </label>
             <input
-              id="location-title"
-              value={locationTitle}
-              onChange={(event) => setLocationTitle(event.target.value)}
-              placeholder="Введите название локации"
+              id="region-title"
+              value={regionTitle}
+              onChange={(event) => setRegionTitle(event.target.value)}
+              placeholder="Например, Узбекистан / Ташкент"
               autoFocus
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label htmlFor="location-address" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Адрес
-            </label>
-            <input
-              id="location-address"
-              value={locationAddress}
-              onChange={(event) => setLocationAddress(event.target.value)}
-              placeholder="Введите адрес"
-              className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Точка на карте
-            </label>
-            <LocationMapPicker
-              value={coordinates}
-              onChange={({ coordinates: next, address }) => {
-                setCoordinates(next);
-                if (address) setLocationAddress(address);
-              }}
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label htmlFor="location-radius" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Радиус, м
-            </label>
-            <input
-              id="location-radius"
-              type="number"
-              min={1}
-              value={radius}
-              onChange={(event) => setRadius(event.target.value)}
-              placeholder={`По умолчанию ${DEFAULT_OFFICE_RADIUS_M}`}
-              className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Отметку дальше этого расстояния от точки офиса помечаем предупреждением.
-              Точность GPS на телефоне — десятки метров, меньше сотни ставить не стоит.
-            </p>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Страна
-            </label>
-            <Select
-              options={countryOptions}
-              value={selectedCountryOption}
-              onChange={(option) => setCountryId(option?.value || "")}
-              placeholder="Выберите страну"
-              isSearchable
-              styles={getSearchSelectStyles()}
-              menuPortalTarget={menuPortalTarget || undefined}
-              menuPosition="fixed"
-              classNamePrefix="location-country-select"
-              noOptionsMessage={() => "Ничего не найдено"}
             />
           </div>
 
@@ -645,9 +535,34 @@ export default function LocationsSettingsPage() {
               styles={getSearchSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
-              classNamePrefix="location-timezone-select"
+              classNamePrefix="region-timezone-select"
               noOptionsMessage={() => "Ничего не найдено"}
             />
+            <p className="mt-1 text-xs text-gray-500">
+              По нему штампуются отметки всех филиалов региона.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Язык
+            </label>
+            <Select
+              options={languageOptions}
+              value={selectedLanguageOption}
+              onChange={(option) => setLanguageId(option?.value || "")}
+              placeholder="Выберите язык"
+              isSearchable
+              isClearable
+              styles={getSearchSelectStyles()}
+              menuPortalTarget={menuPortalTarget || undefined}
+              menuPosition="fixed"
+              classNamePrefix="region-language-select"
+              noOptionsMessage={() => "Ничего не найдено"}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Предположение на случай, когда язык сотрудника неизвестен.
+            </p>
           </div>
 
           <div className="md:col-span-2">
@@ -664,7 +579,7 @@ export default function LocationsSettingsPage() {
               styles={getSearchSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
-              classNamePrefix="location-holiday-policy-select"
+              classNamePrefix="region-holiday-policy-select"
               noOptionsMessage={() => "Ничего не найдено"}
             />
           </div>
@@ -692,7 +607,7 @@ export default function LocationsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить локацию</h3>
+            <h3 className="text-base font-semibold text-gray-900">Удалить регион</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
@@ -706,12 +621,12 @@ export default function LocationsSettingsPage() {
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Это действие нельзя отменить.
+            Филиалы этого региона останутся без часов, календаря и языка.
           </p>
           <p className="text-sm text-gray-700">
-            {locationToDelete
-              ? `Вы уверены, что хотите удалить "${String(locationToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить эту локацию?"}
+            {regionToDelete
+              ? `Вы уверены, что хотите удалить "${String(regionToDelete.title)}"?`
+              : "Вы уверены, что хотите удалить этот регион?"}
           </p>
 
           <div className="flex gap-2">

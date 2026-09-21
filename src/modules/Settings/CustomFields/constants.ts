@@ -220,8 +220,8 @@ export const OPTION_COLORS = [
 export const DIRECTORY_SLUGS: { value: string; label: string }[] = [
   { value: "positions", label: "Должности" },
   { value: "departments", label: "Департаменты" },
-  { value: "locations", label: "Локации" },
-  { value: "divisions", label: "Дивизионы" },
+  { value: "locations", label: "Филиалы" },
+  { value: "regions", label: "Регионы" },
   { value: "skills", label: "Навыки" },
   { value: "employment_types", label: "Типы трудоустройства" },
   { value: "experience_levels", label: "Уровни опыта" },

@@ -55,12 +55,6 @@ export interface EmployeeWork {
     title?: string;
     [key: string]: unknown;
   } | null;
-  divisions_id?: string | null;
-  divisions_id_data?: {
-    guid?: string;
-    title?: string;
-    [key: string]: unknown;
-  } | null;
   locations_id?: string | null;
   locations_id_data?: {
     guid?: string;

@@ -119,7 +119,7 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
               ["Формат", WORK_MODE_CONFIG[vacancy.workMode].label],
               ["Тип занятости", vacancy.employmentType],
               ["Уровень", vacancy.experienceLevel || "—"],
-              ["Локация", vacancy.location || "—"],
+              ["Филиал", vacancy.location || "—"],
               ["Открыта", formatDate(vacancy.openedAt)],
               ...(vacancy.closedAt ? [["Закрыта", formatDate(vacancy.closedAt)]] : []),
               ["Дедлайн", formatDate(vacancy.deadline)],

@@ -147,7 +147,7 @@ export type BirthdayEmployee = {
   is_today: boolean;
   position: string;
   department: string;
-  division: string;
+  region: string;
 };
 
 export type BirthdaysMonthGroup = {
@@ -177,7 +177,7 @@ export type AgeDistributionTableItem = {
   level: string;
   position: string;
   department: string;
-  division: string;
+  region: string;
 };
 
 export type AgeDistributionTablePagination = {
@@ -231,7 +231,7 @@ export type GenderDistributionTableItem = {
   level: string;
   position: string;
   department: string;
-  division: string;
+  region: string;
   location: string;
 };
 
@@ -303,7 +303,7 @@ export type StaffCountTableItem = {
   level: string;
   position: string;
   department: string;
-  division: string;
+  region: string;
   location: string;
 };
 

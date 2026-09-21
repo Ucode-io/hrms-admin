@@ -16,7 +16,6 @@ import type { LayoutWidth } from "../../../Form/layout/types";
 export type WorkFormState = {
   employmentTypeId: string;
   departmentId: string;
-  divisionId: string;
   locationId: string;
   positionsId: string;
   experienceLevelId: string;
@@ -46,7 +45,6 @@ export type WorkFieldContext = {
   fallbackOptions: {
     employmentType: RemoteSelectOption | null;
     department: RemoteSelectOption | null;
-    division: RemoteSelectOption | null;
     location: RemoteSelectOption | null;
     position: RemoteSelectOption | null;
     experienceLevel: RemoteSelectOption | null;
@@ -139,29 +137,15 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
       }),
   },
   {
-    key: "divisions_id",
-    label: "Подразделение",
-    defaultWidth: "half",
-    render: (ctx) =>
-      directoryField(ctx, {
-        slug: "divisions",
-        value: ctx.form.divisionId,
-        fallback: ctx.fallbackOptions.division,
-        placeholder: "Выберите подразделение",
-        classNamePrefix: "work-division-select",
-        onChange: (value) => ctx.setForm((prev) => ({ ...prev, divisionId: value })),
-      }),
-  },
-  {
     key: "locations_id",
-    label: "Локация",
+    label: "Филиал",
     defaultWidth: "half",
     render: (ctx) =>
       directoryField(ctx, {
         slug: "locations",
         value: ctx.form.locationId,
         fallback: ctx.fallbackOptions.location,
-        placeholder: "Выберите локацию",
+        placeholder: "Выберите филиал",
         classNamePrefix: "work-location-select",
         onChange: (value) => ctx.setForm((prev) => ({ ...prev, locationId: value })),
       }),

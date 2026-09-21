@@ -4,7 +4,7 @@ import Popover from "../ui/Popover";
 import OptionPicker, { type PickerOption } from "../ui/OptionPicker";
 import { ClearButton, ControlButton, FieldSlot, type ControlVariant } from "../ui/controls";
 
-/** Локация — существующий справочник HRMS, поэтому только выбор, без создания. */
+/** Филиал — существующий справочник HRMS, поэтому только выбор, без создания. */
 export interface LocationOption {
   id: string;
   title: string;
@@ -23,7 +23,7 @@ export default function LocationField({
   locations,
   onChange,
   variant,
-  placeholder = "Локация",
+  placeholder = "Филиал",
 }: LocationFieldProps) {
   const [open, setOpen] = useState(false);
 
@@ -46,8 +46,8 @@ export default function LocationField({
             selected={value || null}
             onSelect={(next) => onChange(next)}
             searchable
-            searchPlaceholder="Найти локацию..."
-            emptyText="Локаций нет — заведите их в настройках"
+            searchPlaceholder="Найти филиал..."
+            emptyText="Филиалов нет — заведите их в настройках"
             close={close}
             footer={
               value
@@ -60,7 +60,7 @@ export default function LocationField({
                       }}
                       className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-gray-500 transition hover:bg-gray-50 hover:text-error-600 dark:hover:bg-white/5"
                     >
-                      Очистить локацию
+                      Очистить филиал
                     </button>
                   )
                 : undefined
@@ -83,7 +83,7 @@ export default function LocationField({
           </ControlButton>
         )}
       </Popover>
-      {value && <ClearButton onClick={() => onChange(null)} label="Очистить локацию" />}
+      {value && <ClearButton onClick={() => onChange(null)} label="Очистить филиал" />}
     </FieldSlot>
   );
 }

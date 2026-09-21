@@ -344,7 +344,7 @@ export default function ShiftModal({
   const [isSeriesLoading, setIsSeriesLoading] = useState(false);
 
   // Карточки сотрудников, которые успел отдать селект: из них берутся
-  // должность и локация для новых строк.
+  // должность и филиал для новых строк.
   const [loadedMeta, setLoadedMeta] = useState<Record<string, EmployeeMeta>>(
     {},
   );
@@ -354,7 +354,7 @@ export default function ShiftModal({
 
   /**
    * Список сотрудников нужен форме ровно один раз — подставить должность и
-   * локацию при открытии. В зависимостях эффекта ему делать нечего: react-query
+   * филиал при открытии. В зависимостях эффекта ему делать нечего: react-query
    * отдаёт новый массив на каждом перезапросе (фокус окна, инвалидация после
    * сохранения), и форма сбрасывалась бы прямо под руками у человека.
    */
@@ -402,7 +402,7 @@ export default function ShiftModal({
       return;
     }
 
-    // Создание: должность и локацию подставляем из карточки сотрудника, но
+    // Создание: должность и филиал подставляем из карточки сотрудника, но
     // дальше они живут в смене — грид группирует по ним, а не по карточке.
     const employee = employeesRef.current.find(
       (item) => item.id === defaults.employeeId,
@@ -1352,7 +1352,7 @@ export default function ShiftModal({
           )}
 
           <div>
-            <label className={labelClass}>Локация</label>
+            <label className={labelClass}>Филиал</label>
             <select
               value={locationId}
               onChange={(event) => setLocationId(event.target.value)}

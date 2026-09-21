@@ -43,7 +43,7 @@ export const GROUP_BY_ORDER: GroupBy[] = ["employee", "position", "location", "p
 export const GROUP_BY_META: Record<GroupBy, { label: string }> = {
   employee: { label: "Сотрудник" },
   position: { label: "Должность" },
-  location: { label: "Локация" },
+  location: { label: "Филиал" },
   project: { label: "Проект" },
 };
 
@@ -72,7 +72,7 @@ export const KIND_ORDER: ShiftKind[] = ["day", "night", "remote"];
 /** Легенда над таблицей: в ней выходной есть, потому что клетки им закрашены. */
 export const LEGEND_ORDER: CellKind[] = [...KIND_ORDER, "off"];
 
-/** Локация считается удалённой по названию — отдельного флага у `locations` нет. */
+/** Филиал считается удалённым по названию — отдельного флага у `locations` нет. */
 const REMOTE_LOCATION = /удал|remote|дом/i;
 
 export const timeToMinutes = (value: string | null | undefined): number | null => {

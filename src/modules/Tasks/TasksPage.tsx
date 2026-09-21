@@ -185,7 +185,7 @@ export default function TasksPage() {
     }
   };
 
-  /** Подзадача наследует лист, тип, приоритет и локацию родителя. */
+  /** Подзадача наследует лист, тип, приоритет и филиал родителя. */
   const createSubtask = async (parent: Task, title: string) => {
     await createMutation.mutateAsync({
       title,
