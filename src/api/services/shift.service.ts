@@ -10,9 +10,37 @@
 // разворачивание ответа там уже сделаны интерцепторами.
 
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import httpRequest from "../httpRequest";
+import httpRequest, { getCompaniesId } from "../httpRequest";
 
 const SLUG = "shift";
+
+/**
+ * Поля, которые уезжают в `upsert-many`. Список явный и полный, потому что
+ * колонки в запросе общие для всех объектов, а значения берутся по наличию
+ * ключа: объект без одного поля даёт `VALUES lists must all be the same
+ * length` на весь запрос. Поэтому каждый ряд достраивается через `?? null`,
+ * а не собирается спредом.
+ *
+ * Чего в списке нет: `created_at`/`updated_at` — они принадлежат ucode.
+ * Неизвестное имя поля сервер молча выбрасывает из колонок (как и в фильтрах,
+ * см. `fetchShifts`), то есть опечатка тут даёт не ошибку, а потерянное поле.
+ */
+const UPSERT_FIELDS = [
+  "guid",
+  "companies_id",
+  "date",
+  "date_from",
+  "date_to",
+  "series_id",
+  "user_base_id",
+  "start_time",
+  "end_time",
+  "hours_per_day",
+  "positions_id",
+  "locations_id",
+  "project",
+  "comment",
+];
 
 export const SHIFTS_QUERY_KEY = "SHIFTS";
 
@@ -33,15 +61,23 @@ export interface Shift {
   } | null;
   /**
    * Период, которым смену завели: одна и та же пара во всех строках одного
-   * сохранения. Хранится денормализованно, потому что серии как сущности нет
-   * (см. CONTEXT.md → Shift) — а вопрос «частью какого периода была эта
-   * смена» задаёт каждый, кто открыл её на правку.
+   * сохранения. Это запись о том, каким период заводили, а **не** способ
+   * найти соседей по серии — для этого есть `series_id` (см. ADR-0003).
    *
-   * Пусто у строк, заведённых до появления полей, и у автозаполнения
-   * по графику: там период — это сам день.
+   * Пусто у строк, заведённых до появления полей.
    */
   date_from: string | null;
   date_to: string | null;
+  /**
+   * Серия — [[Shift Series]] в CONTEXT.md: один график, заведённый одним
+   * сохранением на нескольких человек и/или дней. Состав серии нигде не
+   * хранится списком: это ровно те строки, у которых стоит этот `series_id`
+   * (ADR-0003).
+   *
+   * Пусто у строк, заведённых до появления колонки: задним числом её не
+   * проставляли — правило «тот же человек» затянуло бы одного из пятерых.
+   */
+  series_id: string | null;
   /** `HH:MM`; пусто у смены, заданной длительностью. */
   start_time: string | null;
   end_time: string | null;
@@ -66,6 +102,7 @@ export type ShiftInput = {
   date: string;
   date_from: string | null;
   date_to: string | null;
+  series_id: string | null;
   user_base_id: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -76,13 +113,34 @@ export type ShiftInput = {
   comment: string | null;
 };
 
-/** Итог сохранения пачки: сколько строк реально доехало до базы. */
+/**
+ * Существующая строка, собранная целиком под апсерт.
+ *
+ * Собирает её `Shifts/plan.ts` (`toShiftRow`), а не этот модуль: выборка
+ * приезжает с `with_relations: true`, то есть с `*_id_data`, `created_at` и
+ * `updated_at`, и их надо вырезать до полей апсерта.
+ */
+export type ShiftRow = ShiftInput & { guid: string };
+
+/**
+ * Итог сохранения.
+ *
+ * Запись и удаление разнесены намеренно: это два разных запроса и два разных
+ * последствия. Общего «не удалось 3» после ADR-0004 не хватает — «смены не
+ * записались» и «снятые дни остались на месте» требуют разных действий.
+ *
+ * Раздельных «обновлено/создано» больше нет: и правки, и создания уезжают
+ * одним `upsert-many`, а один стейтмент даёт один результат.
+ */
 export type SaveResult = {
-  updated: number;
-  created: number;
+  saved: number;
   failed: number;
-  /** Причина первого отказа словами. Пусто — отказов не было. */
-  reason: string;
+  deleted: number;
+  deleteFailed: number;
+  /** Причина отказа записи словами. Пусто — записалось. */
+  writeReason: string;
+  /** Причина отказа удаления словами. Пусто — удалилось. */
+  deleteReason: string;
 };
 
 /**
@@ -93,13 +151,12 @@ export type SaveResult = {
  * выглядят в тосте одинаково. Причина берётся у первого отказа — в пачке
  * они почти всегда однотипны, а весь список уходит в консоль.
  */
-const failureReason = (results: PromiseSettledResult<unknown>[]): string => {
-  const rejected = results.filter((item) => item.status === "rejected");
-  if (rejected.length === 0) return "";
+const failureReason = (result: PromiseSettledResult<unknown> | undefined): string => {
+  if (!result || result.status !== "rejected") return "";
 
-  console.error("Смены: часть запросов не прошла", rejected.map((item) => item.reason));
+  console.error("Смены: запрос не прошёл", result.reason);
 
-  const error = rejected[0].reason as {
+  const error = result.reason as {
     response?: { status?: number; data?: { description?: string } };
     message?: string;
   };
@@ -128,6 +185,21 @@ export interface ShiftListResponse {
  */
 const LIST_LIMIT = 4000;
 
+const query = async (filter: Record<string, unknown>): Promise<ShiftListResponse> => {
+  const res = await httpRequest.get(`/v2/items/${SLUG}`, {
+    params: {
+      with_relations: true,
+      data: JSON.stringify({ limit: LIST_LIMIT, offset: 0, ...filter }),
+    },
+  });
+
+  const payload = res as unknown as { count?: unknown; response?: unknown };
+  return {
+    count: Number(payload?.count ?? 0),
+    response: Array.isArray(payload?.response) ? (payload.response as Shift[]) : [],
+  };
+};
+
 /**
  * Смены периода — все, включая открытые.
  *
@@ -145,47 +217,92 @@ export const fetchShifts = async (range: {
   to: string;
 }): Promise<ShiftListResponse> => {
   if (!range.from || !range.to) return { count: 0, response: [] };
+  return query({ date: { $gte: range.from, $lte: range.to } });
+};
 
-  const res = await httpRequest.get(`/v2/items/${SLUG}`, {
-    params: {
-      with_relations: true,
-      data: JSON.stringify({
-        limit: LIST_LIMIT,
-        offset: 0,
-        date: { $gte: range.from, $lte: range.to },
-      }),
-    },
-  });
-
-  const payload = res as unknown as { count?: unknown; response?: unknown };
-  return {
-    count: Number(payload?.count ?? 0),
-    response: Array.isArray(payload?.response) ? (payload.response as Shift[]) : [],
-  };
+/**
+ * Состав серии — **без границ по дате**.
+ *
+ * Строки серии за пределами записанного периода заводятся обычным путём
+ * (перенос смены, правка «следующие дни» с другим `date_to`), и сузить
+ * выборку датами значило бы снова искать соседей парой `date_from`/`date_to`,
+ * которой они быть перестали, — и молча терять людей, у которых дни есть
+ * (ADR-0003).
+ */
+export const fetchSeries = async (seriesId: string | null): Promise<ShiftListResponse> => {
+  if (!seriesId) return { count: 0, response: [] };
+  return query({ series_id: seriesId });
 };
 
 const shiftService = {
-  create: (data: ShiftInput) => httpRequest.post(`/v2/items/${SLUG}`, { data }),
+  /**
+   * Вся пачка — правки и создания вместе — одним запросом.
+   *
+   * `upsert-many` на Postgres собирает один
+   * `INSERT ... VALUES (…),(…) ON CONFLICT (guid) DO UPDATE`
+   * (`ucode_go_object_builder_service/storage/postgres/items.go`), то есть
+   * ключ конфликта `guid` делает обновление и вставку одним стейтментом:
+   * ряд с известным guid обновляется, ряд со свежим — вставляется. Отдельные
+   * PUT'ы на правки после ADR-0004 стоили бы 155 проходов auth-middleware,
+   * billing-check и записи в version history на «весь период, все».
+   *
+   * Цена: апсерт перезаписывает ряд **целиком**, поэтому ряды существующих
+   * строк обязаны приезжать полными (`toShiftRow`), а параллельная правка
+   * чужого поля будет затёрта.
+   *
+   * `guid` новой строки генерим сами: ответ на успехе пустой (`data: null`),
+   * сервер ничего не возвращает.
+   *
+   * `companies_id` проставляем в каждый объект руками: интерцептор дописывает
+   * его в конверт запроса, а не в элементы `objects`.
+   *
+   * Не `multiple-insert`: на Postgres шлюз отвечает `does not implemented`.
+   */
+  saveMany: (rows: (ShiftInput | ShiftRow)[]) => {
+    const companiesId = getCompaniesId();
 
-  // Две формы эндпоинта у ucode расходятся между инсталляциями, поэтому здесь
-  // тот же fallback, что в employeeWork.service — не изобретаем третий способ.
-  update: async (guid: string, data: Partial<ShiftInput>) => {
-    try {
-      return await httpRequest.put(`/v2/items/${SLUG}/${guid}`, {
-        data: { ...data, guid },
-      });
-    } catch {
-      return httpRequest.put(`/v2/items/${SLUG}`, {
-        data: { ids: [guid], ...data, guid },
-      });
-    }
+    return httpRequest.post(`/v2/items/${SLUG}/upsert-many`, {
+      data: {
+        field_slug: "guid",
+        fields: UPSERT_FIELDS,
+        // Каждое поле достраивается через `?? null`, а не спредом: объект без
+        // одного ключа даёт `VALUES lists must all be the same length` на весь
+        // запрос (см. `UPSERT_FIELDS`).
+        objects: rows.map((row) => ({
+          guid: "guid" in row && row.guid ? row.guid : crypto.randomUUID(),
+          companies_id: companiesId,
+          date: row.date,
+          date_from: row.date_from ?? null,
+          date_to: row.date_to ?? null,
+          series_id: row.series_id ?? null,
+          user_base_id: row.user_base_id ?? null,
+          start_time: row.start_time ?? null,
+          end_time: row.end_time ?? null,
+          hours_per_day: row.hours_per_day ?? null,
+          positions_id: row.positions_id ?? null,
+          locations_id: row.locations_id ?? null,
+          project: row.project ?? null,
+          comment: row.comment ?? null,
+        })),
+      },
+    });
   },
 
-  remove: async (guid: string) => {
+  /**
+   * Удаление пачкой. Эндпоинт и так принимал `ids` массивом — расширение
+   * сигнатуры, а не новый путь.
+   *
+   * Две формы эндпоинта у ucode расходятся между инсталляциями, поэтому здесь
+   * тот же fallback, что в employeeWork.service — не изобретаем третий способ.
+   * Запасной путь одиночный, поэтому пачку он проходит по одной строке.
+   */
+  removeMany: async (guids: string[]) => {
     try {
-      return await httpRequest.delete(`/v2/items/${SLUG}`, { data: { ids: [guid] } });
+      return await httpRequest.delete(`/v2/items/${SLUG}`, { data: { ids: guids } });
     } catch {
-      return httpRequest.delete(`/v2/items/${SLUG}/${guid}`);
+      return Promise.all(
+        guids.map((guid) => httpRequest.delete(`/v2/items/${SLUG}/${guid}`))
+      );
     }
   },
 };
@@ -203,47 +320,45 @@ export const isShiftListTruncated = (result: ShiftListResponse | undefined): boo
   Boolean(result && result.count > result.response.length);
 
 /**
- * Сохранение набора смен: повтор по дням недели раскрывается в N независимых
- * записей ещё на фронте, серии как сущности нет (см. CONTEXT.md → Shift).
+ * Сохранение серии: правки, создания и снятия одним вызовом.
  *
- * Правка тоже приходит пачкой: она может задеть соседние дни серии и завести
- * недостающие. Что именно попадёт в пачку, решает `Shifts/plan.ts`.
+ * Что именно попадёт в пачку, решает `Shifts/plan.ts` — правка серии может
+ * задеть соседние дни, завести недостающие и снять людей, которых убрали из
+ * списка.
  *
- * Транзакции у `/v2/items` нет, поэтому упавшие запросы не откатываются: их
- * число возвращается наверх и попадает в тост. Молчаливый «успех» на половине
- * записей был бы хуже честной цифры — грид всё равно перечитается и покажет
- * фактическое состояние.
+ * **Атомарной операция не становится.** Запись и удаление — разные мутации
+ * ucode и разные запросы, транзакции у `/v2/items` нет. Частичный отказ
+ * оставит серию, где часть дней снята, а часть правок не легла, — поэтому
+ * причины отказов возвращаются раздельно и попадают в тост: молчаливый
+ * «успех» на половине записей был бы хуже честной цифры.
  */
 export const useSaveShifts = () => {
   const queryClient = useQueryClient();
 
   return useMutation(
     async ({
-      updates = [],
-      creates = [],
+      rows = [],
+      deletes = [],
     }: {
-      updates?: { guid: string; patch: Partial<ShiftInput> }[];
-      creates?: ShiftInput[];
+      rows?: (ShiftInput | ShiftRow)[];
+      deletes?: string[];
     }): Promise<SaveResult> => {
-      // Пачка небольшая (максимум длина видимого периода на число выбранных
-      // людей), поэтому шлём параллельно: последовательный цикл на 31 запрос
-      // заметен глазом.
-      const results = await Promise.allSettled([
-        ...updates.map((item) => shiftService.update(item.guid, item.patch)),
-        ...creates.map((row) => shiftService.create(row)),
+      const [write, erase] = await Promise.allSettled([
+        rows.length > 0 ? shiftService.saveMany(rows) : Promise.resolve(null),
+        deletes.length > 0 ? shiftService.removeMany(deletes) : Promise.resolve(null),
       ]);
 
-      const succeeded = (from: number, to: number) =>
-        results.slice(from, to).filter((item) => item.status === "fulfilled").length;
-
-      const updated = succeeded(0, updates.length);
-      const created = succeeded(updates.length, results.length);
+      // Каждая пачка неделима: один стейтмент на все ряды.
+      const saved = write.status === "fulfilled" ? rows.length : 0;
+      const deleted = erase.status === "fulfilled" ? deletes.length : 0;
 
       return {
-        updated,
-        created,
-        failed: results.length - updated - created,
-        reason: failureReason(results),
+        saved,
+        failed: rows.length - saved,
+        deleted,
+        deleteFailed: deletes.length - deleted,
+        writeReason: failureReason(write),
+        deleteReason: failureReason(erase),
       };
     },
     {
@@ -252,14 +367,4 @@ export const useSaveShifts = () => {
       },
     }
   );
-};
-
-export const useDeleteShift = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation((guid: string) => shiftService.remove(guid), {
-    onSuccess: () => {
-      void queryClient.invalidateQueries(SHIFTS_QUERY_KEY);
-    },
-  });
 };

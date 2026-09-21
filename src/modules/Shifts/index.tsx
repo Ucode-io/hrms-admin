@@ -26,7 +26,6 @@ import employeeWorkService from "../../api/services/employeeWork.service";
 import reportsService, { type WorkSchedule } from "../../api/services/reports.service";
 import {
   isShiftListTruncated,
-  useDeleteShift,
   useSaveShifts,
   useShiftsQuery,
   type SaveResult,
@@ -346,7 +345,8 @@ export default function ShiftsPage() {
   }, [employees, visibleShifts, openShifts, groupBy, hasShiftFilter]);
 
   const saveShifts = useSaveShifts();
-  const deleteShift = useDeleteShift();
+  // Удаление идёт той же мутацией: одна операция может и править, и снимать.
+  const deleteShifts = useSaveShifts();
 
   const openModal = (employeeId: string | null, date: string, shift: Shift | null) => {
     setModalError("");
@@ -358,34 +358,42 @@ export default function ShiftsPage() {
   /**
    * Итог сохранения словами.
    *
-   * Одной цифры «создано N» больше не хватает: одно сохранение может и
-   * обновить соседей по серии, и завести недостающие дни, и обойти занятые, а
-   * часть запросов — упасть (транзакции у `/v2/items` нет). Молчать о
-   * расхождении нельзя: человек ушёл бы с экрана, уверенный в другом.
+   * Раздельных «обновлено/создано» больше нет: правки и создания уезжают одним
+   * `upsert-many`, а один стейтмент даёт один результат (ADR-0004). Зато запись
+   * и снятие различаются словами — это разные запросы и разные последствия:
+   * «смены не записались» и «снятые дни остались на месте» требуют разного.
+   * Транзакции у `/v2/items` нет, поэтому частичный отказ возможен, и молчать
+   * о нём нельзя: человек ушёл бы с экрана, уверенный в другом.
    */
   const saveSummary = (result: SaveResult, skipped: number): string => {
     const parts: string[] = [];
-    if (result.updated > 0) parts.push(`обновлено ${result.updated}`);
-    if (result.created > 0) parts.push(`создано ${result.created}`);
+    if (result.saved > 0) parts.push(`сохранено ${result.saved}`);
+    if (result.deleted > 0) parts.push(`снято ${result.deleted}`);
     if (skipped > 0) parts.push(`пропущено занятых ${skipped}`);
-    if (result.failed > 0) parts.push(`не удалось ${result.failed}`);
+    if (result.failed > 0) parts.push(`не записалось ${result.failed}`);
+    if (result.deleteFailed > 0) parts.push(`не удалилось ${result.deleteFailed}`);
     if (parts.length === 0) return "Изменений не было.";
-    // Причина рядом с цифрой: без неё «не удалось 3» нечем объяснить и
-    // не с чем идти дальше — подробности всех отказов лежат в консоли.
-    const why = result.reason ? ` Причина: ${result.reason}` : "";
-    return `Смены: ${parts.join(", ")}.${why}`;
+    // Причина рядом с цифрой: без неё «не записалось 3» нечем объяснить и
+    // не с чем идти дальше — подробности отказов лежат в консоли.
+    const why = [
+      result.writeReason && `запись — ${result.writeReason}`,
+      result.deleteReason && `удаление — ${result.deleteReason}`,
+    ]
+      .filter(Boolean)
+      .join("; ");
+    return `Смены: ${parts.join(", ")}.${why ? ` Причина: ${why}.` : ""}`;
   };
 
   const handleSubmit = async (plan: SavePlan) => {
     try {
       setModalError("");
       const result = await saveShifts.mutateAsync({
-        updates: plan.updates,
-        creates: plan.creates,
+        rows: [...plan.updates, ...plan.creates],
+        deletes: plan.deletes,
       });
       setIsModalOpen(false);
       const summary = saveSummary(result, plan.skipped);
-      if (result.failed > 0) toast.error(summary);
+      if (result.failed > 0 || result.deleteFailed > 0) toast.error(summary);
       else toast.success(summary);
     } catch (error) {
       setModalError(
@@ -394,11 +402,12 @@ export default function ShiftsPage() {
     }
   };
 
-  const handleDelete = async (guid: string) => {
+  const handleDelete = async (guids: string[]) => {
     try {
-      await deleteShift.mutateAsync(guid);
+      const result = await deleteShifts.mutateAsync({ deletes: guids });
       setIsModalOpen(false);
-      toast.success("Смена удалена.");
+      if (result.deleteFailed > 0) toast.error(saveSummary(result, 0));
+      else toast.success(`Удалено смен: ${result.deleted}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось удалить смену.");
     }
@@ -439,6 +448,9 @@ export default function ShiftsPage() {
 
       const rows: ShiftInput[] = [];
       let skipped = 0;
+      // Один прогон — один график: автозаполнение и так пишет период в границы
+      // видимого, то есть заводит серию из одного человека, просто без имени.
+      const seriesId = crypto.randomUUID();
 
       dates.forEach((iso) => {
         if (shiftByCell.has(`${employee.id}|${iso}`)) {
@@ -460,6 +472,7 @@ export default function ShiftsPage() {
           // Открыв потом любую из этих смен, человек увидит его целиком.
           date_from: range.from,
           date_to: range.to,
+          series_id: seriesId,
           user_base_id: employee.id,
           start_time: start,
           end_time: end,
@@ -482,11 +495,11 @@ export default function ShiftsPage() {
         return;
       }
 
-      const saved = await saveShifts.mutateAsync({ creates: rows });
+      const saved = await saveShifts.mutateAsync({ rows });
       toast.success(
         skipped > 0
-          ? `Создано смен: ${saved.created}. Пропущено уже занятых дней: ${skipped}.`
-          : `Создано смен: ${saved.created} по графику «${schedule.title}».`
+          ? `Создано смен: ${saved.saved}. Пропущено уже занятых дней: ${skipped}.`
+          : `Создано смен: ${saved.saved} по графику «${schedule.title}».`
       );
     } catch (error) {
       toast.error(
@@ -853,7 +866,7 @@ export default function ShiftsPage() {
       <ShiftModal
         isOpen={isModalOpen}
         onClose={() => {
-          if (saveShifts.isLoading || deleteShift.isLoading) return;
+          if (saveShifts.isLoading || deleteShifts.isLoading) return;
           setIsModalOpen(false);
         }}
         shift={modalShift}
@@ -863,10 +876,10 @@ export default function ShiftsPage() {
         locations={locations.map((item) => ({ guid: item.guid, title: item.title }))}
         projectSuggestions={projectSuggestions}
         isSaving={saveShifts.isLoading}
-        isDeleting={deleteShift.isLoading}
+        isDeleting={deleteShifts.isLoading}
         error={modalError}
         onSubmit={(plan) => void handleSubmit(plan)}
-        onDelete={(guid) => void handleDelete(guid)}
+        onDelete={(guids) => void handleDelete(guids)}
       />
     </>
   );
