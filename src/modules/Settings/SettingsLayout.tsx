@@ -45,13 +45,13 @@ const SettingsLayout: React.FC = () => {
     <>
       <PageMeta title="Настройки | HRMS" description="Настройки системы" />
 
-      <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4 flex min-h-[calc(100vh-88px)]">
+      {/* Страница не скроллится целиком: высота — ровно экран минус шапка
+          (h-16 = 64px), скролл живёт внутри колонок. Иначе sticky-сайдбар с
+          h-[100dvh] начинался на 64px ниже верха окна, и низ его внутреннего
+          скролла оказывался за краем экрана — последние пункты не долистать. */}
+      <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4 -mb-3 md:-mb-4 flex h-[calc(100dvh-64px)]">
         {/* Settings sidebar */}
-        {/* Высота — ровно экран, а не «экран минус шапка»: шапка приложения не
-            sticky и при скролле уезжает, после чего колонка прилипает к верху
-            окна. С вычетом 88px её низ оказывался на 88px выше края экрана —
-            та самая пустая полоса внизу. */}
-        <aside className="sticky top-0 flex h-[100dvh] w-[300px] shrink-0 flex-col border-r border-gray-200 bg-white">
+        <aside className="flex h-full w-[300px] shrink-0 flex-col border-r border-gray-200 bg-white">
           {/* <div className="border-b border-gray-100 px-4 py-3.5">
             <h2 className="m-0 text-[15px] font-semibold text-gray-900">Настройки</h2>
           </div> */}
@@ -128,7 +128,7 @@ const SettingsLayout: React.FC = () => {
         </aside>
 
         {/* Selected setting */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-y-auto">
           {hasSelection ? (
             <div className="px-4 py-4 lg:px-6 lg:py-5">
               <Outlet />
