@@ -117,7 +117,7 @@ export interface Task {
   typeId: string | null;
   statusId: string | null;
   priorityId: string | null;
-  /** Локация — существующий справочник HRMS (`locations`). */
+  /** Филиал — существующий справочник HRMS (`locations`). */
   locationId: string | null;
   sheetId: string | null;
   /** Исполнителей может быть несколько; первый ведёт стопку аватаров. */

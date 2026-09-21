@@ -44,10 +44,10 @@ import TrainingsPage from "./modules/Trainings";
 import TrainingEditorPage from "./modules/Trainings/Editor";
 import TrainingDetailPage from "./modules/Trainings/Detail";
 import EmploymentTypesSettingsPage from "./modules/Settings/EmploymentTypes";
-import DivisionsSettingsPage from "./modules/Settings/Divisions";
+import RegionsSettingsPage from "./modules/Settings/Regions";
 import SkillsSettingsPage from "./modules/Settings/Skills";
 import DepartmentsSettingsPage from "./modules/Settings/Departments";
-import LocationsSettingsPage from "./modules/Settings/Locations";
+import BranchesSettingsPage from "./modules/Settings/Branches";
 import CompensationSettingsPage from "./modules/Settings/Compensation";
 import AbsencePoliciesSettingsPage from "./modules/Settings/AbsencePolicies";
 import HolidayPoliciesSettingsPage from "./modules/Settings/HolidayPolicies";
@@ -242,9 +242,9 @@ function App() {
                 <Route path="positions" element={<PositionsSettingsPage />} />
                 <Route path="experience-levels" element={<ExperienceLevelsSettingsPage />} />
                 <Route path="grade-salaries" element={<GradeMatrixSettingsPage />} />
-                <Route path="locations" element={<LocationsSettingsPage />} />
+                <Route path="branches" element={<BranchesSettingsPage />} />
                 <Route path="employment-types" element={<EmploymentTypesSettingsPage />} />
-                <Route path="divisions" element={<DivisionsSettingsPage />} />
+                <Route path="regions" element={<RegionsSettingsPage />} />
                 <Route path="skills" element={<SkillsSettingsPage />} />
                 <Route path="roles" element={<RolesSettingsPage />} />
                 <Route path="departments" element={<DepartmentsSettingsPage />} />
@@ -279,7 +279,8 @@ function App() {
                 <Route path="news/:id/edit" element={<NewsFormPage />} />
                 <Route path="stage-templates" element={<StageTemplatesPage />} />
                 <Route path="rejection-reasons" element={<RejectionReasonsSettingsPage />} />
-                <Route path="chats" element={<ChatsPage />} />
+                {/* Страница переехала в сайдбар; путь жив ради старых ссылок. */}
+                <Route path="chats" element={<Navigate to="/chats" replace />} />
                 <Route path="candidate-sources" element={<CandidateSourcesSettingsPage />} />
               </Route>
 
@@ -296,7 +297,7 @@ function App() {
               <Route path="/trainings/:id" element={<TrainingDetailPage />} />
               <Route path="/trainings/:id/edit" element={<TrainingEditorPage />} />
 
-              <Route path="/chats" element={<Navigate to="/settings/chats" replace />} />
+              <Route path="/chats" element={<ChatsPage />} />
 
               <Route path="/employees" element={<EmployeesList />} />
               <Route path="/employees/new" element={<EmployeeForm />} />

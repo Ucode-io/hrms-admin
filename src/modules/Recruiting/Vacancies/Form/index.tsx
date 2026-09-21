@@ -412,12 +412,12 @@ export default function VacancyForm() {
         <Card title="Условия">
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Локация">
+              <Field label="Филиал">
                 <FormSelect
                   options={locationOptions}
                   value={draft.locationId}
                   onChange={(v) => set("locationId", v || null)}
-                  placeholder="Локация"
+                  placeholder="Филиал"
                   isClearable
                   menuPortal
                 />

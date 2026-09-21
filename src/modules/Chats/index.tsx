@@ -157,7 +157,10 @@ export default function ChatsPage() {
         description="Переписки сотрудников с AI чатом"
       />
 
-      <div className="flex h-[calc(100vh-140px)] overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      {/* Высота под главный layout: шапка h-16 плюс padding обёртки
+          (p-3 md:p-4). В настройках вычиталось 140px — там сверху была ещё
+          своя оболочка. */}
+      <div className="flex h-[calc(100vh-88px)] overflow-hidden rounded-2xl border border-gray-200 bg-white md:h-[calc(100vh-96px)]">
         {/* Левая колонка: люди */}
         <aside className="flex w-[320px] shrink-0 flex-col border-r border-gray-200">
           <div className="border-b border-gray-200 p-3">

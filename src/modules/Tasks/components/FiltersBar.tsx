@@ -135,7 +135,7 @@ interface FiltersPanelProps {
   filters: TaskFilters;
   employees: TaskEmployee[];
   directories: TaskDirectories;
-  /** Локации, встречающиеся в задачах: id → название. */
+  /** Филиалы, встречающиеся в задачах: id → название. */
   locations: { id: string; title: string }[];
   onChange: (filters: TaskFilters) => void;
 }
@@ -294,7 +294,7 @@ export default function FiltersPanel({
           value={filters.locationId}
           onChange={(locationId) => onChange({ ...filters, locationId })}
           options={locationOptions}
-          allLabel="Все локации"
+          allLabel="Все филиалы"
           searchable
           width={280}
         />

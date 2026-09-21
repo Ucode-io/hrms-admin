@@ -123,7 +123,7 @@ const groupKeyOfShift = (shift: Shift, groupBy: GroupBy): { key: string; label: 
   if (groupBy === "location") {
     return {
       key: shift.locations_id ?? NO_SHIFTS_KEY,
-      label: shift.locations_id_data?.title ?? "Без локации",
+      label: shift.locations_id_data?.title ?? "Без филиала",
     };
   }
   const project = (shift.project ?? "").trim();
@@ -643,7 +643,7 @@ export default function ShiftsPage() {
               }
               className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-[13px] dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
             >
-              <option value="">Все локации</option>
+              <option value="">Все филиалы</option>
               {locations.map((item) => (
                 <option key={item.guid} value={item.guid}>
                   {item.title}

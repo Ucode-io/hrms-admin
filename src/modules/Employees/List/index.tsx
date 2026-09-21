@@ -697,7 +697,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     });
                   }}
                   options={locationOptions}
-                  placeholder="Локация"
+                  placeholder="Филиал"
                   isSearchable
                   isClearable
                   styles={filterSelectStyles}
@@ -879,7 +879,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "#f8fafc" }}>
-                    {["", "Имя", "Должность", "Отдел", "Локация", "Email", "Телефон"].map(
+                    {["", "Имя", "Должность", "Отдел", "Филиал", "Email", "Телефон"].map(
                       (h) => (
                         <th
                           key={h}

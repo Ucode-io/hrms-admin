@@ -50,7 +50,6 @@ const CARD_SEEDS: CardSeed[] = [
       "salary",
       "departments_id",
       "experience_levels_id",
-      "divisions_id",
       "locations_id",
     ],
   },

@@ -19,7 +19,6 @@ export interface EmployeeFormValues {
   personal_email: string;
   employment_types_id: string;
   experience_levels_id: string;
-  divisions_id: string;
   locations_id: string;
   employee_work_reason_id: string;
   salary: string;
@@ -45,7 +44,6 @@ export const employeeFormDefaults: EmployeeFormValues = {
   personal_email: "",
   employment_types_id: "",
   experience_levels_id: "",
-  divisions_id: "",
   locations_id: "",
   employee_work_reason_id: "",
   salary: "",

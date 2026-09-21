@@ -1841,7 +1841,7 @@ function AttendanceTooltip({
           <dd className="font-semibold text-gray-900">{data.sourceLabel}</dd>
         </div>
         <div>
-          <dt className="text-[11px] text-gray-500">Локация</dt>
+          <dt className="text-[11px] text-gray-500">Филиал</dt>
           <dd className="font-semibold text-gray-900">
             {data.location ? (
               <LocationViewLink value={data.location} office={offices.get(data.officeId)} />

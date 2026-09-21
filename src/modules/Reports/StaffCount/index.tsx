@@ -561,7 +561,7 @@ function StaffCountPage() {
               </article>
 
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                <h3 className="text-lg font-semibold text-gray-900">Численность персонала по локациям</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Численность персонала по филиалам</h3>
                 <div className="mt-2">
                   {!locationsHasData ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
@@ -598,7 +598,7 @@ function StaffCountPage() {
               ) : null}
               {selectedLocationId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Локация: {selectedLocationLabel || "Не указано"}
+                  Филиал: {selectedLocationLabel || "Не указано"}
                 </span>
               ) : null}
               <button
@@ -704,8 +704,8 @@ function StaffCountPage() {
                     "Уровень",
                     "Должность",
                     "Департамент",
-                    "Подразделение",
-                    "Локация",
+                    "Регион",
+                    "Филиал",
                   ].map((column) => (
                     <th
                       key={column}
@@ -775,7 +775,7 @@ function StaffCountPage() {
                         {item.department}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {item.division}
+                        {item.region}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
                         {item.location}

@@ -578,7 +578,7 @@ function ReportsPage() {
           />
 
           <ChartBlock
-            title="Средний возраст по локациям"
+            title="Средний возраст по филиалам"
             subtitle="В годах"
             options={horizontalBarOptions(
               averageAgeByLocations.map((item) => item.label),
@@ -610,7 +610,7 @@ function ReportsPage() {
               ) : null}
               {selectedLocationId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Локация: {selectedLocationLabel || "Не указано"}
+                  Филиал: {selectedLocationLabel || "Не указано"}
                 </span>
               ) : null}
               <button
@@ -685,7 +685,7 @@ function ReportsPage() {
                     "Уровень",
                     "Должность",
                     "Департамент",
-                    "Подразделение",
+                    "Регион",
                   ].map((column) => (
                     <th
                       key={column}
@@ -753,7 +753,7 @@ function ReportsPage() {
                         {item.department}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {item.division}
+                        {item.region}
                       </td>
                     </tr>
                   ))

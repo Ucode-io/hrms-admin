@@ -17,14 +17,14 @@ const DIMENSION_LABELS: Record<RecruitingClosureTimesDimension, string> = {
   vacancies: "Вакансии",
   positions: "Должности",
   departments: "Департаменты",
-  locations: "Локации",
+  locations: "Филиалы",
 };
 
 const DIMENSION_FIRST_COLUMN: Record<RecruitingClosureTimesDimension, string> = {
   vacancies: "Вакансия",
   positions: "Должность",
   departments: "Департамент",
-  locations: "Локация",
+  locations: "Филиал",
 };
 
 const EMPTY_SUMMARY: RecruitingClosureTimesSummary = {

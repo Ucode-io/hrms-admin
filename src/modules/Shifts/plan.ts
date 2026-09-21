@@ -64,7 +64,7 @@ export type ConflictPolicy = "skip" | "overwrite";
  */
 export type RemovalPolicy = "delete" | "detach";
 
-/** Должность и локация из карточки сотрудника — ими заполняются новые строки. */
+/** Должность и филиал из карточки сотрудника — ими заполняются новые строки. */
 export type EmployeeMeta = { positionId: string | null; locationId: string | null };
 
 /** Поля смены без даты, исполнителя и серии: их планировщик расставляет сам. */
@@ -397,7 +397,7 @@ export const buildSavePlan = (request: PlanRequest): SavePlan => {
       // Должность у новой строки — своя у каждого человека; поле в форме
       // служит запасным вариантом, когда карточка выбранного не загружена.
       positions_id: meta ? meta.positionId : base.positions_id,
-      // Локация наоборот: поле сильнее карточки — «в субботу все на складе».
+      // Филиал наоборот: поле сильнее карточки — «в субботу все на складе».
       locations_id: base.locations_id ?? meta?.locationId ?? null,
     };
   };

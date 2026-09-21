@@ -103,8 +103,6 @@ const secondsBetween = (from: string, to: string): number => {
   return (end - start) * 60;
 };
 
-const WORK_DAY_START_MINUTES = 9 * 60;
-const WORK_DAY_END_MINUTES = 18 * 60;
 const WORK_DAY_PLAN_MINUTES = 8 * 60;
 const WORK_DAY_SCALE_MINUTES = 12 * 60;
 
@@ -550,13 +548,13 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   const firstEvent = events[0];
   const lastEvent = events[events.length - 1];
   const duration = firstEvent && lastEvent ? secondsBetween(firstEvent.time, lastEvent.time) : 0;
-  const selectedDay = selectedEmployee?.days.find((day) => day.date === anchor);
   const storedDelay = dayRows.map((row) => normalizeTime(row.delay_time)).find(Boolean) ?? "";
   const storedDelayMinutes = minutesFromClock(storedDelay);
-  const checkInMinutes = selectedDay?.checkIn ? minutesFromClock(selectedDay.checkIn) : null;
-  const checkOutMinutes = selectedDay?.checkOut ? minutesFromClock(selectedDay.checkOut) : null;
-  const lateMinutes = storedDelayMinutes ?? (checkInMinutes === null ? null : Math.max(0, checkInMinutes - WORK_DAY_START_MINUTES));
-  const earlyLeaveMinutes = checkOutMinutes === null ? null : Math.max(0, WORK_DAY_END_MINUTES - checkOutMinutes);
+  // Только записанное опоздание. Своего запасного расчёта здесь нет: он был бы
+  // вычитанием чужих 09:00 из чужого прихода (CONTEXT.md, Lateness), а
+  // единственный верный ответ уже посчитан по графику при записи строки.
+  // Нет `delay_time` — показываем «—», а не выдуманное число.
+  const lateMinutes = storedDelayMinutes;
   const loadingDetail = dayQuery.isLoading || recordsQuery.isLoading;
 
   return (
@@ -577,7 +575,7 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
             />
           </> : <>
             <div className="mb-4 flex flex-wrap items-center gap-3"><button type="button" onClick={() => patchParams({ employee: null })} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"><ArrowLeft size={15} />К сотрудникам</button>{selectedEmployee ? <div className="flex items-center gap-3"><EmployeeAvatar name={selectedEmployee.name} photo={selectedEmployee.photo} seed={selectedEmployee.id} size={42} /><div><h1 className="text-base font-bold text-slate-900">{selectedEmployee.name}</h1>{selectedEmployee.department ? <p className="text-xs text-slate-400">{selectedEmployee.department}</p> : null}</div></div> : null}<div className="ml-auto inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm"><button type="button" aria-label="Предыдущий день" onClick={() => patchParams({ date: shiftDays(anchor, -1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronLeft size={16} /></button><span className="min-w-[145px] px-3 text-center text-xs font-semibold text-slate-700">{formatDateRu(anchor)}</span><button type="button" aria-label="Следующий день" onClick={() => patchParams({ date: shiftDays(anchor, 1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronRight size={16} /></button></div></div>
-            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title="Не удалось загрузить отметки" hint="Проверьте интеграцию и повторите попытку" /> : events.length === 0 ? <EmptyState icon="clock" title={`За ${formatDateRu(anchor)} отметок нет`} hint="Пустые данные не подменяются тестовыми" /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Первый приход" value={firstEvent?.time || "—"} /><Metric label="Последний уход" value={lastEvent?.time || "—"} /><Metric label="Между первой и последней" value={formatDuration(duration)} /><AttendanceDeviationMetric late={formatMinuteOffset(lateMinutes)} earlyLeave={formatMinuteOffset(earlyLeaveMinutes)} /></div><AccessTimeline events={events} /><EventCards events={events} office={office} /></div>}
+            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title="Не удалось загрузить отметки" hint="Проверьте интеграцию и повторите попытку" /> : events.length === 0 ? <EmptyState icon="clock" title={`За ${formatDateRu(anchor)} отметок нет`} hint="Пустые данные не подменяются тестовыми" /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Первый приход" value={firstEvent?.time || "—"} /><Metric label="Последний уход" value={lastEvent?.time || "—"} /><Metric label="Между первой и последней" value={formatDuration(duration)} /><Metric label="Опоздание" value={formatMinuteOffset(lateMinutes)} /></div><AccessTimeline events={events} /><EventCards events={events} office={office} /></div>}
           </>}
         </div>
       </div>
@@ -589,19 +587,3 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3"><div className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div><div className="mt-1 text-lg font-bold text-slate-800">{value}</div></div>;
 }
 
-function AttendanceDeviationMetric({ late, earlyLeave }: { late: string; earlyLeave: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-      <div className="grid grid-cols-2 divide-x divide-slate-100">
-        <div className="pr-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Опоздание</div>
-          <div className="mt-1 text-lg font-bold text-slate-800">{late}</div>
-        </div>
-        <div className="pl-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Ранний уход</div>
-          <div className="mt-1 text-lg font-bold text-slate-800">{earlyLeave}</div>
-        </div>
-      </div>
-    </div>
-  );
-}

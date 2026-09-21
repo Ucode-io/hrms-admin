@@ -35,7 +35,6 @@ export interface EmployeeWorkRequestPayload {
   positions_id?: string | null;
   experience_levels_id?: string | null;
   departments_id?: string | null;
-  divisions_id?: string | null;
   locations_id?: string | null;
   employment_types_id?: string | null;
   employee_work_reason_id?: string | null;

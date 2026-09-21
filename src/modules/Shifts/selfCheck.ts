@@ -197,7 +197,7 @@ assert.equal(
   twoPeople.creates.every((created) => created.series_id === "S"),
   true
 );
-// Локация из карточки — только пока поле пустое; заполненное поле сильнее.
+// Филиал из карточки — только пока поле пустое; заполненное поле сильнее.
 assert.equal(twoPeople.creates[1].locations_id, "office");
 assert.equal(
   plan({

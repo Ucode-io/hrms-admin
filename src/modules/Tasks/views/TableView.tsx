@@ -41,7 +41,7 @@ const HEADERS: { key: SortKey; label: string }[] = [
   { key: "status", label: "Статус" },
   { key: "priority", label: "Приоритет" },
   { key: "assignee", label: "Исполнители" },
-  { key: "location", label: "Локация" },
+  { key: "location", label: "Филиал" },
   { key: "startDate", label: "Начало" },
   { key: "endDate", label: "Завершена" },
   { key: "deadline", label: "Дедлайн" },
@@ -99,7 +99,7 @@ export default function TableView({
         case "location":
           return (
             (task.locationId && locationTitles[task.locationId]?.toLowerCase()) || "￿"
-          ); // без локации — в конец
+          ); // без филиала — в конец
         case "startDate":
           return task.startDate ?? "9999";
         case "endDate":
