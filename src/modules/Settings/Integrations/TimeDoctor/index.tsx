@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Link2, RefreshCw, Save, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
+import DateInput from "../../../../components/form/DateInput";
 import Button from "../../../../components/ui/button/Button";
 import Spinner from "../../../../components/ui/Spinner";
 import {
@@ -378,23 +379,19 @@ export default function TimeDoctorIntegrationSettingsPage() {
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-500">С</label>
-                <input
-                  type="date"
+                <DateInput
                   value={range.from}
-                  onChange={(event) =>
-                    setRange((prev) => ({ ...prev, from: event.target.value }))
-                  }
+                  onChange={(next) => setRange((prev) => ({ ...prev, from: next }))}
+                  max={range.to || undefined}
                   className={`${inputClass} w-44`}
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-500">По</label>
-                <input
-                  type="date"
+                <DateInput
                   value={range.to}
-                  onChange={(event) =>
-                    setRange((prev) => ({ ...prev, to: event.target.value }))
-                  }
+                  onChange={(next) => setRange((prev) => ({ ...prev, to: next }))}
+                  min={range.from || undefined}
                   className={`${inputClass} w-44`}
                 />
               </div>

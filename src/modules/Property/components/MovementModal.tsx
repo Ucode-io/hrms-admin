@@ -3,6 +3,7 @@ import { ArrowRight, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "../../../components/ui/modal";
 import Button from "../../../components/ui/button/Button";
+import DateInput from "../../../components/form/DateInput";
 import AssigneeSelect, { type AssigneeOption } from "./AssigneeSelect";
 import StatusBadge from "./StatusBadge";
 import { useMoveProperty } from "../../../api/services/property.service";
@@ -142,9 +143,9 @@ export default function MovementModal({ isOpen, item, onClose, onSuccess }: Move
 
             <div>
               <label className={labelCls}>{isAssigned ? "Дата выдачи" : "Дата операции"}</label>
-              <input type="date" className={inputCls}
+              <DateInput className={inputCls}
                 value={input.date ?? ""}
-                onChange={(e) => setInput((prev) => prev ? { ...prev, date: e.target.value || null } : prev)} />
+                onChange={(next) => setInput((prev) => prev ? { ...prev, date: next || null } : prev)} />
             </div>
 
             <div>

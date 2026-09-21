@@ -14,6 +14,7 @@ import {
   useUpdateSettingsDirectoryItem,
 } from "../../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
+import TimeInput from "../../../../components/form/TimeInput";
 
 type SportAttendanceSectionProps = {
   employeeGuid: string;
@@ -410,14 +411,12 @@ export default function SportAttendanceSection({
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Время
               </label>
-              <input
-                type="time"
-                step={60}
+              <TimeInput
                 value={draft.time}
-                onChange={(event) =>
+                onChange={(next) =>
                   setDraft((prev) => ({
                     ...prev,
-                    time: event.target.value,
+                    time: next,
                   }))
                 }
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"

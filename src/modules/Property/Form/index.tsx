@@ -4,6 +4,7 @@ import { Boxes, ImagePlus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
+import DateInput from "../../../components/form/DateInput";
 import SidebarAwareFixedFooter from "../../../components/layout/SidebarAwareFixedFooter";
 import FormSelect from "../../Recruiting/components/FormSelect";
 import { useHeaderBreadcrumbItems } from "../../../context/HeaderBreadcrumbContext";
@@ -276,21 +277,19 @@ export default function PropertyForm() {
                 />
               </Field>
               <Field label="Дата покупки">
-                <input
-                  type="date"
+                <DateInput
                   className={inputCls}
                   value={draft.purchaseDate ?? ""}
-                  onChange={(e) => update("purchaseDate", e.target.value || null)}
+                  onChange={(next) => update("purchaseDate", next || null)}
                 />
               </Field>
             </div>
 
             <Field label="Гарантия до">
-              <input
-                type="date"
+              <DateInput
                 className={inputCls}
                 value={draft.warrantyUntil ?? ""}
-                onChange={(e) => update("warrantyUntil", e.target.value || null)}
+                onChange={(next) => update("warrantyUntil", next || null)}
               />
             </Field>
 

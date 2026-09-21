@@ -10,6 +10,7 @@ import {
 
 import { Modal } from "../../../../components/ui/modal";
 import Button from "../../../../components/ui/button/Button";
+import DateInput from "../../../../components/form/DateInput";
 import { FieldControl } from "./FieldControl";
 import {
   DIRECTORY_SLUGS,
@@ -632,19 +633,19 @@ export default function FieldEditorModal({
               <EditorSection title="Дата">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormRow label="Не раньше">
-                    <input
-                      type="date"
+                    <DateInput
                       className={inputClass}
                       value={draft.rules.minDate}
-                      onChange={(event) => patchRules({ minDate: event.target.value })}
+                      max={draft.rules.maxDate || undefined}
+                      onChange={(next) => patchRules({ minDate: next })}
                     />
                   </FormRow>
                   <FormRow label="Не позже">
-                    <input
-                      type="date"
+                    <DateInput
                       className={inputClass}
                       value={draft.rules.maxDate}
-                      onChange={(event) => patchRules({ maxDate: event.target.value })}
+                      min={draft.rules.minDate || undefined}
+                      onChange={(next) => patchRules({ maxDate: next })}
                     />
                   </FormRow>
                 </div>

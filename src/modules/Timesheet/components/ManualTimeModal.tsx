@@ -12,6 +12,8 @@ import { Modal } from "../../../components/ui/modal";
 import type { TimesheetDirectoryItem, TimesheetEmployee, TimesheetEntry } from "../types";
 import type { ManualTimeSavePayload } from "../../../api/services/manualTime.service";
 import { formatDuration } from "../constants";
+import TimeInput from "../../../components/form/TimeInput";
+import DateInput from "../../../components/form/DateInput";
 
 interface ManualTimeModalProps {
   isOpen: boolean;
@@ -175,12 +177,7 @@ export default function ManualTimeModal({
 
         <div>
           <label className={labelClass}>Дата</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            className={inputClass}
-          />
+          <DateInput value={date} onChange={setDate} className={inputClass} />
         </div>
 
         <div>
@@ -212,19 +209,17 @@ export default function ManualTimeModal({
           <>
             <div>
               <label className={labelClass}>Начало</label>
-              <input
-                type="time"
+              <TimeInput
                 value={startTime}
-                onChange={(event) => setStartTime(event.target.value)}
+                onChange={(next) => setStartTime(next)}
                 className={inputClass}
               />
             </div>
             <div>
               <label className={labelClass}>Окончание</label>
-              <input
-                type="time"
+              <TimeInput
                 value={endTime}
-                onChange={(event) => setEndTime(event.target.value)}
+                onChange={(next) => setEndTime(next)}
                 className={inputClass}
               />
             </div>

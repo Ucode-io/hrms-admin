@@ -3,11 +3,14 @@ import ComponentCard from "../../common/ComponentCard";
 import Label from "../Label";
 import Input from "../input/InputField";
 import Select from "../Select";
-import { EyeCloseIcon, EyeIcon, TimeIcon } from "../../../icons";
-import DatePicker from "../date-picker.tsx";
+import { EyeCloseIcon, EyeIcon } from "../../../icons";
+import DateInput from "../DateInput";
+import TimeInput from "../TimeInput";
 
 export default function DefaultInputs() {
   const [showPassword, setShowPassword] = useState(false);
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const options = [
     { value: "marketing", label: "Marketing" },
     { value: "template", label: "Template" },
@@ -58,30 +61,22 @@ export default function DefaultInputs() {
         </div>
 
         <div>
-          <DatePicker
+          <Label htmlFor="date-picker">Date Picker Input</Label>
+          <DateInput
             id="date-picker"
-            label="Date Picker Input"
-            placeholder="Select a date"
-            onChange={(dates, currentDateString) => {
-              // Handle your logic
-              console.log({ dates, currentDateString });
-            }}
+            value={date}
+            onChange={setDate}
+            className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
           />
         </div>
 
         <div>
           <Label htmlFor="tm">Time Picker Input</Label>
-          <div className="relative">
-            <Input
-              type="time"
-              id="tm"
-              name="tm"
-              onChange={(e) => console.log(e.target.value)}
-            />
-            <span className="absolute text-gray-500 -translate-y-1/2 pointer-events-none right-3 top-1/2 dark:text-gray-400">
-              <TimeIcon className="size-6" />
-            </span>
-          </div>
+          <TimeInput
+            value={time}
+            onChange={setTime}
+            className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 pr-10 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+          />
         </div>
         <div>
           <Label htmlFor="tm">Input with Payment</Label>

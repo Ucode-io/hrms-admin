@@ -7,6 +7,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Modal } from "../../../../components/ui/modal";
+import DateInput from "../../../../components/form/DateInput";
 import {
   useCreateEmployeeEducation,
   useDeleteEmployeeEducation,
@@ -457,16 +458,10 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
                 Дата начала *
               </label>
-              <input
-                type="date"
+              <DateInput
                 value={educationDraft.start_date}
-                onChange={(event) =>
-                  setEducationDraft((prev) => ({
-                    ...prev,
-                    start_date: event.target.value,
-                  }))
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
+                onChange={(next) => setEducationDraft((prev) => ({ ...prev, start_date: next }))}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-9 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
               />
             </div>
 
@@ -474,17 +469,12 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
                 Дата окончания
               </label>
-              <input
-                type="date"
+              <DateInput
                 value={educationDraft.end_date}
-                onChange={(event) =>
-                  setEducationDraft((prev) => ({
-                    ...prev,
-                    end_date: event.target.value,
-                  }))
-                }
+                onChange={(next) => setEducationDraft((prev) => ({ ...prev, end_date: next }))}
+                min={educationDraft.start_date || undefined}
                 disabled={educationDraft.is_current}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-9 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
             </div>
           </div>

@@ -32,6 +32,7 @@ import reportsService, {
   type WorkScheduleDay,
   type WorkScheduleDayCode,
 } from "../../../api/services/reports.service";
+import TimeInput from "../../../components/form/TimeInput";
 
 const WORK_SCHEDULES_QUERY_KEY = "WORK_SCHEDULES";
 const PAGE_SIZE = 20;
@@ -163,11 +164,10 @@ function TimeField({
   onChange: (next: string) => void;
 }) {
   return (
-    <input
-      type="time"
+    <TimeInput
       value={value}
       disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(next) => onChange(next)}
       className="h-9 w-[110px] rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-sm font-semibold text-gray-700 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50"
     />
   );

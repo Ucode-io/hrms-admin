@@ -33,6 +33,7 @@ import {
 import { syncVegapharmCrmAttendance } from "../../../api/services/vegapharmCrm.service";
 import LocationViewLink from "../../../components/map/LocationViewLink";
 import { useOffices } from "../../../components/map/useOffices";
+import TimeInput from "../../../components/form/TimeInput";
 
 const ATTENDANCE_ENTITY_TYPE = "attendance";
 const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
@@ -1420,14 +1421,12 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Время прихода
               </label>
-              <input
-                type="time"
-                step={60}
+              <TimeInput
                 value={draft.checkInTime}
-                onChange={(event) =>
+                onChange={(next) =>
                   setDraft((prev) => ({
                     ...prev,
-                    checkInTime: event.target.value,
+                    checkInTime: next,
                   }))
                 }
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
@@ -1438,14 +1437,12 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Время ухода
               </label>
-              <input
-                type="time"
-                step={60}
+              <TimeInput
                 value={draft.checkOutTime}
-                onChange={(event) =>
+                onChange={(next) =>
                   setDraft((prev) => ({
                     ...prev,
-                    checkOutTime: event.target.value,
+                    checkOutTime: next,
                   }))
                 }
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"

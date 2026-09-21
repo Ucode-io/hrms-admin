@@ -21,6 +21,7 @@ import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
 import EmployeesPaginationFooter from "../../Employees/List/components/EmployeesPaginationFooter";
 import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
+import DateInput from "../../../components/form/DateInput";
 import {
   useDeleteEmployeeCompensation,
   useCreateEmployeeCompensation,
@@ -1307,16 +1308,10 @@ function FinanceSalaryPage() {
 
             <label className="space-y-1">
               <span className="text-xs font-medium text-slate-500">Дата начисления</span>
-              <input
-                type="date"
+              <DateInput
                 value={createDraft.accrualDate}
-                onChange={(event) =>
-                  setCreateDraft((prev) => ({
-                    ...prev,
-                    accrualDate: event.target.value,
-                  }))
-                }
-                className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                onChange={(next) => setCreateDraft((prev) => ({ ...prev, accrualDate: next }))}
+                className="h-10 w-full rounded-xl border border-slate-200 px-3 pr-9 text-sm text-slate-700 outline-none transition focus:border-slate-300"
               />
             </label>
           </div>
@@ -1431,16 +1426,10 @@ function FinanceSalaryPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="space-y-1">
               <span className="text-xs font-medium text-slate-500">Дата начисления</span>
-              <input
-                type="date"
+              <DateInput
                 value={editDraft.accrualDate}
-                onChange={(event) =>
-                  setEditDraft((prev) => ({
-                    ...prev,
-                    accrualDate: event.target.value,
-                  }))
-                }
-                className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
+                onChange={(next) => setEditDraft((prev) => ({ ...prev, accrualDate: next }))}
+                className="h-10 w-full rounded-xl border border-slate-200 px-3 pr-9 text-sm text-slate-700 outline-none transition focus:border-slate-300"
               />
             </label>
 

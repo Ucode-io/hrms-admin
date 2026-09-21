@@ -36,6 +36,7 @@ import {
   SummaryCardsSkeleton,
   TimelineSkeleton,
 } from "./components/DaySkeletons";
+import TimeInput from "../../components/form/TimeInput";
 
 const STATUS_META: Record<ManualTimeStatus, { label: string; className: string }> = {
   pending: { label: "Ожидает", className: "bg-amber-100 text-amber-700" },
@@ -271,21 +272,19 @@ export default function TimesheetDayPage() {
   const draftRow = draft ? (
     <TableRow className="bg-brand-50/50 dark:bg-brand-500/10">
       <TableCell className="whitespace-nowrap px-5 py-2.5">
-        <input
-          type="time"
+        <TimeInput
           value={draft.startTime}
-          onChange={(event) =>
-            setDraft((prev) => (prev ? { ...prev, startTime: event.target.value } : prev))
+          onChange={(next) =>
+            setDraft((prev) => (prev ? { ...prev, startTime: next } : prev))
           }
           className={cellInput}
         />
       </TableCell>
       <TableCell className="whitespace-nowrap px-5 py-2.5">
-        <input
-          type="time"
+        <TimeInput
           value={draft.endTime}
-          onChange={(event) =>
-            setDraft((prev) => (prev ? { ...prev, endTime: event.target.value } : prev))
+          onChange={(next) =>
+            setDraft((prev) => (prev ? { ...prev, endTime: next } : prev))
           }
           className={cellInput}
         />

@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
@@ -10,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../../../components/common/PageMeta";
+import DateInput from "../../../../components/form/DateInput";
 import Button from "../../../../components/ui/button/Button";
 import { Modal } from "../../../../components/ui/modal";
 import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
@@ -544,19 +544,12 @@ export default function HolidayPolicyDetailPage() {
             <label htmlFor="holiday-date" className="block text-sm font-medium text-gray-700">
               Дата
             </label>
-            <div className="relative">
-              <CalendarDays
-                size={18}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                id="holiday-date"
-                type="date"
-                value={holidayDate}
-                onChange={(event) => setHolidayDate(event.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 px-3 pr-10 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
-              />
-            </div>
+            <DateInput
+              id="holiday-date"
+              value={holidayDate}
+              onChange={setHolidayDate}
+              className="h-11 w-full rounded-lg border border-gray-300 px-3 pr-10 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-6">

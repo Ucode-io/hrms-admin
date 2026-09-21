@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Award, CalendarDays, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
 import { Modal } from "../../../../components/ui/modal";
+import DateInput from "../../../../components/form/DateInput";
 import {
   useCreateEmployeeCertificate,
   useDeleteEmployeeCertificate,
@@ -384,13 +385,10 @@ function LicenseCertificatesSection({
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
                 Дата выдачи *
               </label>
-              <input
-                type="date"
+              <DateInput
                 value={draft.issue_date}
-                onChange={(event) =>
-                  setDraft((prev) => ({ ...prev, issue_date: event.target.value }))
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
+                onChange={(next) => setDraft((prev) => ({ ...prev, issue_date: next }))}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-9 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
               />
             </div>
 
@@ -398,14 +396,12 @@ function LicenseCertificatesSection({
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
                 Срок действия до
               </label>
-              <input
-                type="date"
+              <DateInput
                 value={draft.expiration_date}
-                onChange={(event) =>
-                  setDraft((prev) => ({ ...prev, expiration_date: event.target.value }))
-                }
+                onChange={(next) => setDraft((prev) => ({ ...prev, expiration_date: next }))}
+                min={draft.issue_date || undefined}
                 disabled={draft.no_expiration}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-9 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
             </div>
 

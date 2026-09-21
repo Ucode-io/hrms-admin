@@ -3,6 +3,7 @@ import { ImagePlus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "../../../components/ui/modal";
 import Button from "../../../components/ui/button/Button";
+import DateInput from "../../../components/form/DateInput";
 import { useUploadFile } from "../../../api/services/file-upload.service";
 import {
   type PropertyGeneralDraft,
@@ -166,18 +167,18 @@ export default function PropertyFormModal({
               </div>
               <div>
                 <label className={labelCls}>Дата покупки</label>
-                <input type="date" className={inputCls}
+                <DateInput className={inputCls}
                   value={draft.purchaseDate ?? ""}
-                  onChange={(e) => update("purchaseDate", e.target.value || null)} />
+                  onChange={(next) => update("purchaseDate", next || null)} />
               </div>
             </div>
 
             {/* Warranty */}
             <div>
               <label className={labelCls}>Гарантия до</label>
-              <input type="date" className={inputCls}
+              <DateInput className={inputCls}
                 value={draft.warrantyUntil ?? ""}
-                onChange={(e) => update("warrantyUntil", e.target.value || null)} />
+                onChange={(next) => update("warrantyUntil", next || null)} />
             </div>
 
             {/* Description */}
