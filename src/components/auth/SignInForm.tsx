@@ -51,14 +51,11 @@ const SignInForm = observer(function SignInForm() {
       }
     } catch (err: unknown) {
       console.error("Login error:", err);
-      const description =
-        typeof err === "object" &&
-        err !== null &&
-        "response" in err &&
-        typeof (err as { response?: { data?: { description?: string } } }).response?.data?.description === "string"
-          ? (err as { response?: { data?: { description?: string } } }).response?.data?.description
-          : null;
-      setError(description || "Неверный логин или пароль");
+      // Человеческий текст ucode кладёт в `data`, а в `description` — константу
+      // под код ответа: на неверный пароль там «Invalid argument value passed»,
+      // и именно это показывалось вместо «неверный пароль».
+      const message = (err as { response?: { data?: { data?: unknown } } })?.response?.data?.data;
+      setError(typeof message === "string" && message.trim() ? message : "Неверный логин или пароль");
     }
   };
 
