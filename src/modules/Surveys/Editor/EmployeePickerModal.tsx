@@ -37,8 +37,7 @@ interface EmployeePickerModalProps {
 
 const PAGE_SIZE = 10;
 
-export default function EmployeePickerModal({
-  isOpen,
+export default function EmployeePickerModal({ isOpen,
   value,
   onClose,
   onApply,

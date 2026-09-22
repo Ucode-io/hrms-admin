@@ -8,8 +8,10 @@ import { PlusIcon, TrashBinIcon } from "../../../icons";
 import { Modal } from "../../../components/ui/modal";
 import DataTable, { Column } from "../../../components/DataTable";
 import { Search, X, ChevronDown } from "lucide-react";
+import { useTranslation } from "../../../i18n";
 
 export default function ClientsList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 10;

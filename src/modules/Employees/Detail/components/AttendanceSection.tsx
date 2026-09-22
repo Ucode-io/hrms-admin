@@ -28,6 +28,7 @@ import {
 } from "../../../../api/services/approval.service";
 import TimeInput from "../../../../components/form/TimeInput";
 import hickvisionService, { type LatenessResult } from "../../../../api/services/hickvision.service";
+import { useTranslation, translate } from "../../../../i18n";
 
 type AttendanceSectionProps = {
   employeeGuid: string;
@@ -175,21 +176,21 @@ const getActionStatusTag = (
 ): { label: string; className: string } => {
   if (status === "absent") {
     return {
-      label: "Отсутствует",
+      label: translate("employees.attendance.status_absent"),
       className: "border-slate-200 bg-slate-100 text-slate-500",
     };
   }
 
   if (status === "late") {
     return {
-      label: hasDelayValue(delayTime) ? delayTime : "Опоздание",
+      label: hasDelayValue(delayTime) ? delayTime : translate("employees.attendance.status_late"),
       className: "border-rose-200 bg-rose-50 text-rose-700",
     };
   }
 
   if (status === "present") {
     return {
-      label: "Присутствует",
+      label: translate("employees.attendance.status_present"),
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
     };
   }
@@ -205,21 +206,21 @@ const getWorkflowStatusTag = (
 ): { label: string; className: string } => {
   if (status === "accepted") {
     return {
-      label: "Подтверждено",
+      label: translate("employees.attendance.status_accepted"),
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
     };
   }
 
   if (status === "requested") {
     return {
-      label: "Запрошено",
+      label: translate("employees.attendance.status_requested"),
       className: "border-amber-200 bg-amber-50 text-amber-700",
     };
   }
 
   if (status === "rejected") {
     return {
-      label: "Отклонено",
+      label: translate("employees.attendance.status_rejected"),
       className: "border-rose-200 bg-rose-50 text-rose-700",
     };
   }
@@ -296,6 +297,7 @@ export default function AttendanceSection({
   brandColor,
   departmentId,
 }: AttendanceSectionProps) {
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGuid, setEditingGuid] = useState<string | null>(null);
   const [draft, setDraft] = useState<AttendanceDraft>(getDefaultDraft());
@@ -403,7 +405,7 @@ export default function AttendanceSection({
 
   const handleSave = async () => {
     if (!draft.date) {
-      setError("Укажите дату.");
+      setError(t("employees.attendance.date_required"));
       return;
     }
 
@@ -411,7 +413,7 @@ export default function AttendanceSection({
     const checkOutTime = normalizeTimeValue(draft.checkOutTime);
 
     if (!checkInTime && !checkOutTime) {
-      setError("Укажите хотя бы одно время: приход или уход.");
+      setError(t("employees.attendance.time_required"));
       return;
     }
 
@@ -428,7 +430,7 @@ export default function AttendanceSection({
       });
     } catch (latenessError) {
       console.error("Attendance lateness error:", latenessError);
-      setError("Не удалось получить график сотрудника — опоздание не посчитано.");
+      setError(t("employees.attendance.lateness_calc_failed"));
       return;
     }
 
@@ -456,7 +458,7 @@ export default function AttendanceSection({
       closeModal();
     } catch (saveError) {
       console.error("Attendance save error:", saveError);
-      setError("Не удалось сохранить запись. Попробуйте ещё раз.");
+      setError(t("employees.attendance.save_failed"));
     }
   };
 
@@ -468,7 +470,7 @@ export default function AttendanceSection({
       setToDelete(null);
     } catch (deleteError) {
       console.error("Attendance delete error:", deleteError);
-      setError("Не удалось удалить запись. Попробуйте ещё раз.");
+      setError(t("employees.attendance.delete_failed"));
     }
   };
 
@@ -510,7 +512,7 @@ export default function AttendanceSection({
       await confirmRecord(record);
     } catch (confirmError) {
       console.error("Attendance confirm error:", confirmError);
-      setError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+      setError(t("employees.attendance.confirm_failed"));
     }
   };
 
@@ -526,7 +528,7 @@ export default function AttendanceSection({
       });
     } catch (stageError) {
       console.error("Attendance stage approve error:", stageError);
-      setError("Не удалось одобрить этап.");
+      setError(t("employees.attendance.stage_approve_failed"));
     }
   };
 
@@ -537,7 +539,7 @@ export default function AttendanceSection({
       setApprovalRecord(null);
     } catch (confirmError) {
       console.error("Attendance confirm error:", confirmError);
-      setError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+      setError(t("employees.attendance.confirm_failed"));
     }
   };
 
@@ -551,7 +553,7 @@ export default function AttendanceSection({
       setApprovalRecord(null);
     } catch (rejectError) {
       console.error("Attendance reject error:", rejectError);
-      setError("Не удалось отклонить запись.");
+      setError(t("employees.attendance.reject_failed"));
     }
   };
 
@@ -564,7 +566,7 @@ export default function AttendanceSection({
               <Clock3 className="h-4 w-4" />
             </span>
             <h3 className="m-0 text-[15px] font-bold text-slate-900">
-              Посещаемость
+              {t("employees.attendance.title")}
             </h3>
           </div>
 
@@ -575,7 +577,7 @@ export default function AttendanceSection({
             style={{ color: brandColor }}
           >
             <Plus className="h-3.5 w-3.5" />
-            Добавить
+            {t("common.add")}
           </button>
         </div>
 
@@ -589,12 +591,12 @@ export default function AttendanceSection({
             </div>
           ) : isError ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-[13px] text-rose-600">
-              Не удалось загрузить записи по посещаемости.
+              {t("employees.attendance.load_failed")}
             </div>
           ) : records.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
               <p className="m-0 text-[13px] text-slate-500">
-                Записей по посещаемости пока нет
+                {t("employees.attendance.empty")}
               </p>
             </div>
           ) : (
@@ -602,13 +604,13 @@ export default function AttendanceSection({
               <table className="min-w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Дата</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Приход</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Уход</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Статус действия</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Статус заявки</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.attendance.col_date")}</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.attendance.col_check_in")}</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.attendance.col_check_out")}</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.attendance.col_action_status")}</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.attendance.col_request_status")}</th>
                     <th className="py-2 text-right text-[12px] font-semibold text-slate-500">
-                      Действия
+                      {t("employees.attendance.col_actions")}
                     </th>
                   </tr>
                 </thead>
@@ -679,10 +681,10 @@ export default function AttendanceSection({
                                     void requestConfirm(record);
                                   }}
                                   className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-                                  title="Подтвердить"
+                                  title={t("employees.attendance.confirm_button")}
                                 >
                                   <Check className="h-3.5 w-3.5" />
-                                  Подтвердить
+                                  {t("employees.attendance.confirm_button")}
                                 </button>
                               )
                             ) : null}
@@ -690,7 +692,7 @@ export default function AttendanceSection({
                               type="button"
                               onClick={() => openEdit(record)}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-                              title="Изменить"
+                              title={t("common.edit")}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
@@ -698,7 +700,7 @@ export default function AttendanceSection({
                               type="button"
                               onClick={() => setToDelete(record)}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50"
-                              title="Удалить"
+                              title={t("common.delete")}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -721,7 +723,7 @@ export default function AttendanceSection({
       >
         <div className="border-b border-slate-200 px-6 py-5">
           <h4 className="m-0 text-[22px] font-bold text-slate-900">
-            {editingGuid ? "Изменить посещаемость" : "Добавить посещаемость"}
+            {editingGuid ? t("employees.attendance.edit_modal_title") : t("employees.attendance.add_modal_title")}
           </h4>
         </div>
 
@@ -729,7 +731,7 @@ export default function AttendanceSection({
           <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Дата
+                {t("employees.attendance.col_date")}
               </label>
               <DatePicker
                 selected={draft.date}
@@ -740,7 +742,7 @@ export default function AttendanceSection({
                   }))
                 }
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("employees.detail.dismissal_date_placeholder")}
                 showMonthDropdown
                 showYearDropdown
                 dropdownMode="select"
@@ -753,7 +755,7 @@ export default function AttendanceSection({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Время прихода
+                {t("employees.attendance.check_in_time_label")}
               </label>
               <TimeInput
                 value={draft.checkInTime}
@@ -769,7 +771,7 @@ export default function AttendanceSection({
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Время ухода
+                {t("employees.attendance.check_out_time_label")}
               </label>
               <TimeInput
                 value={draft.checkOutTime}
@@ -798,7 +800,7 @@ export default function AttendanceSection({
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -807,7 +809,7 @@ export default function AttendanceSection({
             className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ backgroundColor: brandColor }}
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </Modal>
@@ -819,10 +821,10 @@ export default function AttendanceSection({
         showCloseButton={false}
       >
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Удалить запись посещаемости?
+          {t("employees.attendance.delete_modal_title")}
         </h4>
         <p className="mb-6 mt-2 text-[13px] text-slate-500">
-          Запись будет удалена без возможности восстановления.
+          {t("employees.sport_attendance.delete_modal_description")}
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -831,7 +833,7 @@ export default function AttendanceSection({
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -839,7 +841,7 @@ export default function AttendanceSection({
             disabled={isSaving}
             className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSaving ? "Удаление..." : "Удалить"}
+            {isSaving ? t("employees.sport_attendance.deleting") : t("common.delete")}
           </button>
         </div>
       </Modal>
@@ -855,7 +857,7 @@ export default function AttendanceSection({
           void handleApproveStage(stageId, comment)
         }
         isApprovingStage={approveStageMutation.isLoading}
-        confirmLabel="Подтвердить запись"
+        confirmLabel={t("employees.attendance.confirm_record_label")}
         onConfirm={() => void finalizeApproval()}
         isConfirming={updateMutation.isLoading}
         onReject={(comment) => void rejectFromApproval(comment)}

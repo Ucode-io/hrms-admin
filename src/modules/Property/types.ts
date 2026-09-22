@@ -1,3 +1,4 @@
+import type { MessageKey } from "../../i18n/messages";
 // Domain types, constants and formatters for the Property (Имущество) module.
 
 export type PropertyStatus = "in_stock" | "assigned" | "repair" | "written_off";
@@ -63,25 +64,25 @@ export const PROPERTY_STATUS_ORDER: PropertyStatus[] = [
 
 export const PROPERTY_STATUS_CONFIG: Record<
   PropertyStatus,
-  { label: string; badgeClassName: string; dotClassName: string }
+  { labelKey: MessageKey; badgeClassName: string; dotClassName: string }
 > = {
   in_stock: {
-    label: "На складе",
+    labelKey: "property.status.in_stock",
     badgeClassName: "bg-slate-100 text-slate-600",
     dotClassName: "bg-slate-400",
   },
   assigned: {
-    label: "Выдано",
+    labelKey: "property.status.issued",
     badgeClassName: "bg-emerald-100 text-emerald-700",
     dotClassName: "bg-emerald-500",
   },
   repair: {
-    label: "На ремонте",
+    labelKey: "property.status.repair",
     badgeClassName: "bg-amber-100 text-amber-700",
     dotClassName: "bg-amber-500",
   },
   written_off: {
-    label: "Списано",
+    labelKey: "property.status.written_off",
     badgeClassName: "bg-rose-100 text-rose-700",
     dotClassName: "bg-rose-500",
   },

@@ -385,8 +385,7 @@ export type KpiSheetsApi = ReturnType<typeof useKpiSheets>;
 // сегментированным переключателем «Таблица / Сетка».
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SortableSheetRow({
-  sheet,
+function SortableSheetRow({ sheet,
   isActive,
   isRenaming,
   isMenuOpen,

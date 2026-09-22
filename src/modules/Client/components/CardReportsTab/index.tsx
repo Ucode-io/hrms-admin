@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "../../../../components/ui/table";
 import { CheckCircleIcon, CloseIcon } from "../../../../icons";
+import { useTranslation } from "../../../../i18n";
 
 interface CardReportsTabProps {
   clientId: string;
@@ -38,6 +39,7 @@ interface ParsedReport {
 }
 
 export default function CardReportsTab({ clientId }: CardReportsTabProps) {
+  const { t } = useTranslation();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   // Fetch client cards

@@ -15,8 +15,10 @@ import Button from "../../../components/ui/button/Button";
 import { PlusIcon, TrashBinIcon } from "../../../icons";
 import { Modal } from "../../../components/ui/modal";
 import { useDeleteMerchant } from "../../../api/services/merchant.service";
+import { useTranslation } from "../../../i18n";
 
 export default function MerchantsList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [filters, setFilters] = useState({
     id: "",

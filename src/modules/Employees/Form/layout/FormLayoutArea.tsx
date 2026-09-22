@@ -41,6 +41,7 @@ import type {
   LayoutWidth,
 } from "./types";
 import type { useEmployeeFormLayout } from "./useEmployeeFormLayout";
+import { useTranslation, translate } from "../../../../i18n";
 
 const ITEM_ZONE_PREFIX = "items:";
 
@@ -174,6 +175,7 @@ function TileBody({
   resizing,
   accentColor,
 }: TileBodyProps) {
+  const { t } = useTranslation();
   const borderColor =
     resizing || overlay ? accentColor : placeholder ? "#c7d2fe" : "#e2e8f0";
 
@@ -220,7 +222,7 @@ function TileBody({
         onClick={removable ? onRemove : undefined}
         onPointerDown={(event) => event.stopPropagation()}
         disabled={!removable}
-        title={removable ? "Убрать поле из формы" : "Обязательное поле — убрать нельзя"}
+        title={removable ? t("employees.form_layout.remove_field") : t("employees.form_layout.required_field")}
         style={{
           ...ghostButton,
           padding: "4px 6px",
@@ -276,6 +278,7 @@ export function SortableTile({
   onRemove,
   onCommitWidth,
 }: SortableTileProps) {
+  const { t } = useTranslation();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [resize, setResize] = useState<ResizeState | null>(null);
   const resizeRef = useRef<ResizeState | null>(null);
@@ -434,8 +437,8 @@ export function SortableTile({
             data-active={resize ? "true" : undefined}
             role="separator"
             aria-orientation="vertical"
-            aria-label="Изменить ширину поля"
-            title="Потяните край, чтобы изменить ширину"
+            aria-label={t("employees.form_layout.resize_field_label")}
+            title={t("employees.form_layout.resize_field_hint")}
             onPointerDown={beginResize}
             onPointerMove={moveResize}
             onPointerUp={endResize}
@@ -448,7 +451,7 @@ export function SortableTile({
 
         {resize && (
           <span className="efb-resize-badge">
-            {resize.target === "full" ? "Вся строка" : "Половина"}
+            {resize.target === "full" ? t("employees.form_layout.width_full") : t("employees.form_layout.width_half")}
           </span>
         )}
       </div>
@@ -482,6 +485,7 @@ function CardBlock({
   addOptions,
   onAdd,
 }: CardBlockProps) {
+  const { t } = useTranslation();
   const [addOpen, setAddOpen] = useState(false);
 
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } =
@@ -510,7 +514,7 @@ function CardBlock({
             type="button"
             {...attributes}
             {...listeners}
-            title="Перетащите, чтобы изменить порядок карточек"
+            title={t("employees.form_layout.reorder_cards_hint")}
             style={{
               border: "none",
               background: "none",
@@ -528,7 +532,7 @@ function CardBlock({
           <input
             value={card.title}
             onChange={(event) => onRename(event.target.value)}
-            placeholder="Название карточки"
+            placeholder={t("employees.form_layout.card_title_placeholder")}
             style={{
               flex: 1,
               minWidth: 0,
@@ -555,8 +559,8 @@ function CardBlock({
                 disabled={addOptions.length === 0}
                 title={
                   addOptions.length === 0
-                    ? "Все поля уже разложены по карточкам"
-                    : "Добавить поле в эту карточку"
+                    ? t("employees.form_layout.all_fields_placed")
+                    : t("employees.form_layout.add_field_to_card")
                 }
                 style={{
                   ...ghostButton,
@@ -564,7 +568,7 @@ function CardBlock({
                   cursor: addOptions.length === 0 ? "not-allowed" : "pointer",
                 }}
               >
-                <Plus style={{ width: "14px", height: "14px" }} /> Поле
+                <Plus style={{ width: "14px", height: "14px" }} /> {t("employees.form_layout.field")}
               </button>
 
               {addOpen && addOptions.length > 0 && (
@@ -599,7 +603,7 @@ function CardBlock({
                         color: "#94a3b8",
                       }}
                     >
-                      Добавить в «{card.title || "без названия"}»
+                      {t("employees.form_layout.add_to_card", { card: card.title || t("employees.form_layout.untitled_card") })}
                     </p>
                     {addOptions.map((option) => (
                       <button
@@ -642,7 +646,7 @@ function CardBlock({
                           {option.label}
                         </span>
                         <span style={{ fontSize: "11px", color: "#94a3b8", flexShrink: 0 }}>
-                          {option.kind === "static" ? "статичное" : "динамическое"}
+                          {option.kind === "static" ? t("employees.form_layout.badge_static") : t("employees.form_layout.badge_dynamic")}
                         </span>
                       </button>
                     ))}
@@ -656,8 +660,8 @@ function CardBlock({
               disabled={card.system}
               title={
                 card.system
-                  ? "Системная карточка — удалить нельзя"
-                  : "Удалить карточку (поля вернутся в список «Вне формы»)"
+                  ? t("employees.form_layout.system_card_hint")
+                  : t("employees.form_layout.delete_card_hint")
               }
               style={{
                 ...ghostButton,
@@ -698,7 +702,7 @@ function CardBlock({
 
         {items.length === 0 && (
           <p style={{ margin: 0, textAlign: "center", fontSize: "13px", color: "#94a3b8" }}>
-            {builderMode ? "Перетащите сюда поля" : "Нет полей"}
+            {builderMode ? t("employees.form_layout.drop_fields_here") : t("employees.form_layout.no_fields")}
           </p>
         )}
       </div>
@@ -719,6 +723,7 @@ export default function FormLayoutArea({
   inputStyle,
   brandColor,
 }: FormLayoutAreaProps) {
+  const { t } = useTranslation();
   const {
     layout,
     cardsOfColumn,
@@ -860,8 +865,8 @@ export default function FormLayoutArea({
         key={item.id}
         item={item}
         title={titleOf(item)}
-        badge={item.kind === "static" ? "статичное" : "динамическое"}
-        note={meta?.createOnly ? "только при создании" : undefined}
+        badge={item.kind === "static" ? t("employees.form_layout.badge_static") : t("employees.form_layout.badge_dynamic")}
+        note={meta?.createOnly ? t("employees.form_layout.create_only") : undefined}
         removable={!meta?.required}
         columns={columns}
         accentColor={brandColor}
@@ -975,7 +980,7 @@ export default function FormLayoutArea({
               fontSize: "13px",
             }}
           >
-            <Plus style={{ width: "15px", height: "15px" }} /> Добавить карточку
+            <Plus style={{ width: "15px", height: "15px" }} /> {t("employees.form_layout.add_card")}
           </button>
         )}
       </div>
@@ -1012,7 +1017,7 @@ export default function FormLayoutArea({
         {draggingItem && (
           <TileBody
             title={titleOf(draggingItem)}
-            badge={draggingItem.kind === "static" ? "статичное" : "динамическое"}
+            badge={draggingItem.kind === "static" ? t("employees.form_layout.badge_static") : t("employees.form_layout.badge_dynamic")}
             removable={false}
             overlay
             accentColor={brandColor}
@@ -1030,13 +1035,14 @@ export default function FormLayoutArea({
  * «+ Поле» в шапке нужной карточки — так сразу видно, куда именно попадёт поле.
  */
 function UnplacedHint({ options }: { options: AddOption[] }) {
+  const { t } = useTranslation();
   return (
     <div style={{ ...cardShell, marginBottom: "20px", padding: "14px 20px" }}>
       <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>
-        Вне формы: {options.length}
+        {t("employees.form_layout.outside_form_count", { count: options.length })}
       </p>
       <p style={{ margin: "2px 0 10px", fontSize: "12px", color: "#94a3b8" }}>
-        Чтобы добавить поле, нажмите «+ Поле» в шапке нужной карточки
+        {t("employees.form_layout.outside_form_hint")}
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {options.map((option) => (

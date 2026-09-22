@@ -27,6 +27,7 @@ import Input from "../../components/form/input/InputField";
 import Checkbox from "../../components/form/input/Checkbox";
 import Button from "../../components/ui/button/Button";
 import Spinner from "../../components/ui/Spinner";
+import { translate, useTranslation } from "../../i18n";
 import { useUploadFile } from "../../api/services/file-upload.service";
 import {
   useCreateNotification,
@@ -76,19 +77,19 @@ const htmlToPlainText = (value: string) => {
 const toolbarBtnClass =
   "inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-gray-600 transition hover:border-gray-200 hover:bg-gray-50 hover:text-gray-800 data-[active=true]:border-brand-200 data-[active=true]:bg-brand-50 data-[active=true]:text-brand-600";
 
-const BtnUndoCustom = createButton("Отменить", <Undo2 size={15} />, "undo");
-const BtnRedoCustom = createButton("Повторить", <Redo2 size={15} />, "redo");
-const BtnBoldCustom = createButton("Жирный", <Bold size={15} />, "bold");
-const BtnItalicCustom = createButton("Курсив", <Italic size={15} />, "italic");
-const BtnUnderlineCustom = createButton("Подчеркнутый", <Underline size={15} />, "underline");
-const BtnNumberedListCustom = createButton("Нумерованный список", <ListOrdered size={15} />, "insertOrderedList");
-const BtnBulletListCustom = createButton("Маркированный список", <List size={15} />, "insertUnorderedList");
-const BtnLinkCustom = createButton("Ссылка", <LinkIcon size={15} />, ({ $selection }) => {
+const BtnUndoCustom = createButton(translate("news_form.undo"), <Undo2 size={15} />, "undo");
+const BtnRedoCustom = createButton(translate("news_form.redo"), <Redo2 size={15} />, "redo");
+const BtnBoldCustom = createButton(translate("news_form.bold"), <Bold size={15} />, "bold");
+const BtnItalicCustom = createButton(translate("news_form.italic"), <Italic size={15} />, "italic");
+const BtnUnderlineCustom = createButton(translate("news_form.underline"), <Underline size={15} />, "underline");
+const BtnNumberedListCustom = createButton(translate("news_form.ordered_list"), <ListOrdered size={15} />, "insertOrderedList");
+const BtnBulletListCustom = createButton(translate("news_form.bullet_list"), <List size={15} />, "insertUnorderedList");
+const BtnLinkCustom = createButton(translate("news_form.link"), <LinkIcon size={15} />, ({ $selection }) => {
   if ($selection?.nodeName === "A") {
     document.execCommand("unlink");
     return;
   }
-  const url = window.prompt("Введите URL", "https://");
+  const url = window.prompt(translate("news_form.enter_url"), "https://");
   if (!url) return;
   document.execCommand("createLink", false, url);
 });
@@ -101,6 +102,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 };
 
 export default function NewsFormPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = Boolean(id);
@@ -138,10 +140,10 @@ export default function NewsFormPage() {
         setUploadingPhoto(true);
         const url = await uploadMutation.mutateAsync(file);
         setForm((prev) => ({ ...prev, photo: url }));
-        toast.success("Фото загружено.");
+        toast.success(t("news_form.photo_uploaded"));
       } catch (error) {
         console.error("Failed to upload news image:", error);
-        toast.error(getErrorMessage(error, "Не удалось загрузить фото."));
+        toast.error(getErrorMessage(error, t("news_form.photo_error")));
       } finally {
         setUploadingPhoto(false);
       }
@@ -178,12 +180,12 @@ export default function NewsFormPage() {
     const plainText = htmlToPlainText(text);
 
     if (!title) {
-      toast.error("Введите заголовок новости.");
+      toast.error(t("news_form.title_required"));
       return;
     }
 
     if (!plainText) {
-      toast.error("Введите текст новости.");
+      toast.error(t("news_form.text_required"));
       return;
     }
 
@@ -197,22 +199,22 @@ export default function NewsFormPage() {
     try {
       if (isEditMode && id) {
         await updateMutation.mutateAsync({ guid: id, data: payload });
-        toast.success("Новость обновлена.");
+        toast.success(t("news_form.updated"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Новость создана.");
+        toast.success(t("news_form.created"));
       }
       navigate("/settings/news");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось сохранить новость."));
+      toast.error(getErrorMessage(error, t("news_form.save_error")));
     }
   };
 
   return (
     <>
       <PageMeta
-        title={isEditMode ? "Редактировать новость | HRMS" : "Создать новость | HRMS"}
-        description="Создание и редактирование новостей"
+        title={isEditMode ? t("news_form.edit_title") : t("news_form.create_title")}
+        description={t("news_form.page_description")}
       />
 
       <div className="space-y-4">
@@ -221,16 +223,16 @@ export default function NewsFormPage() {
           className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
         >
           <ArrowLeft size={16} />
-          К списку новостей
+          {t("news_form.back_to_list")}
         </Link>
 
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900">
-              {isEditMode ? "Редактировать новость" : "Новая новость"}
+              {isEditMode ? t("news_form.edit") : t("news_form.new")}
             </h1>
             <p className="mt-1 text-base text-gray-500">
-              Публикуйте новости и объявления для сотрудников
+              {t("news_form.subtitle")}
             </p>
           </div>
         </div>
@@ -243,23 +245,23 @@ export default function NewsFormPage() {
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 xl:grid-cols-12">
             <div className="space-y-6 xl:col-span-8">
               <section className="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6">
-                <h4 className="mb-5 text-base font-semibold text-gray-800">Содержание</h4>
+                <h4 className="mb-5 text-base font-semibold text-gray-800">{t("news_form.content")}</h4>
 
                 <div className="space-y-5">
                   <div>
-                    <Label htmlFor="news-title">Заголовок *</Label>
+                    <Label htmlFor="news-title">{t("news_form.title_label")}</Label>
                     <Input
                       id="news-title"
                       type="text"
                       value={form.title}
                       onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                      placeholder="Например: Поздравляем с днем рождения"
+                      placeholder={t("news_form.title_placeholder")}
                       disabled={isSubmitting}
                     />
                   </div>
 
                   <div>
-                    <Label>Текст *</Label>
+                    <Label>{t("news_form.text_label")}</Label>
                     <div
                       className={`overflow-hidden rounded-lg border bg-white shadow-theme-xs transition ${
                         isEditorFocused
@@ -307,7 +309,7 @@ export default function NewsFormPage() {
 
             <div className="space-y-6 xl:col-span-4">
               <section className="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6">
-                <h4 className="mb-5 text-base font-semibold text-gray-800">Изображение</h4>
+                <h4 className="mb-5 text-base font-semibold text-gray-800">{t("news_form.image")}</h4>
 
                     <div
                   {...getRootProps()}
@@ -332,12 +334,12 @@ export default function NewsFormPage() {
                         </div>
                         <p className="text-sm font-semibold text-gray-800">
                           {uploadingPhoto
-                            ? "Загрузка изображения..."
+                            ? t("news_form.uploading_image")
                             : isDragActive
-                              ? "Отпустите файл для загрузки"
-                              : "Перетащите фото сюда"}
+                              ? t("news_form.drop_file")
+                              : t("news_form.drag_photo")}
                         </p>
-                        <p className="mt-1 text-xs text-gray-500">или нажмите, чтобы выбрать файл</p>
+                        <p className="mt-1 text-xs text-gray-500">{t("news_form.or_click")}</p>
                       </div>
                     )}
 
@@ -345,7 +347,7 @@ export default function NewsFormPage() {
                       <div className="absolute inset-x-0 bottom-0 border-t border-white/40 bg-white/95 px-3 py-2 backdrop-blur-[2px]">
                         <div className="flex items-center justify-end gap-2">
                           <span className="text-xs font-medium text-gray-500">
-                            Нажмите/перетащите для замены
+                            {t("news_form.click_to_replace")}
                           </span>
                           <Button
                             type="button"
@@ -359,7 +361,7 @@ export default function NewsFormPage() {
                             disabled={isSaving}
                             startIcon={<Trash2 size={14} />}
                           >
-                            Убрать
+                            {t("news_form.remove")}
                           </Button>
                         </div>
                       </div>
@@ -368,32 +370,32 @@ export default function NewsFormPage() {
                 </div>
 
                 {!form.photo ? (
-                  <div className="mt-2 text-xs text-gray-500">Рекомендуемое соотношение 16:9, минимум 1200x675</div>
+                  <div className="mt-2 text-xs text-gray-500">{t("news_form.image_hint")}</div>
                 ) : null}
                 {form.photo && uploadingPhoto ? (
                   <div className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-gray-500">
                     <Loader2 size={12} className="animate-spin" />
-                    Обновляем изображение...
+                    {t("news_form.updating_image")}
                   </div>
                 ) : null}
               </section>
 
               <section className="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6">
-                <h4 className="mb-4 text-base font-semibold text-gray-800">Публикация</h4>
+                <h4 className="mb-4 text-base font-semibold text-gray-800">{t("news_form.publication")}</h4>
                 <Checkbox
                   checked={form.is_active}
                   onChange={(checked) => setForm((prev) => ({ ...prev, is_active: checked }))}
-                  label="Новость активна"
+                  label={t("news_form.is_active")}
                   disabled={isSubmitting}
                 />
               </section>
 
               <div className="flex items-center gap-3">
                 <Button type="button" variant="outline" size="sm" onClick={() => navigate("/settings/news")} disabled={isSubmitting}>
-                  Отмена
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" size="sm" disabled={isSaving}>
-                  {isSaving ? "Сохранение..." : isEditMode ? "Сохранить" : "Создать"}
+                  {isSaving ? t("common.saving") : isEditMode ? t("common.save") : t("products.create")}
                 </Button>
               </div>
             </div>

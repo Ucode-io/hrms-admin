@@ -12,6 +12,8 @@ import {
   useTimesheetReportQuery,
   useTimesheetReportTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 const PAGE_LIMIT = 25;
 
@@ -24,13 +26,37 @@ type SortKey = "name" | "worked" | "completion" | "deviation";
  * HRMS (согласованное), `manual` — правка в самом Time Doctor. Смешивать их
  * нельзя: вопросы к ним разные.
  */
-const SOURCE_META: Record<string, { label: string; short: string; color: string }> = {
-  tracker: { label: "Трекер", short: "Трекер", color: "#2563eb" },
-  manual: { label: "Вручную (Time Doctor)", short: "Вручную (TD)", color: "#9dbcf0" },
-  mobile: { label: "Мобильное приложение", short: "Мобильное", color: "#b3a8e8" },
-  break: { label: "Перерыв", short: "Перерыв", color: "#cbd5e1" },
-  hrms_manual: { label: "Ручное время (HRMS)", short: "Ручное (HRMS)", color: "#0e7490" },
-  other: { label: "Другое", short: "Другое", color: "#94a3b8" },
+const SOURCE_META: Record<string, { labelKey: MessageKey; shortKey: MessageKey; color: string }> = {
+  tracker: {
+    labelKey: "reports.timesheet.source_tracker",
+    shortKey: "reports.timesheet.source_tracker",
+    color: "#2563eb",
+  },
+  manual: {
+    labelKey: "reports.timesheet.source_manual_td",
+    shortKey: "reports.timesheet.source_manual_td_short",
+    color: "#9dbcf0",
+  },
+  mobile: {
+    labelKey: "reports.timesheet.source_mobile",
+    shortKey: "reports.timesheet.source_mobile_short",
+    color: "#b3a8e8",
+  },
+  break: {
+    labelKey: "reports.timesheet.source_break",
+    shortKey: "reports.timesheet.source_break",
+    color: "#cbd5e1",
+  },
+  hrms_manual: {
+    labelKey: "reports.timesheet.source_manual_hrms",
+    shortKey: "reports.timesheet.source_manual_hrms_short",
+    color: "#0e7490",
+  },
+  other: {
+    labelKey: "reports.timesheet.source_other",
+    shortKey: "reports.timesheet.source_other",
+    color: "#94a3b8",
+  },
 };
 
 const DANGER = "#D92D20";
@@ -38,7 +64,7 @@ const SUCCESS = "#039855";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 /** Секунды → «7ч 30м». Часы с минутами читаются быстрее десятичных. */
@@ -46,8 +72,10 @@ const formatDuration = (seconds: number): string => {
   const safe = Math.max(0, Math.round(seconds || 0));
   const hours = Math.floor(safe / 3600);
   const minutes = Math.round((safe % 3600) / 60);
-  if (hours === 0) return `${minutes}м`;
-  return minutes > 0 ? `${hours}ч ${minutes}м` : `${hours}ч`;
+  if (hours === 0) return translate("reports.timesheet.duration_minutes_only", { minutes });
+  return minutes > 0
+    ? translate("reports.timesheet.duration_hours_minutes", { hours, minutes })
+    : translate("reports.timesheet.duration_hours_only", { hours });
 };
 
 /** Отклонение от плана — со знаком: «+2ч 10м» / «−6ч». */
@@ -65,12 +93,21 @@ const formatDateRu = (value: string): string => {
   return year && month && day ? `${day}.${month}.${year}` : value;
 };
 
-const WEEKDAYS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+const WEEKDAY_KEYS: MessageKey[] = [
+  "reports.timesheet.weekday_sun",
+  "reports.timesheet.weekday_mon",
+  "reports.timesheet.weekday_tue",
+  "reports.timesheet.weekday_wed",
+  "reports.timesheet.weekday_thu",
+  "reports.timesheet.weekday_fri",
+  "reports.timesheet.weekday_sat",
+];
 
 const weekdayOf = (value: string): string => {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return "";
-  return WEEKDAYS[new Date(year, month - 1, day).getDay()] ?? "";
+  const key = WEEKDAY_KEYS[new Date(year, month - 1, day).getDay()];
+  return key ? translate(key) : "";
 };
 
 const monthRange = (monthKey: string): { from: string; to: string } => {
@@ -111,6 +148,7 @@ function MetricCard({
 }
 
 function TimesheetReportPage() {
+  const { t } = useTranslation();
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const [tab, setTab] = useState<DetailTab>("employees");
   const [sort, setSort] = useState<SortKey>("name");
@@ -172,12 +210,12 @@ function TimesheetReportPage() {
   // Факт столбиками, план линией: так видно и объём, и норму одного дня.
   const daySeries = [
     {
-      name: "Отработано",
+      name: t("reports.timesheet.worked_series"),
       type: "column",
       data: byDay.map((item) => Math.round((item.worked_seconds / 3600) * 10) / 10),
     },
     {
-      name: "План",
+      name: t("reports.timesheet.plan_series"),
       type: "line",
       data: byDay.map((item) => Math.round((item.plan_seconds / 3600) * 10) / 10),
     },
@@ -199,13 +237,19 @@ function TimesheetReportPage() {
     yaxis: {
       labels: {
         style: { fontSize: "12px", colors: ["#64748b"] },
-        formatter: (value: number) => `${Math.round(value)}ч`,
+        formatter: (value: number) =>
+          t("reports.timesheet.hours_axis_label", { hours: Math.round(value) }),
       },
     },
     grid: { borderColor: "#e5e7eb", strokeDashArray: 4 },
     tooltip: {
       theme: "light",
-      y: { formatter: (value: number) => `${String(value).replace(".", ",")} ч` },
+      y: {
+        formatter: (value: number) =>
+          t("reports.timesheet.hours_tooltip_label", {
+            hours: String(value).replace(".", ","),
+          }),
+      },
     },
   };
 
@@ -216,7 +260,7 @@ function TimesheetReportPage() {
 
   const sourceOptions: ApexOptions = {
     chart: { type: "donut", fontFamily: "Outfit, sans-serif", toolbar: { show: false } },
-    labels: sourceSlices.map((item) => item.meta.label),
+    labels: sourceSlices.map((item) => t(item.meta.labelKey)),
     colors: sourceSlices.map((item) => item.meta.color),
     legend: { position: "bottom", fontSize: "12px" },
     stroke: { width: 0 },
@@ -238,8 +282,10 @@ function TimesheetReportPage() {
             name: {
               fontSize: "13px",
               color: "#64748b",
-              formatter: (value: string) =>
-                sourceSlices.find((item) => item.meta.label === value)?.meta.short ?? value,
+              formatter: (value: string) => {
+                const slice = sourceSlices.find((item) => t(item.meta.labelKey) === value);
+                return slice ? t(slice.meta.shortKey) : value;
+              },
             },
             value: {
               fontSize: "20px",
@@ -249,7 +295,7 @@ function TimesheetReportPage() {
             },
             total: {
               show: true,
-              label: "Всего",
+              label: t("reports.timesheet.total_label"),
               fontSize: "13px",
               color: "#64748b",
               formatter: () =>
@@ -274,27 +320,27 @@ function TimesheetReportPage() {
   const totalCount = pagination?.total_count ?? 0;
 
   const employeeColumns = [
-    "Сотрудник",
-    "Отработано",
-    "План",
-    "Выполнение",
-    "Отклонение",
-    "Трекер",
-    "Ручное",
-    "Перерывы",
-    "Дней",
-    "Средний день",
+    t("reports.timesheet.column_employee"),
+    t("reports.timesheet.column_worked"),
+    t("reports.timesheet.column_plan"),
+    t("reports.timesheet.column_completion"),
+    t("reports.timesheet.column_deviation"),
+    t("reports.timesheet.column_tracker"),
+    t("reports.timesheet.column_manual"),
+    t("reports.timesheet.column_breaks"),
+    t("reports.timesheet.column_days"),
+    t("reports.timesheet.column_average_day"),
   ];
 
   const dayColumns = [
-    "Дата",
-    "День",
-    "Отработано",
-    "План",
-    "Выполнение",
-    "Сотрудников",
-    "Записей",
-    "Статус",
+    t("reports.timesheet.column_date"),
+    t("reports.timesheet.column_day"),
+    t("reports.timesheet.column_worked"),
+    t("reports.timesheet.column_plan"),
+    t("reports.timesheet.column_completion"),
+    t("reports.timesheet.column_employees"),
+    t("reports.timesheet.column_entries"),
+    t("reports.timesheet.column_status"),
   ];
 
   const detailColumns = tab === "employees" ? employeeColumns : dayColumns;
@@ -302,7 +348,10 @@ function TimesheetReportPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Табель времени | Отчеты | HRMS" description="Отчет по табелю времени" />
+        <PageMeta
+          title={t("reports.timesheet.page_title")}
+          description={t("reports.timesheet.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -313,7 +362,10 @@ function TimesheetReportPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Табель времени | Отчеты | HRMS" description="Отчет по табелю времени" />
+        <PageMeta
+          title={t("reports.timesheet.page_title")}
+          description={t("reports.timesheet.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -323,7 +375,7 @@ function TimesheetReportPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -332,7 +384,10 @@ function TimesheetReportPage() {
 
   return (
     <>
-      <PageMeta title="Табель времени | Отчеты | HRMS" description="Отчет по табелю времени" />
+      <PageMeta
+        title={t("reports.timesheet.page_title")}
+        description={t("reports.timesheet.page_description")}
+      />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -341,67 +396,77 @@ function TimesheetReportPage() {
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            title="Отработано"
+            title={t("reports.timesheet.worked_title")}
             value={formatDuration(cards.worked_seconds ?? 0)}
-            hint={`${cards.entry_count ?? 0} записей · в среднем ${formatDuration(
-              cards.avg_day_seconds ?? 0
-            )}/день`}
+            hint={t("reports.timesheet.worked_hint", {
+              count: cards.entry_count ?? 0,
+              average: formatDuration(cards.avg_day_seconds ?? 0),
+            })}
           />
           <MetricCard
-            title="План"
+            title={t("reports.timesheet.plan_title")}
             value={formatDuration(cards.plan_seconds ?? 0)}
-            hint={`${cards.days ?? 0} дней в периоде`}
+            hint={t("reports.timesheet.plan_hint", { days: cards.days ?? 0 })}
           />
           <MetricCard
-            title="Выполнение плана"
+            title={t("reports.timesheet.completion_title")}
             value={formatPercent(cards.completion_rate)}
             accent={(cards.completion_rate ?? 0) >= 95 ? SUCCESS : undefined}
-            hint={`Недоработка ${formatDuration(cards.shortfall_seconds ?? 0)}`}
+            hint={t("reports.timesheet.completion_hint", {
+              value: formatDuration(cards.shortfall_seconds ?? 0),
+            })}
           />
           <MetricCard
-            title="Сотрудники"
+            title={t("reports.timesheet.employees_title")}
             value={String(cards.employees_count ?? 0)}
-            hint={`Активных ${cards.active_employees ?? 0} · без записей ${
-              cards.idle_employees ?? 0
-            }`}
+            hint={t("reports.timesheet.employees_hint", {
+              active: cards.active_employees ?? 0,
+              idle: cards.idle_employees ?? 0,
+            })}
             accent={(cards.idle_employees ?? 0) > 0 ? DANGER : undefined}
           />
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            title="Переработка"
+            title={t("reports.timesheet.overtime_title")}
             value={formatDuration(cards.overtime_seconds ?? 0)}
             accent={SUCCESS}
-            hint="Сверх плана по сотрудникам"
+            hint={t("reports.timesheet.overtime_hint")}
           />
           <MetricCard
-            title="Недоработка"
+            title={t("reports.timesheet.shortfall_title")}
             value={formatDuration(cards.shortfall_seconds ?? 0)}
             accent={(cards.shortfall_seconds ?? 0) > 0 ? DANGER : undefined}
-            hint="Не хватает до плана"
+            hint={t("reports.timesheet.shortfall_hint")}
           />
-          <MetricCard title="Перерывы" value={formatDuration(cards.break_seconds ?? 0)} />
           <MetricCard
-            title="Ручное время"
+            title={t("reports.timesheet.breaks_title")}
+            value={formatDuration(cards.break_seconds ?? 0)}
+          />
+          <MetricCard
+            title={t("reports.timesheet.manual_time_title")}
             value={formatDuration(cards.manual_seconds ?? 0)}
             hint={
               (cards.manual_pending_count ?? 0) > 0
-                ? `На согласовании ${formatDuration(cards.manual_pending_seconds ?? 0)} (${
-                    cards.manual_pending_count
-                  })`
-                : "Подтверждённое, входит в факт"
+                ? t("reports.timesheet.manual_pending_hint", {
+                    time: formatDuration(cards.manual_pending_seconds ?? 0),
+                    count: cards.manual_pending_count ?? 0,
+                  })
+                : t("reports.timesheet.manual_confirmed_hint")
             }
           />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-3">
           <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4 xl:col-span-2">
-            <h3 className="text-lg font-semibold text-gray-900">Факт против плана по дням</h3>
-            <p className="text-sm text-gray-500">Столбцы — отработано, линия — плановые часы</p>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t("reports.timesheet.fact_vs_plan_title")}
+            </h3>
+            <p className="text-sm text-gray-500">{t("reports.timesheet.fact_vs_plan_subtitle")}</p>
             {byDay.length === 0 ? (
               <div className="mt-2 flex h-[280px] items-center justify-center text-sm text-gray-500">
-                Нет данных за период
+                {t("reports.timesheet.no_period_data")}
               </div>
             ) : (
               <div className="mt-2">
@@ -411,11 +476,13 @@ function TimesheetReportPage() {
           </article>
 
           <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-            <h3 className="text-lg font-semibold text-gray-900">Источники времени</h3>
-            <p className="text-sm text-gray-500">Откуда пришли часы</p>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t("reports.timesheet.time_sources_title")}
+            </h3>
+            <p className="text-sm text-gray-500">{t("reports.timesheet.time_sources_subtitle")}</p>
             {sourceSlices.length === 0 ? (
               <div className="mt-2 flex h-[280px] items-center justify-center text-sm text-gray-500">
-                Нет данных за период
+                {t("reports.timesheet.no_period_data")}
               </div>
             ) : (
               <div className="mt-2">
@@ -433,12 +500,14 @@ function TimesheetReportPage() {
         <section className="grid gap-4 xl:grid-cols-2">
           <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="border-b border-gray-100 px-4 py-3">
-              <h3 className="text-lg font-semibold text-gray-900">Больше всех недоработали</h3>
-              <p className="text-sm text-gray-500">Топ-10 по разнице с планом</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {t("reports.timesheet.top_shortfall_title")}
+              </h3>
+              <p className="text-sm text-gray-500">{t("reports.timesheet.top_shortfall_subtitle")}</p>
             </div>
             {topShortfall.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-gray-500">
-                Все выполнили план
+                {t("reports.timesheet.everyone_met_plan")}
               </p>
             ) : (
               <ul className="divide-y divide-gray-100">
@@ -466,12 +535,14 @@ function TimesheetReportPage() {
 
           <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="border-b border-gray-100 px-4 py-3">
-              <h3 className="text-lg font-semibold text-gray-900">Больше всех переработали</h3>
-              <p className="text-sm text-gray-500">Топ-10 сверх плана</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {t("reports.timesheet.top_overtime_title")}
+              </h3>
+              <p className="text-sm text-gray-500">{t("reports.timesheet.top_overtime_subtitle")}</p>
             </div>
             {topOvertime.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-gray-500">
-                Переработок нет
+                {t("reports.timesheet.no_overtime")}
               </p>
             ) : (
               <ul className="divide-y divide-gray-100">
@@ -503,8 +574,8 @@ function TimesheetReportPage() {
             <div className="inline-flex rounded-xl border border-gray-200 p-0.5">
               {(
                 [
-                  { key: "employees", label: "По сотрудникам" },
-                  { key: "days", label: "По дням" },
+                  { key: "employees", label: t("reports.timesheet.tab_employees") },
+                  { key: "days", label: t("reports.timesheet.tab_days") },
                 ] as { key: DetailTab; label: string }[]
               ).map((item) => (
                 <button
@@ -533,7 +604,7 @@ function TimesheetReportPage() {
                     type="text"
                     value={searchInput}
                     onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="Сотрудник..."
+                    placeholder={t("reports.timesheet.search_employee")}
                     className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                   />
                 </label>
@@ -543,10 +614,10 @@ function TimesheetReportPage() {
                   onChange={(event) => setSort(event.target.value as SortKey)}
                   className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                 >
-                  <option value="name">По алфавиту</option>
-                  <option value="deviation">Сначала недоработка</option>
-                  <option value="completion">По выполнению плана</option>
-                  <option value="worked">По отработанному</option>
+                  <option value="name">{t("reports.timesheet.sort_alphabetical")}</option>
+                  <option value="deviation">{t("reports.timesheet.sort_shortfall_first")}</option>
+                  <option value="completion">{t("reports.timesheet.sort_by_completion")}</option>
+                  <option value="worked">{t("reports.timesheet.sort_by_worked")}</option>
                 </select>
               </div>
             ) : null}
@@ -556,8 +627,12 @@ function TimesheetReportPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
               <p className="text-sm font-medium text-gray-500">
                 {totalCount > 0
-                  ? `Отображение ${pagination?.from ?? 0} - ${pagination?.to ?? 0} из ${totalCount}`
-                  : "Нет данных"}
+                  ? t("reports.common.showing_range", {
+                      from: pagination?.from ?? 0,
+                      to: pagination?.to ?? 0,
+                      total: totalCount,
+                    })
+                  : t("reports.common.no_data")}
               </p>
               <div className="flex items-center gap-1">
                 <button
@@ -623,7 +698,7 @@ function TimesheetReportPage() {
                           }}
                           className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                         >
-                          Повторить
+                          {t("reports.common.retry_button")}
                         </button>
                       </td>
                     </tr>
@@ -633,7 +708,7 @@ function TimesheetReportPage() {
                         colSpan={detailColumns.length}
                         className="px-4 py-6 text-center text-sm text-gray-500"
                       >
-                        Сотрудников по выбранным условиям не найдено
+                        {t("reports.timesheet.no_employees_for_filters")}
                       </td>
                     </tr>
                   ) : (
@@ -704,7 +779,7 @@ function TimesheetReportPage() {
                       colSpan={detailColumns.length}
                       className="px-4 py-6 text-center text-sm text-gray-500"
                     >
-                      Нет данных за период
+                      {t("reports.timesheet.no_period_data")}
                     </td>
                   </tr>
                 ) : (
@@ -738,10 +813,10 @@ function TimesheetReportPage() {
                           </span>
                         ) : item.is_day_off ? (
                           <span className="rounded-md bg-gray-100 px-2 py-0.5 font-medium text-gray-500">
-                            Выходной
+                            {t("reports.timesheet.day_off")}
                           </span>
                         ) : (
-                          <span className="text-gray-400">Рабочий</span>
+                          <span className="text-gray-400">{t("reports.timesheet.working_day")}</span>
                         )}
                       </td>
                     </tr>
@@ -754,14 +829,18 @@ function TimesheetReportPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="h-5 w-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
       </div>
     </>
   );

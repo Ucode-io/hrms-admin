@@ -42,6 +42,7 @@ import {
   useApproveStage,
   useEntityApprovalsQuery,
 } from "../../../../api/services/approval.service";
+import { useTranslation, translate } from "../../../../i18n";
 
 const ABSENCE_ENTITY_TYPE = "absence";
 
@@ -69,27 +70,16 @@ const DEFAULT_POLICY_ICON = "mdi:airplane";
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
-const WEEKDAY_SHORT_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-const MONTH_SHORT_RU = [
-  "янв.",
-  "фев.",
-  "мар.",
-  "апр.",
-  "май",
-  "июн.",
-  "июл.",
-  "авг.",
-  "сен.",
-  "окт.",
-  "ноя.",
-  "дек.",
-];
+const getWeekdayShort = () =>
+  Array.from({ length: 7 }, (_, i) => translate(`employees.absences.weekday_${i}` as never));
+const getMonthShort = () =>
+  Array.from({ length: 12 }, (_, i) => translate(`employees.absences.month_short_${i}` as never));
 
-const STATUS_LABELS: Record<AbsenceRequestStatus, string> = {
-  pending: "Ожидает",
-  approved: "Подтвержден",
-  rejected: "Отклонен",
-};
+const getStatusLabels = (): Record<AbsenceRequestStatus, string> => ({
+  pending: translate("employees.absences.status_pending"),
+  approved: translate("employees.absences.status_approved"),
+  rejected: translate("employees.absences.status_rejected"),
+});
 
 const STATUS_BADGE_CLASSNAME: Record<AbsenceRequestStatus, string> = {
   pending: "bg-amber-100 text-amber-700",
@@ -150,13 +140,16 @@ const getDateBreakdown = (from: string, to: string): DateBreakdownItem[] => {
   const cursor = new Date(start);
   let guard = 0;
 
+  const weekdayShort = getWeekdayShort();
+  const monthShort = getMonthShort();
+
   while (cursor <= end && guard < 400) {
     const dayOfWeek = cursor.getDay();
     list.push({
       iso: toIsoDate(cursor),
       day: String(cursor.getDate()),
-      month: MONTH_SHORT_RU[cursor.getMonth()],
-      weekday: WEEKDAY_SHORT_RU[dayOfWeek],
+      month: monthShort[cursor.getMonth()],
+      weekday: weekdayShort[dayOfWeek],
       isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
     });
 
@@ -186,7 +179,7 @@ const parseAttachmentsField = (value: string | null): AttachmentItem[] => {
       if (typeof item === "string") {
         const parts = item.split("/");
         return {
-          name: parts[parts.length - 1] || "Файл",
+          name: parts[parts.length - 1] || translate("employees.absences.default_file_name"),
           size: 0,
           url: item,
         };
@@ -202,7 +195,7 @@ const parseAttachmentsField = (value: string | null): AttachmentItem[] => {
             name:
               typeof maybeName === "string" && maybeName.trim()
                 ? maybeName
-                : maybeUrl.split("/").pop() || "Файл",
+                : maybeUrl.split("/").pop() || translate("employees.absences.default_file_name"),
             size:
               typeof maybeSize === "number" && Number.isFinite(maybeSize)
                 ? maybeSize
@@ -221,6 +214,8 @@ export default function AbsencesSection({
   brandColor,
   departmentId,
 }: AbsencesSectionProps) {
+  const { t } = useTranslation();
+  const STATUS_LABELS = getStatusLabels();
   const queryClient = useQueryClient();
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
   const attachmentInputId = `absence-attachment-upload-${employeeGuid}`;
@@ -377,7 +372,7 @@ export default function AbsencesSection({
 
     const remainingSlots = MAX_ATTACHMENTS - modalAttachments.length;
     if (remainingSlots <= 0) {
-      toast.error(`Можно добавить максимум ${MAX_ATTACHMENTS} файлов.`);
+      toast.error(t("employees.absences.max_attachments_error", { max: MAX_ATTACHMENTS }));
       return;
     }
 
@@ -385,7 +380,7 @@ export default function AbsencesSection({
 
     const rejectedBySize = queue.filter((file) => file.size > MAX_FILE_SIZE_BYTES);
     if (rejectedBySize.length > 0) {
-      toast.error("Размер каждого файла должен быть не больше 50MB.");
+      toast.error(t("employees.absences.max_file_size_error"));
     }
 
     const accepted = queue.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
@@ -405,10 +400,10 @@ export default function AbsencesSection({
       }
 
       setModalAttachments((prev) => [...prev, ...uploadedItems]);
-      toast.success("Файлы успешно загружены.");
+      toast.success(t("employees.absences.attachments_uploaded"));
     } catch (error) {
       console.error("Failed to upload absence request attachments:", error);
-      toast.error("Не удалось загрузить вложения.");
+      toast.error(t("employees.absences.attachments_upload_failed"));
     } finally {
       setIsUploadingAttachments(false);
     }
@@ -420,36 +415,36 @@ export default function AbsencesSection({
 
   const submitRequest = async () => {
     if (!employeeGuid) {
-      toast.error("Сотрудник не найден.");
+      toast.error(t("employees.absences.employee_not_found"));
       return;
     }
 
     if (!modalPolicyId) {
-      toast.error("Выберите тип отсутствия.");
+      toast.error(t("employees.absences.select_absence_type"));
       return;
     }
 
     if (selectedPolicy && selectedPolicy.eligible === false) {
       toast.error(
         selectedPolicy.eligible_at
-          ? `Этот тип отсутствия будет доступен с ${formatDateRu(selectedPolicy.eligible_at)}.`
-          : `Этот тип отсутствия доступен после ${selectedPolicy.min_months ?? 0} мес. стажа.`
+          ? t("employees.absences.not_eligible_until", { date: formatDateRu(selectedPolicy.eligible_at) })
+          : t("employees.absences.not_eligible_months", { months: selectedPolicy.min_months ?? 0 })
       );
       return;
     }
 
     if (!modalDateFrom || !modalDateTo) {
-      toast.error("Укажите диапазон дат.");
+      toast.error(t("employees.absences.date_range_required"));
       return;
     }
 
     if (modalDateFrom > modalDateTo) {
-      toast.error("Дата начала не может быть позже даты окончания.");
+      toast.error(t("employees.absences.start_after_end"));
       return;
     }
 
     if (modalRequestedDays <= 0) {
-      toast.error("В запросе должен быть хотя бы один день.");
+      toast.error(t("employees.absences.at_least_one_day"));
       return;
     }
 
@@ -472,11 +467,11 @@ export default function AbsencesSection({
       });
 
       invalidateSummary();
-      toast.success("Запрос на отсутствие создан.");
+      toast.success(t("employees.absences.request_created"));
       closeCreateModal();
     } catch (error) {
       console.error("Failed to create absence request:", error);
-      toast.error("Не удалось создать запрос.");
+      toast.error(t("employees.absences.request_create_failed"));
     }
   };
 
@@ -486,7 +481,7 @@ export default function AbsencesSection({
   ) => {
     if (request.status !== "pending") return;
     if (!request.guid) {
-      toast.error("Не найден guid заявки.");
+      toast.error(t("employees.absences.guid_not_found"));
       return;
     }
 
@@ -518,13 +513,13 @@ export default function AbsencesSection({
       invalidateSummary();
 
       if (status === "approved") {
-        toast.success("Запрос подтвержден.");
+        toast.success(t("employees.absences.request_approved"));
       } else {
-        toast.success("Запрос отклонен.");
+        toast.success(t("employees.absences.request_rejected"));
       }
     } catch (error) {
       console.error("Failed to review absence request:", error);
-      toast.error("Не удалось изменить статус запроса.");
+      toast.error(t("employees.absences.review_failed"));
     } finally {
       setReviewingRequestId(null);
     }
@@ -542,7 +537,7 @@ export default function AbsencesSection({
       });
     } catch (error) {
       console.error("Failed to approve absence stage:", error);
-      toast.error("Не удалось одобрить этап.");
+      toast.error(t("employees.absences.stage_approve_failed"));
     }
   };
 
@@ -552,11 +547,11 @@ export default function AbsencesSection({
       setReviewingRequestId(approvalRequest.guid);
       await approveRequestMutation.mutateAsync({ guid: approvalRequest.guid });
       invalidateSummary();
-      toast.success("Запрос подтвержден.");
+      toast.success(t("employees.absences.request_approved"));
       setApprovalRequest(null);
     } catch (error) {
       console.error("Failed to approve absence request:", error);
-      toast.error("Не удалось подтвердить запрос.");
+      toast.error(t("employees.absences.confirm_failed"));
     } finally {
       setReviewingRequestId(null);
     }
@@ -575,11 +570,11 @@ export default function AbsencesSection({
         },
       });
       invalidateSummary();
-      toast.success("Запрос отклонен.");
+      toast.success(t("employees.absences.request_rejected"));
       setApprovalRequest(null);
     } catch (error) {
       console.error("Failed to reject absence request:", error);
-      toast.error("Не удалось отклонить запрос.");
+      toast.error(t("employees.absences.reject_failed"));
     } finally {
       setReviewingRequestId(null);
     }
@@ -590,11 +585,11 @@ export default function AbsencesSection({
     try {
       await deleteRequestMutation.mutateAsync(deletingRequest.guid);
       invalidateSummary();
-      toast.success("Запрос удалён.");
+      toast.success(t("employees.absences.request_deleted"));
       setDeletingRequest(null);
     } catch (error) {
       console.error("Failed to delete absence request:", error);
-      toast.error("Не удалось удалить запрос.");
+      toast.error(t("employees.absences.delete_failed"));
     }
   };
 
@@ -637,7 +632,7 @@ export default function AbsencesSection({
                     </div>
 
                     <div className="mt-3">
-                      <p className="m-0 text-[12px] text-slate-400">Доступно</p>
+                      <p className="m-0 text-[12px] text-slate-400">{t("employees.absences.available")}</p>
                       <div className="mt-1 flex items-end gap-1.5">
                         <span
                           className="text-[28px] font-semibold leading-none"
@@ -646,17 +641,16 @@ export default function AbsencesSection({
                           {policy.available.toFixed(1)}
                         </span>
                         <span className="text-[16px] font-semibold leading-none text-slate-700">
-                          д
+                          {t("employees.absences.days_short")}
                         </span>
                       </div>
                       <p className="mt-1 text-[11px] text-slate-400">
-                        Лимит: {policy.limit.toFixed(1)} · Использовано:{" "}
-                        {policy.used_days.toFixed(1)}
+                        {t("employees.absences.limit_used_label", { limit: policy.limit.toFixed(1), used: policy.used_days.toFixed(1) })}
                         {policy.pending_days > 0 ? (
                           <>
                             {" · "}
                             <span className="text-amber-600">
-                              Ожидает: {policy.pending_days.toFixed(1)}
+                              {t("employees.absences.pending_label", { value: policy.pending_days.toFixed(1) })}
                             </span>
                           </>
                         ) : null}
@@ -664,8 +658,8 @@ export default function AbsencesSection({
                       {!isEligible ? (
                         <p className="mt-2 rounded-lg bg-[#FEF3C7] px-2 py-1 text-[11px] font-medium text-[#B45309]">
                           {policy.eligible_at
-                            ? `Доступно с ${formatDateRu(policy.eligible_at)}`
-                            : `Доступно после ${policy.min_months ?? 0} мес. стажа`}
+                            ? t("employees.absences.available_from", { date: formatDateRu(policy.eligible_at) })
+                            : t("employees.absences.available_after_months_ru", { months: policy.min_months ?? 0 })}
                         </p>
                       ) : null}
                     </div>
@@ -678,14 +672,14 @@ export default function AbsencesSection({
                           disabled={!isEligible}
                           className="rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-[12px] font-semibold text-slate-800 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          Создать запрос
+                          {t("employees.absences.create_request")}
                         </button>
                         <button
                           type="button"
                           onClick={() => openCreateModal(policy.guid)}
                           disabled={!isEligible}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label="Календарь"
+                          aria-label={t("employees.absences.calendar_aria")}
                         >
                           <CalendarDays className="h-3.5 w-3.5" />
                         </button>
@@ -694,10 +688,10 @@ export default function AbsencesSection({
                       <button
                         type="button"
                         onClick={() =>
-                          toast.info("Дополнительные действия будут доступны позже.")
+                          toast.info(t("employees.absences.more_actions_later"))
                         }
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200"
-                        aria-label="Действия"
+                        aria-label={t("employees.absences.actions_aria")}
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
@@ -709,14 +703,14 @@ export default function AbsencesSection({
 
         {!isSummaryLoading && policies.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center text-[14px] text-slate-500">
-            Политики отсутствий не найдены.
+            {t("employees.absences.policies_not_found")}
           </div>
         ) : null}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-3.5">
             <h3 className="m-0 text-[15px] font-bold leading-none text-slate-900">
-              Запросы
+              {t("employees.absences.requests_title")}
             </h3>
 
             <div className="flex items-center gap-2">
@@ -725,7 +719,7 @@ export default function AbsencesSection({
                 onChange={(event) => setRequestsFilter(event.target.value)}
                 className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-800 outline-none"
               >
-                <option value="all">Все</option>
+                <option value="all">{t("employees.absences.filter_all")}</option>
                 {policies.map((policy) => (
                   <option key={`requests-filter-${policy.guid}`} value={policy.guid}>
                     {policy.title}
@@ -734,9 +728,9 @@ export default function AbsencesSection({
               </select>
               <button
                 type="button"
-                onClick={() => toast.info("Экспорт запросов будет доступен позже.")}
+                onClick={() => toast.info(t("employees.absences.more_actions_later"))}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
-                aria-label="Экспорт"
+                aria-label={t("employees.absences.export_aria")}
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
@@ -754,14 +748,14 @@ export default function AbsencesSection({
                 ))}
               </div>
             ) : filteredRequests.length === 0 ? (
-              <div className="text-[13px] text-slate-400">Результаты не найдены</div>
+              <div className="text-[13px] text-slate-400">{t("employees.absences.results_not_found")}</div>
             ) : (
               <div className="space-y-2">
                 {filteredRequests.map((request) => {
                   const policyTitle =
                     request.policy?.title ||
                     policiesById.get(request.absence_policies_id || "")?.title ||
-                    "Без типа";
+                    t("employees.absences.no_type");
                   const policyIcon =
                     (request.policy?.icon ||
                       policiesById.get(request.absence_policies_id || "")?.icon) ??
@@ -815,7 +809,7 @@ export default function AbsencesSection({
 
                           <p className="mt-1 text-[12px] text-slate-500">
                             {formatDateRange(request.date_from, request.date_to)} •{" "}
-                            {(request.requested_days || 0).toFixed(1)} д.
+                            {t("employees.absences.days_dot_value", { value: (request.requested_days || 0).toFixed(1) })}
                           </p>
 
                           {showApprovalProgress && absenceApprovalProcess ? (
@@ -872,7 +866,7 @@ export default function AbsencesSection({
                                   disabled={isReviewing}
                                   className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                                 >
-                                  Подтвердить
+                                  {t("employees.absences.confirm")}
                                 </button>
                               )}
                               <button
@@ -883,7 +877,7 @@ export default function AbsencesSection({
                                 disabled={isReviewing}
                                 className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[12px] font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
                               >
-                                Отклонить
+                                {t("employees.absences.reject")}
                               </button>
                             </>
                           ) : null}
@@ -896,7 +890,7 @@ export default function AbsencesSection({
                                 )
                               }
                               className="dropdown-toggle inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
-                              aria-label="Действия"
+                              aria-label={t("employees.absences.actions_aria")}
                               aria-haspopup="menu"
                               aria-expanded={openMenuRequestId === request.guid}
                             >
@@ -916,7 +910,7 @@ export default function AbsencesSection({
                                 baseClassName="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-rose-600 hover:bg-rose-50"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
-                                Удалить
+                                {t("common.delete")}
                               </DropdownItem>
                             </Dropdown>
                           </div>
@@ -933,7 +927,7 @@ export default function AbsencesSection({
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-3.5">
             <h3 className="m-0 text-[15px] font-bold leading-none text-slate-900">
-              История
+              {t("employees.absences.history_title")}
             </h3>
 
             <div className="flex items-center gap-2">
@@ -942,7 +936,7 @@ export default function AbsencesSection({
                   type="button"
                   onClick={() => setHistoryYear((prev) => prev - 1)}
                   className="inline-flex h-9 w-9 items-center justify-center border-none bg-transparent text-slate-700 transition hover:bg-slate-100"
-                  aria-label="Предыдущий год"
+                  aria-label={t("employees.absences.prev_year_aria")}
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
@@ -953,7 +947,7 @@ export default function AbsencesSection({
                   type="button"
                   onClick={() => setHistoryYear((prev) => prev + 1)}
                   className="inline-flex h-9 w-9 items-center justify-center border-none bg-transparent text-slate-700 transition hover:bg-slate-100"
-                  aria-label="Следующий год"
+                  aria-label={t("employees.absences.next_year_aria")}
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -964,7 +958,7 @@ export default function AbsencesSection({
                 onChange={(event) => setHistoryPolicyFilter(event.target.value)}
                 className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-800 outline-none"
               >
-                <option value="all">Все</option>
+                <option value="all">{t("employees.absences.filter_all")}</option>
                 {policies.map((policy) => (
                   <option key={`history-filter-${policy.guid}`} value={policy.guid}>
                     {policy.title}
@@ -974,9 +968,9 @@ export default function AbsencesSection({
 
               <button
                 type="button"
-                onClick={() => toast.info("Экспорт истории будет доступен позже.")}
+                onClick={() => toast.info(t("employees.absences.export_history_later"))}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
-                aria-label="Экспорт"
+                aria-label={t("employees.absences.export_aria")}
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
@@ -986,22 +980,22 @@ export default function AbsencesSection({
           <div className="grid grid-cols-1 gap-6 px-6 py-5 md:grid-cols-2">
             <div>
               <p className="m-0 text-[24px] font-semibold leading-none text-slate-900">
-                {totalUsedDays.toFixed(1)} дней
+                {t("employees.absences.days_word", { count: totalUsedDays.toFixed(1) })}
               </p>
-              <p className="mt-1.5 text-[12px] text-slate-400">Всего использовано</p>
+              <p className="mt-1.5 text-[12px] text-slate-400">{t("employees.absences.total_used_label")}</p>
             </div>
             <div>
               <p className="m-0 text-[24px] font-semibold leading-none text-slate-900">
                 {historyRequests.length}
               </p>
-              <p className="mt-1.5 text-[12px] text-slate-400">Заявок одобрено</p>
+              <p className="mt-1.5 text-[12px] text-slate-400">{t("employees.absences.approved_requests_label")}</p>
             </div>
           </div>
 
           <div className="border-t border-slate-200 px-6 py-4">
             {historyRequests.length === 0 ? (
               <p className="m-0 text-[12px] text-slate-400">
-                За выбранный период записей нет.
+                {t("employees.absences.no_records_period")}
               </p>
             ) : (
               <div className="space-y-2">
@@ -1009,7 +1003,7 @@ export default function AbsencesSection({
                   const policyTitle =
                     request.policy?.title ||
                     policiesById.get(request.absence_policies_id || "")?.title ||
-                    "Без названия";
+                    t("employees.detail.no_title");
                   return (
                     <div
                       key={`history-${request.guid}`}
@@ -1024,7 +1018,7 @@ export default function AbsencesSection({
                         </p>
                       </div>
                       <p className="m-0 text-[12px] font-semibold text-slate-900">
-                        {(request.requested_days || 0).toFixed(1)} д.
+                        {t("employees.absences.days_dot_value", { value: (request.requested_days || 0).toFixed(1) })}
                       </p>
                     </div>
                   );
@@ -1046,7 +1040,7 @@ export default function AbsencesSection({
           void handleApproveStage(stageId, comment)
         }
         isApprovingStage={approveStageMutation.isLoading}
-        confirmLabel="Подтвердить отпуск"
+        confirmLabel={t("employees.absences.confirm_vacation_label")}
         onConfirm={() => void finalizeApproval()}
         isConfirming={
           Boolean(approvalRequest) &&
@@ -1117,17 +1111,17 @@ export default function AbsencesSection({
               </span>
               <div className="min-w-0">
                 <h4 className="m-0 text-[16px] font-bold text-slate-900">
-                  Удалить запрос?
+                  {t("employees.absences.delete_request_title")}
                 </h4>
                 <p className="mt-1 text-[13px] text-slate-500 leading-relaxed">
-                  Будет удалена заявка{" "}
+                  {t("employees.absences.delete_request_desc_prefix")}{" "}
                   <span className="font-semibold text-slate-700">
                     {deletingRequest.policy?.title ||
                       policiesById.get(deletingRequest.absence_policies_id || "")
                         ?.title ||
-                      "Без типа"}
+                      t("employees.absences.no_type")}
                   </span>{" "}
-                  на период{" "}
+                  {t("employees.absences.delete_request_period_prefix")}{" "}
                   <span className="font-semibold text-slate-700">
                     {formatDateRange(
                       deletingRequest.date_from,
@@ -1135,12 +1129,9 @@ export default function AbsencesSection({
                     )}
                   </span>
                   {deletingRequest.status === "approved" ? (
-                    <>
-                      {" "}— подтверждённый отпуск ({(deletingRequest.requested_days || 0).toFixed(1)} д.)
-                      будет вычтен из использованных дней.
-                    </>
+                    <>{t("employees.absences.delete_request_approved_suffix", { days: (deletingRequest.requested_days || 0).toFixed(1) })}</>
                   ) : (
-                    <>. Действие нельзя отменить.</>
+                    <>{t("employees.absences.delete_request_cannot_undo")}</>
                   )}
                 </p>
               </div>
@@ -1153,7 +1144,7 @@ export default function AbsencesSection({
                 disabled={deleteRequestMutation.isLoading}
                 className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
               >
-                Отмена
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -1164,12 +1155,12 @@ export default function AbsencesSection({
                 {deleteRequestMutation.isLoading ? (
                   <>
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    Удаление…
+                    {t("employees.absences.deleting")}
                   </>
                 ) : (
                   <>
                     <Trash2 className="h-3.5 w-3.5" />
-                    Удалить
+                    {t("common.delete")}
                   </>
                 )}
               </button>

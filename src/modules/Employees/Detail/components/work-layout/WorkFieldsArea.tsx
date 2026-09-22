@@ -16,6 +16,7 @@ import { SortableTile } from "../../../Form/layout/FormLayoutArea";
 import type { useFormLayout } from "../../../Form/layout/useEmployeeFormLayout";
 import type { FormLayoutItem } from "../../../Form/layout/types";
 import { WORK_FIELD_MAP, WORK_MODAL_CARD_ID, type WorkFieldContext } from "./workFields";
+import { useTranslation } from "../../../../../i18n";
 
 /**
  * Поля модалки «Добавить/изменить должность», разложенные по сохранённой
@@ -61,6 +62,7 @@ export default function WorkFieldsArea({
   builderMode,
   brandColor,
 }: WorkFieldsAreaProps) {
+  const { t } = useTranslation();
   const [addOpen, setAddOpen] = useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -88,7 +90,7 @@ export default function WorkFieldsArea({
   const titleOf = (item: FormLayoutItem): string =>
     item.kind === "static"
       ? WORK_FIELD_MAP[item.id]?.label ?? item.id
-      : dynamicById.get(item.id)?.label ?? "Поле";
+      : dynamicById.get(item.id)?.label ?? t("employees.work_fields.builder.generic_field");
 
   const addOptions = [
     ...layoutApi.unplaced.static.map((meta) => ({
@@ -173,7 +175,7 @@ export default function WorkFieldsArea({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="m-0 text-[12px] text-slate-400">
-          Перетащите поле, чтобы изменить порядок. Ширина — за правый край плитки.
+          {t("employees.work_fields.builder.drag_hint")}
         </p>
         <div className="relative ml-auto">
           <button
@@ -183,7 +185,7 @@ export default function WorkFieldsArea({
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus className="h-3.5 w-3.5" />
-            Поле{addOptions.length > 0 ? ` (${addOptions.length})` : ""}
+            {t("employees.work_fields.builder.field")}{addOptions.length > 0 ? ` (${addOptions.length})` : ""}
           </button>
 
           {addOpen && addOptions.length > 0 && (
@@ -224,10 +226,10 @@ export default function WorkFieldsArea({
                 key={item.id}
                 item={item}
                 title={titleOf(item)}
-                badge={item.kind === "static" ? "статичное" : "динамическое"}
+                badge={item.kind === "static" ? t("employees.work_fields.builder.badge_static") : t("employees.work_fields.builder.badge_dynamic")}
                 note={
                   item.kind === "static" && WORK_FIELD_MAP[item.id]?.editOnly
-                    ? "только при изменении"
+                    ? t("employees.work_fields.builder.note_edit_only")
                     : undefined
                 }
                 removable
@@ -243,7 +245,7 @@ export default function WorkFieldsArea({
 
       {items.length === 0 && (
         <p className="m-0 py-6 text-center text-[13px] text-slate-400">
-          В форме не осталось полей — добавьте их кнопкой «Поле».
+          {t("employees.work_fields.builder.empty_state")}
         </p>
       )}
     </div>

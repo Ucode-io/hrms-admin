@@ -17,8 +17,7 @@ interface EditableTextProps {
  * правят, поэтому поле появляется только там, куда нажали. Enter и потеря
  * фокуса сохраняют, Escape возвращает прежнее значение.
  */
-export default function EditableText({
-  value,
+export default function EditableText({ value,
   placeholder,
   ariaLabel,
   onCommit,

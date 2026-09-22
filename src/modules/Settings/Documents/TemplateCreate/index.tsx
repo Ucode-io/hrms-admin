@@ -23,33 +23,36 @@ import {
   useSettingsDirectoryItemQuery,
   useUpdateSettingsDirectoryItem,
 } from "../../../../api/services/settingsDirectory.service";
+import { useTranslation } from "../../../../i18n";
+import type { MessageKey } from "../../../../i18n/messages";
 
 const DOCUMENT_TEMPLATES_SLUG = "document_templates";
 
-const AVAILABLE_EMPLOYEE_VARIABLES = [
-  { key: "{{user.guid}}", label: "ID сотрудника" },
-  { key: "{{user.first_name}}", label: "Имя сотрудника" },
-  { key: "{{user.second_name}}", label: "Фамилия сотрудника" },
-  { key: "{{user.middle_name}}", label: "Отчество сотрудника" },
-  { key: "{{user.birth_date}}", label: "Дата рождения" },
-  { key: "{{user.date_hire}}", label: "Дата приема на работу" },
-  { key: "{{user.dismissal_date}}", label: "Дата увольнения" },
-  { key: "{{user.phone}}", label: "Мобильный телефон" },
-  { key: "{{user.work_phone}}", label: "Рабочий телефон" },
-  { key: "{{user.telegram}}", label: "Telegram" },
-  { key: "{{user.gender}}", label: "Пол сотрудника" },
-  { key: "{{user.email}}", label: "Корпоративная почта" },
-  { key: "{{user.personal_email}}", label: "Личная почта" },
-  { key: "{{user.photo}}", label: "Фото сотрудника" },
-  { key: "{{user.login}}", label: "Логин" },
-  { key: "{{user.status}}", label: "Статус сотрудника" },
-  { key: "{{user.language}}", label: "Язык" },
-  { key: "{{user.created_at}}", label: "Дата создания записи" },
-  { key: "{{user.updated_at}}", label: "Дата обновления записи" },
-  { key: "{{user.deleted_at}}", label: "Дата удаления записи" },
+const AVAILABLE_EMPLOYEE_VARIABLES: { key: string; labelKey: MessageKey }[] = [
+  { key: "{{user.guid}}", labelKey: "settings_documents.create.variable.user_guid" },
+  { key: "{{user.first_name}}", labelKey: "settings_documents.create.variable.user_first_name" },
+  { key: "{{user.second_name}}", labelKey: "settings_documents.create.variable.user_second_name" },
+  { key: "{{user.middle_name}}", labelKey: "settings_documents.create.variable.user_middle_name" },
+  { key: "{{user.birth_date}}", labelKey: "settings_documents.create.variable.user_birth_date" },
+  { key: "{{user.date_hire}}", labelKey: "settings_documents.create.variable.user_date_hire" },
+  { key: "{{user.dismissal_date}}", labelKey: "settings_documents.create.variable.user_dismissal_date" },
+  { key: "{{user.phone}}", labelKey: "settings_documents.create.variable.user_phone" },
+  { key: "{{user.work_phone}}", labelKey: "settings_documents.create.variable.user_work_phone" },
+  { key: "{{user.telegram}}", labelKey: "settings_documents.create.variable.user_telegram" },
+  { key: "{{user.gender}}", labelKey: "settings_documents.create.variable.user_gender" },
+  { key: "{{user.email}}", labelKey: "settings_documents.create.variable.user_email" },
+  { key: "{{user.personal_email}}", labelKey: "settings_documents.create.variable.user_personal_email" },
+  { key: "{{user.photo}}", labelKey: "settings_documents.create.variable.user_photo" },
+  { key: "{{user.login}}", labelKey: "settings_documents.create.variable.user_login" },
+  { key: "{{user.status}}", labelKey: "settings_documents.create.variable.user_status" },
+  { key: "{{user.language}}", labelKey: "settings_documents.create.variable.user_language" },
+  { key: "{{user.created_at}}", labelKey: "settings_documents.create.variable.user_created_at" },
+  { key: "{{user.updated_at}}", labelKey: "settings_documents.create.variable.user_updated_at" },
+  { key: "{{user.deleted_at}}", labelKey: "settings_documents.create.variable.user_deleted_at" },
 ];
 
 export default function CreateDocumentTemplatePage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const guid = String(id || "");
@@ -105,7 +108,7 @@ export default function CreateDocumentTemplatePage() {
       });
     } catch (error) {
       console.error("Failed to render DOCX preview:", error);
-      setPreviewError("Не удалось отобразить DOCX предпросмотр.");
+      setPreviewError(t("settings_documents.create.preview_render_error"));
     } finally {
       setIsRenderingPreview(false);
     }
@@ -139,7 +142,7 @@ export default function CreateDocumentTemplatePage() {
       } catch (error) {
         console.error("Failed to load remote DOCX preview:", error);
         if (isCancelled) return;
-        setPreviewError("Не удалось загрузить DOCX предпросмотр.");
+        setPreviewError(t("settings_documents.create.preview_load_error"));
         setIsRenderingPreview(false);
       }
     };
@@ -163,7 +166,7 @@ export default function CreateDocumentTemplatePage() {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       const isDocxExt = lowerCaseName.endsWith(".docx");
       if (!isDocxMime && !isDocxExt) {
-        toast.error("Загрузите DOCX файл.");
+        toast.error(t("settings_documents.create.invalid_file_type"));
         return;
       }
 
@@ -173,10 +176,10 @@ export default function CreateDocumentTemplatePage() {
         setFileUrl(uploadedUrl);
         setFileName(selectedFile.name);
         setPreviewFile(selectedFile);
-        toast.success("DOCX файл успешно загружен.");
+        toast.success(t("settings_documents.create.file_uploaded"));
       } catch (error) {
         console.error("Failed to upload document template DOCX:", error);
-        toast.error("Не удалось загрузить DOCX файл.");
+        toast.error(t("settings_documents.create.upload_failed"));
       } finally {
         setIsUploadingFile(false);
       }
@@ -217,12 +220,12 @@ export default function CreateDocumentTemplatePage() {
     const preparedFile = fileUrl.trim();
 
     if (!preparedTitle) {
-      toast.error("Название шаблона обязательно.");
+      toast.error(t("settings_documents.create.title_required"));
       return;
     }
 
     if (!preparedFile) {
-      toast.error("DOCX файл обязателен.");
+      toast.error(t("settings_documents.create.file_required"));
       return;
     }
 
@@ -236,7 +239,7 @@ export default function CreateDocumentTemplatePage() {
             file: preparedFile,
           },
         });
-        toast.success("Шаблон документа обновлен.");
+        toast.success(t("settings_documents.create.updated_success"));
         navigate(`/settings/documents/templates/${guid}`);
       } else {
         const result = await createMutation.mutateAsync({
@@ -244,7 +247,7 @@ export default function CreateDocumentTemplatePage() {
           description: preparedDescription,
           file: preparedFile,
         });
-        toast.success("Шаблон документа создан.");
+        toast.success(t("settings_documents.create.created_success"));
 
         const createdGuid = result?.response?.guid || result?.guid;
         if (createdGuid) {
@@ -255,7 +258,7 @@ export default function CreateDocumentTemplatePage() {
       }
     } catch (error) {
       console.error("Failed to create document template:", error);
-      toast.error("Не удалось сохранить шаблон документа.");
+      toast.error(t("settings_documents.create.save_error"));
     }
   };
 
@@ -268,7 +271,7 @@ export default function CreateDocumentTemplatePage() {
   if (isEditMode && isTemplateLoading) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Загрузка шаблона...
+        {t("settings_documents.create.loading")}
       </div>
     );
   }
@@ -276,7 +279,7 @@ export default function CreateDocumentTemplatePage() {
   if (isEditMode && isTemplateError) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Шаблон документа не найден.
+        {t("settings_documents.create.not_found")}
       </div>
     );
   }
@@ -284,8 +287,8 @@ export default function CreateDocumentTemplatePage() {
   return (
     <>
       <PageMeta
-        title={isEditMode ? "Редактирование шаблона документа | Настройки" : "Новый шаблон документа | Настройки"}
-        description={isEditMode ? "Редактирование шаблона документа" : "Добавление шаблона документа"}
+        title={isEditMode ? t("settings_documents.create.edit_title") : t("settings_documents.create.new_title")}
+        description={isEditMode ? t("settings_documents.create.edit_description") : t("settings_documents.create.new_description")}
       />
 
       <div className="space-y-4">
@@ -296,7 +299,7 @@ export default function CreateDocumentTemplatePage() {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               onInput={handleAutoResize}
-              placeholder="Новый шаблон документа"
+              placeholder={t("settings_documents.create.title_placeholder")}
               rows={1}
               className="w-full resize-none overflow-hidden rounded-lg border border-transparent bg-transparent px-3 py-1 text-4xl font-semibold leading-tight text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-200"
             />
@@ -304,7 +307,7 @@ export default function CreateDocumentTemplatePage() {
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               onInput={handleAutoResize}
-              placeholder="Описание шаблона"
+              placeholder={t("settings_documents.create.description_placeholder")}
               rows={1}
               className="w-full resize-none overflow-hidden rounded-lg border border-transparent bg-transparent px-3 py-1 text-base font-medium text-gray-500 outline-none placeholder:text-gray-400 focus:border-gray-200"
             />
@@ -317,14 +320,14 @@ export default function CreateDocumentTemplatePage() {
               onClick={() => navigate("/settings/documents?tab=templates")}
               disabled={isBusy}
             >
-              Отмена
+              {t("settings_documents.create.cancel_button")}
             </Button>
             <Button
               className="h-11"
               onClick={handleSubmit}
               disabled={isBusy}
             >
-              {isSaving ? "Сохранение..." : isUploadingFile ? "Загрузка файла..." : "Сохранить"}
+              {isSaving ? t("settings_documents.create.saving") : isUploadingFile ? t("settings_documents.create.uploading") : t("settings_documents.create.save_button")}
             </Button>
           </div>
         </div>
@@ -332,7 +335,7 @@ export default function CreateDocumentTemplatePage() {
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="rounded-2xl border border-gray-200 bg-white shadow-theme-xs">
             <div className="border-b border-gray-200 px-4 py-3">
-              <h2 className="text-sm font-semibold text-gray-900">DOCX шаблон</h2>
+              <h2 className="text-sm font-semibold text-gray-900">{t("settings_documents.create.docx_template")}</h2>
             </div>
 
             <div className="space-y-4 p-4">
@@ -348,15 +351,15 @@ export default function CreateDocumentTemplatePage() {
                       <UploadCloud size={20} />
                     </div>
                     <p className="text-sm font-semibold text-gray-800">
-                      {isDragActive ? "Отпустите DOCX файл здесь" : "Перетащите DOCX файл сюда"}
+                      {isDragActive ? t("settings_documents.create.drag_drop_release") : t("settings_documents.create.drag_drop")}
                     </p>
-                    <p className="mt-1 text-sm text-gray-500">или нажмите, чтобы выбрать файл</p>
+                    <p className="mt-1 text-sm text-gray-500">{t("settings_documents.create.click_select")}</p>
                     <button
                       type="button"
                       onClick={open}
                       className="mt-4 text-sm font-semibold text-brand-600 hover:underline"
                     >
-                      Выбрать файл
+                      {t("settings_documents.create.select_file_button")}
                     </button>
                   </div>
                 </div>
@@ -366,13 +369,13 @@ export default function CreateDocumentTemplatePage() {
                     <div className="flex min-w-0 items-center gap-2">
                       <FileText size={16} className="shrink-0 text-gray-500" />
                       <span className="truncate text-sm font-medium text-gray-700">
-                        {fileName || "Загруженный DOCX"}
+                        {fileName || t("settings_documents.create.uploaded_docx")}
                       </span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" className="h-9 px-3 py-2" onClick={open} disabled={isBusy}>
-                        Заменить
+                        {t("settings_documents.create.replace_button")}
                       </Button>
 
                       <a
@@ -382,7 +385,7 @@ export default function CreateDocumentTemplatePage() {
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-300 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                       >
                         <ExternalLink size={14} />
-                        Открыть DOCX
+                        {t("settings_documents.create.open_docx")}
                       </a>
 
                       <button
@@ -397,7 +400,7 @@ export default function CreateDocumentTemplatePage() {
                           }
                         }}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-500 transition hover:bg-gray-50 hover:text-error-600"
-                        aria-label="Удалить файл"
+                        aria-label={t("settings_documents.create.delete_file_aria")}
                       >
                         <X size={14} />
                       </button>
@@ -407,7 +410,7 @@ export default function CreateDocumentTemplatePage() {
                   <div className="h-[72vh] min-h-[520px] overflow-auto bg-gray-50 p-4">
                     <div className="rounded-xl border border-gray-200 bg-white p-4">
                       {isRenderingPreview && (
-                        <div className="py-8 text-center text-sm text-gray-500">Загрузка DOCX предпросмотра...</div>
+                        <div className="py-8 text-center text-sm text-gray-500">{t("settings_documents.create.loading_preview")}</div>
                       )}
 
                       {previewError && (
@@ -421,14 +424,14 @@ export default function CreateDocumentTemplatePage() {
               )}
 
               {isUploadingFile && (
-                <p className="text-xs text-gray-500">Загрузка DOCX файла...</p>
+                <p className="text-xs text-gray-500">{t("settings_documents.create.uploading_file")}</p>
               )}
             </div>
           </div>
 
           <div className="flex max-h-[calc(100vh-150px)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs">
-            <h3 className="text-lg font-semibold text-gray-900">Доступные переменные</h3>
-            <p className="mt-2 text-sm font-medium text-gray-500">Поля сотрудника</p>
+            <h3 className="text-lg font-semibold text-gray-900">{t("settings_documents.create.available_variables")}</h3>
+            <p className="mt-2 text-sm font-medium text-gray-500">{t("settings_documents.create.employee_fields")}</p>
 
             <div className="mt-4 flex-1 space-y-2 overflow-y-auto pr-1">
               {AVAILABLE_EMPLOYEE_VARIABLES.map((variable) => (
@@ -437,7 +440,7 @@ export default function CreateDocumentTemplatePage() {
                   className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
                 >
                   <p className="font-mono text-sm text-gray-800">{variable.key}</p>
-                  <p className="mt-0.5 text-xs text-gray-500">{variable.label}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{t(variable.labelKey)}</p>
                 </div>
               ))}
             </div>

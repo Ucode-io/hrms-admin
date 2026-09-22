@@ -6,6 +6,7 @@ import { InputMask } from "@react-input/mask";
 import SearchableSelect from "../../../../components/ui/searchable-select";
 import type { EmployeeFormValues, SelectOption } from "../types";
 import type { LayoutWidth } from "./types";
+import { translate } from "../../../../i18n";
 
 /**
  * Реестр статичных полей формы сотрудника. Раскладка (`useEmployeeFormLayout`)
@@ -107,7 +108,7 @@ const datePicker = (
         selected={field.value}
         onChange={field.onChange}
         dateFormat="dd.MM.yyyy"
-        placeholderText="дд.мм.гггг"
+        placeholderText={translate("employees.form_fields.date_placeholder")}
         showYearDropdown
         showMonthDropdown
         dropdownMode="select"
@@ -139,46 +140,46 @@ const phone = (ctx: StaticFieldContext, name: "phone" | "work_phone") => (
 export const STATIC_FIELDS: StaticFieldMeta[] = [
   {
     key: "photo",
-    label: "Фотография",
+    label: translate("employees.form_fields.photo"),
     defaultWidth: "full",
     bare: true,
     render: (ctx) => ctx.renderPhoto(),
   },
   {
     key: "second_name",
-    label: "Фамилия *",
+    label: translate("employees.form_fields.second_name"),
     defaultWidth: "half",
     required: true,
-    render: (ctx) => text(ctx, "second_name", "Введите фамилию", { required: true }),
+    render: (ctx) => text(ctx, "second_name", translate("employees.form_fields.second_name_placeholder"), { required: true }),
   },
   {
     key: "first_name",
-    label: "Имя *",
+    label: translate("employees.form_fields.first_name"),
     defaultWidth: "half",
     required: true,
-    render: (ctx) => text(ctx, "first_name", "Введите имя", { required: true }),
+    render: (ctx) => text(ctx, "first_name", translate("employees.form_fields.first_name_placeholder"), { required: true }),
   },
   {
     key: "middle_name",
-    label: "Отчество",
+    label: translate("employees.form_fields.middle_name"),
     defaultWidth: "half",
-    render: (ctx) => text(ctx, "middle_name", "Введите отчество"),
+    render: (ctx) => text(ctx, "middle_name", translate("employees.form_fields.middle_name_placeholder")),
   },
   {
     key: "birth_date",
-    label: "Дата рождения",
+    label: translate("employees.form_fields.birth_date"),
     defaultWidth: "half",
     render: (ctx) => datePicker(ctx, "birth_date", true),
   },
   {
     key: "gender",
-    label: "Пол",
+    label: translate("employees.form_fields.gender"),
     defaultWidth: "half",
-    render: (ctx) => select(ctx, "gender", ctx.options.gender, "Выберите пол"),
+    render: (ctx) => select(ctx, "gender", ctx.options.gender, translate("employees.form_fields.gender_placeholder")),
   },
   {
     key: "email",
-    label: "Эл. почта *",
+    label: translate("employees.form_fields.email"),
     defaultWidth: "half",
     required: true,
     render: (ctx) =>
@@ -186,58 +187,58 @@ export const STATIC_FIELDS: StaticFieldMeta[] = [
   },
   {
     key: "personal_email",
-    label: "Личная эл. почта",
+    label: translate("employees.form_fields.personal_email"),
     defaultWidth: "half",
     render: (ctx) => text(ctx, "personal_email", "example@mail.com", { type: "email" }),
   },
   {
     key: "phone",
-    label: "Мобильный телефон",
+    label: translate("employees.form_fields.phone"),
     defaultWidth: "half",
     render: (ctx) => phone(ctx, "phone"),
   },
   {
     key: "work_phone",
-    label: "Рабочий телефон",
+    label: translate("employees.form_fields.work_phone"),
     defaultWidth: "half",
     render: (ctx) => phone(ctx, "work_phone"),
   },
   {
     key: "telegram",
-    label: "Телеграм",
+    label: translate("employees.form_fields.telegram"),
     defaultWidth: "half",
     render: (ctx) => text(ctx, "telegram", "@username"),
   },
   {
     key: "hrms_roles_id",
-    label: "Роль доступа",
-    hint: "Определяет, какие модули доступны сотруднику.",
+    label: translate("employees.form_fields.role"),
+    hint: translate("employees.form_fields.role_hint"),
     defaultWidth: "full",
-    render: (ctx) => select(ctx, "hrms_roles_id", ctx.options.roles, "Выберите роль"),
+    render: (ctx) => select(ctx, "hrms_roles_id", ctx.options.roles, translate("employees.form_fields.role_placeholder")),
   },
   {
     key: "date_hire",
-    label: "Дата начала",
+    label: translate("employees.form_fields.date_hire"),
     defaultWidth: "full",
     render: (ctx) => datePicker(ctx, "date_hire", false),
   },
   {
     key: "employment_types_id",
-    label: "Тип работы",
+    label: translate("employees.form_fields.employment_type"),
     defaultWidth: "full",
     render: (ctx) =>
-      select(ctx, "employment_types_id", ctx.options.employmentTypes, "Выберите тип"),
+      select(ctx, "employment_types_id", ctx.options.employmentTypes, translate("employees.form_fields.employment_type_placeholder")),
   },
   {
     key: "positions_id",
-    label: "Должность",
+    label: translate("employees.form_fields.positions_id"),
     defaultWidth: "full",
     render: (ctx) =>
-      select(ctx, "positions_id", ctx.options.positions, "Выберите должность"),
+      select(ctx, "positions_id", ctx.options.positions, translate("employees.form_fields.positions_id_placeholder")),
   },
   {
     key: "employee_work_reason_id",
-    label: "Причина изменения",
+    label: translate("employees.form_fields.employee_work_reason_id"),
     defaultWidth: "full",
     createOnly: true,
     render: (ctx) =>
@@ -245,26 +246,26 @@ export const STATIC_FIELDS: StaticFieldMeta[] = [
         ctx,
         "employee_work_reason_id",
         ctx.options.employeeWorkReasons,
-        "Выберите причину"
+        translate("employees.form_fields.employee_work_reason_id_placeholder")
       ),
   },
   {
     key: "salary",
-    label: "Оклад",
+    label: translate("employees.form_fields.salary"),
     defaultWidth: "full",
     createOnly: true,
-    render: (ctx) => text(ctx, "salary", "Например: 15000000", { type: "number", min: 0 }),
+    render: (ctx) => text(ctx, "salary", translate("employees.form_fields.salary_placeholder"), { type: "number", min: 0 }),
   },
   {
     key: "departments_id",
-    label: "Департамент",
+    label: translate("employees.form_fields.departments_id"),
     defaultWidth: "full",
     render: (ctx) =>
-      select(ctx, "departments_id", ctx.options.departments, "Выберите департамент"),
+      select(ctx, "departments_id", ctx.options.departments, translate("employees.form_fields.departments_id_placeholder")),
   },
   {
     key: "experience_levels_id",
-    label: "Уровень",
+    label: translate("employees.form_fields.experience_levels_id"),
     defaultWidth: "full",
     render: (ctx) =>
       select(
@@ -276,9 +277,9 @@ export const STATIC_FIELDS: StaticFieldMeta[] = [
   },
   {
     key: "locations_id",
-    label: "Филиал",
+    label: translate("employees.form_fields.locations_id"),
     defaultWidth: "full",
-    render: (ctx) => select(ctx, "locations_id", ctx.options.locations, "Выберите филиал"),
+    render: (ctx) => select(ctx, "locations_id", ctx.options.locations, translate("employees.form_fields.locations_id_placeholder")),
   },
 ];
 

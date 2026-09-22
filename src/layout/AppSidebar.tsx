@@ -29,6 +29,8 @@ import companyStore from "../store/company.store";
 import { observer } from "mobx-react-lite";
 import { useCurrentUserAccess } from "../api/services/role.service";
 import { isPathAllowed } from "../modules/Settings/Roles/moduleCatalog";
+import { useTranslation } from "../i18n";
+import type { MessageKey } from "../i18n/messages";
 
 type NavItem = {
   name: string;
@@ -42,65 +44,65 @@ type ModuleSection = {
   items: { name: string; path: string; icon: React.ReactNode }[];
 };
 
-const mainNavItems: NavItem[] = [
-  { icon: <Home size={20} />, name: "Дашборд", path: "/dashboard" },
+const buildMainNavItems = (t: (key: MessageKey) => string): NavItem[] => [
+  { icon: <Home size={20} />, name: t("sidebar.dashboard"), path: "/dashboard" },
 ];
 
-const moduleSections: ModuleSection[] = [
+const buildModuleSections = (t: (key: MessageKey) => string): ModuleSection[] => [
   {
-    title: "Задачи и KPI",
+    title: t("sidebar.section.tasks_kpi"),
     items: [
-      { name: "Задачи", path: "/tasks", icon: <ListTodo size={18} /> },
-      { name: "KPI", path: "/kpi", icon: <Target size={18} /> },
+      { name: t("sidebar.tasks"), path: "/tasks", icon: <ListTodo size={18} /> },
+      { name: t("sidebar.kpi"), path: "/kpi", icon: <Target size={18} /> },
     ],
   },
   {
-    title: "Люди",
+    title: t("sidebar.section.people"),
     items: [
-      { name: "Сотрудники", path: "/employees", icon: <UserRoundCheck size={18} /> },
-      { name: "Орг структура", path: "/organization/structure", icon: <Network size={18} /> },
+      { name: t("sidebar.employees"), path: "/employees", icon: <UserRoundCheck size={18} /> },
+      { name: t("sidebar.org_structure"), path: "/organization/structure", icon: <Network size={18} /> },
       // Чаты здесь, а не в настройках: это переписки людей, и доступом к ним
       // владеет тот же модуль «Люди» (moduleCatalog: employees).
-      { name: "Чаты", path: "/chats", icon: <MessageSquare size={18} /> },
+      { name: t("sidebar.chats"), path: "/chats", icon: <MessageSquare size={18} /> },
     ],
   },
   {
-    title: "Рекрутинг",
+    title: t("sidebar.section.recruiting"),
     items: [
-      { name: "Вакансии", path: "/recruiting/vacancies", icon: <UserSearch size={18} /> },
-      { name: "Кандидаты", path: "/recruiting/candidates", icon: <Users size={18} /> },
+      { name: t("sidebar.vacancies"), path: "/recruiting/vacancies", icon: <UserSearch size={18} /> },
+      { name: t("sidebar.candidates"), path: "/recruiting/candidates", icon: <Users size={18} /> },
     ],
   },
   {
-    title: "Время",
+    title: t("sidebar.section.time"),
     items: [
-      { name: "Посещаемость", path: "/time", icon: <CalendarCheck size={18} /> },
-      { name: "Табель времени", path: "/timesheet", icon: <CalendarClock size={18} /> },
-      { name: "График работы", path: "/shifts", icon: <CalendarRange size={18} /> },
+      { name: t("sidebar.attendance"), path: "/time", icon: <CalendarCheck size={18} /> },
+      { name: t("sidebar.timesheet"), path: "/timesheet", icon: <CalendarClock size={18} /> },
+      { name: t("sidebar.work_schedule"), path: "/shifts", icon: <CalendarRange size={18} /> },
     ],
   },
   {
-    title: "Обучение",
+    title: t("sidebar.section.learning"),
     items: [
-      { name: "Тренинги", path: "/trainings", icon: <GraduationCap size={18} /> },
-      { name: "База знаний", path: "/knowledge-base", icon: <BookOpen size={18} /> },
-      { name: "Опросы", path: "/surveys", icon: <ClipboardList size={18} /> },
+      { name: t("sidebar.trainings"), path: "/trainings", icon: <GraduationCap size={18} /> },
+      { name: t("sidebar.knowledge_base"), path: "/knowledge-base", icon: <BookOpen size={18} /> },
+      { name: t("sidebar.surveys"), path: "/surveys", icon: <ClipboardList size={18} /> },
     ],
   },
   {
-    title: "Финансы",
+    title: t("sidebar.section.finance"),
     items: [
-      { name: "Зарплата", path: "/finance/salary", icon: <WalletCards size={18} /> },
-      { name: "Бюджет", path: "/budgeting", icon: <Calculator size={18} /> },
+      { name: t("sidebar.salary"), path: "/finance/salary", icon: <WalletCards size={18} /> },
+      { name: t("sidebar.budget"), path: "/budgeting", icon: <Calculator size={18} /> },
     ],
   },
   {
-    title: "Система",
+    title: t("sidebar.section.system"),
     items: [
-      { name: "Отчеты", path: "/reports", icon: <BarChart3 size={18} /> },
-      { name: "Документы", path: "/documents", icon: <FileText size={18} /> },
-      { name: "Имущество", path: "/property", icon: <Package size={18} /> },
-      { name: "Настройки", path: "/settings", icon: <Settings size={18} /> },
+      { name: t("sidebar.reports"), path: "/reports", icon: <BarChart3 size={18} /> },
+      { name: t("sidebar.documents"), path: "/documents", icon: <FileText size={18} /> },
+      { name: t("sidebar.property"), path: "/property", icon: <Package size={18} /> },
+      { name: t("sidebar.settings"), path: "/settings", icon: <Settings size={18} /> },
     ],
   },
 ];
@@ -137,8 +139,12 @@ const ENABLED_PATHS = new Set([
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
+  const { t } = useTranslation();
 
   const sidebarOpen = isExpanded || isMobileOpen;
+
+  const mainNavItems = useMemo(() => buildMainNavItems(t), [t]);
+  const moduleSections = useMemo(() => buildModuleSections(t), [t]);
 
   // Effective module access for the logged-in user. Non-breaking rollout policy:
   // an employee with NO assigned role (or a global admin) keeps full access;
@@ -281,7 +287,7 @@ const AppSidebar: React.FC = () => {
             {visibleMainNav.length > 0 && (
               <>
                 <div>
-                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Основное</p>
+                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t("sidebar.group_main")}</p>
                   <ul className="flex flex-col gap-0.5">
                     {visibleMainNav.map((nav) => renderNavItem(nav))}
                   </ul>

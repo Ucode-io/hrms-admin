@@ -13,6 +13,7 @@ import {
 import { COMPANY_ID, useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
 import { useDynamicValues } from "../../../Settings/CustomFields/useDynamicValues";
 import DynamicFieldsBlock from "../../../Settings/CustomFields/DynamicFieldsBlock";
+import { useTranslation, translate } from "../../../../i18n";
 
 type CompensationSectionProps = {
   employeeGuid: string;
@@ -50,11 +51,6 @@ type CompensationTypeItem = {
 };
 
 const COMPENSATION_TYPES_SLUG = "compensation_types";
-
-const OPERATION_LABELS: Record<OperationType, string> = {
-  income: "Начисление",
-  deduction: "Удержание",
-};
 
 const OPERATION_TAG_STYLES: Record<OperationType, string> = {
   income: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -112,7 +108,7 @@ const formatDateTime = (dateStr: string): string => {
 };
 
 const formatAmount = (value: number): string => {
-  return `${new Intl.NumberFormat("ru-RU").format(value)} сум`;
+  return `${new Intl.NumberFormat("ru-RU").format(value)} ${translate("employees.compensation.currency_suffix")}`;
 };
 
 const formatAmountInput = (value: string): string => {
@@ -155,6 +151,11 @@ const resolveOperationType = (value: unknown): OperationType => {
 };
 
 function CompensationSection({ employeeGuid, brandColor }: CompensationSectionProps) {
+  const { t } = useTranslation();
+  const OPERATION_LABELS: Record<OperationType, string> = {
+    income: t("employees.compensation.operation_income"),
+    deduction: t("employees.compensation.operation_deduction"),
+  };
   /** Динамические поля таблицы employee_compensations. */
   const dynamic = useDynamicValues("employee_compensations");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -274,24 +275,24 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
 
   const handleSave = async () => {
     if (!draft.accrualDate) {
-      setError("Укажите дату начисления.");
+      setError(t("employees.compensation.accrual_date_required"));
       return;
     }
 
     const parsedAmount = parseAmountInput(draft.amount);
     if (!Number.isFinite(parsedAmount)) {
-      setError("Укажите корректную сумму.");
+      setError(t("employees.compensation.amount_invalid"));
       return;
     }
 
     if (!draft.compensationTypeId) {
-      setError("Выберите тип компенсации.");
+      setError(t("employees.compensation.type_required"));
       return;
     }
 
     // Правила динамических полей проверяем до запроса.
     if (!dynamic.validate()) {
-      setError("Проверьте дополнительные поля.");
+      setError(t("employees.compensation.check_extra_fields"));
       return;
     }
 
@@ -318,7 +319,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
       closeModal();
     } catch (saveError) {
       console.error("Compensation save error:", saveError);
-      setError("Не удалось сохранить запись. Попробуйте ещё раз.");
+      setError(t("employees.compensation.save_failed"));
     }
   };
 
@@ -329,7 +330,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
       setToDelete(null);
     } catch (deleteError) {
       console.error("Compensation delete error:", deleteError);
-      setError("Не удалось удалить запись. Попробуйте ещё раз.");
+      setError(t("employees.compensation.delete_failed"));
     }
   };
 
@@ -341,7 +342,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
             <span style={{ color: brandColor }}>
               <HandCoins className="w-4 h-4" />
             </span>
-            <h3 className="text-[15px] font-bold text-slate-900 m-0">Компенсация</h3>
+            <h3 className="text-[15px] font-bold text-slate-900 m-0">{t("employees.compensation.title")}</h3>
           </div>
           <button
             type="button"
@@ -350,7 +351,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
             style={{ color: brandColor }}
           >
             <Plus className="w-3.5 h-3.5" />
-            Добавить
+            {t("common.add")}
           </button>
         </div>
 
@@ -365,7 +366,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
           ) : records.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
               <p className="m-0 text-[13px] text-slate-500">
-                Записей о компенсациях пока нет
+                {t("employees.compensation.empty")}
               </p>
             </div>
           ) : (
@@ -373,14 +374,14 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
               <table className="min-w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Дата начисления</th>
-                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Тип компенсации</th>
-                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Операция</th>
-                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Сумма</th>
-                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Описание</th>
-                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">Создано</th>
+                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">{t("employees.compensation.col_accrual_date")}</th>
+                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">{t("employees.compensation.col_type")}</th>
+                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">{t("employees.compensation.col_operation")}</th>
+                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">{t("employees.compensation.col_amount")}</th>
+                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">{t("employees.compensation.col_description")}</th>
+                    <th className="py-2 pr-4 text-[12px] font-semibold text-slate-500">{t("employees.compensation.col_created")}</th>
                     <th className="py-2 text-[12px] font-semibold text-slate-500 text-right">
-                      Действия
+                      {t("employees.compensation.col_actions")}
                     </th>
                   </tr>
                 </thead>
@@ -415,7 +416,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
                             type="button"
                             onClick={() => openEdit(record)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-                            title="Изменить"
+                            title={t("common.edit")}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -423,7 +424,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
                             type="button"
                             onClick={() => setToDelete(record)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50"
-                            title="Удалить"
+                            title={t("common.delete")}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -445,14 +446,14 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
       >
         <div className="border-b border-slate-200 px-6 py-5">
           <h4 className="m-0 text-[22px] font-bold text-slate-900">
-            {editingGuid ? "Изменить компенсацию" : "Добавить компенсацию"}
+            {editingGuid ? t("employees.compensation.edit_modal_title") : t("employees.compensation.add_modal_title")}
           </h4>
         </div>
 
         <div className="space-y-4 px-6 py-5">
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Тип операции
+              {t("employees.compensation.operation_type_label")}
             </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
@@ -481,7 +482,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
                 </span>
                 <span>
                   <span className="block text-[13px] font-semibold text-slate-900">
-                    Начисление
+                    {t("employees.compensation.operation_income")}
                   </span>
                   <span className="mt-0.5 block text-[12px] text-slate-500">
                     income
@@ -515,7 +516,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
                 </span>
                 <span>
                   <span className="block text-[13px] font-semibold text-slate-900">
-                    Удержание
+                    {t("employees.compensation.operation_deduction")}
                   </span>
                   <span className="mt-0.5 block text-[12px] text-slate-500">
                     deduction
@@ -528,7 +529,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Дата начисления
+                {t("employees.compensation.col_accrual_date")}
               </label>
               <DatePicker
                 selected={draft.accrualDate}
@@ -539,7 +540,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
                   }))
                 }
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("employees.detail.dismissal_date_placeholder")}
                 showMonthDropdown
                 showYearDropdown
                 dropdownMode="select"
@@ -550,7 +551,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Тип компенсации
+                {t("employees.compensation.col_type")}
               </label>
               <select
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
@@ -563,10 +564,10 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
                 }
                 disabled={isSaving || isTypesLoading}
               >
-                <option value="">Выберите тип</option>
+                <option value="">{t("employees.compensation.select_type")}</option>
                 {filteredCompensationTypeOptions.map((item) => (
                   <option key={item.guid} value={item.guid}>
-                    {item.title || "Без названия"}
+                    {item.title || t("employees.detail.no_title")}
                   </option>
                 ))}
               </select>
@@ -575,7 +576,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
 
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Сумма
+              {t("employees.compensation.col_amount")}
             </label>
             <input
               type="text"
@@ -587,14 +588,14 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
                   amount: normalizeAmountInput(event.target.value),
                 }))
               }
-              placeholder="Например: -500000 или 5000000"
+              placeholder={t("employees.compensation.amount_placeholder")}
               className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
             />
           </div>
 
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Описание
+              {t("employees.compensation.col_description")}
             </label>
             <textarea
               rows={4}
@@ -602,7 +603,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
               onChange={(event) =>
                 setDraft((prev) => ({ ...prev, description: event.target.value }))
               }
-              placeholder="Например: KPI бонус или удержание"
+              placeholder={t("employees.compensation.description_placeholder")}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
             />
           </div>
@@ -629,7 +630,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -638,7 +639,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
             className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ backgroundColor: brandColor }}
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </Modal>
@@ -650,10 +651,10 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
         showCloseButton={false}
       >
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Удалить компенсацию?
+          {t("employees.compensation.delete_modal_title")}
         </h4>
         <p className="mb-6 mt-2 text-[13px] text-slate-500">
-          Запись будет удалена без возможности восстановления.
+          {t("employees.sport_attendance.delete_modal_description")}
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -662,7 +663,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -670,7 +671,7 @@ function CompensationSection({ employeeGuid, brandColor }: CompensationSectionPr
             disabled={isSaving}
             className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSaving ? "Удаление..." : "Удалить"}
+            {isSaving ? t("employees.sport_attendance.deleting") : t("common.delete")}
           </button>
         </div>
       </Modal>

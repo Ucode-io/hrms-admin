@@ -5,6 +5,7 @@ import Select, {
   type StylesConfig,
 } from "react-select";
 import { type Employee, useEmployeesQuery } from "../../../api/services/employee.service";
+import { useTranslation } from "../../../i18n";
 
 export type AssigneeOption = { value: string; label: string };
 
@@ -49,14 +50,14 @@ const selectStyles: StylesConfig<AssigneeOption, false> = {
   }),
 };
 
-export default function AssigneeSelect({
-  value,
+export default function AssigneeSelect({ value,
   label,
   onChange,
-  placeholder = "Выберите сотрудника",
+  placeholder,
   isDisabled = false,
   menuPortalTarget,
 }: AssigneeSelectProps) {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -133,8 +134,8 @@ export default function AssigneeSelect({
       menuPortalTarget={menuPortalTarget ?? undefined}
       menuPosition="fixed"
       classNamePrefix="assignee-select"
-      noOptionsMessage={() => (isLoading || isFetching ? "Загрузка..." : "Ничего не найдено")}
-      loadingMessage={() => "Загрузка..."}
+      noOptionsMessage={() => (isLoading || isFetching ? t("reports.common.loading") : t("common.no_options_found"))}
+      loadingMessage={() => t("reports.common.loading")}
     />
   );
 }

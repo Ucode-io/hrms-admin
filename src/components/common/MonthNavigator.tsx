@@ -1,9 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-
-const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
-  month: "long",
-  year: "numeric",
-});
+import { useTranslation } from "../../i18n";
 
 // Parses a "YYYY-MM" key into a Date at the first day of that month.
 // Falls back to the current month for empty/invalid input.
@@ -26,8 +22,11 @@ const toMonthKey = (value: Date): string => {
   return `${year}-${month}`;
 };
 
-const formatMonthLabel = (monthDate: Date): string => {
-  const formatted = MONTH_LABEL_FORMATTER.format(monthDate);
+const formatMonthLabel = (monthDate: Date, locale: string): string => {
+  const formatted = new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+  }).format(monthDate);
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 };
 
@@ -48,6 +47,7 @@ export default function MonthNavigator({
   disabled = false,
   className,
 }: MonthNavigatorProps) {
+  const { t, locale } = useTranslation();
   const current = parseMonthKey(value);
 
   const step = (delta: number) => {
@@ -73,19 +73,19 @@ export default function MonthNavigator({
         disabled={disabled}
         onClick={() => step(-1)}
         className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-        aria-label="Предыдущий месяц"
+        aria-label={t("common.prev_month")}
       >
         <ChevronLeft size={16} />
       </button>
       <span className="min-w-[170px] px-3 text-center text-[13px] font-semibold text-slate-700">
-        {formatMonthLabel(current)}
+        {formatMonthLabel(current, locale)}
       </span>
       <button
         type="button"
         disabled={disabled}
         onClick={() => step(1)}
         className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-        aria-label="Следующий месяц"
+        aria-label={t("common.next_month")}
       >
         <ChevronRight size={16} />
       </button>

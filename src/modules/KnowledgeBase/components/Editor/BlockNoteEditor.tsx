@@ -51,8 +51,7 @@ interface BlockNoteEditorProps {
   onChange?: (content: KbBlock[]) => void;
 }
 
-export default function BlockNoteEditor({
-  initialContent,
+export default function BlockNoteEditor({ initialContent,
   editable = true,
   onChange,
 }: BlockNoteEditorProps) {

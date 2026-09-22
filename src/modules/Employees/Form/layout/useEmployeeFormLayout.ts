@@ -14,6 +14,7 @@ import type {
   LayoutColumn,
   LayoutWidth,
 } from "./types";
+import { translate } from "../../../../i18n";
 
 const createId = (prefix: string): string =>
   `${prefix}_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-4)}`;
@@ -245,7 +246,7 @@ export const useFormLayout = (
         ...prev.cards,
         {
           id,
-          title: "Новая карточка",
+          title: translate("employees.form_layout.new_card_title"),
           description: "",
           column: "left",
           system: false,

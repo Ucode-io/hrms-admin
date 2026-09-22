@@ -3,8 +3,10 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { Search, Settings as SettingsIcon } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import { settingsSections, type SettingsItem } from "./index";
+import { useTranslation } from "../../i18n";
 
 const SettingsLayout: React.FC = () => {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
@@ -15,7 +17,7 @@ const SettingsLayout: React.FC = () => {
     () =>
       settingsSections.map((section) => ({
         id: section.id,
-        title: section.title,
+        titleKey: section.titleKey,
         items: section.columns.flat(),
       })),
     []
@@ -27,12 +29,12 @@ const SettingsLayout: React.FC = () => {
       .map((section) => ({
         ...section,
         items: section.items.filter((item) => {
-          const fields = [item.title, ...(item.keywords ?? [])];
+          const fields = [t(item.titleKey), ...(item.keywords ?? [])];
           return fields.some((field) => field.toLowerCase().includes(normalizedQuery));
         }),
       }))
       .filter((section) => section.items.length > 0);
-  }, [sections, normalizedQuery]);
+  }, [sections, normalizedQuery, t]);
 
   const isActive = (item: SettingsItem): boolean => {
     if (!item.path) return false;
@@ -43,7 +45,7 @@ const SettingsLayout: React.FC = () => {
 
   return (
     <>
-      <PageMeta title="Настройки | HRMS" description="Настройки системы" />
+      <PageMeta title={t("settings_misc.settings_index.page_title")} description={t("settings_misc.settings_index.page_description")} />
 
       {/* Страница не скроллится целиком: высота — ровно экран минус шапка
           (h-16 = 64px), скролл живёт внутри колонок. Иначе sticky-сайдбар с
@@ -53,7 +55,7 @@ const SettingsLayout: React.FC = () => {
         {/* Settings sidebar */}
         <aside className="flex h-full w-[300px] shrink-0 flex-col border-r border-gray-200 bg-white">
           {/* <div className="border-b border-gray-100 px-4 py-3.5">
-            <h2 className="m-0 text-[15px] font-semibold text-gray-900">Настройки</h2>
+            <h2 className="m-0 text-[15px] font-semibold text-gray-900">{t("settings_misc.settings_index.sidebar_title")}</h2>
           </div> */}
           <div className="border-b border-gray-100 px-3 py-2.5">
             <label className="relative block">
@@ -65,7 +67,7 @@ const SettingsLayout: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_misc.settings_index.search_placeholder")}
                 className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -75,7 +77,7 @@ const SettingsLayout: React.FC = () => {
             {visibleSections.map((section) => (
               <div key={section.id} className="mb-3">
                 <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                  {section.title}
+                  {t(section.titleKey)}
                 </p>
                 <div className="space-y-0.5">
                   {section.items.map((item) => {
@@ -88,7 +90,7 @@ const SettingsLayout: React.FC = () => {
                         type="button"
                         disabled={!clickable}
                         onClick={() => item.path && navigate(item.path)}
-                        title={item.subtitle}
+                        title={item.subtitleKey ? t(item.subtitleKey) : undefined}
                         className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition ${
                           active
                             ? "bg-brand-50 text-brand-700"
@@ -108,10 +110,10 @@ const SettingsLayout: React.FC = () => {
                         >
                           <Icon size={14} />
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{t(item.titleKey)}</span>
                         {!clickable && (
                           <span className="shrink-0 rounded-full border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
-                            Скоро
+                            {t("settings_misc.settings_index.coming_soon")}
                           </span>
                         )}
                       </button>
@@ -122,7 +124,7 @@ const SettingsLayout: React.FC = () => {
             ))}
 
             {visibleSections.length === 0 && (
-              <p className="px-2 py-6 text-center text-sm text-gray-500">Ничего не найдено</p>
+              <p className="px-2 py-6 text-center text-sm text-gray-500">{t("settings_misc.settings_index.empty_title")}</p>
             )}
           </nav>
         </aside>
@@ -138,9 +140,9 @@ const SettingsLayout: React.FC = () => {
               <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 text-gray-400">
                 <SettingsIcon size={26} />
               </span>
-              <p className="m-0 text-base font-medium text-gray-700">Выберите раздел настроек</p>
+              <p className="m-0 text-base font-medium text-gray-700">{t("settings_misc.settings_index.select_section")}</p>
               <p className="m-0 max-w-sm text-sm text-gray-500">
-                Слева — список разделов. Выберите нужный, чтобы открыть его настройки здесь.
+                {t("settings_misc.settings_index.select_section_hint")}
               </p>
             </div>
           )}

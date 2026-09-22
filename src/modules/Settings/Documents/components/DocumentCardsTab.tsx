@@ -22,6 +22,7 @@ import {
   useSettingsDirectoryQuery,
   useUpdateSettingsDirectoryItem,
 } from "../../../../api/services/settingsDirectory.service";
+import { useTranslation } from "../../../../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -83,11 +84,13 @@ export default function DocumentCardsTab({
   saveErrorText,
   deleteErrorText,
   includeFileField = false,
-  fileRequiredText = "Поле файла обязательно.",
+  fileRequiredText,
   onCardClick,
   onEditItem,
   showCount = false,
 }: DocumentCardsTabProps) {
+  const { t } = useTranslation();
+  const requiredFileText = fileRequiredText ?? t("settings_documents.tab.file_required_default");
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -184,7 +187,7 @@ export default function DocumentCardsTab({
       selectedFile.type === "application/pdf" ||
       selectedFile.name.toLowerCase().endsWith(".pdf");
     if (!isPdf) {
-      toast.error("Загрузите PDF файл.");
+      toast.error(t("settings_documents.tab.upload_pdf_only"));
       return;
     }
 
@@ -192,10 +195,10 @@ export default function DocumentCardsTab({
       setIsUploadingFile(true);
       const uploadedUrl = await uploadMutation.mutateAsync(selectedFile);
       setFile(uploadedUrl);
-      toast.success("PDF файл успешно загружен.");
+      toast.success(t("settings_documents.tab.pdf_uploaded"));
     } catch (error) {
       console.error(`Failed to upload PDF for slug ${slug}:`, error);
-      toast.error("Не удалось загрузить PDF файл.");
+      toast.error(t("settings_documents.tab.upload_failed"));
     } finally {
       setIsUploadingFile(false);
     }
@@ -212,7 +215,7 @@ export default function DocumentCardsTab({
     }
 
     if (includeFileField && !preparedFile) {
-      toast.error(fileRequiredText);
+      toast.error(requiredFileText);
       return;
     }
 
@@ -296,7 +299,7 @@ export default function DocumentCardsTab({
             type="text"
             value={searchValue}
             onChange={(event) => setSearchValue(event.target.value)}
-            placeholder="Поиск..."
+            placeholder={t("settings_documents.tab.search")}
             className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
         </label>
@@ -336,7 +339,7 @@ export default function DocumentCardsTab({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="line-clamp-2 text-lg font-semibold text-gray-900">
-                      {String(item.title || "Без названия")}
+                      {String(item.title || t("settings_documents.tab.no_title"))}
                     </h3>
                     <div className="flex items-center gap-1">
                       {showCount && typeof count === "number" && (
@@ -352,7 +355,7 @@ export default function DocumentCardsTab({
                           toggleActionsMenu(item.guid);
                         }}
                         className="dropdown-toggle inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                        aria-label="Открыть действия"
+                        aria-label={t("settings_documents.tab.open_actions")}
                         ref={(el) => {
                           actionButtonRefs.current[item.guid] = el;
                         }}
@@ -378,20 +381,20 @@ export default function DocumentCardsTab({
                           }}
                           className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                         >
-                          Изменить
+                          {t("settings_documents.tab.edit")}
                         </DropdownItem>
                         <DropdownItem
                           onClick={() => openDeleteModal(item)}
                           className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                         >
-                          Удалить
+                          {t("settings_documents.tab.delete")}
                         </DropdownItem>
                       </Dropdown>
                     </div>
                   </div>
 
                   <p className="mt-2.5 line-clamp-3 text-sm font-medium text-gray-500">
-                    {itemDescription || "Без описания"}
+                    {itemDescription || t("settings_documents.tab.no_description")}
                   </p>
                 </div>
               );
@@ -422,7 +425,7 @@ export default function DocumentCardsTab({
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_documents.tab.close")}
           >
             <X size={18} />
           </button>
@@ -431,13 +434,13 @@ export default function DocumentCardsTab({
         <div className="space-y-4 px-4 py-4">
           <div className="space-y-2">
             <label htmlFor={`${slug}-title`} className="block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_documents.tab.title")}
             </label>
             <input
               id={`${slug}-title`}
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Введите название"
+              placeholder={t("settings_documents.tab.enter_title")}
               autoFocus
               className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
@@ -451,7 +454,7 @@ export default function DocumentCardsTab({
               id={`${slug}-description`}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Введите описание"
+              placeholder={t("settings_documents.tab.enter_description")}
               rows={4}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
@@ -460,7 +463,7 @@ export default function DocumentCardsTab({
           {includeFileField && (
             <div className="space-y-2">
               <label htmlFor={`${slug}-file`} className="block text-sm font-medium text-gray-700">
-                PDF файл
+                {t("settings_documents.tab.pdf_file")}
               </label>
               <FileInput
                 id={`${slug}-file`}
@@ -470,7 +473,7 @@ export default function DocumentCardsTab({
               />
 
               {isUploadingFile && (
-                <p className="text-xs text-gray-500">Загрузка PDF файла...</p>
+                <p className="text-xs text-gray-500">{t("settings_documents.tab.uploading_pdf")}</p>
               )}
 
               {file && !isUploadingFile && (
@@ -481,20 +484,20 @@ export default function DocumentCardsTab({
                     rel="noreferrer"
                     className="truncate text-sm font-medium text-brand-600 hover:underline"
                   >
-                    Прикрепленный PDF (открыть)
+                    {t("settings_documents.tab.attached_pdf")}
                   </a>
                   <button
                     type="button"
                     onClick={() => setFile("")}
                     className="ml-2 text-xs font-medium text-gray-500 transition hover:text-error-600"
                   >
-                    Удалить
+                    {t("settings_documents.tab.remove_file")}
                   </button>
                 </div>
               )}
 
               {!file && !isUploadingFile && (
-                <p className="text-xs text-gray-500">Загрузите PDF файл для шаблона.</p>
+                <p className="text-xs text-gray-500">{t("settings_documents.tab.upload_pdf_hint")}</p>
               )}
             </div>
           )}
@@ -506,14 +509,14 @@ export default function DocumentCardsTab({
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_documents.tab.cancel")}
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={isSaving || isUploadingFile}
             className="min-w-[110px] px-3 py-2 text-sm"
           >
-            {isSaving ? "Сохранение..." : isUploadingFile ? "Загрузка файла..." : "Сохранить"}
+            {isSaving ? t("settings_documents.tab.saving") : isUploadingFile ? t("settings_documents.tab.uploading_file") : t("settings_documents.tab.save")}
           </Button>
         </div>
       </Modal>
@@ -531,7 +534,7 @@ export default function DocumentCardsTab({
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_documents.tab.close")}
             >
               <X size={16} />
             </button>
@@ -539,11 +542,11 @@ export default function DocumentCardsTab({
         </div>
 
         <div className="space-y-3 px-4 py-4 text-center">
-          <p className="text-sm text-gray-500">Это действие нельзя отменить.</p>
+          <p className="text-sm text-gray-500">{t("settings_documents.tab.cannot_undo")}</p>
           <p className="text-sm text-gray-700">
             {itemToDelete
-              ? `Вы уверены, что хотите удалить "${String(itemToDelete.title)}"?`
-              : `Вы уверены, что хотите удалить ${itemTitle.toLowerCase()}?`}
+              ? t("settings_documents.tab.delete_confirm_named", { title: String(itemToDelete.title) })
+              : t("settings_documents.tab.delete_confirm_generic", { item: itemTitle.toLowerCase() })}
           </p>
 
           <div className="flex gap-2">
@@ -552,14 +555,14 @@ export default function DocumentCardsTab({
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_documents.tab.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_documents.tab.deleting") : t("settings_documents.tab.delete")}
             </Button>
           </div>
         </div>

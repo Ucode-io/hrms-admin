@@ -1,4 +1,5 @@
 import { FIELD_TYPE_MAP, OPTION_COLORS } from "./constants";
+import { translate } from "../../../i18n";
 import type {
   CustomField,
   FieldOption,
@@ -117,27 +118,27 @@ export const typeSupportsOptions = (type: FieldType): boolean =>
 export const describeRules = (field: CustomField): string[] => {
   const parts: string[] = [];
 
-  if (field.rules.required) parts.push("обязательное");
-  if (field.rules.unique) parts.push("уникальное");
-  if (field.rules.readOnly) parts.push("только чтение");
+  if (field.rules.required) parts.push(translate("settings_custom_fields.rule_chip.required"));
+  if (field.rules.unique) parts.push(translate("settings_custom_fields.rule_chip.unique"));
+  if (field.rules.readOnly) parts.push(translate("settings_custom_fields.rule_chip.read_only"));
   const { minLength, maxLength, min, max } = field.rules;
 
   if (minLength !== null && maxLength !== null) {
-    parts.push(`длина ${minLength}–${maxLength}`);
+    parts.push(translate("settings_custom_fields.rule_chip.length_range", { min: minLength, max: maxLength }));
   } else if (maxLength !== null) {
-    parts.push(`до ${maxLength} симв.`);
+    parts.push(translate("settings_custom_fields.rule_chip.max_length", { max: maxLength }));
   } else if (minLength !== null) {
-    parts.push(`от ${minLength} симв.`);
+    parts.push(translate("settings_custom_fields.rule_chip.min_length", { min: minLength }));
   }
 
   if (min !== null && max !== null) {
-    parts.push(`от ${min} до ${max}`);
+    parts.push(translate("settings_custom_fields.rule_chip.range", { min, max }));
   } else if (max !== null) {
-    parts.push(`не более ${max}`);
+    parts.push(translate("settings_custom_fields.rule_chip.max", { max }));
   } else if (min !== null) {
-    parts.push(`не менее ${min}`);
+    parts.push(translate("settings_custom_fields.rule_chip.min", { min }));
   }
-  if (field.rules.pattern) parts.push("регулярное выражение");
+  if (field.rules.pattern) parts.push(translate("settings_custom_fields.rule_chip.pattern"));
   if (field.rules.allowedExtensions.length > 0) {
     parts.push(field.rules.allowedExtensions.join(", "));
   }

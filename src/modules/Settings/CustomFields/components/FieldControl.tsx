@@ -3,14 +3,16 @@ import { CalendarDays, ChevronDown, CloudUpload, Search } from "lucide-react";
 
 import type { CustomField } from "../types";
 import { Toggle, inputClass, textareaClass } from "./Controls";
+import { useTranslation } from "../../../../i18n";
 
 function BooleanControl({ defaultChecked }: { defaultChecked: boolean }) {
+  const { t } = useTranslation();
   const [checked, setChecked] = useState(defaultChecked);
 
   return (
     <div className="flex h-11 items-center gap-3">
       <Toggle checked={checked} onChange={setChecked} size="sm" />
-      <span className="text-sm text-gray-600">{checked ? "Да" : "Нет"}</span>
+      <span className="text-sm text-gray-600">{checked ? t("settings_custom_fields.control.boolean_yes") : t("settings_custom_fields.control.boolean_no")}</span>
     </div>
   );
 }
@@ -22,6 +24,7 @@ function OptionChips({
   field: CustomField;
   multiple: boolean;
 }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string[]>(
     field.defaultValue ? [field.defaultValue] : []
   );
@@ -63,7 +66,7 @@ function OptionChips({
         );
       })}
       {field.options.length === 0 && (
-        <span className="text-sm text-gray-400">Варианты не заданы</span>
+        <span className="text-sm text-gray-400">{t("settings_custom_fields.control.options_not_set")}</span>
       )}
     </div>
   );
@@ -71,8 +74,9 @@ function OptionChips({
 
 /** Рендер одного поля «как в форме» — живой предпросмотр внутри редактора поля. */
 export function FieldControl({ field }: { field: CustomField }) {
+  const { t } = useTranslation();
   const disabled = field.rules.readOnly;
-  const placeholder = field.placeholder || "Введите значение";
+  const placeholder = field.placeholder || t("settings_custom_fields.control.enter_value");
 
   switch (field.type) {
     case "textarea":
@@ -104,7 +108,7 @@ export function FieldControl({ field }: { field: CustomField }) {
             disabled={disabled}
             defaultValue={field.defaultValue}
           >
-            <option value="">{field.placeholder || "Выберите значение"}</option>
+            <option value="">{field.placeholder || t("settings_custom_fields.control.select_value")}</option>
             {field.options.map((option) => (
               <option key={option.id} value={option.value}>
                 {option.label}
@@ -141,12 +145,14 @@ export function FieldControl({ field }: { field: CustomField }) {
         <div className="flex items-center gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
           <CloudUpload size={18} className="text-gray-400" />
           <div className="min-w-0">
-            <p className="text-sm text-gray-600">Перетащите файл или нажмите</p>
+            <p className="text-sm text-gray-600">{t("settings_custom_fields.control.file_drop_hint")}</p>
             <p className="text-xs text-gray-400">
               {field.rules.allowedExtensions.length > 0
                 ? field.rules.allowedExtensions.join(", ").toUpperCase()
-                : "Любой формат"}
-              {field.rules.maxFileSizeMb ? ` · до ${field.rules.maxFileSizeMb} МБ` : ""}
+                : t("settings_custom_fields.control.file_any_format")}
+              {field.rules.maxFileSizeMb
+                ? t("settings_custom_fields.control.file_max_size", { size: field.rules.maxFileSizeMb })
+                : ""}
             </p>
           </div>
         </div>
@@ -165,7 +171,9 @@ export function FieldControl({ field }: { field: CustomField }) {
             disabled={disabled}
             placeholder={
               field.placeholder ||
-              (field.type === "employee" ? "Найдите сотрудника" : "Выберите из справочника")
+              (field.type === "employee"
+                ? t("settings_custom_fields.control.employee_placeholder")
+                : t("settings_custom_fields.control.directory_placeholder"))
             }
           />
         </div>

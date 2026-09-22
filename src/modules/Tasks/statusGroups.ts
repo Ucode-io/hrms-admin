@@ -1,3 +1,5 @@
+import type { MessageKey } from "../../i18n/messages";
+
 // Группы статусов задач.
 //
 // Отдельный файл, а не часть constants.ts: его импортирует и сервис
@@ -14,21 +16,21 @@ export const STATUS_GROUP_ORDER: TaskStatusGroup[] = ["todo", "in_progress", "co
 
 export const STATUS_GROUP_META: Record<
   TaskStatusGroup,
-  { label: string; hint: string; color: string }
+  { labelKey: MessageKey; hintKey: MessageKey; color: string }
 > = {
   todo: {
-    label: "К выполнению",
-    hint: "Задача заведена, но к ней не приступали. Возврат сюда очищает даты начала и окончания.",
+    labelKey: "tasks.status_group.todo.label",
+    hintKey: "tasks.status_group.todo.hint",
     color: "#94a3b8",
   },
   in_progress: {
-    label: "В работе",
-    hint: "При переходе сюда проставляется дата начала работ.",
+    labelKey: "tasks.status_group.in_progress.label",
+    hintKey: "tasks.status_group.in_progress.hint",
     color: "#0ba5ec",
   },
   completed: {
-    label: "Завершено",
-    hint: "При переходе сюда проставляется дата окончания.",
+    labelKey: "tasks.status_group.completed.label",
+    hintKey: "tasks.status_group.completed.hint",
     color: "#12b76a",
   },
 };

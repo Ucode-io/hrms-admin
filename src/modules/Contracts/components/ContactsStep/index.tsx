@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import Select from "react-select";
 import kinshipService from "../../../../api/services/kinship.service";
 import Spinner from "../../../../components/ui/Spinner";
+import { useTranslation } from "../../../../i18n";
 
 export interface Contact {
   phone_number: string;
@@ -23,6 +24,7 @@ const BRAND_500 = "var(--color-brand-500)";
 const BRAND_RING = "rgba(var(--company-color-rgb, 70, 95, 255), 0.3)";
 
 export default function ContactsStep({ contacts, onChange }: ContactsStepProps) {
+  const { t } = useTranslation();
   const [kinships, setKinships] = useState<KinshipOption[]>([]);
   const [kinshipsLoading, setKinshipsLoading] = useState(true);
 
@@ -229,20 +231,20 @@ export default function ContactsStep({ contacts, onChange }: ContactsStepProps) 
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-        Добавления контакных лиц
+        {t("contracts.contacts_step.title")}
       </h2>
 
       {/* Первый контакт */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          1ое контактное лицо
+          {t("contracts.contacts_step.first_contact")}
         </span>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Номер телефона */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Номер телефона
+              {t("contracts.contacts_step.phone_label")}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">
@@ -261,13 +263,13 @@ export default function ContactsStep({ contacts, onChange }: ContactsStepProps) 
           {/* ФИО */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              ФИО
+              {t("contracts.contacts_step.name_label")}
             </label>
             <input
               type="text"
               value={contacts[0]?.full_name || ''}
               onChange={(e) => updateContact(0, "full_name", e.target.value)}
-              placeholder="Введите ФИО"
+              placeholder={t("contracts.contacts_step.name_placeholder")}
               className={inputClassName}
             />
           </div>
@@ -275,18 +277,18 @@ export default function ContactsStep({ contacts, onChange }: ContactsStepProps) 
           {/* Тип родства */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Тип родства
+              {t("contracts.contacts_step.relation_label")}
             </label>
             <Select
               value={kinshipOptions.find(opt => opt.value === contacts[0]?.relation_id) || null}
               onChange={(option) => updateContact(0, "relation_id", option?.value || "")}
               options={kinshipOptions}
-              placeholder="Выберите тип родства"
+              placeholder={t("contracts.contacts_step.relation_placeholder")}
               isClearable
               isSearchable
               styles={styles}
-              noOptionsMessage={() => "Типы родства не найдены"}
-              loadingMessage={() => "Загрузка..."}
+              noOptionsMessage={() => t("contracts.contacts_step.relation_not_found")}
+              loadingMessage={() => t("contracts.contacts_step.loading")}
             />
           </div>
         </div>
@@ -295,14 +297,14 @@ export default function ContactsStep({ contacts, onChange }: ContactsStepProps) 
       {/* Второй контакт */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          2ое контактное лицо
+          {t("contracts.contacts_step.second_contact")}
         </span>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Номер телефона */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Номер телефона
+              {t("contracts.contacts_step.phone_label")}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-sm">
@@ -321,13 +323,13 @@ export default function ContactsStep({ contacts, onChange }: ContactsStepProps) 
           {/* ФИО */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              ФИО
+              {t("contracts.contacts_step.name_label")}
             </label>
             <input
               type="text"
               value={contacts[1]?.full_name || ''}
               onChange={(e) => updateContact(1, "full_name", e.target.value)}
-              placeholder="Введите ФИО"
+              placeholder={t("contracts.contacts_step.name_placeholder")}
               className={inputClassName}
             />
           </div>
@@ -335,18 +337,18 @@ export default function ContactsStep({ contacts, onChange }: ContactsStepProps) 
           {/* Тип родства */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Тип родства
+              {t("contracts.contacts_step.relation_label")}
             </label>
             <Select
               value={kinshipOptions.find(opt => opt.value === contacts[1]?.relation_id) || null}
               onChange={(option) => updateContact(1, "relation_id", option?.value || "")}
               options={kinshipOptions}
-              placeholder="Выберите тип родства"
+              placeholder={t("contracts.contacts_step.relation_placeholder")}
               isClearable
               isSearchable
               styles={styles}
-              noOptionsMessage={() => "Типы родства не найдены"}
-              loadingMessage={() => "Загрузка..."}
+              noOptionsMessage={() => t("contracts.contacts_step.relation_not_found")}
+              loadingMessage={() => t("contracts.contacts_step.loading")}
             />
           </div>
         </div>

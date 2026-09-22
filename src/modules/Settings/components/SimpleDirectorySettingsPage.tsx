@@ -33,6 +33,7 @@ import {
   useSettingsDirectoryQuery,
   useUpdateSettingsDirectoryItem,
 } from "../../../api/services/settingsDirectory.service";
+import { useTranslation } from "../../../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -53,6 +54,7 @@ export default function SimpleDirectorySettingsPage({
   emptyText,
   includeDuration = false,
 }: SimpleDirectorySettingsPageProps) {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -132,12 +134,12 @@ export default function SimpleDirectorySettingsPage({
     const title = itemTitle.trim();
 
     if (!title) {
-      toast.error("Название обязательно.");
+      toast.error(t("settings_directory.title_required"));
       return;
     }
 
     if (includeDuration && (!Number.isInteger(itemDuration) || itemDuration <= 0)) {
-      toast.error("Продолжительность должна быть целым числом больше 0.");
+      toast.error(t("settings_directory.duration_invalid"));
       return;
     }
 
@@ -155,16 +157,16 @@ export default function SimpleDirectorySettingsPage({
             ...payload,
           },
         });
-        toast.success("Запись успешно обновлена.");
+        toast.success(t("settings_directory.updated"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Запись успешно создана.");
+        toast.success(t("settings_directory.created"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error(`Failed to save settings directory item (${slug}):`, error);
-      toast.error("Не удалось сохранить запись. Попробуйте еще раз.");
+      toast.error(t("settings_directory.save_failed"));
     }
   };
 
@@ -184,11 +186,11 @@ export default function SimpleDirectorySettingsPage({
 
     try {
       await deleteMutation.mutateAsync(itemToDelete.guid);
-      toast.success("Запись удалена.");
+      toast.success(t("settings_directory.deleted"));
       closeDeleteModal();
     } catch (error) {
       console.error(`Failed to delete settings directory item (${slug}):`, error);
-      toast.error("Не удалось удалить запись.");
+      toast.error(t("settings_directory.delete_failed"));
     }
   };
 
@@ -210,12 +212,12 @@ export default function SimpleDirectorySettingsPage({
               variant="outline"
               className="h-11"
               startIcon={<Download size={16} />}
-              onClick={() => toast.info("Экспорт будет доступен позже.")}
+              onClick={() => toast.info(t("settings_directory.export_later"))}
             >
-              Экспорт
+              {t("settings_directory.export")}
             </Button>
             <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-              Новый
+              {t("settings_directory.new")}
             </Button>
           </div>
         </div>
@@ -231,7 +233,7 @@ export default function SimpleDirectorySettingsPage({
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_directory.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -242,15 +244,15 @@ export default function SimpleDirectorySettingsPage({
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_directory.col_title")}
                   </TableCell>
                   {includeDuration && (
                     <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                      Продолжительность (месяц)
+                      {t("settings_directory.col_duration")}
                     </TableCell>
                   )}
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_directory.col_actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -282,7 +284,7 @@ export default function SimpleDirectorySettingsPage({
                   items.map((item) => (
                     <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(item.title || "Без названия")}
+                        {String(item.title || t("employees.detail.no_title"))}
                       </TableCell>
                       {includeDuration && (
                         <TableCell className="px-4 py-3 text-right text-sm text-gray-700">
@@ -295,7 +297,7 @@ export default function SimpleDirectorySettingsPage({
                             type="button"
                             onClick={() => toggleActionsMenu(item.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Открыть действия"
+                            aria-label={t("settings_directory.open_actions_aria")}
                             ref={(el) => {
                               actionButtonRefs.current[item.guid] = el;
                             }}
@@ -314,13 +316,13 @@ export default function SimpleDirectorySettingsPage({
                               onClick={() => openEditModal(item)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
-                              Изменить
+                              {t("settings_directory.edit")}
                             </DropdownItem>
                             <DropdownItem
                               onClick={() => openDeleteModal(item)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
-                              Удалить
+                              {t("common.delete")}
                             </DropdownItem>
                           </Dropdown>
                         </div>
@@ -350,13 +352,13 @@ export default function SimpleDirectorySettingsPage({
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingItem ? "Изменить запись" : "Новая запись"}
+            {editingItem ? t("settings_directory.edit_record_title") : t("settings_directory.new_record_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_directory.close_aria")}
           >
             <X size={18} />
           </button>
@@ -364,13 +366,13 @@ export default function SimpleDirectorySettingsPage({
 
         <div className="space-y-3 px-4 py-4">
           <label htmlFor={`${slug}-title`} className="block text-sm font-medium text-gray-700">
-            Название
+            {t("settings_directory.title_label")}
           </label>
           <input
             id={`${slug}-title`}
             value={itemTitle}
             onChange={(event) => setItemTitle(event.target.value)}
-            placeholder="Введите название"
+            placeholder={t("settings_directory.title_placeholder")}
             autoFocus
             className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
@@ -380,7 +382,7 @@ export default function SimpleDirectorySettingsPage({
                 htmlFor={`${slug}-duration`}
                 className="block text-sm font-medium text-gray-700"
               >
-                Продолжительность (месяц)
+                {t("settings_directory.col_duration")}
               </label>
               <div className="flex gap-2">
                 <input
@@ -423,10 +425,10 @@ export default function SimpleDirectorySettingsPage({
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("common.saving") : t("common.save")}
           </Button>
         </div>
       </Modal>
@@ -439,12 +441,12 @@ export default function SimpleDirectorySettingsPage({
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить запись</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_directory.delete_record_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_directory.close_aria")}
             >
               <X size={16} />
             </button>
@@ -453,12 +455,12 @@ export default function SimpleDirectorySettingsPage({
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Это действие нельзя отменить.
+            {t("settings_directory.cannot_undo")}
           </p>
           <p className="text-sm text-gray-700">
             {itemToDelete
-              ? `Вы уверены, что хотите удалить "${String(itemToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить эту запись?"}
+              ? t("settings_directory.delete_confirm_named", { title: String(itemToDelete.title) })
+              : t("settings_directory.delete_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -467,14 +469,14 @@ export default function SimpleDirectorySettingsPage({
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_directory.deleting") : t("common.delete")}
             </Button>
           </div>
         </div>

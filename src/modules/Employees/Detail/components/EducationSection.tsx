@@ -14,6 +14,7 @@ import {
   useEmployeeEducationsQuery,
   useUpdateEmployeeEducation,
 } from "../../../../api/services/employeeEducation.service";
+import { useTranslation, translate } from "../../../../i18n";
 
 type EducationSectionProps = {
   employeeGuid: string;
@@ -51,17 +52,17 @@ const EMPTY_DRAFT: EducationFormDraft = {
   description: "",
 };
 
-const DEGREE_OPTIONS: Array<{ label: string; value: string }> = [
-  { label: "Среднее специальное", value: "secondary_specialized" },
-  { label: "Бакалавр", value: "bachelor" },
-  { label: "Магистр", value: "master" },
-  { label: "Докторантура (PhD)", value: "doctorate_phd" },
-  { label: "Профессиональная программа", value: "professional_program" },
-  { label: "Курс / Сертификат", value: "course_certificate" },
+const getDegreeOptions = (): Array<{ label: string; value: string }> => [
+  { label: translate("employees.education.degree_secondary_specialized"), value: "secondary_specialized" },
+  { label: translate("employees.education.degree_bachelor"), value: "bachelor" },
+  { label: translate("employees.education.degree_master"), value: "master" },
+  { label: translate("employees.education.degree_doctorate_phd"), value: "doctorate_phd" },
+  { label: translate("employees.education.degree_professional_program"), value: "professional_program" },
+  { label: translate("employees.education.degree_course_certificate"), value: "course_certificate" },
 ];
 
 const getDegreeLabel = (slug: string) =>
-  DEGREE_OPTIONS.find((option) => option.value === slug)?.label || slug;
+  getDegreeOptions().find((option) => option.value === slug)?.label || slug;
 
 const toTime = (date: string) => {
   const ts = new Date(date).getTime();
@@ -72,20 +73,7 @@ function formatMonthYear(dateStr: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return "";
-  const months = [
-    "Янв.",
-    "Февр.",
-    "Март",
-    "Апр.",
-    "Май",
-    "Июн.",
-    "Июл.",
-    "Авг.",
-    "Сент.",
-    "Окт.",
-    "Нояб.",
-    "Дек.",
-  ];
+  const months = Array.from({ length: 12 }, (_, i) => translate(`employees.detail.month_${i}` as never));
   return `${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
@@ -96,13 +84,14 @@ function formatEducationPeriod(
 ): string {
   const startLabel = formatMonthYear(startDate);
   const endLabel = formatMonthYear(endDate);
-  if (!startLabel) return "Период не указан";
-  if (isCurrent) return `${startLabel} — по настоящее время`;
+  if (!startLabel) return translate("employees.education.period_not_specified");
+  if (isCurrent) return translate("employees.education.period_current_suffix", { startLabel });
   if (!endLabel) return `${startLabel} —`;
   return `${startLabel} — ${endLabel}`;
 }
 
 function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
+  const { t } = useTranslation();
   const [isEducationModalOpen, setIsEducationModalOpen] = useState(false);
   const [editingEducationGuid, setEditingEducationGuid] = useState<string | null>(
     null
@@ -151,17 +140,18 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
   }, [data?.response]);
 
   const degreeOptions = useMemo(() => {
+    const options = getDegreeOptions();
     if (
       !educationDraft.degree ||
-      DEGREE_OPTIONS.some((option) => option.value === educationDraft.degree)
+      options.some((option) => option.value === educationDraft.degree)
     ) {
-      return DEGREE_OPTIONS;
+      return options;
     }
     return [
-      ...DEGREE_OPTIONS,
+      ...options,
       { label: educationDraft.degree, value: educationDraft.degree },
     ];
-  }, [educationDraft.degree]);
+  }, [educationDraft.degree, t]);
 
   const openCreateEducation = () => {
     setEditingEducationGuid(null);
@@ -202,19 +192,19 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
     const endDate = educationDraft.is_current ? "" : educationDraft.end_date;
 
     if (!institution) {
-      setEducationError("Укажите учебное заведение.");
+      setEducationError(t("employees.education.institution_required"));
       return;
     }
     if (!degree) {
-      setEducationError("Укажите степень или квалификацию.");
+      setEducationError(t("employees.education.degree_required"));
       return;
     }
     if (!startDate) {
-      setEducationError("Укажите дату начала обучения.");
+      setEducationError(t("employees.education.start_date_required"));
       return;
     }
     if (!educationDraft.is_current && endDate && endDate < startDate) {
-      setEducationError("Дата окончания не может быть раньше даты начала.");
+      setEducationError(t("employees.education.end_before_start"));
       return;
     }
 
@@ -241,7 +231,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
       closeEducationModal();
     } catch (error) {
       console.error("Education save error:", error);
-      setEducationError("Не удалось сохранить образование. Попробуйте ещё раз.");
+      setEducationError(t("employees.education.save_failed"));
     }
   };
 
@@ -253,7 +243,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
       setEducationToDelete(null);
     } catch (error) {
       console.error("Education delete error:", error);
-      setEducationError("Не удалось удалить запись. Попробуйте ещё раз.");
+      setEducationError(t("employees.education.delete_failed"));
     }
   };
 
@@ -265,7 +255,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
             <span style={{ color: brandColor }}>
               <GraduationCap className="w-4 h-4" />
             </span>
-            <h3 className="text-[15px] font-bold text-slate-900 m-0">Образование</h3>
+            <h3 className="text-[15px] font-bold text-slate-900 m-0">{t("employees.education.title")}</h3>
             <span className="text-[12px] font-medium text-slate-400">
               {records.length}
             </span>
@@ -277,7 +267,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
             style={{ color: brandColor }}
           >
             <Plus className="w-3.5 h-3.5" />
-            Добавить
+            {t("common.add")}
           </button>
         </div>
 
@@ -298,7 +288,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                 <GraduationCap className="w-5 h-5" style={{ color: brandColor }} />
               </div>
               <p className="text-[13px] text-slate-500 mb-3">
-                Записей об образовании пока нет
+                {t("employees.education.empty")}
               </p>
               <button
                 type="button"
@@ -307,7 +297,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                 style={{ color: brandColor }}
               >
                 <Plus className="w-3.5 h-3.5" />
-                Добавить первую запись
+                {t("employees.education.add_first")}
               </button>
             </div>
           ) : (
@@ -344,7 +334,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                               backgroundColor: "#ccfbf1",
                             }}
                           >
-                            В процессе
+                            {t("employees.education.in_progress")}
                           </span>
                         )}
                       </div>
@@ -355,7 +345,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                         type="button"
                         onClick={() => openEditEducation(record)}
                         className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 cursor-pointer transition-colors hover:bg-slate-100 hover:text-slate-700"
-                        title="Редактировать"
+                        title={t("common.edit")}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -363,7 +353,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                         type="button"
                         onClick={() => setEducationToDelete(record)}
                         className="flex items-center justify-center w-8 h-8 rounded-lg border border-red-100 bg-white text-red-500 cursor-pointer transition-colors hover:bg-red-50"
-                        title="Удалить"
+                        title={t("common.delete")}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -388,16 +378,16 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
       >
         <div>
           <h3 className="text-[18px] font-bold text-slate-900 m-0 mb-1">
-            {editingEducationGuid ? "Редактировать образование" : "Добавить образование"}
+            {editingEducationGuid ? t("employees.education.edit_title") : t("employees.education.add_title")}
           </h3>
           <p className="text-[13px] text-slate-500 m-0 mb-5">
-            Укажите основные данные об обучении сотрудника.
+            {t("employees.education.form_description")}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Учебное заведение *
+                {t("employees.education.field_institution")}
               </label>
               <input
                 type="text"
@@ -408,14 +398,14 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                     institution: event.target.value,
                   }))
                 }
-                placeholder="Например: ТУИТ"
+                placeholder={t("employees.education.field_institution_placeholder")}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
               />
             </div>
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Степень / квалификация *
+                {t("employees.education.field_degree")}
               </label>
               <select
                 value={educationDraft.degree}
@@ -427,7 +417,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                 }
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
               >
-                <option value="">Выберите степень</option>
+                <option value="">{t("employees.education.select_degree")}</option>
                 {degreeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -438,7 +428,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Специализация
+                {t("employees.education.field_specialization")}
               </label>
               <input
                 type="text"
@@ -449,14 +439,14 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                     specialization: event.target.value,
                   }))
                 }
-                placeholder="Информационные системы"
+                placeholder={t("employees.education.field_specialization_placeholder")}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
               />
             </div>
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Дата начала *
+                {t("employees.education.field_start_date")}
               </label>
               <DateInput
                 value={educationDraft.start_date}
@@ -467,7 +457,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Дата окончания
+                {t("employees.education.field_end_date")}
               </label>
               <DateInput
                 value={educationDraft.end_date}
@@ -492,12 +482,12 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
               }
               className="h-4 w-4 rounded border-slate-300 text-slate-700"
             />
-            Обучение продолжается
+            {t("employees.education.still_studying")}
           </label>
 
           <div className="mt-3">
             <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-              Описание
+              {t("employees.licenses.field_description")}
             </label>
             <textarea
               value={educationDraft.description}
@@ -508,7 +498,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
                 }))
               }
               rows={3}
-              placeholder="Например: курсовые проекты, достижения, важные детали"
+              placeholder={t("employees.education.description_placeholder")}
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400 resize-none"
             />
           </div>
@@ -526,7 +516,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
               disabled={isEducationSaving}
               className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-[13px] font-medium cursor-pointer transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -536,10 +526,10 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
               style={{ backgroundColor: brandColor }}
             >
               {isEducationSaving
-                ? "Сохранение..."
+                ? t("common.saving")
                 : editingEducationGuid
-                  ? "Сохранить"
-                  : "Добавить"}
+                  ? t("common.save")
+                  : t("common.add")}
             </button>
           </div>
         </div>
@@ -556,12 +546,12 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
             <Trash2 className="h-6 w-6 text-red-600" />
           </div>
           <h3 className="text-[18px] font-bold text-slate-900 m-0 mb-2">
-            Удалить запись об образовании?
+            {t("employees.education.delete_modal_title")}
           </h3>
           <p className="text-[13px] text-slate-500 m-0 mb-6">
             {educationToDelete?.institution
-              ? `Запись «${educationToDelete.institution}» будет удалена без возможности восстановления.`
-              : "Запись будет удалена без возможности восстановления."}
+              ? t("employees.education.delete_with_title", { title: educationToDelete.institution })
+              : t("employees.licenses.delete_generic")}
           </p>
           <div className="flex gap-2.5">
             <button
@@ -570,7 +560,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
               disabled={isEducationSaving}
               className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -578,7 +568,7 @@ function EducationSection({ employeeGuid, brandColor }: EducationSectionProps) {
               disabled={isEducationSaving}
               className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-medium text-white hover:bg-red-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isEducationSaving ? "Удаление..." : "Удалить"}
+              {isEducationSaving ? t("employees.sport_attendance.deleting") : t("common.delete")}
             </button>
           </div>
         </div>

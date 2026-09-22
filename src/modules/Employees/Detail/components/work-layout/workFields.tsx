@@ -5,6 +5,7 @@ import RemoteSingleSelect, {
   type RemoteSelectOption,
 } from "../../../../../components/autocomplete/RemoteSingleSelect";
 import type { LayoutWidth } from "../../../Form/layout/types";
+import { translate } from "../../../../../i18n";
 
 /**
  * Реестр полей модалки «Добавить/изменить должность» (таблица employee_works).
@@ -110,63 +111,63 @@ const datePickerProps = {
 export const WORK_FIELDS: WorkFieldMeta[] = [
   {
     key: "employment_types_id",
-    label: "Тип работы",
+    label: translate("employees.work_fields.employment_type"),
     defaultWidth: "half",
     render: (ctx) =>
       directoryField(ctx, {
         slug: "employment_types",
         value: ctx.form.employmentTypeId,
         fallback: ctx.fallbackOptions.employmentType,
-        placeholder: "Выберите тип",
+        placeholder: translate("employees.work_fields.employment_type_placeholder"),
         classNamePrefix: "work-employment-type-select",
         onChange: (value) => ctx.setForm((prev) => ({ ...prev, employmentTypeId: value })),
       }),
   },
   {
     key: "departments_id",
-    label: "Департамент",
+    label: translate("employees.work_fields.department"),
     defaultWidth: "half",
     render: (ctx) =>
       directoryField(ctx, {
         slug: "departments",
         value: ctx.form.departmentId,
         fallback: ctx.fallbackOptions.department,
-        placeholder: "Выберите департамент",
+        placeholder: translate("employees.work_fields.department_placeholder"),
         classNamePrefix: "work-department-select",
         onChange: (value) => ctx.setForm((prev) => ({ ...prev, departmentId: value })),
       }),
   },
   {
     key: "locations_id",
-    label: "Филиал",
+    label: translate("employees.work_fields.location"),
     defaultWidth: "half",
     render: (ctx) =>
       directoryField(ctx, {
         slug: "locations",
         value: ctx.form.locationId,
         fallback: ctx.fallbackOptions.location,
-        placeholder: "Выберите филиал",
+        placeholder: translate("employees.work_fields.location_placeholder"),
         classNamePrefix: "work-location-select",
         onChange: (value) => ctx.setForm((prev) => ({ ...prev, locationId: value })),
       }),
   },
   {
     key: "positions_id",
-    label: "Должность",
+    label: translate("employees.work_fields.position"),
     defaultWidth: "half",
     render: (ctx) =>
       directoryField(ctx, {
         slug: "positions",
         value: ctx.form.positionsId,
         fallback: ctx.fallbackOptions.position,
-        placeholder: "Выберите должность",
+        placeholder: translate("employees.work_fields.position_placeholder"),
         classNamePrefix: "work-position-select",
         onChange: (value) => ctx.setForm((prev) => ({ ...prev, positionsId: value })),
       }),
   },
   {
     key: "experience_levels_id",
-    label: "Уровень",
+    label: translate("employees.work_fields.experience_level"),
     defaultWidth: "half",
     render: (ctx) => (
       <RemoteSingleSelect
@@ -190,10 +191,10 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
         onChange={(value) => ctx.setForm((prev) => ({ ...prev, experienceLevelId: value }))}
         placeholder={
           ctx.hasPositionGroup
-            ? "Выберите уровень"
+            ? translate("employees.work_fields.experience_level_placeholder")
             : ctx.form.positionsId
-              ? "У должности нет лестницы грейдов"
-              : "Сначала выберите должность"
+              ? translate("employees.work_fields.experience_level_no_ladder")
+              : translate("employees.work_fields.experience_level_pick_position_first")
         }
         disabled={ctx.disabled}
         menuPortalTarget={ctx.menuPortalTarget}
@@ -203,7 +204,7 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
   },
   {
     key: "employee_work_reason_id",
-    label: "Причина изменения",
+    label: translate("employees.work_fields.reason"),
     defaultWidth: "full",
     hiddenOnReturn: true,
     render: (ctx) =>
@@ -211,7 +212,7 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
         slug: ctx.employeeWorkReasonSlug,
         value: ctx.form.employeeWorkReasonId,
         fallback: ctx.fallbackOptions.workReason,
-        placeholder: "Выберите причину",
+        placeholder: translate("employees.work_fields.reason_placeholder"),
         classNamePrefix: "work-reason-select",
         onChange: (value) =>
           ctx.setForm((prev) => ({ ...prev, employeeWorkReasonId: value })),
@@ -219,28 +220,28 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
   },
   {
     key: "work_schedule_id",
-    label: "График работы",
+    label: translate("employees.work_fields.schedule"),
     defaultWidth: "full",
     render: (ctx) =>
       directoryField(ctx, {
         slug: "work_schedule",
         value: ctx.form.workScheduleId,
         fallback: ctx.fallbackOptions.workSchedule,
-        placeholder: "Выберите график",
+        placeholder: translate("employees.work_fields.schedule_placeholder"),
         classNamePrefix: "work-schedule-select",
         onChange: (value) => ctx.setForm((prev) => ({ ...prev, workScheduleId: value })),
       }),
   },
   {
     key: "salary",
-    label: "Оклад",
+    label: translate("employees.work_fields.salary"),
     defaultWidth: "half",
     render: (ctx) => (
       <input
         type="number"
         min={0}
         step={1}
-        placeholder="Например: 15000000"
+        placeholder={translate("employees.work_fields.salary_placeholder")}
         className={ctx.inputClassName}
         value={ctx.form.salary}
         onChange={(event) =>
@@ -252,7 +253,7 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
   },
   {
     key: "date_from",
-    label: "Дата начала",
+    label: translate("employees.work_fields.date_from"),
     defaultWidth: "half",
     render: (ctx) => (
       <DatePicker
@@ -264,7 +265,7 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
             dateFrom: date ? ctx.toIsoDate(date) : "",
           }))
         }
-        placeholderText="дд.мм.гггг"
+        placeholderText={translate("employees.work_fields.date_placeholder")}
         className={ctx.inputClassName}
         disabled={ctx.disabled}
       />
@@ -272,7 +273,7 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
   },
   {
     key: "date_to",
-    label: "Дата окончания",
+    label: translate("employees.work_fields.date_to"),
     defaultWidth: "half",
     editOnly: true,
     render: (ctx) => (
@@ -286,7 +287,7 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
           }))
         }
         isClearable
-        placeholderText="Оставьте пустым для текущей"
+        placeholderText={translate("employees.work_fields.date_to_placeholder")}
         className={ctx.inputClassName}
         disabled={ctx.disabled}
       />

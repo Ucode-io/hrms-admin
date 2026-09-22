@@ -12,6 +12,7 @@ import KATMReportsTab from "../components/KATMReportsTab";
 import DocumentsTab from "../components/DocumentsTab";
 import DebtsTab from "../components/DebtsTab";
 import PaymentsTab from "../components/PaymentsTab";
+import { useTranslation } from "../../../i18n";
 
 const formatAmount = (amount: number) => {
   if (!amount) return "0";
@@ -19,6 +20,7 @@ const formatAmount = (amount: number) => {
 };
 
 export default function ClientDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const { data, isLoading } = useClientsQuery({
     data: { guid: id || "" },

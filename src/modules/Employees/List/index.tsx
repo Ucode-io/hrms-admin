@@ -17,6 +17,7 @@ import EmployeesPaginationFooter from "./components/EmployeesPaginationFooter";
 import ExpandableSearchInput from "../../../components/form/ExpandableSearchInput";
 import OrganizationStructureModule from "../../Organization/Structure";
 import { useVegapharmCrmImport, useVegapharmCrmPreview, useVegapharmCrmStatus } from "../../../api/services/vegapharmCrm.service";
+import { useTranslation } from "../../../i18n";
 
 const PAGE_SIZE = 24;
 const FILTER_SELECT_MAX_WIDTH = 260;
@@ -48,11 +49,6 @@ const EMPLOYEES_LIST_SESSION_DEFAULTS: EmployeesListSessionState = {
   statusFilter: DEFAULT_EMPLOYEE_STATUS,
   crmFilter: "",
 };
-
-const STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
-  { value: "active", label: "Активные" },
-  { value: "dismissed", label: "Уволенные" },
-];
 
 const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
   if (totalPages <= 7) {
@@ -115,10 +111,11 @@ const buildUniqueOptions = (
 };
 
 function EmployeesList() {
+  const { t } = useTranslation();
   if (!pageSessionStore.isHydrated) {
     return (
       <>
-        <PageMeta title="Сотрудники | HRMS" description="Список сотрудников" />
+        <PageMeta title={t("employees.list.page_title")} description={t("employees.list.page_description")} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
           <div
             style={{
@@ -139,6 +136,11 @@ function EmployeesList() {
 }
 
 const EmployeesListContent = observer(function EmployeesListContent() {
+  const { t } = useTranslation();
+  const STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
+    { value: "active", label: t("employees.list.status_active") },
+    { value: "dismissed", label: t("employees.list.status_dismissed") },
+  ];
   const {
     searchQuery,
     currentPage,
@@ -243,8 +245,8 @@ const EmployeesListContent = observer(function EmployeesListContent() {
   const visibleFrom = totalCount > 0 ? (crmFilter ? 1 : (currentPage - 1) * PAGE_SIZE + 1) : 0;
   const visibleTo = totalCount > 0 ? (crmFilter ? totalCount : Math.min(currentPage * PAGE_SIZE, totalCount)) : 0;
   const visibleRangeLabel = totalCount > 0
-    ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
-    : "Нет данных";
+    ? t("employees.list.showing_range", { from: visibleFrom, to: visibleTo, total: totalCount })
+    : t("employees.list.no_data");
 
   const activeFiltersCount = [
     departmentFilter,
@@ -408,7 +410,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
 
   return (
     <>
-      <PageMeta title="Сотрудники | HRMS" description="Список сотрудников" />
+      <PageMeta title={t("employees.list.page_title")} description={t("employees.list.page_description")} />
 
       <div
         className="-mx-3 md:-mx-4 -mt-3 md:-mt-4"
@@ -457,9 +459,9 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               view === "org" ? "employees-view-org-structure" : `employees-view-${view}`
             }
             items={[
-              { key: "list", label: "Таблица", icon: <List size={16} /> },
-              { key: "grid", label: "Сетка", icon: <LayoutGrid size={16} /> },
-              { key: "org", label: "Орг структура", icon: <Building2 size={16} /> },
+              { key: "list", label: t("employees.list.view_table"), icon: <List size={16} /> },
+              { key: "grid", label: t("employees.list.view_grid"), icon: <LayoutGrid size={16} /> },
+              { key: "org", label: t("sidebar.org_structure"), icon: <Building2 size={16} /> },
             ]}
           />
 
@@ -476,8 +478,8 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               inputId="employees-search"
               placeholder={
                 isOrgView
-                  ? "Поиск отдела..."
-                  : "Поиск по имени, электронной почте или номеру телефона"
+                  ? t("employees.list.search_department_placeholder")
+                  : t("employees.list.search_placeholder")
               }
               expandedWidth={460}
               collapsedSize={38}
@@ -489,7 +491,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               onClick={() => setCrmModalOpen(true)}
               style={{ display: isVegapharm && !isOrgView ? "inline-flex" : "none", alignItems: "center", gap: "6px", padding: "8px 12px", fontSize: "13px", fontWeight: 600, color: "#0369a1", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "10px", cursor: "pointer" }}
             >
-              <RefreshCw size={15} /> Импорт из CRM
+              <RefreshCw size={15} /> {t("employees.list.import_from_crm")}
             </button>
 
             <button
@@ -502,12 +504,12 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                 }
                 setIsFiltersOpen((open) => !open);
               }}
-              aria-label={`Фильтр${
+              aria-label={`${t("employees.list.filter_label")}${
                 (isOrgView ? orgActiveFiltersCount : activeFiltersCount) > 0
                   ? ` (${isOrgView ? orgActiveFiltersCount : activeFiltersCount})`
                   : ""
               }`}
-              title={`Фильтр${
+              title={`${t("employees.list.filter_label")}${
                 (isOrgView ? orgActiveFiltersCount : activeFiltersCount) > 0
                   ? ` (${isOrgView ? orgActiveFiltersCount : activeFiltersCount})`
                   : ""
@@ -586,7 +588,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
             >
               <Plus style={{ width: "16px", height: "16px" }} />
-              Добавить
+              {t("common.add")}
             </button>
           </div>
           </div>
@@ -611,10 +613,10 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               >
                 <Select
                   inputId="employees-filter-crm"
-                  value={[{ value: "linked", label: "Из QuadraSoft CRM" }, { value: "unlinked", label: "Не связаны с CRM" }].find((option) => option.value === crmFilter) || null}
+                  value={[{ value: "linked", label: t("employees.list.crm_linked") }, { value: "unlinked", label: t("employees.list.crm_unlinked") }].find((option) => option.value === crmFilter) || null}
                   onChange={(option: any) => updateListSessionState({ crmFilter: option?.value || "", currentPage: 1 })}
-                  options={[{ value: "linked", label: "Из QuadraSoft CRM" }, { value: "unlinked", label: "Не связаны с CRM" }]}
-                  placeholder="Источник"
+                  options={[{ value: "linked", label: t("employees.list.crm_linked") }, { value: "unlinked", label: t("employees.list.crm_unlinked") }]}
+                  placeholder={t("employees.list.filter_source")}
                   isSearchable={false}
                   isClearable
                   styles={filterSelectStyles}
@@ -641,13 +643,13 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     });
                   }}
                   options={departmentOptions}
-                  placeholder="Департамент"
+                  placeholder={t("employees.list.filter_department")}
                   isSearchable
                   isClearable
                   styles={filterSelectStyles}
                   menuPortalTarget={selectPortalTarget}
                   menuPosition="fixed"
-                  noOptionsMessage={() => "Ничего не найдено"}
+                  noOptionsMessage={() => t("common.no_options_found")}
                 />
               </div>
 
@@ -669,13 +671,13 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     });
                   }}
                   options={employmentTypeOptions}
-                  placeholder="Тип работы"
+                  placeholder={t("employees.list.filter_employment_type")}
                   isSearchable
                   isClearable
                   styles={filterSelectStyles}
                   menuPortalTarget={selectPortalTarget}
                   menuPosition="fixed"
-                  noOptionsMessage={() => "Ничего не найдено"}
+                  noOptionsMessage={() => t("common.no_options_found")}
                 />
               </div>
 
@@ -697,13 +699,13 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     });
                   }}
                   options={locationOptions}
-                  placeholder="Филиал"
+                  placeholder={t("employees.list.filter_location")}
                   isSearchable
                   isClearable
                   styles={filterSelectStyles}
                   menuPortalTarget={selectPortalTarget}
                   menuPosition="fixed"
-                  noOptionsMessage={() => "Ничего не найдено"}
+                  noOptionsMessage={() => t("common.no_options_found")}
                 />
               </div>
 
@@ -725,13 +727,13 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     });
                   }}
                   options={positionOptions}
-                  placeholder="Должность"
+                  placeholder={t("employees.list.filter_position")}
                   isSearchable
                   isClearable
                   styles={filterSelectStyles}
                   menuPortalTarget={selectPortalTarget}
                   menuPosition="fixed"
-                  noOptionsMessage={() => "Ничего не найдено"}
+                  noOptionsMessage={() => t("common.no_options_found")}
                 />
               </div>
 
@@ -753,13 +755,13 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     });
                   }}
                   options={STATUS_FILTER_OPTIONS}
-                  placeholder="Статус"
+                  placeholder={t("employees.list.filter_status")}
                   isSearchable={false}
                   isClearable
                   styles={filterSelectStyles}
                   menuPortalTarget={selectPortalTarget}
                   menuPosition="fixed"
-                  noOptionsMessage={() => "Ничего не найдено"}
+                  noOptionsMessage={() => t("common.no_options_found")}
                 />
               </div>
 
@@ -793,7 +795,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     marginLeft: "auto",
                   }}
                 >
-                  Сбросить
+                  {t("common.reset")}
                 </button>
               ) : null}
             </div>
@@ -848,7 +850,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                       fontSize: "15px",
                     }}
                   >
-                    Сотрудники не найдены
+                    {t("employees.list.not_found")}
                   </div>
                 ) : (
                   filteredEmployees.map((emp) => (
@@ -879,7 +881,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "#f8fafc" }}>
-                    {["", "Имя", "Должность", "Отдел", "Филиал", "Email", "Телефон"].map(
+                    {["", t("employees.list.col_name"), t("employees.list.col_position"), t("employees.list.col_department"), t("employees.list.col_location"), t("employees.list.col_email"), t("employees.list.col_phone")].map(
                       (h) => (
                         <th
                           key={h}
@@ -911,7 +913,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                           fontSize: "14px",
                         }}
                       >
-                        Сотрудники не найдены
+                        {t("employees.list.not_found")}
                       </td>
                     </tr>
                   ) : (
@@ -958,13 +960,13 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                                       fontWeight: 700,
                                     }}
                                   >
-                                    Уволен
+                                    {t("employees.list.dismissed_badge")}
                                   </span>
                                 ) : null}
                               </div>
                               {dismissed && emp.dismissal_date ? (
                                 <div style={{ fontSize: "12px", color: "#94a3b8" }}>
-                                  Дата увольнения: {formatDate(emp.dismissal_date)}
+                                  {t("employees.list.dismissal_date_label", { date: formatDate(emp.dismissal_date) })}
                                 </div>
                               ) : null}
                             </div>
@@ -999,7 +1001,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
         <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: "min(920px,100%)", maxHeight: "85vh", overflow: "auto", borderRadius: 16, background: "#fff", boxShadow: "0 24px 70px rgba(15,23,42,.25)" }}>
             <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid #e2e8f0" }}>
-              <div><div style={{ fontSize: 18, fontWeight: 700 }}>Импорт из QuadraSoft CRM</div><div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>Onboarding vazifalari yaratilmaydi</div></div>
+              <div><div style={{ fontSize: 18, fontWeight: 700 }}>{t("employees.list.crm_modal_title")}</div><div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>Onboarding vazifalari yaratilmaydi</div></div>
               <button onClick={() => setCrmModalOpen(false)} style={{ marginLeft: "auto", border: 0, background: "transparent", cursor: "pointer" }}><X size={20}/></button>
             </div>
             <div style={{ padding: 22 }}>
@@ -1015,9 +1017,9 @@ const EmployeesListContent = observer(function EmployeesListContent() {
               )}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
-              <button disabled={!(crmPreview.data?.items || []).some(item => item.user_base_id)} onClick={downloadCrmIds} style={{ padding: "9px 15px", border: "1px solid #bae6fd", borderRadius: 9, background: "#f0f9ff", color: "#0369a1", cursor: "pointer", marginRight: "auto" }}>Скачать ID для CRM</button>
-              <button onClick={() => setCrmModalOpen(false)} style={{ padding: "9px 15px", border: "1px solid #cbd5e1", borderRadius: 9, background: "#fff", cursor: "pointer" }}>Отмена</button>
-              <button disabled={!crmPreview.data || crmImport.isLoading} onClick={async()=>{ try { const ids=(crmPreview.data?.items||[]).filter(i=>i.kind!=="ambiguous").map(i=>i.crm_id); const result=await crmImport.mutateAsync(ids); toast.success(`CRM import: ${result.created} yangi, ${result.linked} bog‘landi`); setCrmModalOpen(false); } catch(e){ toast.error(e instanceof Error?e.message:"Import xatosi"); } }} style={{ padding: "9px 15px", border: 0, borderRadius: 9, background: brandColor, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{crmImport.isLoading?'Импорт…':'Импортировать'}</button>
+              <button disabled={!(crmPreview.data?.items || []).some(item => item.user_base_id)} onClick={downloadCrmIds} style={{ padding: "9px 15px", border: "1px solid #bae6fd", borderRadius: 9, background: "#f0f9ff", color: "#0369a1", cursor: "pointer", marginRight: "auto" }}>{t("employees.list.crm_download_ids")}</button>
+              <button onClick={() => setCrmModalOpen(false)} style={{ padding: "9px 15px", border: "1px solid #cbd5e1", borderRadius: 9, background: "#fff", cursor: "pointer" }}>{t("common.cancel")}</button>
+              <button disabled={!crmPreview.data || crmImport.isLoading} onClick={async()=>{ try { const ids=(crmPreview.data?.items||[]).filter(i=>i.kind!=="ambiguous").map(i=>i.crm_id); const result=await crmImport.mutateAsync(ids); toast.success(`CRM import: ${result.created} yangi, ${result.linked} bog‘landi`); setCrmModalOpen(false); } catch(e){ toast.error(e instanceof Error?e.message:"Import xatosi"); } }} style={{ padding: "9px 15px", border: 0, borderRadius: 9, background: brandColor, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{crmImport.isLoading?t('employees.list.crm_importing'):t('employees.list.crm_import_button')}</button>
             </div>
           </div>
         </div>
@@ -1149,9 +1151,10 @@ function EmployeeCard({
   crmLinked?: boolean;
   onClick?: () => void;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
 
-  const positionLabel = [position, department, location ? `в ${location}` : ""]
+  const positionLabel = [position, department, location ? t("employees.list.in_location", { location }) : ""]
     .filter(Boolean)
     .join(" · ");
   const isDismissed = employee.status?.includes("dismissed");
@@ -1217,7 +1220,7 @@ function EmployeeCard({
                   fontWeight: 700,
                 }}
               >
-                Уволен
+                {t("employees.list.dismissed_badge")}
               </span>
             ) : null}
           </div>
@@ -1243,7 +1246,7 @@ function EmployeeCard({
                 lineHeight: 1.4,
               }}
             >
-              Дата увольнения: {dismissalDateLabel}
+              {t("employees.list.dismissal_date_label", { date: dismissalDateLabel })}
             </div>
           ) : null}
         </div>

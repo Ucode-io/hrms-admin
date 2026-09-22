@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import { useDebtsQuery } from "../../../api/services/debt.service";
 import {
   Table,
@@ -11,6 +12,7 @@ import {
 } from "../../../components/ui/table";
 
 export default function DebtsList() {
+  const { t } = useTranslation();
   const [filters] = useState({});
 
   const { data, isLoading } = useDebtsQuery({
@@ -52,11 +54,11 @@ export default function DebtsList() {
     const statusValue = status?.[0]?.toLowerCase();
     switch (statusValue) {
       case "new":
-        return "Новый";
+        return t("debts.status_new");
       case "sent_to_court":
-        return "Отправлено в суд";
+        return t("debts.status_sent_to_court");
       case "paid":
-        return "Оплачено";
+        return t("debts.status_paid");
       default:
         return statusValue || "-";
     }
@@ -65,8 +67,8 @@ export default function DebtsList() {
   return (
     <>
       <PageMeta
-        title="Задолженность | HRMS"
-        description="Список задолженностей"
+        title={t("debts.list_title")}
+        description={t("debts.list_description")}
       />
       <div className="space-y-6">
         <div className="flex items-start justify-between mb-4">
@@ -98,12 +100,12 @@ export default function DebtsList() {
                   </Link>
                 </li>
                 <li className="text-sm text-gray-800 dark:text-white/90">
-                  Задолженность
+                  {t("debts.title")}
                 </li>
               </ol>
             </nav>
             <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-              Задолженность
+              {t("debts.title")}
             </h3>
           </div>
         </div>
@@ -123,37 +125,37 @@ export default function DebtsList() {
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Клиент
+                    {t("debts.client")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    ID договора
+                    {t("debts.agreement_id")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Сумма долга
+                    {t("debts.debt_amount")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Оплачено
+                    {t("debts.paid")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Дата платежа
+                    {t("debts.payment_date")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Статус
+                    {t("debts.status")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -191,7 +193,7 @@ export default function DebtsList() {
                       colSpan={7}
                       className="px-3 py-2.5 text-center text-gray-500 dark:text-gray-400"
                     >
-                      Нет данных
+                      {t("debts.no_data")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -226,10 +228,10 @@ export default function DebtsList() {
                         ) : "-"}
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-gray-800 text-theme-sm dark:text-white/90">
-                        {formatAmount(debt.debt_amount)} сум
+                        {formatAmount(debt.debt_amount)} {t("common.currency_sum")}
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-gray-800 text-theme-sm dark:text-white/90">
-                        {formatAmount(debt.payed_amount)} сум
+                        {formatAmount(debt.payed_amount)} {t("common.currency_sum")}
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-gray-800 text-theme-sm dark:text-white/90">
                         {formatDate(debt.payment_date)}

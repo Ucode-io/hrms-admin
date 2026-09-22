@@ -18,78 +18,81 @@ import {
   Workflow,
 } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
+import { useTranslation } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
 type ReportItem = {
   id: string;
-  title: string;
+  titleKey: MessageKey;
   icon: LucideIcon;
   path: string;
-  subtitle?: string;
+  subtitleKey?: MessageKey;
+  // ponytail: search aliases stay literal — they are extra match terms, not shown anywhere.
   keywords?: string[];
 };
 
 type ReportSection = {
   id: string;
-  title: string;
+  titleKey: MessageKey;
   columns: ReportItem[][];
 };
 
 const reportSections: ReportSection[] = [
   {
     id: "hr",
-    title: "Кадровые отчеты",
+    titleKey: "reports.index.section_hr",
     columns: [
       [
         {
           id: "age-distribution",
-          title: "Возрастное распределение",
+          titleKey: "reports.index.age_distribution_title",
           icon: BarChart3,
           path: "/reports/age-distribution",
-          subtitle: "Возрастные группы по отделам",
+          subtitleKey: "reports.index.age_distribution_subtitle",
           keywords: ["возраст", "распределение", "группы"],
         },
         {
           id: "gender-distribution",
-          title: "Гендерное распределение",
+          titleKey: "reports.index.gender_distribution_title",
           icon: PieChart,
           path: "/reports/gender-distribution",
-          subtitle: "Соотношение по полу",
+          subtitleKey: "reports.index.gender_distribution_subtitle",
           keywords: ["гендер", "пол", "распределение"],
         },
       ],
       [
         {
           id: "staff-count",
-          title: "Численность персонала",
+          titleKey: "reports.index.staff_count_title",
           icon: LineChart,
           path: "/reports/staff-count",
-          subtitle: "Прирост и текучесть по месяцам",
+          subtitleKey: "reports.index.staff_count_subtitle",
           keywords: ["численность", "персонал", "штат"],
         },
         {
           id: "staff-turnover",
-          title: "Текучесть сотрудников",
+          titleKey: "reports.index.staff_turnover_title",
           icon: UserMinus,
           path: "/reports/staff-turnover",
-          subtitle: "Увольнения по причинам и типам",
+          subtitleKey: "reports.index.staff_turnover_subtitle",
           keywords: ["текучесть", "увольнения", "уход"],
         },
       ],
       [
         {
           id: "tenure",
-          title: "Стаж",
+          titleKey: "reports.index.tenure_title",
           icon: Clock3,
           path: "/reports/tenure",
-          subtitle: "Средний срок работы и годовщины",
+          subtitleKey: "reports.index.tenure_subtitle",
           keywords: ["стаж", "срок", "работа"],
         },
         {
           id: "birthdays",
-          title: "Дни рождения",
+          titleKey: "reports.index.birthdays_title",
           icon: Cake,
           path: "/reports/birthdays",
-          subtitle: "Дни рождения сотрудников по месяцам",
+          subtitleKey: "reports.index.birthdays_subtitle",
           keywords: ["день рождения", "дни рождения", "именины", "birthday", "месяц"],
         },
       ],
@@ -97,35 +100,35 @@ const reportSections: ReportSection[] = [
   },
   {
     id: "recruiting",
-    title: "Рекрутинг",
+    titleKey: "reports.index.section_recruiting",
     columns: [
       [
         {
           id: "recruiting-funnel",
-          title: "Воронка цикла вакансии",
+          titleKey: "reports.index.recruiting_funnel_title",
           icon: Filter,
           path: "/reports/recruiting-funnel",
-          subtitle: "Воронка кандидатов по этапам",
+          subtitleKey: "reports.index.recruiting_funnel_subtitle",
           keywords: ["воронка", "рекрутинг", "вакансия", "кандидаты", "этапы"],
         },
       ],
       [
         {
           id: "recruiting-sources",
-          title: "Кандидаты по источникам",
+          titleKey: "reports.index.recruiting_sources_title",
           icon: Workflow,
           path: "/reports/recruiting-sources",
-          subtitle: "Источники кандидатов и динамика",
+          subtitleKey: "reports.index.recruiting_sources_subtitle",
           keywords: ["источники", "кандидаты", "рекрутинг", "каналы", "hh"],
         },
       ],
       [
         {
           id: "recruiting-closure-times",
-          title: "Сроки закрытия вакансий",
+          titleKey: "reports.index.recruiting_closure_times_title",
           icon: Clock3,
           path: "/reports/recruiting-closure-times",
-          subtitle: "Сколько времени требуется до найма",
+          subtitleKey: "reports.index.recruiting_closure_times_subtitle",
           keywords: ["сроки", "закрытие", "вакансии", "найм", "рекрутинг"],
         },
       ],
@@ -133,51 +136,51 @@ const reportSections: ReportSection[] = [
   },
   {
     id: "attendance",
-    title: "Посещаемость",
+    titleKey: "reports.index.section_attendance",
     columns: [
       [
         {
           id: "absence-balance",
-          title: "Баланс отсутствий",
+          titleKey: "reports.index.absence_balance_title",
           icon: CalendarDays,
           path: "/reports/absence-balance",
-          subtitle: "Лимиты, использование и ожидающие заявки",
+          subtitleKey: "reports.index.absence_balance_subtitle",
           keywords: ["баланс", "выходные", "отсутствие", "отпуск", "ожидает", "лимит"],
         },
       ],
       [
         {
           id: "attendance",
-          title: "Посещаемость",
+          titleKey: "reports.index.attendance_title",
           icon: CalendarCheck,
           path: "/reports/attendance",
-          subtitle: "Рабочие дни, отработано и отсутствия",
+          subtitleKey: "reports.index.attendance_subtitle",
           keywords: ["посещаемость", "рабочие дни", "отсутствия", "отработано"],
         },
         {
           id: "lateness",
-          title: "Опоздания",
+          titleKey: "reports.index.lateness_title",
           icon: Clock3,
           path: "/reports/lateness",
-          subtitle: "Минуты опозданий и количество раз",
+          subtitleKey: "reports.index.lateness_subtitle",
           keywords: ["опоздания", "опоздал", "минуты", "поздно"],
         },
       ],
       [
         {
           id: "timesheet",
-          title: "Табель времени",
+          titleKey: "reports.index.timesheet_title",
           icon: Clock3,
           path: "/reports/timesheet",
-          subtitle: "Факт против плана, переработки и недоработки",
+          subtitleKey: "reports.index.timesheet_subtitle",
           keywords: ["табель", "время", "план", "факт", "переработка", "недоработка", "time doctor"],
         },
         {
           id: "sport-attendance",
-          title: "Посещение спорта",
+          titleKey: "reports.index.sport_attendance_title",
           icon: Dumbbell,
           path: "/reports/sport-attendance",
-          subtitle: "Спортивные посещения по сотрудникам",
+          subtitleKey: "reports.index.sport_attendance_subtitle",
           keywords: ["спорт", "посещение", "фитнес"],
         },
       ],
@@ -185,15 +188,15 @@ const reportSections: ReportSection[] = [
   },
   {
     id: "tasks",
-    title: "Задачи",
+    titleKey: "reports.index.section_tasks",
     columns: [
       [
         {
           id: "tasks",
-          title: "Задачи по статусам",
+          titleKey: "reports.index.tasks_title",
           icon: ListTodo,
           path: "/reports/tasks",
-          subtitle: "Количество и сроки в разрезе статусов",
+          subtitleKey: "reports.index.tasks_subtitle",
           keywords: ["задачи", "статусы", "дедлайн", "срок", "просрочено", "tasks"],
         },
       ],
@@ -202,15 +205,15 @@ const reportSections: ReportSection[] = [
   },
   {
     id: "finance",
-    title: "Финансы",
+    titleKey: "reports.index.section_finance",
     columns: [
       [
         {
           id: "bonus-deductions",
-          title: "Ведомость бонусов и удержаний",
+          titleKey: "reports.index.bonus_deductions_title",
           icon: HandCoins,
           path: "/reports/bonus-deductions",
-          subtitle: "Начисления, удержания, сумма к выплате",
+          subtitleKey: "reports.index.bonus_deductions_subtitle",
           keywords: ["бонусы", "удержания", "ведомость"],
         },
       ],
@@ -220,6 +223,7 @@ const reportSections: ReportSection[] = [
 ];
 
 const ReportsHomePage: React.FC = () => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -230,7 +234,7 @@ const ReportsHomePage: React.FC = () => {
           .map((column) =>
             column.filter((item) => {
               if (!normalizedQuery) return true;
-              const fields = [item.title, ...(item.keywords ?? [])];
+              const fields = [t(item.titleKey), ...(item.keywords ?? [])];
               return fields.some((field) =>
                 field.toLowerCase().includes(normalizedQuery)
               );
@@ -241,15 +245,18 @@ const ReportsHomePage: React.FC = () => {
         return { ...section, columns };
       })
       .filter((section) => section.columns.length > 0);
-  }, [normalizedQuery]);
+  }, [normalizedQuery, t]);
 
   return (
     <>
-      <PageMeta title="Отчеты | HRMS" description="Обзор модулей отчетности" />
+      <PageMeta
+        title={t("reports.index.page_title")}
+        description={t("reports.index.page_description")}
+      />
 
       <div className="space-y-4">
         <div className="-mx-4 border-y border-gray-200 bg-white px-4 py-5 md:-mx-6 md:px-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Отчеты</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t("reports.index.page_heading")}</h1>
         </div>
 
         <div className="-mx-4 border-b border-gray-200 px-4 pb-4 md:-mx-6 md:px-6">
@@ -262,7 +269,7 @@ const ReportsHomePage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск..."
+              placeholder={t("reports.index.search_placeholder")}
               className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
           </label>
@@ -275,7 +282,7 @@ const ReportsHomePage: React.FC = () => {
               className="rounded-2xl border border-gray-200 bg-white px-4 py-4 md:px-5 md:py-4"
             >
               <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                {section.title}
+                {t(section.titleKey)}
               </h2>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -293,11 +300,11 @@ const ReportsHomePage: React.FC = () => {
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold text-gray-900">
-                            {item.title}
+                            {t(item.titleKey)}
                           </span>
-                          {item.subtitle && (
+                          {item.subtitleKey && (
                             <span className="mt-0.5 block truncate text-xs text-gray-500">
-                              {item.subtitle}
+                              {t(item.subtitleKey)}
                             </span>
                           )}
                         </span>
@@ -311,9 +318,9 @@ const ReportsHomePage: React.FC = () => {
 
           {visibleSections.length === 0 && (
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center">
-              <p className="text-base font-medium text-gray-800">Ничего не найдено</p>
+              <p className="text-base font-medium text-gray-800">{t("reports.index.no_results")}</p>
               <p className="mt-1 text-sm text-gray-500">
-                Попробуйте изменить запрос или очистить строку поиска.
+                {t("reports.index.try_changing_query")}
               </p>
             </div>
           )}

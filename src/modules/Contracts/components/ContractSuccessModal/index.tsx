@@ -5,6 +5,7 @@ import { Modal } from '../../../../components/ui/modal';
 import Button from '../../../../components/ui/button/Button';
 import { CheckCircle, Smartphone, XCircle, Loader2, Clock } from 'lucide-react';
 import contractService from '../../../../api/services/contract.service';
+import { useTranslation } from "../../../../i18n";
 
 interface ContractSuccessModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface ContractSuccessModalProps {
 type ContractStatus = 'new' | 'accepted' | 'cancelled' | 'loading';
 
 export default function ContractSuccessModal({ isOpen, onClose, contractId, isNewClient = false }: ContractSuccessModalProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [status, setStatus] = useState<ContractStatus>('new');
   const [isPolling, setIsPolling] = useState(true);
@@ -78,18 +80,18 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
 
             {/* Title */}
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              Контракт подтверждён!
+              {t("contracts.success_modal.approved_title")}
             </h2>
 
             {/* Description */}
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-              Клиент успешно подтвердил контракт в мобильном приложении.
+              {t("contracts.success_modal.approved_text")}
             </p>
 
             {/* Contract ID */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-6 w-full">
               <p className="text-sm text-green-700 dark:text-green-400">
-                ID контракта: <span className="font-mono font-medium">{contractId}</span>
+                {t("contracts.success_modal.contract_id")} <span className="font-mono font-medium">{contractId}</span>
               </p>
             </div>
 
@@ -99,7 +101,7 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
               onClick={handleClose}
               className="w-full justify-center"
             >
-              Готово
+              {t("contracts.success_modal.done")}
             </Button>
           </>
         );
@@ -114,18 +116,18 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
 
             {/* Title */}
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              Контракт отклонён
+              {t("contracts.success_modal.rejected_title")}
             </h2>
 
             {/* Description */}
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-              Клиент отклонил контракт в мобильном приложении.
+              {t("contracts.success_modal.rejected_text")}
             </p>
 
             {/* Contract ID */}
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6 w-full">
               <p className="text-sm text-red-700 dark:text-red-400">
-                ID контракта: <span className="font-mono font-medium">{contractId}</span>
+                {t("contracts.success_modal.contract_id")} <span className="font-mono font-medium">{contractId}</span>
               </p>
             </div>
 
@@ -135,7 +137,7 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
               onClick={handleClose}
               className="w-full justify-center"
             >
-              Закрыть
+              {t("contracts.success_modal.close")}
             </Button>
           </>
         );
@@ -152,12 +154,12 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
 
               {/* Title */}
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Контракт создан!
+                {t("contracts.success_modal.created_title")}
               </h2>
 
               {/* Description */}
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                ID контракта: <span className="font-mono text-gray-700 dark:text-gray-300">{contractId}</span>
+                {t("contracts.success_modal.contract_id")} <span className="font-mono text-gray-700 dark:text-gray-300">{contractId}</span>
               </p>
 
               {/* Registration Info */}
@@ -166,10 +168,10 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
                   <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                   <div className="text-left">
                     <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
-                      Уведомление клиента
+                      {t("contracts.success_modal.notify_title")}
                     </p>
                     <p className="text-sm text-blue-700 dark:text-blue-400">
-                      После регистрации клиента в приложении <strong>AYVA FINANCE</strong>, этот контракт появится у него в списке и он должен будет подтвердить его.
+                      {t("contracts.success_modal.notify_text_before")} <strong>AYVA FINANCE</strong>{t("contracts.success_modal.notify_text_after")}
                     </p>
                   </div>
                 </div>
@@ -181,7 +183,7 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
                 onClick={handleClose}
                 className="w-full justify-center"
               >
-                Готово
+                {t("contracts.success_modal.done")}
               </Button>
             </>
           );
@@ -197,12 +199,12 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
 
             {/* Title */}
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              Ожидание подтверждения
+              {t("contracts.success_modal.waiting_title")}
             </h2>
 
             {/* Contract ID */}
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-              ID контракта: <span className="font-mono text-gray-700 dark:text-gray-300">{contractId}</span>
+              {t("contracts.success_modal.contract_id")} <span className="font-mono text-gray-700 dark:text-gray-300">{contractId}</span>
             </p>
 
             {/* QR Code */}
@@ -218,7 +220,7 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
             {/* Polling indicator */}
             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Проверка статуса...</span>
+              <span>{t("contracts.success_modal.checking_status")}</span>
             </div>
 
             {/* Instructions */}
@@ -227,10 +229,10 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
                 <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                 <div className="text-left">
                   <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
-                    Подтверждение контракта
+                    {t("contracts.success_modal.confirm_title")}
                   </p>
                   <p className="text-sm text-blue-700 dark:text-blue-400">
-                    Для подтверждения контракта клиент должен отсканировать QR-код или выбрать контракт из списка в мобильном приложении <strong>AYVA FINANCE</strong>
+                    {t("contracts.success_modal.confirm_text_before")} <strong>AYVA FINANCE</strong>
                   </p>
                 </div>
               </div>
@@ -242,7 +244,7 @@ export default function ContractSuccessModal({ isOpen, onClose, contractId, isNe
               onClick={handleClose}
               className="w-full justify-center"
             >
-              Закрыть
+              {t("contracts.success_modal.close")}
             </Button>
           </>
         );

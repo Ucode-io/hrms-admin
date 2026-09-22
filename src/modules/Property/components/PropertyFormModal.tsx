@@ -11,6 +11,7 @@ import {
   createEmptyGeneralDraft,
   generalDraftFromItem,
 } from "../types";
+import { useTranslation } from "../../../i18n";
 
 interface CategoryOption {
   value: string;
@@ -31,14 +32,14 @@ const inputCls =
   "h-11 w-full rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-800 placeholder:text-gray-400 transition focus:border-brand-400 focus:outline-none focus:ring-3 focus:ring-brand-500/10";
 const selectCls = `${inputCls} appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')] bg-[right_0.75rem_center] bg-no-repeat pr-10`;
 
-export default function PropertyFormModal({
-  isOpen,
+export default function PropertyFormModal({ isOpen,
   mode,
   initialItem,
   categoryOptions,
   onClose,
   onSubmit,
 }: PropertyFormModalProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<PropertyGeneralDraft>(createEmptyGeneralDraft);
   const [errors, setErrors] = useState<{ name?: string }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,17 +58,17 @@ export default function PropertyFormModal({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error("Выберите изображение"); return; }
+    if (!file.type.startsWith("image/")) { toast.error(t("placeholders.select_image")); return; }
     try {
       const url = await uploadMutation.mutateAsync(file);
       update("photo", url);
     } catch {
-      toast.error("Не удалось загрузить фото");
+      toast.error(t("property.form.photo_upload_failed"));
     }
   };
 
   const handleSubmit = () => {
-    if (!draft.name.trim()) { setErrors({ name: "Введите наименование" }); return; }
+    if (!draft.name.trim()) { setErrors({ name: t("property.form.name_required") }); return; }
     setErrors({});
     onSubmit({ ...draft, name: draft.name.trim(), serialNumber: draft.serialNumber.trim() });
   };
@@ -78,7 +79,7 @@ export default function PropertyFormModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <h3 className="text-lg font-semibold text-gray-900">
-            {mode === "create" ? "Добавить имущество" : "Редактировать имущество"}
+            {mode === "create" ? t("property.modal.title_create") : t("property.modal.title_edit")}
           </h3>
           <button type="button" onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-400 transition hover:bg-gray-50 hover:text-gray-600">
@@ -91,7 +92,7 @@ export default function PropertyFormModal({
           <div className="space-y-4">
             {/* Photo */}
             <div>
-              <label className={labelCls}>Фотография</label>
+              <label className={labelCls}>{t("employees.form_fields.photo")}</label>
               <div className="flex items-center gap-4">
                 <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50">
                   {draft.photo ? (
@@ -118,9 +119,9 @@ export default function PropertyFormModal({
                     disabled={uploadMutation.isLoading}
                     className="inline-flex h-9 items-center gap-2 rounded-xl border border-gray-200 px-3.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-60">
                     <ImagePlus size={16} />
-                    {draft.photo ? "Заменить" : "Загрузить фото"}
+                    {draft.photo ? t("settings_documents.create.replace_button") : t("property.form.photo_upload")}
                   </button>
-                  <p className="mt-1.5 text-xs text-gray-400">JPG, PNG до 10 МБ</p>
+                  <p className="mt-1.5 text-xs text-gray-400">{t("property.form.photo_hint")}</p>
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
               </div>
@@ -128,10 +129,10 @@ export default function PropertyFormModal({
 
             {/* Name */}
             <div>
-              <label className={labelCls}>Наименование</label>
+              <label className={labelCls}>{t("property.form.name_label")}</label>
               <input
                 className={`${inputCls} ${errors.name ? "border-rose-300" : ""}`}
-                placeholder='Например: MacBook Pro 14"'
+                placeholder={t("property.form.name_placeholder")}
                 value={draft.name}
                 onChange={(e) => update("name", e.target.value)}
               />
@@ -141,17 +142,17 @@ export default function PropertyFormModal({
             {/* Category + Serial */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Категория</label>
+                <label className={labelCls}>{t("property.form.category_label")}</label>
                 <select className={selectCls} value={draft.categoryId ?? ""}
                   onChange={(e) => update("categoryId", e.target.value || null)}>
-                  <option value="">Без категории</option>
+                  <option value="">{t("property.form.category_empty")}</option>
                   {categoryOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className={labelCls}>Серийный номер</label>
+                <label className={labelCls}>{t("property.table.serial")}</label>
                 <input className={inputCls} placeholder="SN-000001"
                   value={draft.serialNumber} onChange={(e) => update("serialNumber", e.target.value)} />
               </div>
@@ -160,13 +161,13 @@ export default function PropertyFormModal({
             {/* Cost + Purchase date */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Стоимость</label>
+                <label className={labelCls}>{t("property.table.cost")}</label>
                 <input type="number" min={0} className={inputCls} placeholder="0"
                   value={draft.cost || ""}
                   onChange={(e) => update("cost", Number(e.target.value) || 0)} />
               </div>
               <div>
-                <label className={labelCls}>Дата покупки</label>
+                <label className={labelCls}>{t("labels.purchase_date")}</label>
                 <DateInput className={inputCls}
                   value={draft.purchaseDate ?? ""}
                   onChange={(next) => update("purchaseDate", next || null)} />
@@ -175,7 +176,7 @@ export default function PropertyFormModal({
 
             {/* Warranty */}
             <div>
-              <label className={labelCls}>Гарантия до</label>
+              <label className={labelCls}>{t("property.form.warranty_label")}</label>
               <DateInput className={inputCls}
                 value={draft.warrantyUntil ?? ""}
                 onChange={(next) => update("warrantyUntil", next || null)} />
@@ -183,9 +184,9 @@ export default function PropertyFormModal({
 
             {/* Description */}
             <div>
-              <label className={labelCls}>Описание</label>
+              <label className={labelCls}>{t("property.detail.description")}</label>
               <textarea rows={3} className={`${inputCls} h-auto resize-none py-2.5`}
-                placeholder="Характеристики, комплектация, дополнительная информация"
+                placeholder={t("property.form.description_placeholder")}
                 value={draft.description} onChange={(e) => update("description", e.target.value)} />
             </div>
           </div>
@@ -193,9 +194,9 @@ export default function PropertyFormModal({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-          <Button variant="outline" onClick={onClose} className="px-5">Отменить</Button>
+          <Button variant="outline" onClick={onClose} className="px-5">{t("recruiting.common.cancel")}</Button>
           <Button onClick={handleSubmit} className="px-5" disabled={uploadMutation.isLoading}>
-            {mode === "create" ? "Добавить" : "Сохранить"}
+            {mode === "create" ? t("property.list.add") : t("common.save")}
           </Button>
         </div>
       </div>

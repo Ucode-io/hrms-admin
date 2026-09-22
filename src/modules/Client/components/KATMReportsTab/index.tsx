@@ -1,5 +1,6 @@
 import { useKATMReportsQuery } from "../../../../api/services/client.service";
 import Spinner from "../../../../components/ui/Spinner";
+import { useTranslation } from "../../../../i18n";
 import {
   Table,
   TableBody,
@@ -13,6 +14,7 @@ interface KATMReportsTabProps {
 }
 
 export default function KATMReportsTab({ clientId }: KATMReportsTabProps) {
+  const { t } = useTranslation();
   // Fetch KATM reports
   const { data: reportsData, isLoading } = useKATMReportsQuery({
     data: { limit: 1, clients_id: clientId },

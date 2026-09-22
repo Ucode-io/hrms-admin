@@ -4,8 +4,10 @@ import { Plus, Search, Filter } from "lucide-react";
 import PageMeta from "../../../components/common/PageMeta";
 import DataTable, { Column } from "../../../components/DataTable";
 import { useServerClientsQuery, ServerClient } from "../../../api/services/client.service";
+import { useTranslation } from "../../../i18n";
 
 export default function ClientsList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
@@ -45,41 +47,41 @@ export default function ClientsList() {
     },
     {
       key: "company_name",
-      header: "Компания",
+      header: t("clients.company"),
       render: (cli) => (
         <span className="font-medium text-gray-800">{cli.company_name || "—"}</span>
       ),
     },
     {
       key: "name",
-      header: "Имя (Контактное лицо)",
+      header: t("clients.contact_name"),
       render: (cli) => cli.name || "—",
     },
     {
       key: "phone",
-      header: "Номер телефона",
+      header: t("clients.phone"),
       render: (cli) => cli.phone || "—",
     },
     {
       key: "manager",
-      header: "Менеджер",
+      header: t("clients.manager"),
       render: (cli) => cli.manager || "—",
     },
     {
       key: "current_account",
-      header: "Текущий счет",
+      header: t("clients.current_account"),
       render: (cli) => cli.current_account != null ? cli.current_account.toLocaleString('ru-RU') : "—",
     },
     {
       key: "created_at",
-      header: "Дата создания",
+      header: t("clients.created_at"),
       render: (cli) => formatDateTime(cli.created_at),
     },
   ];
 
   return (
     <>
-      <PageMeta title="Клиенты | NSTEX" description="Список клиентов" />
+      <PageMeta title={t("clients.list_title")} description={t("clients.list_description")} />
 
       {/* Top Bar */}
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -91,7 +93,7 @@ export default function ClientsList() {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Назад
+          {t("clients.back")}
         </button>
 
         <div className="flex flex-1 items-center justify-end gap-3">
@@ -105,7 +107,7 @@ export default function ClientsList() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Поиск"
+              placeholder={t("clients.search")}
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B38D80]/30 focus:border-[#B38D80] transition-colors"
             />
           </div>
@@ -124,7 +126,7 @@ export default function ClientsList() {
             onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D2939")}
           >
             <Plus className="w-4 h-4" />
-            Добавить клиента
+            {t("clients.add")}
           </button>
         </div>
       </div>
@@ -141,7 +143,7 @@ export default function ClientsList() {
         onPageChange={setCurrentPage}
         onRowClick={(cli) => navigate(`/organization/clients/${cli.guid}`)}
         getRowKey={(cli) => cli.guid}
-        emptyMessage="Клиенты не найдены"
+        emptyMessage={t("clients.empty")}
       />
     </>
   );

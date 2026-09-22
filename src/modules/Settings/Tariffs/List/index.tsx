@@ -14,8 +14,10 @@ import Button from "../../../../components/ui/button/Button";
 import { PlusIcon, TrashBinIcon, PencilIcon } from "../../../../icons";
 import { Modal } from "../../../../components/ui/modal";
 import Pagination from "../../../../components/pagination";
+import { useTranslation } from "../../../../i18n";
 
 export default function TariffsList() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
 
@@ -80,16 +82,16 @@ export default function TariffsList() {
   return (
     <>
       <PageMeta
-        title="Тарифы | HRMS"
-        description="Список тарифов"
+        title={t("settings_tariffs.page_title")}
+        description={t("settings_tariffs.page_description")}
       />
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            Тарифы
+            {t("settings_tariffs.heading")}
           </h3>
           <Button variant="primary" startIcon={<PlusIcon />} onClick={handleCreate}>
-            Добавить
+            {t("settings_tariffs.add_button")}
           </Button>
         </div>
 
@@ -98,15 +100,15 @@ export default function TariffsList() {
             <Table>
               <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                 <TableRow>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">#</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">ID</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Период (мес)</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">Комиссия (%)</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Категория</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Партнер</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Статус</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Дата создания</TableCell>
-                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400">Действия</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">{t("settings_tariffs.number")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{t("settings_tariffs.id")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">{t("settings_tariffs.period")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400">{t("settings_tariffs.commission")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{t("settings_tariffs.category")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{t("settings_tariffs.merchant")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{t("settings_tariffs.status")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">{t("settings_tariffs.created_date")}</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400">{t("settings_tariffs.actions")}</TableCell>
                 </TableRow>
               </TableHeader>
 
@@ -127,7 +129,7 @@ export default function TariffsList() {
                   ))
                 ) : tariffs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="px-5 py-4 text-center text-gray-500 dark:text-gray-400">Нет данных</TableCell>
+                    <TableCell colSpan={9} className="px-5 py-4 text-center text-gray-500 dark:text-gray-400">{t("settings_tariffs.no_data")}</TableCell>
                   </TableRow>
                 ) : (
                   tariffs.map((tariff: any, index: number) => (
@@ -194,10 +196,10 @@ export default function TariffsList() {
               <TrashBinIcon className="w-8 h-8" />
             </div>
             <h3 className="mb-2 text-xl font-semibold text-gray-800 dark:text-white">
-              Удалить тариф?
+              {t("settings_tariffs.delete_heading")}
             </h3>
             <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-              Вы уверены, что хотите удалить этот тариф? Это действие нельзя будет отменить.
+              {t("settings_tariffs.delete_confirmation")}
             </p>
             <div className="flex gap-3 w-full">
               <Button
@@ -205,14 +207,14 @@ export default function TariffsList() {
                 onClick={() => setDeleteModalOpen(false)}
                 className="w-full justify-center"
               >
-                Отмена
+                {t("settings_tariffs.cancel")}
               </Button>
               <Button
                 variant="primary"
                 className="w-full justify-center bg-error-600 hover:bg-error-700 border-error-600"
                 onClick={confirmDelete}
               >
-                Удалить
+                {t("settings_tariffs.delete")}
               </Button>
             </div>
           </div>

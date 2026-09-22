@@ -24,8 +24,10 @@ import {
   useRolesQuery,
   useSaveRole,
 } from "../../../api/services/role.service";
+import { useTranslation } from "../../../i18n";
 
 export default function RolesSettingsPage() {
+  const { t } = useTranslation();
   const [isUpsertModalOpen, setIsUpsertModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
@@ -93,7 +95,7 @@ export default function RolesSettingsPage() {
   const handleSubmit = async () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      toast.error("Название роли обязательно.");
+      toast.error(t("settings_roles.title_required"));
       return;
     }
 
@@ -108,11 +110,11 @@ export default function RolesSettingsPage() {
           ).map((m) => m.key),
         },
       });
-      toast.success(editingRole ? "Роль обновлена." : "Роль создана.");
+      toast.success(editingRole ? t("settings_roles.role_updated") : t("settings_roles.role_created"));
       closeUpsertModal();
     } catch (error) {
       console.error("Failed to save role:", error);
-      toast.error("Не удалось сохранить роль. Попробуйте еще раз.");
+      toast.error(t("settings_roles.role_save_error"));
     }
   };
 
@@ -131,11 +133,11 @@ export default function RolesSettingsPage() {
     if (!roleToDelete) return;
     try {
       await deleteMutation.mutateAsync(roleToDelete.id);
-      toast.success("Роль удалена.");
+      toast.success(t("settings_roles.role_deleted"));
       closeDeleteModal();
     } catch (error) {
       console.error("Failed to delete role:", error);
-      toast.error("Не удалось удалить роль.");
+      toast.error(t("settings_roles.role_delete_error"));
     }
   };
 
@@ -146,22 +148,22 @@ export default function RolesSettingsPage() {
   return (
     <>
       <PageMeta
-        title="Роли и доступы | Настройки"
-        description="Управление ролями и доступом к модулям"
+        title={t("settings_roles.page_title")}
+        description={t("settings_roles.page_description")}
       />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900">
-              Роли и доступы
+              {t("settings_roles.heading")}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Создавайте роли и выбирайте, какие модули им доступны.
+              {t("settings_roles.subheading")}
             </p>
           </div>
           <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-            Новая роль
+            {t("settings_roles.new_role")}
           </Button>
         </div>
 
@@ -171,13 +173,13 @@ export default function RolesSettingsPage() {
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Роль
+                    {t("settings_roles.role")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Доступные модули
+                    {t("settings_roles.available_modules")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_roles.actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -201,7 +203,7 @@ export default function RolesSettingsPage() {
                   <TableRow>
                     <TableCell colSpan={3} className="px-4 py-12 text-center text-sm text-gray-500">
                       <Shield size={28} className="mx-auto mb-2 text-gray-300" />
-                      Роли пока не созданы. Нажмите «Новая роль», чтобы начать.
+                      {t("settings_roles.no_roles_created")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -214,7 +216,7 @@ export default function RolesSettingsPage() {
                           </span>
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium text-gray-800">
-                              {role.title || "Без названия"}
+                              {role.title || t("settings_roles.untitled")}
                             </div>
                             {role.description && (
                               <div className="truncate text-xs text-gray-500">
@@ -227,7 +229,7 @@ export default function RolesSettingsPage() {
                       <TableCell className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {role.modules.length === 0 ? (
-                            <span className="text-xs text-gray-400">Нет доступа</span>
+                            <span className="text-xs text-gray-400">{t("settings_roles.no_access")}</span>
                           ) : (
                             MODULE_CATALOG.filter((m) =>
                               role.modules.includes(m.key)
@@ -236,7 +238,7 @@ export default function RolesSettingsPage() {
                                 key={m.key}
                                 className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
                               >
-                                {m.label}
+                                {t(m.labelKey)}
                               </span>
                             ))
                           )}
@@ -248,7 +250,7 @@ export default function RolesSettingsPage() {
                             type="button"
                             onClick={() => toggleActionsMenu(role.id)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Открыть действия"
+                            aria-label={t("settings_roles.open_actions")}
                             ref={(el) => {
                               actionButtonRefs.current[role.id] = el;
                             }}
@@ -267,13 +269,13 @@ export default function RolesSettingsPage() {
                               onClick={() => openEditModal(role)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
-                              Изменить
+                              {t("settings_roles.edit")}
                             </DropdownItem>
                             <DropdownItem
                               onClick={() => openDeleteModal(role)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
-                              Удалить
+                              {t("settings_roles.delete")}
                             </DropdownItem>
                           </Dropdown>
                         </div>
@@ -288,7 +290,7 @@ export default function RolesSettingsPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm">
                   <Loader2 size={16} className="animate-spin" />
-                  Загрузка...
+                  {t("settings_roles.loading")}
                 </div>
               </div>
             )}
@@ -305,13 +307,13 @@ export default function RolesSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingRole ? "Изменить роль" : "Новая роль"}
+            {editingRole ? t("settings_roles.edit_role") : t("settings_roles.new_role")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_roles.close")}
           >
             <X size={18} />
           </button>
@@ -320,13 +322,13 @@ export default function RolesSettingsPage() {
         <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
           <div>
             <label htmlFor="role-title" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_roles.title")}
             </label>
             <input
               id="role-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Например: HR-менеджер"
+              placeholder={t("settings_roles.title_placeholder")}
               autoFocus
               className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
@@ -334,13 +336,13 @@ export default function RolesSettingsPage() {
 
           <div>
             <label htmlFor="role-description" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Описание
+              {t("settings_roles.description")}
             </label>
             <input
               id="role-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Короткое описание роли (необязательно)"
+              placeholder={t("settings_roles.description_placeholder")}
               className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
           </div>
@@ -348,14 +350,14 @@ export default function RolesSettingsPage() {
           <div>
             <div className="mb-2 flex items-center justify-between">
               <label className="block text-sm font-medium text-gray-700">
-                Доступные модули
+                {t("settings_roles.available_modules")}
               </label>
               <button
                 type="button"
                 onClick={toggleAll}
                 className="text-xs font-medium text-brand-500 hover:text-brand-600"
               >
-                {allSelected ? "Снять все" : "Выбрать все"}
+                {allSelected ? t("settings_roles.deselect_all") : t("settings_roles.select_all")}
               </button>
             </div>
 
@@ -385,10 +387,10 @@ export default function RolesSettingsPage() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-gray-800">
-                        {mod.label}
+                        {t(mod.labelKey)}
                       </span>
                       <span className="block truncate text-xs text-gray-500">
-                        {mod.description}
+                        {t(mod.descriptionKey)}
                       </span>
                     </span>
                     <span
@@ -419,10 +421,10 @@ export default function RolesSettingsPage() {
 
         <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-3">
           <Button variant="outline" onClick={closeUpsertModal} className="min-w-[96px] px-3 py-2 text-sm">
-            Отмена
+            {t("settings_roles.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_roles.saving") : t("settings_roles.save")}
           </Button>
         </div>
       </Modal>
@@ -436,12 +438,12 @@ export default function RolesSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить роль</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_roles.delete_role_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_roles.close")}
             >
               <X size={16} />
             </button>
@@ -450,24 +452,24 @@ export default function RolesSettingsPage() {
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="inline-flex items-center gap-1.5 text-xs text-gray-500">
-            <Lock size={13} /> Сотрудники с этой ролью останутся без роли.
+            <Lock size={13} /> {t("settings_roles.employees_warning")}
           </p>
           <p className="text-sm text-gray-700">
             {roleToDelete
-              ? `Вы уверены, что хотите удалить роль "${roleToDelete.title}"?`
-              : "Вы уверены, что хотите удалить эту роль?"}
+              ? t("settings_roles.confirm_delete_role", { name: roleToDelete.title })
+              : t("settings_roles.confirm_delete_role_generic")}
           </p>
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={closeDeleteModal} className="w-full justify-center px-3 py-2 text-sm">
-              Отмена
+              {t("settings_roles.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_roles.deleting") : t("settings_roles.delete")}
             </Button>
           </div>
         </div>

@@ -11,6 +11,7 @@ import FormInput from "../../../components/HookFormElements/FormInput";
 import FormSelect from "../../../components/HookFormElements/FormSelect";
 import Button from "../../../components/ui/button/Button";
 import Spinner from "../../../components/ui/Spinner";
+import { useTranslation } from "../../../i18n";
 
 interface TransactionFormData {
   merchants_id: string;
@@ -19,6 +20,7 @@ interface TransactionFormData {
 }
 
 export default function MerchantTransactionFormPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = !!id;
@@ -98,7 +100,7 @@ export default function MerchantTransactionFormPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-          {isEditMode ? "Редактировать платёж" : "Добавить платёж"}
+          {isEditMode ? t("merchant_transactions.edit") : t("merchant_transactions.add")}
         </h2>
       </div>
 
@@ -109,8 +111,8 @@ export default function MerchantTransactionFormPage() {
               <FormSelect
                 control={control}
                 name="merchants_id"
-                label="Мерчант"
-                placeholder="Выберите мерчанта"
+                label={t("merchant_transactions.merchant")}
+                placeholder={t("merchant_transactions.merchant_placeholder")}
                 options={merchantOptions}
               />
             </div>
@@ -118,19 +120,19 @@ export default function MerchantTransactionFormPage() {
             <FormInput
               control={control}
               name="amount"
-              label="Сумма"
+              label={t("merchant_transactions.amount_label")}
               type="number"
               placeholder="0"
             />
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Комментарий
+                {t("merchant_transactions.comment")}
               </label>
               <textarea
                 {...control.register("comment")}
                 rows={4}
-                placeholder="Введите комментарий"
+                placeholder={t("merchant_transactions.comment_placeholder")}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
@@ -143,10 +145,10 @@ export default function MerchantTransactionFormPage() {
               onClick={() => navigate("/finance/merchant-reconciliation")}
               disabled={isSubmitting}
             >
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Сохранение..." : isEditMode ? "Сохранить" : "Создать"}
+              {isSubmitting ? t("common.saving") : isEditMode ? t("common.save") : t("products.create")}
             </Button>
           </div>
         </form>

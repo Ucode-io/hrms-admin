@@ -36,6 +36,7 @@ import {
   useUpdatePosition,
 } from "../../../api/services/position.service";
 import { useExperienceLevelGroupsQuery } from "../../../api/services/experienceLevelGroup.service";
+import { useTranslation } from "../../../i18n";
 
 type Option = {
   value: string;
@@ -93,6 +94,7 @@ const getParentSelectStyles = (): StylesConfig<Option, false> => ({
 });
 
 export default function PositionsSettingsPage() {
+  const { t } = useTranslation();
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -133,16 +135,16 @@ export default function PositionsSettingsPage() {
   const groupTitleById = useMemo(() => {
     const map = new Map<string, string>();
     for (const group of experienceLevelGroups) {
-      map.set(group.guid, String(group.title || "Без названия"));
+      map.set(group.guid, String(group.title || t("settings_misc.positions.untitled")));
     }
     return map;
   }, [experienceLevelGroups]);
   const groupOptions = useMemo<Option[]>(() => {
-    const options: Option[] = [{ value: "", label: "Без группы" }];
+    const options: Option[] = [{ value: "", label: t("settings_misc.positions.no_group") }];
     for (const group of [...experienceLevelGroups].sort((a, b) =>
       String(a.title || "").localeCompare(String(b.title || ""), "ru")
     )) {
-      options.push({ value: group.guid, label: String(group.title || "Без названия") });
+      options.push({ value: group.guid, label: String(group.title || t("settings_misc.positions.untitled")) });
     }
     return options;
   }, [experienceLevelGroups]);
@@ -319,7 +321,7 @@ export default function PositionsSettingsPage() {
   }, [editingPosition, positions]);
 
   const parentOptions = useMemo<Option[]>(() => {
-    const options: Option[] = [{ value: "", label: "Без родителя" }];
+    const options: Option[] = [{ value: "", label: t("settings_misc.positions.no_parent") }];
 
     const allowed = positions
       .filter((position) => !forbiddenParentIds.has(position.guid))
@@ -330,7 +332,7 @@ export default function PositionsSettingsPage() {
       const prefix = level > 0 ? `${"|- ".repeat(Math.min(level, 4))}` : "";
       options.push({
         value: position.guid,
-        label: `${prefix}${String(position.title || "Без названия")}`,
+        label: `${prefix}${String(position.title || t("settings_misc.positions.untitled"))}`,
       });
     }
 
@@ -376,7 +378,7 @@ export default function PositionsSettingsPage() {
     const title = positionTitle.trim();
 
     if (!title) {
-      toast.error("Название должности обязательно.");
+      toast.error(t("settings_misc.positions.title_required"));
       return;
     }
 
@@ -395,16 +397,16 @@ export default function PositionsSettingsPage() {
             ...payload,
           },
         });
-        toast.success("Должность успешно обновлена.");
+        toast.success(t("settings_misc.positions.update_success"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Должность успешно создана.");
+        toast.success(t("settings_misc.positions.create_success"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error("Failed to save position:", error);
-      toast.error("Не удалось сохранить должность. Попробуйте еще раз.");
+      toast.error(t("settings_misc.positions.save_error"));
     }
   };
 
@@ -424,11 +426,11 @@ export default function PositionsSettingsPage() {
 
     try {
       await deleteMutation.mutateAsync(positionToDelete.guid);
-      toast.success("Должность удалена.");
+      toast.success(t("settings_misc.positions.delete_success"));
       closeDeleteModal();
     } catch (error) {
       console.error("Failed to delete position:", error);
-      toast.error("Не удалось удалить должность.");
+      toast.error(t("settings_misc.positions.delete_error"));
     }
   };
 
@@ -452,22 +454,22 @@ export default function PositionsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Должности | Настройки" description="Список должностей компании" />
+      <PageMeta title={t("settings_misc.positions.page_title")} description={t("settings_misc.positions.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Должности</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_misc.positions.heading")}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-11"
               startIcon={<Download size={16} />}
-              onClick={() => toast.info("Экспорт будет доступен позже.")}
+              onClick={() => toast.info(t("settings_misc.positions.export_soon"))}
             >
-              Экспорт
+              {t("settings_misc.positions.export")}
             </Button>
             <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-              Новый
+              {t("settings_misc.positions.new")}
             </Button>
           </div>
         </div>
@@ -483,7 +485,7 @@ export default function PositionsSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_misc.positions.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -494,13 +496,13 @@ export default function PositionsSettingsPage() {
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_misc.positions.col_title")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Группа уровней
+                    {t("settings_misc.positions.col_level_group")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_misc.positions.col_actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -523,7 +525,7 @@ export default function PositionsSettingsPage() {
                 ) : flattenedRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Должности не найдены
+                      {t("settings_misc.positions.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -543,7 +545,7 @@ export default function PositionsSettingsPage() {
                                 type="button"
                                 onClick={() => toggleNode(position.guid)}
                                 className="rounded-md p-0.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                                aria-label={isExpanded ? "Свернуть" : "Развернуть"}
+                                aria-label={isExpanded ? t("settings_misc.positions.collapse") : t("settings_misc.positions.expand")}
                               >
                                 {isExpanded || debouncedSearch ? (
                                   <ChevronDown size={16} />
@@ -555,7 +557,7 @@ export default function PositionsSettingsPage() {
                               <span className="inline-block h-4 w-4" />
                             )}
 
-                            <span>{String(position.title || "Без названия")}</span>
+                            <span>{String(position.title || t("settings_misc.positions.untitled"))}</span>
                           </div>
                         </TableCell>
                         <TableCell className="px-4 py-3 text-sm text-gray-700">
@@ -584,7 +586,7 @@ export default function PositionsSettingsPage() {
                               type="button"
                               onClick={() => toggleActionsMenu(position.guid)}
                               className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                              aria-label="Открыть действия"
+                              aria-label={t("settings_misc.positions.open_actions")}
                               ref={(el) => {
                                 actionButtonRefs.current[position.guid] = el;
                               }}
@@ -603,13 +605,13 @@ export default function PositionsSettingsPage() {
                                 onClick={() => openEditModal(position)}
                                 className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                               >
-                                Изменить
+                                {t("settings_misc.positions.edit")}
                               </DropdownItem>
                               <DropdownItem
                                 onClick={() => openDeleteModal(position)}
                                 className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                               >
-                                Удалить
+                                {t("settings_misc.positions.delete")}
                               </DropdownItem>
                             </Dropdown>
                           </div>
@@ -632,13 +634,13 @@ export default function PositionsSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingPosition ? "Изменить должность" : "Новая должность"}
+            {editingPosition ? t("settings_misc.positions.modal_edit_title") : t("settings_misc.positions.modal_create_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_misc.positions.close")}
           >
             <X size={18} />
           </button>
@@ -647,13 +649,13 @@ export default function PositionsSettingsPage() {
         <div className="space-y-3 px-4 py-4">
           <div>
             <label htmlFor="position-title" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_misc.positions.title_label")}
             </label>
             <input
               id="position-title"
               value={positionTitle}
               onChange={(event) => setPositionTitle(event.target.value)}
-              placeholder="Введите название должности"
+              placeholder={t("settings_misc.positions.title_placeholder")}
               autoFocus
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
@@ -661,37 +663,37 @@ export default function PositionsSettingsPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Родительская должность
+              {t("settings_misc.positions.parent_label")}
             </label>
             <Select
               options={parentOptions}
               value={selectedParentOption}
               onChange={(option) => setParentPositionId(option?.value || "")}
-              placeholder="Выберите должность"
+              placeholder={t("settings_misc.positions.parent_placeholder")}
               isSearchable
               styles={getParentSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="position-parent-select"
-              noOptionsMessage={() => "Ничего не найдено"}
+              noOptionsMessage={() => t("settings_misc.positions.no_options")}
             />
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Группа уровней опыта
+              {t("settings_misc.positions.level_group_label")}
             </label>
             <Select
               options={groupOptions}
               value={selectedGroupOption}
               onChange={(option) => setPositionGroupId(option?.value || "")}
-              placeholder="Выберите группу уровней опыта"
+              placeholder={t("settings_misc.positions.level_group_placeholder")}
               isSearchable
               styles={getParentSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="position-group-select"
-              noOptionsMessage={() => "Ничего не найдено"}
+              noOptionsMessage={() => t("settings_misc.positions.no_options")}
             />
           </div>
         </div>
@@ -702,10 +704,10 @@ export default function PositionsSettingsPage() {
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_misc.positions.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_misc.positions.saving") : t("settings_misc.positions.save")}
           </Button>
         </div>
       </Modal>
@@ -718,12 +720,12 @@ export default function PositionsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить должность</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_misc.positions.delete_modal_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_misc.positions.close")}
             >
               <X size={16} />
             </button>
@@ -733,13 +735,13 @@ export default function PositionsSettingsPage() {
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-700">
             {positionToDelete
-              ? `Вы уверены, что хотите удалить "${String(positionToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить эту должность?"}
+              ? t("settings_misc.positions.delete_confirm_named", { title: String(positionToDelete.title) })
+              : t("settings_misc.positions.delete_confirm_generic")}
           </p>
 
           {deletingHasChildren && (
             <p className="text-xs text-error-600">
-              У выбранной должности есть дочерние элементы. Сначала перенесите или удалите их.
+              {t("settings_misc.positions.delete_has_children")}
             </p>
           )}
 
@@ -749,14 +751,14 @@ export default function PositionsSettingsPage() {
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_misc.positions.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_misc.positions.deleting") : t("settings_misc.positions.delete")}
             </Button>
           </div>
         </div>

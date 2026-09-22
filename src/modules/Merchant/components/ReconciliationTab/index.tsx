@@ -9,12 +9,14 @@ import {
 } from "../../../../components/ui/table";
 import Pagination from "../../../../components/pagination";
 import { Link } from "react-router";
+import { useTranslation } from "../../../../i18n";
 
 interface ReconciliationTabProps {
   merchantId: string;
 }
 
 export default function ReconciliationTab({ merchantId }: ReconciliationTabProps) {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 10;
 

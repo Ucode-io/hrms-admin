@@ -10,12 +10,13 @@ import reportsService, {
   useAttendanceReportQuery,
   useAttendanceTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const TABLE_PAGE_LIMIT = 20;
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const base64ToBlob = (base64: string, mimeType?: string): Blob => {
@@ -62,6 +63,7 @@ function MetricCard({ title, value }: { title: string; value: number }) {
 }
 
 function AttendancePage() {
+  const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -133,7 +135,7 @@ function AttendancePage() {
       const payload = response.result;
 
       if (!payload.file_base64) {
-        throw new Error("Файл не получен.");
+        throw new Error(t("reports.common.file_not_received"));
       }
 
       const blob = base64ToBlob(payload.file_base64, payload.mime_type);
@@ -167,18 +169,21 @@ function AttendancePage() {
   const visiblePages = getVisiblePages(tableCurrentPage, tableTotalPages);
 
   const tableColumns = [
-    "Сотрудник",
-    "Рабочие дни",
-    "Отработано",
-    "Дней отсутствия",
-    "Оплачиваемые",
-    "Неоплачиваемые",
+    t("reports.attendance.col_employee"),
+    t("reports.attendance.col_working_days"),
+    t("reports.attendance.col_worked"),
+    t("reports.attendance.col_absent_days"),
+    t("reports.attendance.col_paid"),
+    t("reports.attendance.col_unpaid"),
   ];
 
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Посещаемость | HRMS" description="Отчет по посещаемости" />
+        <PageMeta
+          title={t("reports.attendance.page_title")}
+          description={t("reports.attendance.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -189,7 +194,10 @@ function AttendancePage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Посещаемость | HRMS" description="Отчет по посещаемости" />
+        <PageMeta
+          title={t("reports.attendance.page_title")}
+          description={t("reports.attendance.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -199,7 +207,7 @@ function AttendancePage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -208,7 +216,10 @@ function AttendancePage() {
 
   return (
     <>
-      <PageMeta title="Посещаемость | HRMS" description="Отчет по посещаемости" />
+      <PageMeta
+        title={t("reports.attendance.page_title")}
+        description={t("reports.attendance.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
@@ -231,18 +242,33 @@ function AttendancePage() {
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-brand-500 bg-brand-500 px-4 text-sm font-medium text-white transition hover:border-brand-600 hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Download size={16} />
-                {isExporting ? "Экспорт..." : "Экспорт в excel"}
+                {isExporting ? t("reports.common.exporting") : t("reports.common.export_to_excel")}
               </button>
             </div>
 
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-              <MetricCard title="Сотрудники" value={Number(cards.employees_count || 0)} />
-              <MetricCard title="Рабочие дни (план)" value={Number(cards.scheduled_working_days || 0)} />
-              <MetricCard title="Отработано дней" value={Number(cards.worked_days || 0)} />
-              <MetricCard title="Дней отсутствия" value={Number(cards.total_absent_days || 0)} />
-              <MetricCard title="Оплачиваемые" value={Number(cards.paid_absence_days || 0)} />
               <MetricCard
-                title="Неоплачиваемые"
+                title={t("reports.attendance.card_employees")}
+                value={Number(cards.employees_count || 0)}
+              />
+              <MetricCard
+                title={t("reports.attendance.card_scheduled_working_days")}
+                value={Number(cards.scheduled_working_days || 0)}
+              />
+              <MetricCard
+                title={t("reports.attendance.card_worked_days")}
+                value={Number(cards.worked_days || 0)}
+              />
+              <MetricCard
+                title={t("reports.attendance.card_total_absent_days")}
+                value={Number(cards.total_absent_days || 0)}
+              />
+              <MetricCard
+                title={t("reports.attendance.card_paid")}
+                value={Number(cards.paid_absence_days || 0)}
+              />
+              <MetricCard
+                title={t("reports.attendance.card_unpaid")}
                 value={Number(cards.unpaid_absence_days || 0) + Number(cards.unexcused_absent_days || 0)}
               />
             </section>
@@ -260,7 +286,7 @@ function AttendancePage() {
                 type="text"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("reports.common.search_placeholder")}
                 className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
               />
             </label>
@@ -269,8 +295,12 @@ function AttendancePage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -353,14 +383,14 @@ function AttendancePage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={tableColumns.length} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                      {t("reports.common.no_employees_filtered")}
                     </td>
                   </tr>
                 ) : (
@@ -376,7 +406,7 @@ function AttendancePage() {
                             </Link>
                             {item.is_remote ? (
                               <span className="inline-flex items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-600">
-                                Удалённо
+                                {t("reports.attendance.remote_badge")}
                               </span>
                             ) : null}
                           </span>
@@ -401,14 +431,18 @@ function AttendancePage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="h-5 w-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
       </div>
     </>
   );

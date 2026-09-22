@@ -10,10 +10,12 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import { useHeaderBreadcrumbItems } from "../../../context/HeaderBreadcrumbContext";
 import { useCreateKbArticle, useKbArticlesQuery } from "../../../api/services/knowledgeBase.service";
+import { useTranslation } from "../../../i18n";
 
 const BREADCRUMBS = [{ label: "База знаний", to: "/knowledge-base" }];
 
 export default function KnowledgeBaseHome() {
+  const { t } = useTranslation();
   useHeaderBreadcrumbItems(useMemo(() => BREADCRUMBS, []));
   const navigate = useNavigate();
   const { data: articles, isLoading } = useKbArticlesQuery();

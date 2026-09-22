@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useForm } from "react-hook-form";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import Button from "../../../components/ui/button/Button";
 import FormInput from "../../../components/HookFormElements/FormInput";
 import FormSelect from "../../../components/HookFormElements/FormSelect";
@@ -26,6 +27,7 @@ interface ProductFormData {
 }
 
 export default function ProductFormPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = !!id;
@@ -145,13 +147,13 @@ export default function ProductFormPage() {
   return (
     <>
       <PageMeta
-        title={isEditMode ? "Редактировать продукт | HRMS" : "Добавить продукт | HRMS"}
-        description={isEditMode ? "Редактирование продукта" : "Добавление нового продукта"}
+        title={isEditMode ? t("products.edit_title") : t("products.add_title")}
+        description={isEditMode ? t("products.edit_description") : t("products.add_description")}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-          {isEditMode ? "Редактировать продукт" : "Добавить продукт"}
+          {isEditMode ? t("products.edit") : t("products.add")}
         </h2>
         <nav>
           <ol className="flex items-center gap-1.5">
@@ -160,7 +162,7 @@ export default function ProductFormPage() {
                 className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
                 to="/"
               >
-                Главная
+                {t("products.breadcrumb_home")}
                 <svg
                   className="stroke-current"
                   width="17"
@@ -184,7 +186,7 @@ export default function ProductFormPage() {
                 className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
                 to="/products"
               >
-                Продукты
+                {t("products.breadcrumb_products")}
                 <svg
                   className="stroke-current"
                   width="17"
@@ -204,7 +206,7 @@ export default function ProductFormPage() {
               </Link>
             </li>
             <li className="text-sm text-gray-800 dark:text-white/90">
-              {isEditMode ? "Редактировать" : "Добавить"}
+              {isEditMode ? t("common.edit_action") : t("common.add")}
             </li>
           </ol>
         </nav>
@@ -221,15 +223,15 @@ export default function ProductFormPage() {
               {/* Левая колонка - Основная информация */}
               <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-5 lg:p-6">
                 <h4 className="text-base font-semibold text-gray-800 dark:text-white/90 mb-5">
-                  Основная информация
+                  {t("products.main_info")}
                 </h4>
                 <div className="space-y-5">
                   <FormInput
                     name="name"
                     control={control}
-                    label="Название *"
+                    label={t("products.name_label")}
                     type="text"
-                    placeholder="Введите название продукта"
+                    placeholder={t("products.name_placeholder")}
                     required
                     disabled={isLoading}
                   />
@@ -237,9 +239,9 @@ export default function ProductFormPage() {
                   <FormInput
                     name="price"
                     control={control}
-                    label="Цена *"
+                    label={t("products.price_label")}
                     type="number"
-                    placeholder="Введите цену"
+                    placeholder={t("products.price_placeholder")}
                     required
                     disabled={isLoading}
                   />
@@ -252,7 +254,7 @@ export default function ProductFormPage() {
                           control={control}
                           label="IKPU *"
                           type="text"
-                          placeholder="Введите IKPU"
+                          placeholder={t("products.ikpu_placeholder")}
                           required
                           disabled={isLoading}
                         />
@@ -264,7 +266,7 @@ export default function ProductFormPage() {
                         onClick={handleFindIkpu}
                         disabled={isLoading || ikpuLoading}
                       >
-                        {ikpuLoading ? "Поиск..." : "Найти IKPU"}
+                        {ikpuLoading ? t("products.searching") : t("products.find_ikpu")}
                       </Button>
                     </div>
                   </div>
@@ -272,9 +274,9 @@ export default function ProductFormPage() {
                   <FormSelect
                     name="product_categories_id"
                     control={control}
-                    label="Категория *"
+                    label={t("products.category_label")}
                     options={categoryOptions}
-                    placeholder="Выберите категорию"
+                    placeholder={t("products.category_placeholder")}
                     required
                     disabled={isLoading}
                   />
@@ -284,15 +286,15 @@ export default function ProductFormPage() {
               {/* Правая колонка - Изображение */}
               <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-5 lg:p-6">
                 <h4 className="text-base font-semibold text-gray-800 dark:text-white/90 mb-5">
-                  Изображение
+                  {t("products.image")}
                 </h4>
                 <div>
-                  <Label>Загрузить изображение</Label>
+                  <Label>{t("products.upload_image")}</Label>
                   <FileInput onChange={handleFileChange} />
                   {image && (
                     <div className="mt-3">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        Текущее изображение:
+                        {t("products.current_image")}
                       </p>
                       <div className="w-20 h-20 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                         <img
@@ -319,10 +321,10 @@ export default function ProductFormPage() {
                 disabled={isLoading}
                 type="button"
               >
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button size="sm" type="submit" disabled={isLoading}>
-                {isLoading ? "Сохранение..." : isEditMode ? "Сохранить" : "Создать"}
+                {isLoading ? t("common.saving") : isEditMode ? t("common.save") : t("products.create")}
               </Button>
             </div>
           </form>

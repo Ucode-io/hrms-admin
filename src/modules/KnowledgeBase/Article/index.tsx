@@ -29,6 +29,7 @@ import EmojiPicker from "../components/EmojiPicker";
 import BlockNoteEditor from "../components/Editor/BlockNoteEditor";
 import { KbEditorProvider } from "../components/Editor/KbEditorContext";
 import type { KbBlock } from "../components/Editor/schema";
+import { useTranslation } from "../../../i18n";
 
 const formatDate = (iso: string) =>
   iso
@@ -36,6 +37,7 @@ const formatDate = (iso: string) =>
     : "";
 
 export default function KnowledgeBaseArticle() {
+  const { t } = useTranslation();
   const { articleId } = useParams<{ articleId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

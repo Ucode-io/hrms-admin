@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Graph, Shape } from "@antv/x6";
+import { translate } from "../../../../i18n";
 
 export type OrgChartCardNode = {
   id: string;
@@ -95,7 +96,7 @@ const buildNodeHtml = (node: OrgChartCardNode) => {
         font-size:14px;font-weight:600;color:#1e293b;
         text-align:center;line-height:1.2;
         max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-      ">${escapeHtml(node.managerName || "Не назначен")}</div>
+      ">${escapeHtml(node.managerName || translate("org_structure.not_assigned"))}</div>
       <div style="
         font-size:12px;color:#64748b;margin-top:4px;
         text-align:center;line-height:1.2;
@@ -105,8 +106,7 @@ const buildNodeHtml = (node: OrgChartCardNode) => {
   `;
 };
 
-export default function X6OrgChartView({
-  nodes,
+export default function X6OrgChartView({ nodes,
   edges,
   height,
   onNodeClick,

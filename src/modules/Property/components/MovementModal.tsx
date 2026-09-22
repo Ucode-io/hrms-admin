@@ -16,6 +16,7 @@ import {
   type PropertyStatus,
   createMovementInput,
 } from "../types";
+import { useTranslation } from "../../../i18n";
 
 interface MovementModalProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ const resolveAuthorId = (): string | null => {
 };
 
 export default function MovementModal({ isOpen, item, onClose, onSuccess }: MovementModalProps) {
+  const { t } = useTranslation();
   const [input, setInput] = useState<PropertyMovementInput | null>(null);
   const moveMutation = useMoveProperty();
   const menuPortalTarget = typeof document !== "undefined" ? document.body : null;
@@ -84,11 +86,11 @@ export default function MovementModal({ isOpen, item, onClose, onSuccess }: Move
         comment: input.comment.trim(),
         author_user_base_id: resolveAuthorId(),
       });
-      toast.success("Движение сохранено");
+      toast.success(t("property.movement.saved"));
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить движение");
+      toast.error(err instanceof Error ? err.message : t("property.movement.save_failed"));
     }
   };
 
@@ -98,7 +100,7 @@ export default function MovementModal({ isOpen, item, onClose, onSuccess }: Move
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Движение имущества</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{t("property.movement.modal_title")}</h3>
             <p className="mt-0.5 truncate text-sm text-gray-500">{item.name}</p>
           </div>
           <button type="button" onClick={onClose}
@@ -118,40 +120,40 @@ export default function MovementModal({ isOpen, item, onClose, onSuccess }: Move
 
           <div className="space-y-4">
             <div>
-              <label className={labelCls}>Новый статус</label>
+              <label className={labelCls}>{t("property.movement.new_status")}</label>
               <select className={selectCls} value={input.status}
                 onChange={(e) => handleStatusChange(e.target.value as PropertyStatus)}>
                 {PROPERTY_STATUS_ORDER.map((status) => (
                   <option key={status} value={status}>
-                    {PROPERTY_STATUS_CONFIG[status].label}
+                    {t(PROPERTY_STATUS_CONFIG[status].labelKey)}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className={`rounded-2xl border p-4 transition ${isAssigned ? "border-brand-100 bg-brand-50/40" : "border-gray-100 bg-gray-50/60"}`}>
-              <label className={labelCls}>Назначено на</label>
+              <label className={labelCls}>{t("property.movement.assign_to")}</label>
               <AssigneeSelect
                 value={input.assignedToGuid}
                 label={input.assignedToName}
                 onChange={handleAssigneeChange}
                 isDisabled={!isAssigned}
-                placeholder={isAssigned ? "Выберите сотрудника" : "Доступно при статусе «Выдано»"}
+                placeholder={isAssigned ? t("timesheet.form.select_employee") : t("property.movement.assign_disabled")}
                 menuPortalTarget={menuPortalTarget}
               />
             </div>
 
             <div>
-              <label className={labelCls}>{isAssigned ? "Дата выдачи" : "Дата операции"}</label>
+              <label className={labelCls}>{isAssigned ? t("property.movement.issue_date") : t("property.movement.operation_date")}</label>
               <DateInput className={inputCls}
                 value={input.date ?? ""}
                 onChange={(next) => setInput((prev) => prev ? { ...prev, date: next || null } : prev)} />
             </div>
 
             <div>
-              <label className={labelCls}>Комментарий</label>
+              <label className={labelCls}>{t("payments.comment")}</label>
               <textarea rows={3} className={`${inputCls} h-auto resize-none py-2.5`}
-                placeholder="Причина изменения, состояние, дополнительная информация"
+                placeholder={t("property.movement.comment_placeholder")}
                 value={input.comment}
                 onChange={(e) => setInput((prev) => prev ? { ...prev, comment: e.target.value } : prev)} />
             </div>
@@ -160,12 +162,12 @@ export default function MovementModal({ isOpen, item, onClose, onSuccess }: Move
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-          <Button variant="outline" onClick={onClose} className="px-5">Отменить</Button>
+          <Button variant="outline" onClick={onClose} className="px-5">{t("recruiting.common.cancel")}</Button>
           <Button onClick={handleSubmit} className="px-5"
             disabled={!hasChanges || moveMutation.isLoading}>
             {moveMutation.isLoading
-              ? <><Loader2 size={15} className="animate-spin" /> Сохранение…</>
-              : "Сохранить и записать в историю"}
+              ? <><Loader2 size={15} className="animate-spin" /> {t("common.saving")}</>
+              : t("property.movement.submit")}
           </Button>
         </div>
       </div>

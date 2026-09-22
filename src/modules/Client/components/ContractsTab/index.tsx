@@ -3,12 +3,14 @@ import { useContractsQuery } from "../../../../api/services/contract.service";
 import Spinner from "../../../../components/ui/Spinner";
 import Button from "../../../../components/ui/button/Button";
 import Badge from "../../../../components/ui/badge/Badge";
+import { useTranslation } from "../../../../i18n";
 
 interface ContractsTabProps {
   clientId: string;
 }
 
 export default function ContractsTab({ clientId }: ContractsTabProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const { data, isLoading } = useContractsQuery({

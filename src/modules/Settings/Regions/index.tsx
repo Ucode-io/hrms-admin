@@ -40,6 +40,7 @@ import {
 } from "../../../api/services/holidayPolicy.service";
 import { useLanguagesQuery } from "../../../api/services/companySettings.service";
 import { DEFAULT_TIMEZONE, getTimezoneOptions } from "../../../utils/timezones";
+import { useTranslation } from "../../../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -107,6 +108,7 @@ const resolveHolidayPolicyTitle = (
 };
 
 export default function RegionsSettingsPage() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -285,14 +287,14 @@ export default function RegionsSettingsPage() {
     const title = regionTitle.trim();
 
     if (!title) {
-      toast.error("Название региона обязательно.");
+      toast.error(t("settings_misc.regions.title_required"));
       return;
     }
 
     // Часовой пояс — единственное, ради чего регион вообще заводится: по нему
     // идут часы всех его филиалов (ADR-0005).
     if (!timezone) {
-      toast.error("Выберите часовой пояс.");
+      toast.error(t("settings_misc.regions.timezone_required"));
       return;
     }
 
@@ -313,16 +315,16 @@ export default function RegionsSettingsPage() {
             ...payload,
           },
         });
-        toast.success("Регион успешно обновлён.");
+        toast.success(t("settings_misc.regions.updated_success"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Регион успешно создан.");
+        toast.success(t("settings_misc.regions.created_success"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error("Failed to save region:", error);
-      toast.error("Не удалось сохранить регион. Попробуйте еще раз.");
+      toast.error(t("settings_misc.regions.save_error"));
     }
   };
 
@@ -342,11 +344,11 @@ export default function RegionsSettingsPage() {
 
     try {
       await deleteMutation.mutateAsync(regionToDelete.guid);
-      toast.success("Регион удалён.");
+      toast.success(t("settings_misc.regions.deleted_success"));
       closeDeleteModal();
     } catch (error) {
       console.error("Failed to delete region:", error);
-      toast.error("Не удалось удалить регион.");
+      toast.error(t("settings_misc.regions.delete_error"));
     }
   };
 
@@ -359,22 +361,22 @@ export default function RegionsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Регионы | Настройки" description="Список регионов компании" />
+      <PageMeta title={t("settings_misc.regions.page_title")} description={t("settings_misc.regions.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Регионы</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_misc.regions.heading")}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-11"
               startIcon={<Download size={16} />}
-              onClick={() => toast.info("Экспорт будет доступен позже.")}
+              onClick={() => toast.info(t("settings_misc.regions.export_soon"))}
             >
-              Экспорт
+              {t("settings_misc.regions.export")}
             </Button>
             <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-              Новый
+              {t("settings_misc.regions.new")}
             </Button>
           </div>
         </div>
@@ -390,7 +392,7 @@ export default function RegionsSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_misc.regions.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -401,19 +403,19 @@ export default function RegionsSettingsPage() {
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_misc.regions.col_title")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Часовой пояс
+                    {t("settings_misc.regions.col_timezone")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Язык
+                    {t("settings_misc.regions.col_language")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Политика праздников
+                    {t("settings_misc.regions.col_holiday_policy")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_misc.regions.col_actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -442,14 +444,14 @@ export default function RegionsSettingsPage() {
                 ) : regions.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Регионы не найдены
+                      {t("settings_misc.regions.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
                   regions.map((region) => (
                     <TableRow key={region.guid} className="hover:bg-gray-50 transition-colors">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(region.title || "Без названия")}
+                        {String(region.title || t("settings_misc.regions.untitled"))}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-700">
                         {String(region.timezone || "—")}
@@ -470,7 +472,7 @@ export default function RegionsSettingsPage() {
                             type="button"
                             onClick={() => toggleActionsMenu(region.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Открыть действия"
+                            aria-label={t("settings_misc.regions.open_actions")}
                             ref={(el) => {
                               actionButtonRefs.current[region.guid] = el;
                             }}
@@ -489,13 +491,13 @@ export default function RegionsSettingsPage() {
                               onClick={() => openEditModal(region)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
-                              Изменить
+                              {t("settings_misc.regions.edit")}
                             </DropdownItem>
                             <DropdownItem
                               onClick={() => openDeleteModal(region)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
-                              Удалить
+                              {t("settings_misc.regions.delete")}
                             </DropdownItem>
                           </Dropdown>
                         </div>
@@ -525,13 +527,13 @@ export default function RegionsSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingRegion ? "Изменить регион" : "Новый регион"}
+            {editingRegion ? t("settings_misc.regions.modal_edit_title") : t("settings_misc.regions.modal_new_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_misc.regions.close")}
           >
             <X size={18} />
           </button>
@@ -540,13 +542,13 @@ export default function RegionsSettingsPage() {
         <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto px-4 py-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label htmlFor="region-title" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_misc.regions.title_label")}
             </label>
             <input
               id="region-title"
               value={regionTitle}
               onChange={(event) => setRegionTitle(event.target.value)}
-              placeholder="Например, Узбекистан / Ташкент"
+              placeholder={t("settings_misc.regions.title_placeholder")}
               autoFocus
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
@@ -554,51 +556,50 @@ export default function RegionsSettingsPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Часовой пояс
+              {t("settings_misc.regions.timezone_label")}
             </label>
             <Select
               options={timezoneOptions}
               value={selectedTimezoneOption}
               onChange={(option) => setTimezone(option?.value || "")}
-              placeholder="Выберите часовой пояс"
+              placeholder={t("settings_misc.regions.timezone_placeholder")}
               isSearchable
               styles={getSearchSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="region-timezone-select"
-              noOptionsMessage={() => "Ничего не найдено"}
+              noOptionsMessage={() => t("settings_misc.regions.no_options")}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Часы, по которым живут все филиалы региона: график, опоздания и
-              праздники считаются по ним.
+              {t("settings_misc.regions.timezone_help")}
             </p>
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Язык
+              {t("settings_misc.regions.language_label")}
             </label>
             <Select
               options={languageOptions}
               value={selectedLanguageOption}
               onChange={(option) => setLanguageId(option?.value || "")}
-              placeholder="Выберите язык"
+              placeholder={t("settings_misc.regions.language_placeholder")}
               isSearchable
               isClearable
               styles={getSearchSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="region-language-select"
-              noOptionsMessage={() => "Ничего не найдено"}
+              noOptionsMessage={() => t("settings_misc.regions.no_options")}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Предположение на случай, когда язык сотрудника неизвестен.
+              {t("settings_misc.regions.language_help")}
             </p>
           </div>
 
           <div className="md:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Языки приложения
+              {t("settings_misc.regions.app_languages_label")}
             </label>
             <Select
               isMulti
@@ -607,37 +608,36 @@ export default function RegionsSettingsPage() {
               onChange={(options) =>
                 setLanguageCodes((options || []).map((option) => option.value))
               }
-              placeholder="Все языки"
+              placeholder={t("settings_misc.regions.app_languages_placeholder")}
               isSearchable
               isClearable
               styles={getSearchSelectStyles<true>()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="region-languages-select"
-              noOptionsMessage={() => "Ничего не найдено"}
+              noOptionsMessage={() => t("settings_misc.regions.no_options")}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Из них сотрудники региона выбирают язык в приложении. Пусто —
-              значит доступны все.
+              {t("settings_misc.regions.app_languages_help")}
             </p>
           </div>
 
           <div className="md:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Политика праздников
+              {t("settings_misc.regions.holiday_policy_label")}
             </label>
             <Select
               options={holidayPolicyOptions}
               value={selectedHolidayPolicyOption}
               onChange={(option) => setHolidayPolicyId(option?.value || "")}
-              placeholder="Выберите политику праздников"
+              placeholder={t("settings_misc.regions.holiday_policy_placeholder")}
               isSearchable
               isClearable
               styles={getSearchSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="region-holiday-policy-select"
-              noOptionsMessage={() => "Ничего не найдено"}
+              noOptionsMessage={() => t("settings_misc.regions.no_options")}
             />
           </div>
         </div>
@@ -648,10 +648,10 @@ export default function RegionsSettingsPage() {
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_misc.regions.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_misc.regions.saving") : t("settings_misc.regions.save")}
           </Button>
         </div>
       </Modal>
@@ -664,12 +664,12 @@ export default function RegionsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить регион</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_misc.regions.delete_modal_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_misc.regions.close")}
             >
               <X size={16} />
             </button>
@@ -678,12 +678,12 @@ export default function RegionsSettingsPage() {
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Филиалы этого региона останутся без часов, календаря и языка.
+            {t("settings_misc.regions.delete_warning")}
           </p>
           <p className="text-sm text-gray-700">
             {regionToDelete
-              ? `Вы уверены, что хотите удалить "${String(regionToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить этот регион?"}
+              ? t("settings_misc.regions.delete_confirm_named", { title: String(regionToDelete.title) })
+              : t("settings_misc.regions.delete_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -692,14 +692,14 @@ export default function RegionsSettingsPage() {
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_misc.regions.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_misc.regions.deleting") : t("settings_misc.regions.delete")}
             </Button>
           </div>
         </div>

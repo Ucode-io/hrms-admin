@@ -6,12 +6,14 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
+import { useTranslation } from "../../../i18n";
 
 interface PaymentsTabProps {
   contractId: string;
 }
 
 export default function PaymentsTab({ contractId }: PaymentsTabProps) {
+  const { t } = useTranslation();
   const { data, isLoading } = useClientTransactionsQuery({
     data: { contracts_id: contractId },
   });
@@ -43,13 +45,13 @@ export default function PaymentsTab({ contractId }: PaymentsTabProps) {
     const statusValue = status?.[0]?.toLowerCase();
     switch (statusValue) {
       case "payed":
-        return "Оплачено";
+        return t("contracts.payments_tab.status_paid");
       case "pending":
-        return "В ожидании";
+        return t("contracts.payments_tab.status_pending");
       case "failed":
-        return "Ошибка";
+        return t("contracts.payments_tab.status_failed");
       case "cancelled":
-        return "Отменено";
+        return t("contracts.payments_tab.status_cancelled");
       default:
         return statusValue || "-";
     }
@@ -67,7 +69,7 @@ export default function PaymentsTab({ contractId }: PaymentsTabProps) {
       case "humo":
         return "Humo";
       case "bank":
-        return "Банк";
+        return t("contracts.payments_tab.type_bank");
       default:
         return typeValue || "-";
     }
@@ -95,31 +97,31 @@ export default function PaymentsTab({ contractId }: PaymentsTabProps) {
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Клиент
+                {t("contracts.payments_tab.column_client")}
               </TableCell>
               <TableCell
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Сумма
+                {t("contracts.payments_tab.column_amount")}
               </TableCell>
               <TableCell
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Тип оплаты
+                {t("contracts.payments_tab.column_type")}
               </TableCell>
               <TableCell
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Комментарий
+                {t("contracts.payments_tab.column_comment")}
               </TableCell>
               <TableCell
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Статус
+                {t("contracts.payments_tab.column_status")}
               </TableCell>
             </TableRow>
           </TableHeader>
@@ -157,7 +159,7 @@ export default function PaymentsTab({ contractId }: PaymentsTabProps) {
                   colSpan={7}
                   className="px-3 py-2.5 text-center text-gray-500 dark:text-gray-400"
                 >
-                  Нет оплат
+                  {t("contracts.payments_tab.empty")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -178,7 +180,7 @@ export default function PaymentsTab({ contractId }: PaymentsTabProps) {
                       : "-"}
                   </TableCell>
                   <TableCell className="px-3 py-2.5 text-gray-800 text-theme-sm dark:text-white/90">
-                    {formatAmount(payment.amount)} сум
+                    {t("contracts.common.amount_suffix", { amount: formatAmount(payment.amount) })}
                   </TableCell>
                   <TableCell className="px-3 py-2.5 text-gray-800 text-theme-sm dark:text-white/90">
                     {getPaymentTypeLabel(payment.payment_type)}

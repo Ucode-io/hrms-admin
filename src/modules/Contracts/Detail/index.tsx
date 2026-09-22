@@ -10,8 +10,10 @@ import DocumentsTab from "../components/DocumentsTab";
 import PaymentsTab from "../components/PaymentsTab";
 import ContactsTab from "../components/ContactsTab";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
+import { useTranslation } from "../../../i18n";
 
 export default function ContractDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
 
   const { data, isLoading } = useContractsQuery({
@@ -33,20 +35,20 @@ export default function ContractDetail() {
 
   const formatAmount = (amount: number) => {
     if (!amount && amount !== 0) return "-";
-    return new Intl.NumberFormat("ru-RU").format(amount) + " сум";
+    return t("contracts.detail.amount_suffix", { amount: new Intl.NumberFormat("ru-RU").format(amount) });
   };
 
   const getStatusBadge = (status: string[]) => {
     const statusValue = status?.[0]?.toLowerCase();
     switch (statusValue) {
       case "new":
-        return <Badge color="info">Новый</Badge>;
+        return <Badge color="info">{t("contracts.detail.status_new")}</Badge>;
       case "accepted":
-        return <Badge color="success">Подтверждённый</Badge>;
+        return <Badge color="success">{t("contracts.detail.status_accepted")}</Badge>;
       case "rejected":
-        return <Badge color="error">Отмена</Badge>;
+        return <Badge color="error">{t("contracts.detail.status_rejected")}</Badge>;
       case "refunded":
-        return <Badge color="warning">Возврат</Badge>;
+        return <Badge color="warning">{t("contracts.detail.status_refunded")}</Badge>;
       default:
         return <Badge color="light">{statusValue || "-"}</Badge>;
     }
@@ -55,7 +57,7 @@ export default function ContractDetail() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Договор | HRMS" description="Детальная информация о договоре" />
+        <PageMeta title={t("contracts.detail.page_title")} description={t("contracts.detail.page_description")} />
         <div className="flex items-center justify-center min-h-[400px]">
           <Spinner />
         </div>
@@ -66,9 +68,9 @@ export default function ContractDetail() {
   if (!contract) {
     return (
       <>
-        <PageMeta title="Договор | HRMS" description="Детальная информация о договоре" />
+        <PageMeta title={t("contracts.detail.page_title")} description={t("contracts.detail.page_description")} />
         <div className="flex items-center justify-center min-h-[400px]">
-          <p className="text-gray-500 dark:text-gray-400">Договор не найден</p>
+          <p className="text-gray-500 dark:text-gray-400">{t("contracts.detail.not_found")}</p>
         </div>
       </>
     );
@@ -81,8 +83,8 @@ export default function ContractDetail() {
   return (
     <>
       <PageMeta
-        title={`Договор #${contract.id} | HRMS`}
-        description="Детальная информация о договоре"
+        title={t("contracts.detail.page_title_with_id", { id: contract.id })}
+        description={t("contracts.detail.page_description")}
       />
 
       {/* Breadcrumb */}
@@ -118,7 +120,7 @@ export default function ContractDetail() {
                   className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
                   to="/contracts"
                 >
-                  Договоры
+                  {t("contracts.detail.breadcrumb_current")}
                   <svg
                     className="stroke-current"
                     width="17"
@@ -137,7 +139,7 @@ export default function ContractDetail() {
                 </Link>
               </li>
               <li className="text-sm text-gray-800 dark:text-white/90">
-                Договор #{contract.id}
+                {t("contracts.detail.header_title", { id: contract.id })}
               </li>
             </ol>
           </nav>
@@ -161,7 +163,7 @@ export default function ContractDetail() {
               {/* Contract code and client */}
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-1">
-                  ДОГОВОР #{contract.id}
+                  {t("contracts.detail.contract_number", { id: contract.id })}
                 </h2>
                 <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,12 +176,12 @@ export default function ContractDetail() {
 
             {/* Amount info */}
             <div className="text-right">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Сумма договора</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t("contracts.detail.contract_amount_label")}</p>
               <p className="text-2xl font-bold text-success-600 dark:text-success-400">
                 {formatAmount(contract.installment_amount)}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Ежемесячный платёж: {formatAmount(contract.monthly_payment)}
+                {t("contracts.detail.monthly_payment_inline", { amount: formatAmount(contract.monthly_payment) })}
               </p>
             </div>
           </div>
@@ -188,12 +190,12 @@ export default function ContractDetail() {
         {/* Tabs */}
         <Tabs defaultValue="contract">
           <TabsList className="mb-6 overflow-x-auto flex-nowrap w-full justify-start">
-            <TabsTrigger value="contract">Договор</TabsTrigger>
-            <TabsTrigger value="products">Продукты</TabsTrigger>
-            <TabsTrigger value="payments">График платежей</TabsTrigger>
-            <TabsTrigger value="client-payments">Оплаты</TabsTrigger>
-            <TabsTrigger value="contacts">Контакты</TabsTrigger>
-            <TabsTrigger value="documents">Документы</TabsTrigger>
+            <TabsTrigger value="contract">{t("contracts.detail.tab_contract")}</TabsTrigger>
+            <TabsTrigger value="products">{t("contracts.detail.tab_products")}</TabsTrigger>
+            <TabsTrigger value="payments">{t("contracts.detail.tab_payment_schedule")}</TabsTrigger>
+            <TabsTrigger value="client-payments">{t("contracts.detail.tab_payments")}</TabsTrigger>
+            <TabsTrigger value="contacts">{t("contracts.detail.tab_contacts")}</TabsTrigger>
+            <TabsTrigger value="documents">{t("contracts.detail.tab_documents")}</TabsTrigger>
           </TabsList>
 
           {/* Contract Tab */}
@@ -204,7 +206,7 @@ export default function ContractDetail() {
                 <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] overflow-hidden">
                   <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
-                      Информация о договоре
+                      {t("contracts.detail.contract_info_title")}
                     </h3>
                   </div>
                   <div className="p-5">
@@ -212,23 +214,23 @@ export default function ContractDetail() {
                       {/* Left side */}
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Срок договора</span>
-                          <span className="text-sm font-medium text-gray-800 dark:text-white/90">{contract.month_count} мес</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.term_label")}</span>
+                          <span className="text-sm font-medium text-gray-800 dark:text-white/90">{t("contracts.detail.months_value", { count: contract.month_count })}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Сумма договора</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.contract_amount_label")}</span>
                           <span className="text-sm font-medium text-gray-800 dark:text-white/90">{formatAmount(contract.installment_amount)}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Дата договора</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.contract_date_label")}</span>
                           <span className="text-sm font-medium text-gray-800 dark:text-white/90">{formatDate(contract.created_at)}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Текущая задолженность</span>
-                          <span className="text-sm font-medium text-error-500">0 сум</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.current_debt_label")}</span>
+                          <span className="text-sm font-medium text-error-500">{t("contracts.detail.amount_suffix", { amount: 0 })}</span>
                         </div>
                         <div className="flex items-center justify-between py-2">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Партнёр</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.merchant_label")}</span>
                           <span className="text-sm font-medium text-gray-800 dark:text-white/90">{merchant?.name || "-"}</span>
                         </div>
                       </div>
@@ -236,23 +238,23 @@ export default function ContractDetail() {
                       {/* Right side */}
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Первоначальный взнос</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.initial_payment_label")}</span>
                           <span className="text-sm font-medium text-gray-800 dark:text-white/90">{formatAmount(contract.initial_payment_amount)}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Сумма заявки</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.application_amount_label")}</span>
                           <span className="text-sm font-medium text-gray-800 dark:text-white/90">{formatAmount(contract.application_amount)}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Всего оплачено</span>
-                          <span className="text-sm font-medium text-gray-800 dark:text-white/90">0 сум</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.total_paid_label")}</span>
+                          <span className="text-sm font-medium text-gray-800 dark:text-white/90">{t("contracts.detail.amount_suffix", { amount: 0 })}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Остаток долга</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.remaining_debt_label")}</span>
                           <span className="text-sm font-medium text-gray-800 dark:text-white/90">{formatAmount(contract.installment_amount)}</span>
                         </div>
                         <div className="flex items-center justify-between py-2">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Ежемесячный платёж</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.detail.monthly_payment_label")}</span>
                           <span className="text-sm font-medium text-gray-800 dark:text-white/90">{formatAmount(contract.monthly_payment)}</span>
                         </div>
                       </div>
@@ -267,38 +269,38 @@ export default function ContractDetail() {
                 <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] overflow-hidden">
                   <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                     <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
-                      Клиент
+                      {t("contracts.detail.client_title")}
                     </h3>
                     {client && (
                       <Link
                         to={`/clients/${client.guid}`}
                         className="text-xs text-brand-500 hover:text-brand-600"
                       >
-                        Подробнее →
+                        {t("contracts.detail.more_details_link")}
                       </Link>
                     )}
                   </div>
                   <div className="p-5 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">ФИО</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.full_name_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90 text-right max-w-[60%]">
                         {clientFullName}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Телефон</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.phone_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90">
                         {client?.phone_number || "-"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Паспорт</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.passport_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90">
                         {client ? `${client.passport_series || ""}${client.passport_number || ""}` : "-"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Дата рождения</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.birthdate_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90">
                         {client?.birthdate ? formatDate(client.birthdate) : "-"}
                       </span>
@@ -310,38 +312,38 @@ export default function ContractDetail() {
                 <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] overflow-hidden">
                   <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                     <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
-                      Партнёр
+                      {t("contracts.detail.merchant_title")}
                     </h3>
                     {merchant && (
                       <Link
                         to={`/merchants/${merchant.guid}`}
                         className="text-xs text-brand-500 hover:text-brand-600"
                       >
-                        Подробнее →
+                        {t("contracts.detail.more_details_link")}
                       </Link>
                     )}
                   </div>
                   <div className="p-5 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Название</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.name_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90 text-right max-w-[60%]">
                         {merchant?.name || "-"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Директор</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.director_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90 text-right max-w-[60%]">
                         {merchant?.director_fio || "-"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Телефон</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.phone_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90">
                         {merchant?.phone || "-"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">ИНН</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.detail.tin_label")}</span>
                       <span className="text-sm font-medium text-gray-800 dark:text-white/90">
                         {merchant?.tin || "-"}
                       </span>

@@ -15,6 +15,7 @@ import {
 } from "../../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
 import TimeInput from "../../../../components/form/TimeInput";
+import { useTranslation } from "../../../../i18n";
 
 type SportAttendanceSectionProps = {
   employeeGuid: string;
@@ -119,6 +120,7 @@ export default function SportAttendanceSection({
   employeeGuid,
   brandColor,
 }: SportAttendanceSectionProps) {
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGuid, setEditingGuid] = useState<string | null>(null);
   const [draft, setDraft] = useState<SportAttendanceDraft>(getDefaultDraft());
@@ -197,26 +199,26 @@ export default function SportAttendanceSection({
     try {
       const uploadedUrl = await uploadMutation.mutateAsync(selectedFile);
       setDraft((prev) => ({ ...prev, video: uploadedUrl }));
-      toast.success("Видео загружено.");
+      toast.success(t("employees.sport_attendance.video_uploaded"));
     } catch (uploadError) {
       console.error("Sport attendance video upload error:", uploadError);
-      toast.error("Не удалось загрузить видео.");
+      toast.error(t("employees.sport_attendance.video_upload_failed"));
     }
   };
 
   const handleSave = async () => {
     if (!draft.date) {
-      setError("Укажите дату.");
+      setError(t("employees.sport_attendance.date_required"));
       return;
     }
 
     if (!draft.time) {
-      setError("Укажите время.");
+      setError(t("employees.sport_attendance.time_required"));
       return;
     }
 
     if (!draft.video.trim()) {
-      setError("Загрузите видео.");
+      setError(t("employees.sport_attendance.video_required"));
       return;
     }
 
@@ -240,7 +242,7 @@ export default function SportAttendanceSection({
       closeModal();
     } catch (saveError) {
       console.error("Sport attendance save error:", saveError);
-      setError("Не удалось сохранить запись. Попробуйте ещё раз.");
+      setError(t("employees.sport_attendance.save_failed"));
     }
   };
 
@@ -252,13 +254,13 @@ export default function SportAttendanceSection({
       setToDelete(null);
     } catch (deleteError) {
       console.error("Sport attendance delete error:", deleteError);
-      setError("Не удалось удалить запись. Попробуйте ещё раз.");
+      setError(t("employees.sport_attendance.delete_failed"));
     }
   };
 
   const handleOpenVideo = (videoUrl: string) => {
     if (!videoUrl) {
-      toast.error("У записи нет видео.");
+      toast.error(t("employees.sport_attendance.no_video"));
       return;
     }
 
@@ -274,7 +276,7 @@ export default function SportAttendanceSection({
               <Clock3 className="h-4 w-4" />
             </span>
             <h3 className="m-0 text-[15px] font-bold text-slate-900">
-              Посещение спорта
+              {t("employees.sport_attendance.title")}
             </h3>
           </div>
 
@@ -285,7 +287,7 @@ export default function SportAttendanceSection({
             style={{ color: brandColor }}
           >
             <Plus className="h-3.5 w-3.5" />
-            Добавить
+            {t("common.add")}
           </button>
         </div>
 
@@ -299,12 +301,12 @@ export default function SportAttendanceSection({
             </div>
           ) : isError ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-[13px] text-rose-600">
-              Не удалось загрузить записи по посещению спорта.
+              {t("employees.sport_attendance.load_failed")}
             </div>
           ) : records.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
               <p className="m-0 text-[13px] text-slate-500">
-                Записей по посещению спорта пока нет
+                {t("employees.sport_attendance.empty")}
               </p>
             </div>
           ) : (
@@ -312,11 +314,11 @@ export default function SportAttendanceSection({
               <table className="min-w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Дата</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Время</th>
-                    <th className="py-2 text-[12px] font-semibold text-slate-500">Видео</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.sport_attendance.col_date")}</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.sport_attendance.col_time")}</th>
+                    <th className="py-2 text-[12px] font-semibold text-slate-500">{t("employees.sport_attendance.col_video")}</th>
                     <th className="py-2 text-right text-[12px] font-semibold text-slate-500">
-                      Действия
+                      {t("employees.sport_attendance.col_actions")}
                     </th>
                   </tr>
                 </thead>
@@ -337,7 +339,7 @@ export default function SportAttendanceSection({
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-medium text-slate-700 transition hover:bg-slate-50"
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            Открыть видео
+                            {t("employees.sport_attendance.open_video")}
                           </button>
                         ) : (
                           "—"
@@ -349,7 +351,7 @@ export default function SportAttendanceSection({
                             type="button"
                             onClick={() => openEdit(record)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-                            title="Изменить"
+                            title={t("common.edit")}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -357,7 +359,7 @@ export default function SportAttendanceSection({
                             type="button"
                             onClick={() => setToDelete(record)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50"
-                            title="Удалить"
+                            title={t("common.delete")}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -379,7 +381,7 @@ export default function SportAttendanceSection({
       >
         <div className="border-b border-slate-200 px-6 py-5">
           <h4 className="m-0 text-[22px] font-bold text-slate-900">
-            {editingGuid ? "Изменить посещение спорта" : "Добавить посещение спорта"}
+            {editingGuid ? t("employees.sport_attendance.edit_modal_title") : t("employees.sport_attendance.add_modal_title")}
           </h4>
         </div>
 
@@ -387,7 +389,7 @@ export default function SportAttendanceSection({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Дата
+                {t("employees.sport_attendance.col_date")}
               </label>
               <DatePicker
                 selected={draft.date}
@@ -398,7 +400,7 @@ export default function SportAttendanceSection({
                   }))
                 }
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("employees.detail.dismissal_date_placeholder")}
                 showMonthDropdown
                 showYearDropdown
                 dropdownMode="select"
@@ -409,7 +411,7 @@ export default function SportAttendanceSection({
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Время
+                {t("employees.sport_attendance.col_time")}
               </label>
               <TimeInput
                 value={draft.time}
@@ -427,7 +429,7 @@ export default function SportAttendanceSection({
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-3">
               <label className="block text-[13px] font-medium text-slate-700">
-                Видео
+                {t("employees.sport_attendance.col_video")}
               </label>
               {draft.video ? (
                 <button
@@ -435,7 +437,7 @@ export default function SportAttendanceSection({
                   onClick={() => handleOpenVideo(draft.video)}
                   className="text-[12px] font-medium text-slate-500 transition hover:text-slate-700"
                 >
-                  Открыть текущее видео
+                  {t("employees.sport_attendance.open_current_video")}
                 </button>
               ) : null}
             </div>
@@ -451,10 +453,10 @@ export default function SportAttendanceSection({
                 <Upload className="h-4 w-4" style={{ color: brandColor }} />
               </span>
               <span className="mt-3 text-[13px] font-semibold text-slate-800">
-                {uploadMutation.isLoading ? "Загрузка..." : draft.video ? "Заменить видео" : "Загрузить видео"}
+                {uploadMutation.isLoading ? t("employees.sport_attendance.uploading") : draft.video ? t("employees.sport_attendance.replace_video") : t("employees.sport_attendance.upload_video")}
               </span>
               <span className="mt-1 text-[12px] text-slate-500">
-                MP4, MOV, AVI и другие видеоформаты
+                {t("employees.sport_attendance.video_formats_hint")}
               </span>
               <input
                 type="file"
@@ -486,7 +488,7 @@ export default function SportAttendanceSection({
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -495,7 +497,7 @@ export default function SportAttendanceSection({
             className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ backgroundColor: brandColor }}
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </Modal>
@@ -507,10 +509,10 @@ export default function SportAttendanceSection({
         showCloseButton={false}
       >
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Удалить запись посещения спорта?
+          {t("employees.sport_attendance.delete_modal_title")}
         </h4>
         <p className="mb-6 mt-2 text-[13px] text-slate-500">
-          Запись будет удалена без возможности восстановления.
+          {t("employees.sport_attendance.delete_modal_description")}
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -519,7 +521,7 @@ export default function SportAttendanceSection({
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -527,7 +529,7 @@ export default function SportAttendanceSection({
             disabled={isSaving}
             className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSaving ? "Удаление..." : "Удалить"}
+            {isSaving ? t("employees.sport_attendance.deleting") : t("common.delete")}
           </button>
         </div>
       </Modal>

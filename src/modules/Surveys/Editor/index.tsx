@@ -11,6 +11,7 @@ import "survey-creator-core/survey-creator-core.css";
 import "survey-core/i18n/russian";
 import "survey-creator-core/i18n/russian";
 import { applySurveyCreatorPatches } from "./surveyCreatorPatches";
+import { useTranslation } from "../../../i18n";
 
 applySurveyCreatorPatches();
 
@@ -67,6 +68,7 @@ const resolveCreatedGuid = (payload: unknown): string | null => {
 };
 
 export default function SurveyEditorPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditing = Boolean(id);

@@ -5,6 +5,7 @@ import PageMeta from "../../../../../components/common/PageMeta";
 import Button from "../../../../../components/ui/button/Button";
 import { useSettingsDirectoryQuery } from "../../../../../api/services/settingsDirectory.service";
 import DocxPreview from "./DocxPreview";
+import { useTranslation } from "../../../../../i18n";
 
 type TemplateItem = {
   guid: string;
@@ -16,6 +17,7 @@ type TemplateItem = {
 const TEMPLATES_SLUG = "document_templates";
 
 export default function EmployeeDocumentTemplateSelectPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const employeeGuid = String(id || "");
   const navigate = useNavigate();
@@ -48,8 +50,8 @@ export default function EmployeeDocumentTemplateSelectPage() {
   return (
     <>
       <PageMeta
-        title="Выбор шаблона документа | Сотрудники"
-        description="Выбор шаблона для генерации документа сотрудника"
+        title={t("employees.template_select.page_title")}
+        description={t("employees.template_select.page_description")}
       />
 
       <div className="space-y-4">
@@ -59,18 +61,18 @@ export default function EmployeeDocumentTemplateSelectPage() {
           className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
         >
           <ChevronLeft size={16} />
-          Назад к сотруднику
+          {t("employees.template_select.back_to_employee")}
         </Link>
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold text-gray-900">Выбор шаблона</h1>
+            <h1 className="text-3xl font-semibold text-gray-900">{t("employees.template_select.title")}</h1>
             <p className="mt-1 text-base font-medium text-gray-500">
-              Выберите DOCX шаблон для генерации документа
+              {t("employees.template_select.description")}
             </p>
           </div>
           <Button onClick={openGeneratePage} disabled={!selectedTemplate}>
-            Продолжить
+            {t("employees.documents.continue")}
           </Button>
         </div>
 
@@ -81,7 +83,7 @@ export default function EmployeeDocumentTemplateSelectPage() {
           </div>
         ) : templates.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-            Шаблоны документов не найдены.
+            {t("employees.template_select.not_found")}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -102,10 +104,10 @@ export default function EmployeeDocumentTemplateSelectPage() {
                       }`}
                     >
                       <p className="line-clamp-2 text-sm font-semibold text-gray-900">
-                        {String(template.title || "Без названия")}
+                        {String(template.title || t("employees.detail.no_title"))}
                       </p>
                       <p className="mt-1 line-clamp-2 text-xs text-gray-500">
-                        {String(template.description || "Без описания")}
+                        {String(template.description || t("employees.documents.no_description"))}
                       </p>
                     </button>
                   );
@@ -113,7 +115,7 @@ export default function EmployeeDocumentTemplateSelectPage() {
               </div>
             </div>
 
-            <DocxPreview fileUrl={String(selectedTemplate?.file || "")} title="Предпросмотр шаблона" />
+            <DocxPreview fileUrl={String(selectedTemplate?.file || "")} title={t("employees.template_select.preview_title")} />
           </div>
         )}
       </div>

@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import { InputMask } from "@react-input/mask";
 import {
   useServerClientQuery,
@@ -12,6 +13,7 @@ const inputClass =
   "w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B38D80]/30 focus:border-[#B38D80] transition-colors";
 
 export default function ClientForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id && id !== "new");
@@ -78,7 +80,7 @@ export default function ClientForm() {
       navigate("/organization/clients");
     } catch (error) {
       console.error("Failed to save client:", error);
-      alert("Ошибка при сохранении клиента. Пожалуйста, проверьте данные.");
+      alert(t("clients.save_error"));
     }
   };
 
@@ -93,8 +95,8 @@ export default function ClientForm() {
   return (
     <>
       <PageMeta
-        title={isEditMode ? "Редактировать клиента | NSTEX" : "Добавить клиента | NSTEX"}
-        description={isEditMode ? "Редактирование клиента" : "Добавление нового клиента"}
+        title={isEditMode ? t("clients.edit_title") : t("clients.add_title")}
+        description={isEditMode ? t("clients.edit_description") : t("clients.add_description")}
       />
 
       {/* Back button */}
@@ -106,16 +108,16 @@ export default function ClientForm() {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Назад
+          {t("clients.back")}
         </button>
       </div>
 
       {/* Breadcrumb */}
       <div className="mb-6 flex items-center gap-2 text-sm">
-        <span className="text-[#B38D80]">Клиенты</span>
+        <span className="text-[#B38D80]">{t("clients.breadcrumb")}</span>
         <span className="text-gray-400">/</span>
         <span className="text-gray-800 font-medium">
-          {isEditMode ? "Редактировать клиента" : "Добавить клиента"}
+          {isEditMode ? t("clients.edit") : t("clients.add")}
         </span>
       </div>
 
@@ -125,35 +127,35 @@ export default function ClientForm() {
           {/* Company Name */}
           <div className="md:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название компании <span className="text-red-500">*</span>
+              {t("clients.company_name")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formData.company_name}
               onChange={(e) => handleChange("company_name", e.target.value)}
               className={inputClass}
-              placeholder="Введите название компании"
+              placeholder={t("clients.company_placeholder")}
             />
           </div>
 
           {/* Contact Name */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Имя (Контактное лицо) <span className="text-red-500">*</span>
+              {t("clients.contact_name")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => handleChange("name", e.target.value)}
               className={inputClass}
-              placeholder="Введите имя"
+              placeholder={t("clients.name_placeholder")}
             />
           </div>
 
           {/* Phone */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Номер телефона <span className="text-red-500">*</span>
+              {t("clients.phone")} <span className="text-red-500">*</span>
             </label>
             <InputMask
               mask="+___ __ ___ __ __"
@@ -168,21 +170,21 @@ export default function ClientForm() {
           {/* Manager */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Менеджер
+              {t("clients.manager")}
             </label>
             <input
               type="text"
               value={formData.manager}
               onChange={(e) => handleChange("manager", e.target.value)}
               className={inputClass}
-              placeholder="Введите имя менеджера"
+              placeholder={t("clients.manager_placeholder")}
             />
           </div>
 
           {/* Current Account */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Текущий счет
+              {t("clients.current_account")}
             </label>
             <input
               type="number"
@@ -208,7 +210,7 @@ export default function ClientForm() {
               !isSaving && ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D2939")
             }
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>

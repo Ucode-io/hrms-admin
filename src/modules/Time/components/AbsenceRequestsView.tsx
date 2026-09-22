@@ -27,6 +27,7 @@ import {
   useApproveStage,
   useEntityApprovalsQuery,
 } from "../../../api/services/approval.service";
+import { useTranslation } from "../../../i18n";
 
 const ABSENCES_SLUG = "absences";
 const ABSENCE_ENTITY_TYPE = "absence";
@@ -182,6 +183,7 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
 };
 
 function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const brandColor = companyStore.mainColor || "#2563eb";
 

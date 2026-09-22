@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Eraser, Search } from "lucide-react";
 import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
+import { useTranslation } from "../../../../i18n";
 
 export type PickerItem = {
   id: string;
@@ -42,8 +43,10 @@ export default function PickerMenu({
   groups,
   onPick,
   onClear,
-  emptyText = "Ничего не найдено",
+  emptyText,
 }: PickerMenuProps) {
+  const { t } = useTranslation();
+  const emptyLabel = emptyText ?? t("settings_grade_matrix.picker.empty_default");
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -76,7 +79,7 @@ export default function PickerMenu({
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Поиск..."
+          placeholder={t("settings_grade_matrix.picker.search_placeholder")}
           autoFocus
           className="h-8 w-full rounded-lg border border-gray-200 pl-8 pr-2 text-sm text-gray-800 outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
         />
@@ -84,7 +87,7 @@ export default function PickerMenu({
 
       <div className="max-h-64 overflow-y-auto">
         {filtered.length === 0 ? (
-          <p className="px-2 py-4 text-center text-xs text-gray-400">{emptyText}</p>
+          <p className="px-2 py-4 text-center text-xs text-gray-400">{emptyLabel}</p>
         ) : (
           filtered.map((group) => (
             <div key={group.key} className="mb-1 last:mb-0">
@@ -127,7 +130,7 @@ export default function PickerMenu({
           className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-gray-100 px-2 py-1.5 text-left text-sm text-gray-500 transition hover:bg-gray-50"
         >
           <Eraser size={14} />
-          Очистить
+          {t("settings_grade_matrix.picker.clear")}
         </button>
       )}
     </Dropdown>

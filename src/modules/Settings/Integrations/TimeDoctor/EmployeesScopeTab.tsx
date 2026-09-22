@@ -8,6 +8,7 @@ import {
   useTimeTrackingScopeSaveMutation,
   type TimeTrackingScopeEmployee,
 } from "../../../../api/services/timesheet.service";
+import { useTranslation } from "../../../../i18n";
 
 /**
  * Охват тайм-трекинга: у кого считается табель.
@@ -68,6 +69,7 @@ function TriCheckbox({
 }
 
 export default function EmployeesScopeTab() {
+  const { t } = useTranslation();
   const scopeQuery = useTimeTrackingScopeQuery();
   const saveMutation = useTimeTrackingScopeSaveMutation();
 
@@ -113,7 +115,10 @@ export default function EmployeesScopeTab() {
     for (const employee of visible) {
       const key = employee.departmentId ?? NO_DEPARTMENT;
       if (!byDepartment.has(key)) {
-        byDepartment.set(key, { title: employee.department || "Без отдела", items: [] });
+        byDepartment.set(key, {
+          title: employee.department || t("settings_integrations.employees.no_department"),
+          items: [],
+        });
       }
       byDepartment.get(key)!.items.push(employee);
     }
@@ -146,11 +151,11 @@ export default function EmployeesScopeTab() {
       setSavedIds([...selected]);
       toast.success(
         selected.size > 0
-          ? `Трекинг включён у ${selected.size} сотрудников.`
-          : "Трекинг выключен у всех — табель будет пустым."
+          ? t("settings_integrations.employees.tracking_enabled_count", { count: selected.size })
+          : t("settings_integrations.employees.tracking_disabled_all")
       );
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось сохранить список."));
+      toast.error(getErrorMessage(error, t("settings_integrations.employees.error_save_list")));
     }
   };
 
@@ -168,10 +173,10 @@ export default function EmployeesScopeTab() {
     return (
       <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
         <p className="text-sm font-medium text-rose-700">
-          {getErrorMessage(scopeQuery.error, "Не удалось загрузить список сотрудников.")}
+          {getErrorMessage(scopeQuery.error, t("settings_integrations.employees.error_load_list"))}
         </p>
         <Button variant="outline" className="mt-3 h-10" onClick={() => void scopeQuery.refetch()}>
-          Повторить
+          {t("settings_integrations.employees.btn_retry")}
         </Button>
       </div>
     );
@@ -185,14 +190,13 @@ export default function EmployeesScopeTab() {
       <div className="rounded-2xl border border-gray-200 bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Сотрудники с тайм-трекингом</h2>
+            <h2 className="text-base font-semibold text-gray-900">{t("settings_integrations.employees.title")}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Только отмеченные попадают в «Табель времени» и отчёт по нему. Остальные не
-              показываются, даже если по ним уже загружены часы.
+              {t("settings_integrations.employees.description")}
             </p>
           </div>
           <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-600">
-            Включено {selected.size} из {employees.length}
+            {t("settings_integrations.employees.enabled_of_total", { count: selected.size, total: employees.length })}
           </span>
         </div>
 
@@ -200,8 +204,7 @@ export default function EmployeesScopeTab() {
           <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <p className="text-sm text-amber-700">
-              Охват ещё не настроен — сейчас в табель попадают все сотрудники. Отметьте нужных
-              и сохраните.
+              {t("settings_integrations.employees.not_configured_notice")}
             </p>
           </div>
         ) : null}
@@ -216,7 +219,7 @@ export default function EmployeesScopeTab() {
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Имя, должность или email…"
+              placeholder={t("settings_integrations.employees.search_placeholder")}
               className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
             />
           </label>
@@ -226,13 +229,13 @@ export default function EmployeesScopeTab() {
             onChange={(event) => setDepartmentId(event.target.value)}
             className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
           >
-            <option value="">Все отделы</option>
+            <option value="">{t("settings_integrations.employees.filter_all_departments")}</option>
             {departments.map((department) => (
               <option key={department.id} value={department.id}>
                 {department.title}
               </option>
             ))}
-            <option value={NO_DEPARTMENT}>Без отдела</option>
+            <option value={NO_DEPARTMENT}>{t("settings_integrations.employees.filter_no_department")}</option>
           </select>
 
           <button
@@ -241,7 +244,8 @@ export default function EmployeesScopeTab() {
             disabled={visibleIds.length === 0 || visibleSelectedCount === visibleIds.length}
             className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Отметить всех{search || departmentId ? " найденных" : ""}
+            {t("settings_integrations.employees.btn_select_all")}
+            {search || departmentId ? t("settings_integrations.employees.btn_select_all_found_suffix") : ""}
           </button>
           <button
             type="button"
@@ -249,7 +253,7 @@ export default function EmployeesScopeTab() {
             disabled={visibleSelectedCount === 0}
             className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Снять
+            {t("settings_integrations.employees.btn_deselect")}
           </button>
 
           <div className="ml-auto flex items-center gap-2">
@@ -259,7 +263,7 @@ export default function EmployeesScopeTab() {
                 onClick={handleReset}
                 className="inline-flex h-10 items-center rounded-xl px-3 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
               >
-                Отменить
+                {t("settings_integrations.employees.btn_reset")}
               </button>
             ) : null}
             <Button
@@ -268,7 +272,7 @@ export default function EmployeesScopeTab() {
               startIcon={<Save className="h-4 w-4" />}
               className="h-10"
             >
-              {saveMutation.isLoading ? "Сохранение…" : "Сохранить"}
+              {saveMutation.isLoading ? t("settings_integrations.employees.btn_saving") : t("settings_integrations.employees.btn_save")}
             </Button>
           </div>
         </div>
@@ -277,7 +281,7 @@ export default function EmployeesScopeTab() {
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
         {groups.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-gray-500">
-            Сотрудники по выбранным условиям не найдены
+            {t("settings_integrations.employees.empty_list")}
           </p>
         ) : (
           <table className="min-w-full border-separate border-spacing-0">
@@ -285,10 +289,10 @@ export default function EmployeesScopeTab() {
               <tr className="bg-gray-50">
                 <th className="w-10 border-b border-gray-200 px-4 py-2.5" />
                 <th className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700">
-                  Сотрудник
+                  {t("settings_integrations.employees.column_employee")}
                 </th>
                 <th className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700">
-                  Должность
+                  {t("settings_integrations.employees.column_position")}
                 </th>
                 <th className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700">
                   Time Doctor
@@ -304,7 +308,7 @@ export default function EmployeesScopeTab() {
                   <tr key={`group-${key}`} className="bg-gray-50/70">
                     <td className="border-b border-gray-100 px-4 py-2">
                       <TriCheckbox
-                        ariaLabel={`Весь отдел: ${group.title}`}
+                        ariaLabel={t("settings_integrations.employees.department_checkbox_aria", { title: group.title })}
                         checked={selectedCount === ids.length && ids.length > 0}
                         indeterminate={selectedCount > 0}
                         onChange={(checked) => toggleMany(ids, checked)}
@@ -316,7 +320,7 @@ export default function EmployeesScopeTab() {
                     >
                       {group.title}
                       <span className="ml-2 text-xs font-normal text-gray-400">
-                        {selectedCount} из {ids.length}
+                        {t("settings_integrations.employees.department_selected_count", { selected: selectedCount, total: ids.length })}
                       </span>
                     </td>
                   </tr>,
@@ -352,13 +356,13 @@ export default function EmployeesScopeTab() {
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5">
                         {employee.hasMapping ? (
-                          <span className="text-xs font-medium text-emerald-600">Подключён</span>
+                          <span className="text-xs font-medium text-emerald-600">{t("settings_integrations.employees.status_connected")}</span>
                         ) : (
                           <span
                             className="text-xs font-medium text-amber-600"
-                            title="Сотрудника нет в Time Doctor — часов по нему не будет, даже если включить трекинг"
+                            title={t("settings_integrations.employees.status_not_in_td_tooltip")}
                           >
-                            Нет в Time Doctor
+                            {t("settings_integrations.employees.status_not_in_td")}
                           </span>
                         )}
                       </td>

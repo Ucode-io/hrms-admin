@@ -3,6 +3,7 @@ import { useDocumentsQuery } from "../../../../api/services/document.service";
 import Spinner from "../../../../components/ui/Spinner";
 import { Modal } from "../../../../components/ui/modal";
 import { Eye, Download, Image, Video, FileText, File, FileSpreadsheet } from "lucide-react";
+import { useTranslation } from "../../../../i18n";
 
 interface DocumentsTabProps {
   clientId: string;
@@ -63,6 +64,7 @@ const getTypeIconBg = (type: string) => {
 };
 
 export default function DocumentsTab({ clientId }: DocumentsTabProps) {
+  const { t } = useTranslation();
   const [previewModal, setPreviewModal] = useState<{ open: boolean; url: string; name: string; type: string }>({
     open: false,
     url: "",

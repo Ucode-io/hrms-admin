@@ -9,6 +9,7 @@ import {
   type RecruitingSourcesShareItem,
   useRecruitingSourcesReportQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const COLORS = [
   "#74A8C9",
@@ -25,7 +26,7 @@ const COLORS = [
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const toPercentText = (value: number | null | undefined): string => {
@@ -34,6 +35,7 @@ const toPercentText = (value: number | null | undefined): string => {
 };
 
 function RecruitingSourcesPage() {
+  const { t } = useTranslation();
   const { data, isLoading, isFetching, isError, error, refetch } =
     useRecruitingSourcesReportQuery();
 
@@ -90,10 +92,13 @@ function RecruitingSourcesPage() {
       tooltip: {
         shared: true,
         intersect: false,
-        y: { formatter: (value: number) => `${Math.round(value)} канд.` },
+        y: {
+          formatter: (value: number) =>
+            `${Math.round(value)} ${t("reports.common.candidates_short")}`,
+        },
       },
     }),
-    [byDate]
+    [byDate, t]
   );
 
   const pieSeries: ApexNonAxisChartSeries = bySource.map((item) => item.count);
@@ -118,16 +123,21 @@ function RecruitingSourcesPage() {
       dataLabels: { enabled: false },
       stroke: { width: 0 },
       tooltip: {
-        y: { formatter: (value: number) => `${value} канд.` },
+        y: {
+          formatter: (value: number) => `${value} ${t("reports.common.candidates_short")}`,
+        },
       },
     }),
-    [bySource]
+    [bySource, t]
   );
 
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Кандидаты по источникам | HRMS" description="Статистика по источникам кандидатов" />
+        <PageMeta
+          title={t("reports.recruiting_sources.page_title")}
+          description={t("reports.recruiting_sources.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -138,7 +148,10 @@ function RecruitingSourcesPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Кандидаты по источникам | HRMS" description="Статистика по источникам кандидатов" />
+        <PageMeta
+          title={t("reports.recruiting_sources.page_title")}
+          description={t("reports.recruiting_sources.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -148,7 +161,7 @@ function RecruitingSourcesPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -160,25 +173,32 @@ function RecruitingSourcesPage() {
 
   return (
     <>
-      <PageMeta title="Кандидаты по источникам | HRMS" description="Статистика по источникам кандидатов" />
+      <PageMeta
+        title={t("reports.recruiting_sources.page_title")}
+        description={t("reports.recruiting_sources.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
           <div className="space-y-4 px-4 py-3">
             <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-              <h3 className="mb-3 text-lg font-semibold text-gray-900">Кандидаты по датам</h3>
+              <h3 className="mb-3 text-lg font-semibold text-gray-900">
+                {t("reports.recruiting_sources.by_date_heading")}
+              </h3>
               {hasLine ? (
                 <Chart options={lineOptions} series={lineSeries} type="line" height={360} />
               ) : (
                 <div className="flex h-[320px] items-center justify-center text-sm text-gray-500">
-                  Нет данных для графика
+                  {t("reports.common.no_chart_data")}
                 </div>
               )}
             </article>
 
             <section className="grid gap-4 xl:grid-cols-2">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                <h3 className="text-lg font-semibold text-gray-900">Кандидаты по источникам</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {t("reports.recruiting_sources.by_source_heading")}
+                </h3>
                 <div className="mt-2">
                   {hasPie ? (
                     <div className="flex justify-center">
@@ -186,7 +206,7 @@ function RecruitingSourcesPage() {
                     </div>
                   ) : (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-                      Нет данных для графика
+                      {t("reports.common.no_chart_data")}
                     </div>
                   )}
                 </div>
@@ -196,7 +216,7 @@ function RecruitingSourcesPage() {
         </section>
 
         {isFetching ? (
-          <p className="text-right text-xs text-gray-400">Обновление данных...</p>
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
         ) : null}
       </div>
     </>

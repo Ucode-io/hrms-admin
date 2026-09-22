@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { renderAsync } from "docx-preview";
+import { useTranslation, translate } from "../../../../../i18n";
 
 type DocxPreviewProps = {
   fileUrl: string;
@@ -10,9 +11,10 @@ type DocxPreviewProps = {
 
 export default function DocxPreview({
   fileUrl,
-  title = "DOCX шаблон",
-  openLabel = "Открыть DOCX",
+  title = translate("employees.docx_preview.default_title"),
+  openLabel = translate("employees.docx_preview.default_open_label"),
 }: DocxPreviewProps) {
+  const { t } = useTranslation();
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
@@ -38,7 +40,7 @@ export default function DocxPreview({
       });
     } catch (error) {
       console.error("Failed to render DOCX preview:", error);
-      setPreviewError("Не удалось отобразить DOCX предпросмотр.");
+      setPreviewError(t("employees.docx_preview.render_failed"));
     } finally {
       setIsLoading(false);
     }
@@ -52,7 +54,7 @@ export default function DocxPreview({
   if (!fileUrl) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Для этого шаблона не указан DOCX файл.
+        {t("employees.docx_preview.no_file")}
       </div>
     );
   }
@@ -75,7 +77,7 @@ export default function DocxPreview({
       <div className="h-[72vh] min-h-[520px] overflow-auto bg-gray-50 p-4">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           {isLoading && (
-            <div className="py-8 text-center text-sm text-gray-500">Загрузка DOCX предпросмотра...</div>
+            <div className="py-8 text-center text-sm text-gray-500">{t("employees.docx_preview.loading")}</div>
           )}
 
           {previewError && (

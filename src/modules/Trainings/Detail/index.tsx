@@ -35,6 +35,7 @@ import {
   useTrainingMaterialsQuery,
   useTrainingResultsQuery,
 } from "../../../api/services/trainingGateway.service";
+import { useTranslation } from "../../../i18n";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   draft: { label: "Черновик", className: "bg-gray-100 text-gray-600" },
@@ -91,6 +92,7 @@ type ReviewTarget = {
 };
 
 export default function TrainingDetailPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const trainingGuid = id || "";

@@ -40,6 +40,7 @@ import {
 } from "../../../api/services/region.service";
 import LocationMapPicker from "../../../components/map/LocationMapPicker";
 import { DEFAULT_OFFICE_RADIUS_M } from "../../../components/map/shared";
+import { useTranslation } from "../../../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -106,6 +107,7 @@ const resolveRegionTitle = (
 };
 
 export default function BranchesSettingsPage() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -221,14 +223,14 @@ export default function BranchesSettingsPage() {
     const address = locationAddress.trim();
 
     if (!title) {
-      toast.error("Название филиала обязательно.");
+      toast.error(t("settings_misc.branches.title_required"));
       return;
     }
 
     // Регион обязателен: из него филиал получает часы, календарь праздников и
     // язык (ADR-0006). Филиал без региона — филиал без часов.
     if (!regionId) {
-      toast.error("Выберите регион.");
+      toast.error(t("settings_misc.branches.region_required"));
       return;
     }
 
@@ -250,16 +252,16 @@ export default function BranchesSettingsPage() {
             ...payload,
           },
         });
-        toast.success("Филиал успешно обновлён.");
+        toast.success(t("settings_misc.branches.update_success"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Филиал успешно создан.");
+        toast.success(t("settings_misc.branches.create_success"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error("Failed to save branch:", error);
-      toast.error("Не удалось сохранить филиал. Попробуйте еще раз.");
+      toast.error(t("settings_misc.branches.save_error"));
     }
   };
 
@@ -279,11 +281,11 @@ export default function BranchesSettingsPage() {
 
     try {
       await deleteMutation.mutateAsync(locationToDelete.guid);
-      toast.success("Филиал удалён.");
+      toast.success(t("settings_misc.branches.delete_success"));
       closeDeleteModal();
     } catch (error) {
       console.error("Failed to delete branch:", error);
-      toast.error("Не удалось удалить филиал.");
+      toast.error(t("settings_misc.branches.delete_error"));
     }
   };
 
@@ -296,22 +298,22 @@ export default function BranchesSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Филиалы | Настройки" description="Список филиалов компании" />
+      <PageMeta title={t("settings_misc.branches.page_title")} description={t("settings_misc.branches.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Филиалы</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_misc.branches.heading")}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-11"
               startIcon={<Download size={16} />}
-              onClick={() => toast.info("Экспорт будет доступен позже.")}
+              onClick={() => toast.info(t("settings_misc.branches.export_soon"))}
             >
-              Экспорт
+              {t("settings_misc.branches.export")}
             </Button>
             <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-              Новый
+              {t("settings_misc.branches.new")}
             </Button>
           </div>
         </div>
@@ -327,7 +329,7 @@ export default function BranchesSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_misc.branches.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -338,16 +340,16 @@ export default function BranchesSettingsPage() {
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_misc.branches.col_title")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Адрес
+                    {t("settings_misc.branches.col_address")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Регион
+                    {t("settings_misc.branches.col_region")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_misc.branches.col_actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -373,14 +375,14 @@ export default function BranchesSettingsPage() {
                 ) : locations.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Филиалы не найдены
+                      {t("settings_misc.branches.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
                   locations.map((location) => (
                     <TableRow key={location.guid} className="hover:bg-gray-50 transition-colors">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(location.title || "Без названия")}
+                        {String(location.title || t("settings_misc.branches.untitled"))}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-sm text-gray-700">
                         {String(location.address || "—")}
@@ -394,7 +396,7 @@ export default function BranchesSettingsPage() {
                             type="button"
                             onClick={() => toggleActionsMenu(location.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Открыть действия"
+                            aria-label={t("settings_misc.branches.open_actions")}
                             ref={(el) => {
                               actionButtonRefs.current[location.guid] = el;
                             }}
@@ -413,13 +415,13 @@ export default function BranchesSettingsPage() {
                               onClick={() => openEditModal(location)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
-                              Изменить
+                              {t("settings_misc.branches.edit")}
                             </DropdownItem>
                             <DropdownItem
                               onClick={() => openDeleteModal(location)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
-                              Удалить
+                              {t("settings_misc.branches.delete")}
                             </DropdownItem>
                           </Dropdown>
                         </div>
@@ -449,13 +451,13 @@ export default function BranchesSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingLocation ? "Изменить филиал" : "Новый филиал"}
+            {editingLocation ? t("settings_misc.branches.modal_edit_title") : t("settings_misc.branches.modal_new_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_misc.branches.close")}
           >
             <X size={18} />
           </button>
@@ -464,13 +466,13 @@ export default function BranchesSettingsPage() {
         <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto px-4 py-4 md:grid-cols-2">
           <div className="md:col-span-2">
             <label htmlFor="location-title" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_misc.branches.field_title")}
             </label>
             <input
               id="location-title"
               value={locationTitle}
               onChange={(event) => setLocationTitle(event.target.value)}
-              placeholder="Введите название филиала"
+              placeholder={t("settings_misc.branches.field_title_placeholder")}
               autoFocus
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
@@ -478,20 +480,20 @@ export default function BranchesSettingsPage() {
 
           <div className="md:col-span-2">
             <label htmlFor="location-address" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Адрес
+              {t("settings_misc.branches.field_address")}
             </label>
             <input
               id="location-address"
               value={locationAddress}
               onChange={(event) => setLocationAddress(event.target.value)}
-              placeholder="Введите адрес"
+              placeholder={t("settings_misc.branches.field_address_placeholder")}
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
           </div>
 
           <div className="md:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Точка на карте
+              {t("settings_misc.branches.field_map_point")}
             </label>
             <LocationMapPicker
               value={coordinates}
@@ -504,7 +506,7 @@ export default function BranchesSettingsPage() {
 
           <div className="md:col-span-2">
             <label htmlFor="location-radius" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Радиус, м
+              {t("settings_misc.branches.field_radius")}
             </label>
             <input
               id="location-radius"
@@ -512,33 +514,32 @@ export default function BranchesSettingsPage() {
               min={1}
               value={radius}
               onChange={(event) => setRadius(event.target.value)}
-              placeholder={`По умолчанию ${DEFAULT_OFFICE_RADIUS_M}`}
+              placeholder={t("settings_misc.branches.field_radius_placeholder", { value: DEFAULT_OFFICE_RADIUS_M })}
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Отметку дальше этого расстояния от точки офиса помечаем предупреждением.
-              Точность GPS на телефоне — десятки метров, меньше сотни ставить не стоит.
+              {t("settings_misc.branches.field_radius_hint")}
             </p>
           </div>
 
           <div className="md:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Регион
+              {t("settings_misc.branches.field_region")}
             </label>
             <Select
               options={regionOptions}
               value={selectedRegionOption}
               onChange={(option) => setRegionId(option?.value || "")}
-              placeholder="Выберите регион"
+              placeholder={t("settings_misc.branches.field_region_placeholder")}
               isSearchable
               styles={getSearchSelectStyles()}
               menuPortalTarget={menuPortalTarget || undefined}
               menuPosition="fixed"
               classNamePrefix="branch-region-select"
-              noOptionsMessage={() => "Ничего не найдено"}
+              noOptionsMessage={() => t("settings_misc.branches.no_options")}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Часовой пояс, календарь праздников и язык филиал берёт из региона.
+              {t("settings_misc.branches.field_region_hint")}
             </p>
           </div>
         </div>
@@ -549,10 +550,10 @@ export default function BranchesSettingsPage() {
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_misc.branches.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_misc.branches.saving") : t("settings_misc.branches.save")}
           </Button>
         </div>
       </Modal>
@@ -565,12 +566,12 @@ export default function BranchesSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить филиал</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_misc.branches.delete_modal_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_misc.branches.close")}
             >
               <X size={16} />
             </button>
@@ -579,12 +580,12 @@ export default function BranchesSettingsPage() {
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Это действие нельзя отменить.
+            {t("settings_misc.branches.delete_modal_irreversible")}
           </p>
           <p className="text-sm text-gray-700">
             {locationToDelete
-              ? `Вы уверены, что хотите удалить "${String(locationToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить этот филиал?"}
+              ? t("settings_misc.branches.delete_modal_confirm_named", { title: String(locationToDelete.title) })
+              : t("settings_misc.branches.delete_modal_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -593,14 +594,14 @@ export default function BranchesSettingsPage() {
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_misc.branches.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_misc.branches.deleting") : t("settings_misc.branches.delete")}
             </Button>
           </div>
         </div>

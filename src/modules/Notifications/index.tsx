@@ -12,12 +12,13 @@ import {
   useDeleteNotification,
   useNotificationsQuery,
 } from "../../api/services/notification.service";
+import { translate, useTranslation } from "../../i18n";
 
-const formatDisplayDate = (value: string) => {
-  if (!value) return "Без даты";
+const formatDisplayDate = (value: string, locale: string) => {
+  if (!value) return translate("notifications_news.no_date");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Без даты";
-  return date.toLocaleString("ru-RU", {
+  if (Number.isNaN(date.getTime())) return translate("notifications_news.no_date");
+  return date.toLocaleString(locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -39,6 +40,7 @@ const htmlToPlainText = (value: string) => {
 };
 
 function NewsListPage() {
+  const { t, locale } = useTranslation();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
 
@@ -67,31 +69,31 @@ function NewsListPage() {
   const newsItems = useMemo(() => newsData?.response ?? [], [newsData?.response]);
 
   const handleDelete = async (item: NotificationItem) => {
-    const confirmed = window.confirm(`Удалить новость "${item.title}"?`);
+    const confirmed = window.confirm(t("notifications_news.delete_confirm", { title: item.title }));
     if (!confirmed) return;
 
     try {
       await deleteMutation.mutateAsync(item.guid);
-      toast.success("Новость удалена.");
+      toast.success(t("notifications_news.deleted"));
     } catch (deleteError) {
-      toast.error(getErrorMessage(deleteError, "Не удалось удалить новость."));
+      toast.error(getErrorMessage(deleteError, t("notifications_news.delete_error")));
     }
   };
 
   return (
     <>
-      <PageMeta title="Новости | HRMS" description="Лента новостей и объявлений компании" />
+      <PageMeta title={t("notifications_news.page_title")} description={t("notifications_news.subtitle")} />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Новости</h1>
-              <p className="mt-1 text-sm text-gray-500">Лента новостей и объявлений компании</p>
+              <h1 className="text-2xl font-semibold text-gray-900">{t("notifications_news.title")}</h1>
+              <p className="mt-1 text-sm text-gray-500">{t("notifications_news.subtitle")}</p>
             </div>
             <Link to="/settings/news/new">
               <Button size="sm" startIcon={<Plus size={16} />}>
-                Создать новость
+                {t("notifications_news.create")}
               </Button>
             </Link>
           </div>
@@ -106,7 +108,7 @@ function NewsListPage() {
                 type="text"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Поиск по заголовку и тексту..."
+                placeholder={t("notifications_news.search_placeholder")}
                 className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
               />
             </label>
@@ -121,7 +123,7 @@ function NewsListPage() {
           ) : isError ? (
             <div className="rounded-xl border border-error-200 bg-error-50 p-4">
               <p className="text-sm font-medium text-error-700">
-                {getErrorMessage(error, "Не удалось загрузить новости.")}
+                {getErrorMessage(error, t("notifications_news.load_error"))}
               </p>
               <button
                 type="button"
@@ -130,12 +132,12 @@ function NewsListPage() {
                 }}
                 className="mt-3 inline-flex h-9 items-center rounded-lg bg-error-600 px-3 text-sm font-semibold text-white transition hover:bg-error-700"
               >
-                Повторить
+                {t("common.retry")}
               </button>
             </div>
           ) : newsItems.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
-              Новости пока не созданы
+              {t("notifications_news.empty")}
             </div>
           ) : (
             <div className="grid gap-3">
@@ -156,7 +158,7 @@ function NewsListPage() {
                     <div className="min-w-0 flex-1 space-y-2">
                       {!item.is_active ? (
                         <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-500">
-                          Неактивно
+                          {t("notifications_news.inactive")}
                         </span>
                       ) : null}
 
@@ -166,7 +168,7 @@ function NewsListPage() {
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                         <div className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500">
                           <Calendar size={14} />
-                          {formatDisplayDate(item.published_at)}
+                          {formatDisplayDate(item.published_at, locale)}
                         </div>
 
                         <div className="inline-flex items-center gap-2">
@@ -175,7 +177,7 @@ function NewsListPage() {
                             className="inline-flex h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
                           >
                             <Edit3 size={13} />
-                            Изменить
+                            {t("common.edit")}
                           </Link>
                           <button
                             type="button"
@@ -185,7 +187,7 @@ function NewsListPage() {
                             className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200 bg-white px-2.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
                           >
                             <Trash2 size={13} />
-                            Удалить
+                            {t("common.delete")}
                           </button>
                         </div>
                       </div>
@@ -199,7 +201,7 @@ function NewsListPage() {
           {isFetching && !isLoading ? (
             <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-500">
               <Spinner size="sm" className="h-4 w-4" />
-              Обновление данных...
+              {t("common.updating")}
             </div>
           ) : null}
         </section>

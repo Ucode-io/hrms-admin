@@ -33,6 +33,7 @@ import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
 import companyStore from "../../../../store/company.store";
 import LocationViewLink from "../../../../components/map/LocationViewLink";
 import { useOffices } from "../../../../components/map/useOffices";
+import { translate, useTranslation } from "../../../../i18n";
 
 const UNIQUE_USERS_SLUG = "unique_users";
 const ATTENDANCE_RECORDS_SLUG = "attendance_records";
@@ -101,7 +102,11 @@ const toIsoDate = (value: Date): string => {
 
 // Пусто = событие записано до появления поля, а тогда источник был только один.
 const getSourceLabel = (source: string | null | undefined): string =>
-  String(source || "").trim().toLowerCase() === "webapp" ? "Приложение" : "Турникет";
+  translate(
+    String(source || "").trim().toLowerCase() === "webapp"
+      ? "settings_integrations.hickvision.source_webapp"
+      : "settings_integrations.hickvision.source_turnstile"
+  );
 
 const getActionLabel = (action: string[] | string | null | undefined): string => {
   if (Array.isArray(action) && action.length > 0) return String(action[0] || "—");
@@ -162,6 +167,7 @@ const buildInitials = (name: string | null | undefined): string => {
 };
 
 export default function HickvisionIntegrationSettingsPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [macPage, setMacPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
@@ -338,11 +344,11 @@ export default function HickvisionIntegrationSettingsPage() {
   const handleAddMacAddress = async () => {
     const macAddress = newMacAddress.trim();
     if (!macAddress) {
-      toast.error("Введите MAC address.");
+      toast.error(t("settings_integrations.hickvision.error_enter_mac"));
       return;
     }
     if (!companiesId) {
-      toast.error("Не найден companies_id компании.");
+      toast.error(t("settings_integrations.hickvision.error_no_company_id"));
       return;
     }
 
@@ -350,7 +356,7 @@ export default function HickvisionIntegrationSettingsPage() {
       (row) => String(row.mac_address || "").trim().toLowerCase() === macAddress.toLowerCase()
     );
     if (duplicate) {
-      toast.error("Такой MAC address уже добавлен.");
+      toast.error(t("settings_integrations.hickvision.error_mac_duplicate"));
       return;
     }
 
@@ -359,11 +365,11 @@ export default function HickvisionIntegrationSettingsPage() {
         mac_address: macAddress,
         companies_id: companiesId,
       });
-      toast.success("MAC address добавлен.");
+      toast.success(t("settings_integrations.hickvision.mac_added"));
       setNewMacAddress("");
     } catch (error) {
       console.error("Failed to create company mac address:", error);
-      toast.error("Не удалось добавить MAC address.");
+      toast.error(t("settings_integrations.hickvision.error_add_mac"));
     }
   };
 
@@ -371,10 +377,10 @@ export default function HickvisionIntegrationSettingsPage() {
     try {
       setDeletingGuid(guid);
       await deleteMacMutation.mutateAsync(guid);
-      toast.success("MAC address удален.");
+      toast.success(t("settings_integrations.hickvision.mac_deleted"));
     } catch (error) {
       console.error("Failed to delete company mac address:", error);
-      toast.error("Не удалось удалить MAC address.");
+      toast.error(t("settings_integrations.hickvision.error_delete_mac"));
     } finally {
       setDeletingGuid(null);
     }
@@ -395,7 +401,7 @@ export default function HickvisionIntegrationSettingsPage() {
 
   const handleSyncAttendance = async () => {
     if (!syncDraft.fromDate || !syncDraft.toDate) {
-      setSyncError("Укажите диапазон дат.");
+      setSyncError(t("settings_integrations.hickvision.error_select_date_range"));
       return;
     }
 
@@ -403,7 +409,7 @@ export default function HickvisionIntegrationSettingsPage() {
     const toDate = toIsoDate(syncDraft.toDate);
 
     if (fromDate > toDate) {
-      setSyncError("Дата начала не может быть позже даты окончания.");
+      setSyncError(t("settings_integrations.hickvision.error_start_after_end"));
       return;
     }
 
@@ -428,15 +434,20 @@ export default function HickvisionIntegrationSettingsPage() {
         (summary.skipped_no_company_membership ?? 0) +
         (summary.no_event ?? 0);
       setSyncNotice(
-        `Синхронизация завершена: обработано ${processedCount}, добавлено ${summary.inserted_integration}, обновлено ${summary.updated_integration}, пропущено ${skippedCount}.`
+        t("settings_integrations.hickvision.sync_completed", {
+          processed: processedCount,
+          inserted: summary.inserted_integration,
+          updated: summary.updated_integration,
+          skipped: skippedCount,
+        })
       );
 
       setIsSyncModalOpen(false);
       await recordsQuery.refetch();
-      toast.success("Синхронизация завершена.");
+      toast.success(t("settings_integrations.hickvision.sync_success"));
     } catch (error) {
       console.error("Attendance sync error:", error);
-      setSyncError("Не удалось выполнить синхронизацию. Попробуйте ещё раз.");
+      setSyncError(t("settings_integrations.hickvision.error_sync_failed"));
     } finally {
       setIsSyncing(false);
     }
@@ -444,19 +455,19 @@ export default function HickvisionIntegrationSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Hickvision | Настройки" description="Интеграция Hickvision" />
+      <PageMeta title={t("settings_integrations.hickvision.page_title")} description={t("settings_integrations.hickvision.page_description")} />
 
       <div className="space-y-4">
         <div>
           <h1 className="text-3xl font-semibold text-gray-900">Hickvision</h1>
-          <p className="mt-1 text-base font-medium text-gray-500">Интеграция с системой контроля доступа</p>
+          <p className="mt-1 text-base font-medium text-gray-500">{t("settings_integrations.hickvision.page_subtitle")}</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="settings">
           <TabsList className="mb-3">
-            <TabsTrigger value="settings">Настройки</TabsTrigger>
-            <TabsTrigger value="users">Пользователи</TabsTrigger>
-            <TabsTrigger value="records">Записи</TabsTrigger>
+            <TabsTrigger value="settings">{t("settings_integrations.hickvision.tab_settings")}</TabsTrigger>
+            <TabsTrigger value="users">{t("settings_integrations.hickvision.tab_users")}</TabsTrigger>
+            <TabsTrigger value="records">{t("settings_integrations.hickvision.tab_records")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="settings">
@@ -465,7 +476,7 @@ export default function HickvisionIntegrationSettingsPage() {
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end rounded-2xl bg-white/45 p-3">
                   <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[12px] font-medium text-gray-600 shadow-sm">
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-                    Загрузка...
+                    {t("settings_integrations.hickvision.loading")}
                   </div>
                 </div>
               ) : null}
@@ -476,7 +487,7 @@ export default function HickvisionIntegrationSettingsPage() {
                     type="text"
                     value={newMacAddress}
                     onChange={(event) => setNewMacAddress(event.target.value)}
-                    placeholder="MAC address (например 44:a6:42:df:ba:42)"
+                    placeholder={t("settings_integrations.hickvision.mac_placeholder")}
                     className="h-11 min-w-[280px] flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-brand-400"
                     disabled={createMacMutation.isLoading}
                   />
@@ -487,11 +498,11 @@ export default function HickvisionIntegrationSettingsPage() {
                     disabled={createMacMutation.isLoading || !newMacAddress.trim()}
                     className="h-11"
                   >
-                    {createMacMutation.isLoading ? "Добавление..." : "Добавить"}
+                    {createMacMutation.isLoading ? t("settings_integrations.hickvision.btn_adding") : t("settings_integrations.hickvision.btn_add")}
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  Добавьте один или несколько MAC address для текущей компании.
+                  {t("settings_integrations.hickvision.mac_help_text")}
                 </p>
               </div>
 
@@ -506,7 +517,7 @@ export default function HickvisionIntegrationSettingsPage() {
                         Created at
                       </TableCell>
                       <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                        Действия
+                        {t("settings_integrations.hickvision.column_actions")}
                       </TableCell>
                     </TableRow>
                   </TableHeader>
@@ -528,7 +539,7 @@ export default function HickvisionIntegrationSettingsPage() {
                     ) : macRows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={3} className="px-4 py-10 text-center text-sm text-gray-500">
-                          MAC addresses пока не добавлены.
+                          {t("settings_integrations.hickvision.empty_mac_addresses")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -545,7 +556,7 @@ export default function HickvisionIntegrationSettingsPage() {
                                 }}
                                 disabled={deleteMacMutation.isLoading && deletingGuid === row.guid}
                                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                title="Удалить"
+                                title={t("settings_integrations.hickvision.btn_delete")}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -576,7 +587,7 @@ export default function HickvisionIntegrationSettingsPage() {
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end rounded-2xl bg-white/45 p-3">
                   <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[12px] font-medium text-gray-600 shadow-sm">
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-                    Загрузка...
+                    {t("settings_integrations.hickvision.loading")}
                   </div>
                 </div>
               ) : null}
@@ -585,7 +596,7 @@ export default function HickvisionIntegrationSettingsPage() {
                   <TableHeader className="border-b border-gray-100">
                     <TableRow>
                       <TableCell isHeader className="w-20 px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                        Фото
+                        {t("settings_integrations.hickvision.column_photo")}
                       </TableCell>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                         Full name
@@ -625,7 +636,7 @@ export default function HickvisionIntegrationSettingsPage() {
                     ) : users.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
-                          Пользователи не найдены.
+                          {t("settings_integrations.hickvision.empty_users")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -669,7 +680,7 @@ export default function HickvisionIntegrationSettingsPage() {
                   className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
-                  Синхронизация
+                  {t("settings_integrations.hickvision.btn_run_sync")}
                 </button>
               </div>
 
@@ -683,7 +694,7 @@ export default function HickvisionIntegrationSettingsPage() {
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end rounded-2xl bg-white/45 p-3">
                   <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[12px] font-medium text-gray-600 shadow-sm">
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-                    Загрузка...
+                    {t("settings_integrations.hickvision.loading")}
                   </div>
                 </div>
               ) : null}
@@ -692,7 +703,7 @@ export default function HickvisionIntegrationSettingsPage() {
                   <TableHeader className="border-b border-gray-100">
                     <TableRow>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                        Фото
+                        {t("settings_integrations.hickvision.column_photo")}
                       </TableCell>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                         Employee
@@ -710,10 +721,10 @@ export default function HickvisionIntegrationSettingsPage() {
                         Action time
                       </TableCell>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                        Источник
+                        {t("settings_integrations.hickvision.column_source")}
                       </TableCell>
                       <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                        Гео
+                        {t("settings_integrations.hickvision.column_location")}
                       </TableCell>
                     </TableRow>
                   </TableHeader>
@@ -750,7 +761,7 @@ export default function HickvisionIntegrationSettingsPage() {
                     ) : records.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
-                          Записи не найдены.
+                          {t("settings_integrations.hickvision.empty_records")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -814,10 +825,10 @@ export default function HickvisionIntegrationSettingsPage() {
       >
         <div className="border-b border-slate-200 px-6 py-5">
           <h4 className="m-0 text-[22px] font-bold text-slate-900">
-            Синхронизация посещаемости
+            {t("settings_integrations.hickvision.sync_modal_title")}
           </h4>
           <p className="m-0 mt-1 text-[13px] text-slate-500">
-            Обновит `attendance` из `attendance_records` за выбранный период.
+            {t("settings_integrations.hickvision.sync_modal_description")}
           </p>
         </div>
 
@@ -825,7 +836,7 @@ export default function HickvisionIntegrationSettingsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Дата начала
+                {t("settings_integrations.hickvision.label_start_date")}
               </label>
               <DatePicker
                 selected={syncDraft.fromDate}
@@ -836,7 +847,7 @@ export default function HickvisionIntegrationSettingsPage() {
                   }))
                 }
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("settings_integrations.hickvision.date_placeholder")}
                 showMonthDropdown
                 showYearDropdown
                 dropdownMode="select"
@@ -847,7 +858,7 @@ export default function HickvisionIntegrationSettingsPage() {
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Дата окончания
+                {t("settings_integrations.hickvision.label_end_date")}
               </label>
               <DatePicker
                 selected={syncDraft.toDate}
@@ -858,7 +869,7 @@ export default function HickvisionIntegrationSettingsPage() {
                   }))
                 }
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("settings_integrations.hickvision.date_placeholder")}
                 showMonthDropdown
                 showYearDropdown
                 dropdownMode="select"
@@ -882,7 +893,7 @@ export default function HickvisionIntegrationSettingsPage() {
             disabled={isSyncing}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("settings_integrations.hickvision.btn_cancel")}
           </button>
           <button
             type="button"
@@ -896,12 +907,12 @@ export default function HickvisionIntegrationSettingsPage() {
             {isSyncing ? (
               <>
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                Синхронизация...
+                {t("settings_integrations.hickvision.btn_syncing")}
               </>
             ) : (
               <>
                 <RefreshCw className="h-3.5 w-3.5" />
-                Запустить
+                {t("settings_integrations.hickvision.btn_sync")}
               </>
             )}
           </button>

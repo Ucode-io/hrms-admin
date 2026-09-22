@@ -31,51 +31,56 @@ import {
   CircleDollarSign,
 } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
+import { useTranslation } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
 export type SettingsItem = {
   id: string;
-  title: string;
+  titleKey: MessageKey;
   icon: LucideIcon;
   path?: string;
-  subtitle?: string;
+  subtitleKey?: MessageKey;
   keywords?: string[];
 };
 
 export type SettingsSection = {
   id: string;
-  title: string;
+  titleKey: MessageKey;
   columns: SettingsItem[][];
 };
 
 export const settingsSections: SettingsSection[] = [
   {
     id: "main",
-    title: "Основные настройки",
+    titleKey: "settings_misc.settings_index.sections.main",
     columns: [
       [
         {
           id: "general-main",
-          title: "Обшие",
+
+          titleKey: "settings_misc.settings_index.items.general-main.title",
           icon: SlidersHorizontal,
           path: "/settings/general",
-          subtitle: "Базовые параметры",
+          subtitleKey: "settings_misc.settings_index.items.general-main.subtitle",
           keywords: ["общие", "основные", "платформа", "настройки"],
         },
       ],
       [
         {
           id: "notifications",
-          title: "Новости",
+
+          titleKey: "settings_misc.settings_index.items.notifications.title",
           icon: Bell,
           path: "/settings/news",
-          subtitle: "Лента новостей",
+          subtitleKey: "settings_misc.settings_index.items.notifications.subtitle",
         },
         {
           id: "bot-notifications",
-          title: "Уведомления бота",
+
+          titleKey: "settings_misc.settings_index.items.bot-notifications.title",
           icon: BellRing,
           path: "/settings/notifications",
-          subtitle: "Что уходит сотруднику и в группу",
+          subtitleKey: "settings_misc.settings_index.items.bot-notifications.subtitle",
           keywords: [
             "уведомления",
             "бот",
@@ -90,18 +95,20 @@ export const settingsSections: SettingsSection[] = [
       [
         {
           id: "roles",
-          title: "Роли и доступы",
+
+          titleKey: "settings_misc.settings_index.items.roles.title",
           icon: Shield,
           path: "/settings/roles",
-          subtitle: "Роли и доступ к модулям",
+          subtitleKey: "settings_misc.settings_index.items.roles.subtitle",
           keywords: ["роли", "доступ", "права", "модули", "roles", "access"],
         },
         {
           id: "career-site",
-          title: "Карьерный сайт",
+
+          titleKey: "settings_misc.settings_index.items.career-site.title",
           icon: Globe,
           path: "/settings/career-site",
-          subtitle: "Публичная страница вакансий",
+          subtitleKey: "settings_misc.settings_index.items.career-site.subtitle",
           keywords: [
             "карьерный",
             "сайт",
@@ -113,10 +120,11 @@ export const settingsSections: SettingsSection[] = [
         },
         {
           id: "task-directories",
-          title: "Справочники задач",
+
+          titleKey: "settings_misc.settings_index.items.task-directories.title",
           icon: ListChecks,
           path: "/settings/task-directories",
-          subtitle: "Статусы, приоритеты, типы и теги",
+          subtitleKey: "settings_misc.settings_index.items.task-directories.subtitle",
           keywords: [
             "задачи",
             "статусы",
@@ -132,10 +140,11 @@ export const settingsSections: SettingsSection[] = [
         },
         {
           id: "custom-fields",
-          title: "Динамические поля",
+
+          titleKey: "settings_misc.settings_index.items.custom-fields.title",
           icon: Braces,
           path: "/settings/custom-fields",
-          subtitle: "Свои поля для таблиц и форм",
+          subtitleKey: "settings_misc.settings_index.items.custom-fields.subtitle",
           keywords: [
             "динамические",
             "поля",
@@ -152,75 +161,84 @@ export const settingsSections: SettingsSection[] = [
   },
   {
     id: "organization",
-    title: "Организация",
+    titleKey: "settings_misc.settings_index.sections.organization",
     columns: [
       [
         {
           id: "home",
-          title: "Главная",
+
+          titleKey: "settings_misc.settings_index.items.home.title",
           icon: Home,
           path: "/settings/home",
-          subtitle: "Общие настройки организации",
+          subtitleKey: "settings_misc.settings_index.items.home.subtitle",
         },
         {
           id: "branches",
-          title: "Филиалы",
+
+          titleKey: "settings_misc.settings_index.items.branches.title",
           icon: MapPin,
           path: "/settings/branches",
-          subtitle: "Места, где отмечаются сотрудники",
+          subtitleKey: "settings_misc.settings_index.items.branches.subtitle",
         },
         {
           id: "departments",
-          title: "Департаменты",
+
+          titleKey: "settings_misc.settings_index.items.departments.title",
           icon: Building2,
           path: "/settings/departments",
-          subtitle: "Структура компании",
+          subtitleKey: "settings_misc.settings_index.items.departments.subtitle",
         },
       ],
       [
         {
           id: "positions",
-          title: "Должности",
+
+          titleKey: "settings_misc.settings_index.items.positions.title",
           icon: BriefcaseBusiness,
           path: "/settings/positions",
-          subtitle: "Справочник ролей",
+          subtitleKey: "settings_misc.settings_index.items.positions.subtitle",
         },
         {
           id: "regions",
-          title: "Регионы",
+
+          titleKey: "settings_misc.settings_index.items.regions.title",
           icon: Globe,
           path: "/settings/regions",
-          subtitle: "Часы, праздники и язык места",
+          subtitleKey: "settings_misc.settings_index.items.regions.subtitle",
         },
         {
           id: "employment-types",
-          title: "Виды занятости",
+
+          titleKey: "settings_misc.settings_index.items.employment-types.title",
           icon: Briefcase,
           path: "/settings/employment-types",
-          subtitle: "Форматы работы",
+          subtitleKey: "settings_misc.settings_index.items.employment-types.subtitle",
         },
       ],
       [
         {
           id: "skills",
-          title: "Навыки",
+
+          titleKey: "settings_misc.settings_index.items.skills.title",
           icon: ClipboardList,
           path: "/settings/skills",
-          subtitle: "Матрица компетенций",
+          subtitleKey: "settings_misc.settings_index.items.skills.subtitle",
         },
         {
           id: "experience-level",
-          title: "Уровен опыта",
+
+          titleKey: "settings_misc.settings_index.items.experience-level.title",
           icon: ListOrdered,
           path: "/settings/experience-levels",
-          subtitle: "Грейды и уровни",
+          subtitleKey: "settings_misc.settings_index.items.experience-level.subtitle",
         },
         {
           id: "grade-salaries",
-          title: "Зарплаты по грейдам",
+
+          titleKey: "settings_misc.settings_index.items.grade-salaries.title",
           icon: Wallet,
           path: "/settings/grade-salaries",
-          subtitle: "Вилки окладов по ступеням",
+          subtitleKey: "settings_misc.settings_index.items.grade-salaries.subtitle",
           keywords: [
             "зарплата",
             "оклад",
@@ -234,45 +252,49 @@ export const settingsSections: SettingsSection[] = [
         },
         {
           id: "property-categories",
-          title: "Категории имушества",
+
+          titleKey: "settings_misc.settings_index.items.property-categories.title",
           icon: LaptopMinimal,
           path: "/settings/property-categories",
-          subtitle: "Активы и инвентарь",
+          subtitleKey: "settings_misc.settings_index.items.property-categories.subtitle",
         },
       ],
     ],
   },
   {
     id: "recruiting",
-    title: "Рекрутинг",
+    titleKey: "settings_misc.settings_index.sections.recruiting",
     columns: [
       [
         {
           id: "stage-templates",
-          title: "Шаблоны этапов",
+
+          titleKey: "settings_misc.settings_index.items.stage-templates.title",
           icon: ListChecks,
           path: "/settings/stage-templates",
-          subtitle: "Этапы найма",
+          subtitleKey: "settings_misc.settings_index.items.stage-templates.subtitle",
           keywords: ["шаблоны", "этапы", "рекрутинг", "найм"],
         },
       ],
       [
         {
           id: "rejection-reasons",
-          title: "Причины отказа",
+
+          titleKey: "settings_misc.settings_index.items.rejection-reasons.title",
           icon: UserX,
           path: "/settings/rejection-reasons",
-          subtitle: "Причины отказа кандидатам",
+          subtitleKey: "settings_misc.settings_index.items.rejection-reasons.subtitle",
           keywords: ["причины", "отказ", "кандидат", "рекрутинг", "воронка"],
         },
       ],
       [
         {
           id: "candidate-sources",
-          title: "Источники кандидатов",
+
+          titleKey: "settings_misc.settings_index.items.candidate-sources.title",
           icon: Share2,
           path: "/settings/candidate-sources",
-          subtitle: "Каналы привлечения кандидатов",
+          subtitleKey: "settings_misc.settings_index.items.candidate-sources.subtitle",
           keywords: ["источники", "каналы", "кандидат", "рекрутинг", "hh"],
         },
       ],
@@ -280,60 +302,65 @@ export const settingsSections: SettingsSection[] = [
   },
   {
     id: "attendance",
-    title: "Посешаемость",
+    titleKey: "settings_misc.settings_index.sections.attendance",
     columns: [
       [
         {
           id: "holiday-policies",
-          title: "Политика праздников",
+
+          titleKey: "settings_misc.settings_index.items.holiday-policies.title",
           icon: CalendarCheck,
           path: "/settings/holiday-policies",
-          subtitle: "Праздничные правила",
+          subtitleKey: "settings_misc.settings_index.items.holiday-policies.subtitle",
         },
       ],
       [
         {
           id: "absence-policies",
-          title: "Политики отсутствий",
+
+          titleKey: "settings_misc.settings_index.items.absence-policies.title",
           icon: CalendarDays,
           path: "/settings/absence-policies",
-          subtitle: "Отпуска и больничные",
+          subtitleKey: "settings_misc.settings_index.items.absence-policies.subtitle",
         },
       ],
       [
         {
           id: "work-schedules",
-          title: "График работы",
+
+          titleKey: "settings_misc.settings_index.items.work-schedules.title",
           icon: ListOrdered,
           path: "/settings/work-schedules",
           // Не «смены»: здесь недельные шаблоны, а смены на конкретные даты
           // живут на отдельном экране /shifts.
-          subtitle: "Недельные шаблоны",
+          subtitleKey: "settings_misc.settings_index.items.work-schedules.subtitle",
         },
       ],
     ],
   },
   {
     id: "integrations",
-    title: "Интеграции",
+    titleKey: "settings_misc.settings_index.sections.integrations",
     columns: [
       [
         {
           id: "hickvision",
-          title: "Hickvision",
+
+          titleKey: "settings_misc.settings_index.items.hickvision.title",
           icon: Link2,
           path: "/settings/integrations/hickvision",
-          subtitle: "Пользователи и записи",
+          subtitleKey: "settings_misc.settings_index.items.hickvision.subtitle",
           keywords: ["hikvision", "hickvision", "integration", "attendance"],
         },
       ],
       [
         {
           id: "timedoctor",
-          title: "Time Doctor",
+
+          titleKey: "settings_misc.settings_index.items.timedoctor.title",
           icon: Link2,
           path: "/settings/integrations/timedoctor",
-          subtitle: "Подключение учёта времени",
+          subtitleKey: "settings_misc.settings_index.items.timedoctor.subtitle",
           keywords: ["time doctor", "timedoctor", "td2", "integration", "productivity", "учет времени"],
         },
       ],
@@ -342,39 +369,43 @@ export const settingsSections: SettingsSection[] = [
   },
   {
     id: "employment-salary",
-    title: "Труодустройства и Зарплата",
+    titleKey: "settings_misc.settings_index.sections.employment_salary",
     columns: [
       [
         {
           id: "probation-policies",
-          title: "Политика испитателного срока",
+
+          titleKey: "settings_misc.settings_index.items.probation-policies.title",
           icon: UserRoundCheck,
           path: "/settings/probation-policies",
-          subtitle: "Правила адаптации",
+          subtitleKey: "settings_misc.settings_index.items.probation-policies.subtitle",
         },
         {
           id: "documents",
-          title: "Документы",
+
+          titleKey: "settings_misc.settings_index.items.documents.title",
           icon: FolderOpen,
           path: "/settings/documents",
-          subtitle: "Кадровые документы",
+          subtitleKey: "settings_misc.settings_index.items.documents.subtitle",
         },
       ],
       [
         {
           id: "salary-types",
-          title: "Виды заработной платы",
+
+          titleKey: "settings_misc.settings_index.items.salary-types.title",
           icon: WalletCards,
           path: "/settings/compensation",
-          subtitle: "Компенсация",
+          subtitleKey: "settings_misc.settings_index.items.salary-types.subtitle",
           keywords: ["компенсация", "зарплата"],
         },
         {
           id: "attendance-penalties",
-          title: "Штрафы",
+
+          titleKey: "settings_misc.settings_index.items.attendance-penalties.title",
           icon: CircleDollarSign,
           path: "/settings/attendance-penalties",
-          subtitle: "Опоздания, ранний уход и пропуски",
+          subtitleKey: "settings_misc.settings_index.items.attendance-penalties.subtitle",
           keywords: [
             "штраф",
             "опоздание",
@@ -388,10 +419,11 @@ export const settingsSections: SettingsSection[] = [
         },
         {
           id: "approvals",
-          title: "Процессы одобрения",
+
+          titleKey: "settings_misc.settings_index.items.approvals.title",
           icon: CheckCheck,
           path: "/settings/approvals",
-          subtitle: "Многоступенчатое одобрение заявок",
+          subtitleKey: "settings_misc.settings_index.items.approvals.subtitle",
           keywords: [
             "одобрение",
             "согласование",
@@ -403,26 +435,29 @@ export const settingsSections: SettingsSection[] = [
         },
         {
           id: "dismissal-types",
-          title: "Типы уволнение",
+
+          titleKey: "settings_misc.settings_index.items.dismissal-types.title",
           icon: UserX,
           path: "/settings/dismissal-types",
-          subtitle: "Виды завершения работы",
+          subtitleKey: "settings_misc.settings_index.items.dismissal-types.subtitle",
         },
       ],
       [
         {
           id: "dismissal-reasons",
-          title: "Причины уволнение",
+
+          titleKey: "settings_misc.settings_index.items.dismissal-reasons.title",
           icon: UserX,
           path: "/settings/dismissal-reasons",
-          subtitle: "Классификатор причин",
+          subtitleKey: "settings_misc.settings_index.items.dismissal-reasons.subtitle",
         },
         {
           id: "employee-work-change-reasons",
-          title: "Причины изменение работы",
+
+          titleKey: "settings_misc.settings_index.items.employee-work-change-reasons.title",
           icon: ClipboardList,
           path: "/settings/employee-work-reasons",
-          subtitle: "Причины для employee works",
+          subtitleKey: "settings_misc.settings_index.items.employee-work-change-reasons.subtitle",
           keywords: ["повышение", "прием на работу", "изменение работы"],
         },
       ],
@@ -431,6 +466,7 @@ export const settingsSections: SettingsSection[] = [
 ];
 
 const SettingsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -448,7 +484,7 @@ const SettingsPage: React.FC = () => {
                 return true;
               }
 
-              const fields = [item.title, ...(item.keywords ?? [])];
+              const fields = [t(item.titleKey), ...(item.keywords ?? [])];
               return fields.some((field) =>
                 field.toLowerCase().includes(normalizedQuery)
               );
@@ -462,11 +498,11 @@ const SettingsPage: React.FC = () => {
         };
       })
       .filter((section) => section.columns.length > 0);
-  }, [normalizedQuery]);
+  }, [normalizedQuery, t]);
 
   return (
     <>
-      <PageMeta title="Настройки | HRMS" description="Список настроек" />
+      <PageMeta title={t("settings_misc.settings_index.page_title")} description={t("settings_misc.settings_index.page_description")} />
 
       <div className="space-y-4">
         <div className="-mx-4 border-b border-gray-200 px-4 py-4 md:-mx-6 md:px-6">
@@ -479,7 +515,7 @@ const SettingsPage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Поиск..."
+              placeholder={t("settings_misc.settings_index.search_placeholder")}
               className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
           </label>
@@ -492,7 +528,7 @@ const SettingsPage: React.FC = () => {
               className="rounded-2xl border border-gray-200 bg-white px-4 py-4 md:px-5 md:py-4"
             >
               <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                {section.title}
+                {t(section.titleKey)}
               </h2>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -508,11 +544,11 @@ const SettingsPage: React.FC = () => {
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold text-gray-900">
-                            {item.title}
+                            {t(item.titleKey)}
                           </span>
-                          {item.subtitle && (
+                          {item.subtitleKey && (
                             <span className="mt-0.5 block truncate text-xs text-gray-500">
-                              {item.subtitle}
+                              {t(item.subtitleKey)}
                             </span>
                           )}
                         </span>

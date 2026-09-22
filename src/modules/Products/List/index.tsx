@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import { useMerchantProductsQuery } from "../../../api/services/contract.service";
 import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
@@ -14,6 +15,7 @@ import {
 } from "../../../components/ui/table";
 
 export default function ProductsList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 10;
@@ -28,14 +30,14 @@ export default function ProductsList() {
 
   const formatAmount = (amount: number) => {
     if (!amount && amount !== 0) return "-";
-    return new Intl.NumberFormat("ru-RU").format(amount) + " сум";
+    return new Intl.NumberFormat("ru-RU").format(amount) + " " + t("common.currency_sum");
   };
 
   return (
     <>
       <PageMeta
-        title="Продукты | HRMS"
-        description="Список продуктов"
+        title={t("products.list_title")}
+        description={t("products.list_description")}
       />
       <div className="space-y-6">
         <div className="flex items-start justify-between mb-4">
@@ -67,16 +69,16 @@ export default function ProductsList() {
                   </Link>
                 </li>
                 <li className="text-sm text-gray-800 dark:text-white/90">
-                  Продукты
+                  {t("products.breadcrumb_products")}
                 </li>
               </ol>
             </nav>
             <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-              Продукты
+              {t("products.breadcrumb_products")}
             </h3>
           </div>
           <Link to="/products/new">
-            <Button size="sm">+ Добавить продукт</Button>
+            <Button size="sm">{t("products.add_plus")}</Button>
           </Link>
         </div>
 
@@ -95,25 +97,25 @@ export default function ProductsList() {
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Изображение
+                    {t("products.image")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Название
+                    {t("products.name")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Категория
+                    {t("products.category")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Мерчант
+                    {t("products.merchant")}
                   </TableCell>
                   <TableCell
                     isHeader
@@ -125,13 +127,13 @@ export default function ProductsList() {
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400"
                   >
-                    Цена
+                    {t("products.price")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
                   >
-                    Ед. изм.
+                    {t("products.unit")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -172,7 +174,7 @@ export default function ProductsList() {
                       colSpan={8}
                       className="px-3 py-2.5 text-center text-gray-500 dark:text-gray-400"
                     >
-                      Нет данных
+                      {t("products.no_data")}
                     </TableCell>
                   </TableRow>
                 ) : (

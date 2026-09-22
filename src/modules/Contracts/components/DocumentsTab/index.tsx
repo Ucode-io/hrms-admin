@@ -3,6 +3,7 @@ import { useDocumentsQuery } from "../../../../api/services/document.service";
 import Spinner from "../../../../components/ui/Spinner";
 import { Modal } from "../../../../components/ui/modal";
 import { Eye, Download, Image, Video, FileText, File, FileSpreadsheet } from "lucide-react";
+import { useTranslation } from "../../../../i18n";
 
 interface DocumentsTabProps {
   contractId: string;
@@ -63,6 +64,7 @@ const getTypeIconBg = (type: string) => {
 };
 
 export default function DocumentsTab({ contractId }: DocumentsTabProps) {
+  const { t } = useTranslation();
   const [previewModal, setPreviewModal] = useState<{ open: boolean; url: string; name: string; type: string }>({
     open: false,
     url: "",
@@ -111,7 +113,7 @@ export default function DocumentsTab({ contractId }: DocumentsTabProps) {
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
           <File className="w-8 h-8 text-gray-400" />
         </div>
-        <p className="text-gray-500 dark:text-gray-400">Нет прикреплённых документов</p>
+        <p className="text-gray-500 dark:text-gray-400">{t("contracts.documents_tab.empty")}</p>
       </div>
     );
   }
@@ -152,14 +154,14 @@ export default function DocumentsTab({ contractId }: DocumentsTabProps) {
                       handlePreview(doc);
                     }}
                     className="bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    title="Открыть"
+                    title={t("contracts.documents_tab.open")}
                   >
                     <Eye className="w-5 h-5 text-gray-800 dark:text-white/90" />
                   </button>
                   <button
                     onClick={(e) => handleDownload(e, doc.file, doc.name)}
                     className="bg-brand-500 hover:bg-brand-600 p-3 rounded-full shadow-lg transition-colors"
-                    title="Скачать"
+                    title={t("contracts.documents_tab.download")}
                   >
                     <Download className="w-5 h-5 text-white" />
                   </button>

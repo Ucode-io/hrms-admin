@@ -13,6 +13,8 @@ import {
   type RecruitingFunnelTableStage,
   useRecruitingFunnelReportQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 const PIE_COLORS = [
   "#74A8C9",
@@ -27,23 +29,25 @@ const PIE_COLORS = [
   "#F97316",
 ];
 
-// Known rejection-reason keys → human Russian labels.
-const REASON_LABELS: Record<string, string> = {
-  experience_mismatch: "Недостаточный опыт",
-  skills_mismatch: "Несоответствие навыков",
-  salary_expectations: "Зарплатные ожидания",
-  culture_fit: "Не подходит по культуре",
-  location: "Локация",
-  no_show: "Не пришёл",
-  candidate_declined: "Самоотказ",
-  position_closed: "Вакансия закрыта",
-  other: "Другое",
+// Known rejection-reason keys → message keys; anything else is humanized from the raw key.
+const REASON_KEYS: Record<string, MessageKey> = {
+  experience_mismatch: "reports.recruiting_funnel.reason_experience_mismatch",
+  skills_mismatch: "reports.recruiting_funnel.reason_skills_mismatch",
+  salary_expectations: "reports.recruiting_funnel.reason_salary_expectations",
+  culture_fit: "reports.recruiting_funnel.reason_culture_fit",
+  location: "reports.recruiting_funnel.reason_location",
+  no_show: "reports.recruiting_funnel.reason_no_show",
+  candidate_declined: "reports.recruiting_funnel.reason_candidate_declined",
+  position_closed: "reports.recruiting_funnel.reason_position_closed",
+  other: "reports.recruiting_funnel.reason_other",
 };
 
 const humanizeReason = (value: string): string => {
-  if (REASON_LABELS[value]) return REASON_LABELS[value];
+  if (REASON_KEYS[value]) return translate(REASON_KEYS[value]);
   const spaced = value.replace(/[_-]+/g, " ").trim();
-  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : "Не указано";
+  return spaced
+    ? spaced.charAt(0).toUpperCase() + spaced.slice(1)
+    : translate("reports.common.not_specified");
 };
 
 const FALLBACK_SUMMARY: RecruitingFunnelSummary = {
@@ -57,7 +61,7 @@ const FALLBACK_SUMMARY: RecruitingFunnelSummary = {
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const formatPercent = (value: number | null | undefined): string => {
@@ -109,7 +113,7 @@ function FunnelChart({ steps }: { steps: RecruitingFunnelStep[] }) {
       viewBox={`0 0 ${viewWidth} ${totalHeight}`}
       width="100%"
       role="img"
-      aria-label="Воронка найма"
+      aria-label={translate("reports.recruiting_funnel.hiring_funnel_heading")}
       style={{ height: "auto" }}
     >
       {steps.map((step, index) => {
@@ -160,7 +164,9 @@ function FunnelChart({ steps }: { steps: RecruitingFunnelStep[] }) {
               {truncate(step.label)}
             </text>
             <text x={labelX + 12} y={cy + 13} fontSize="12" fill="#64748b">
-              {`${step.count} канд. · ${formatPercent(step.percentage)}`}
+              {`${step.count} ${translate("reports.common.candidates_short")} · ${formatPercent(
+                step.percentage
+              )}`}
             </text>
           </g>
         );
@@ -170,6 +176,7 @@ function FunnelChart({ steps }: { steps: RecruitingFunnelStep[] }) {
 }
 
 function RecruitingFunnelPage() {
+  const { t } = useTranslation();
   const [cycleId, setCycleId] = useState<string | null>(null);
 
   const requestData = useMemo(
@@ -220,16 +227,21 @@ function RecruitingFunnelPage() {
       dataLabels: { enabled: false },
       stroke: { width: 0 },
       tooltip: {
-        y: { formatter: (value: number) => `${value} канд.` },
+        y: {
+          formatter: (value: number) => `${value} ${t("reports.common.candidates_short")}`,
+        },
       },
     }),
-    [rejectionReasons]
+    [rejectionReasons, t]
   );
 
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Воронка цикла вакансии | HRMS" description="Отчет о воронке кандидатов" />
+        <PageMeta
+          title={t("reports.recruiting_funnel.page_title")}
+          description={t("reports.recruiting_funnel.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -240,7 +252,10 @@ function RecruitingFunnelPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Воронка цикла вакансии | HRMS" description="Отчет о воронке кандидатов" />
+        <PageMeta
+          title={t("reports.recruiting_funnel.page_title")}
+          description={t("reports.recruiting_funnel.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -250,7 +265,7 @@ function RecruitingFunnelPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -262,7 +277,10 @@ function RecruitingFunnelPage() {
 
   return (
     <>
-      <PageMeta title="Воронка цикла вакансии | HRMS" description="Отчет о воронке кандидатов" />
+      <PageMeta
+        title={t("reports.recruiting_funnel.page_title")}
+        description={t("reports.recruiting_funnel.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
@@ -270,7 +288,7 @@ function RecruitingFunnelPage() {
             {/* Cycle (stage template) selector */}
             <div className="w-full md:max-w-sm">
               <label className="mb-1.5 block text-xs font-medium text-gray-500">
-                Цикл вакансии
+                {t("reports.recruiting_funnel.cycle_label")}
               </label>
               <div className="relative">
                 <select
@@ -280,7 +298,7 @@ function RecruitingFunnelPage() {
                   className="h-10 w-full appearance-none rounded-xl border border-gray-200 bg-white pl-3 pr-9 text-sm font-medium text-gray-700 outline-none transition focus:border-brand-300 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                 >
                   {cycles.length === 0 ? (
-                    <option value="">Нет доступных циклов</option>
+                    <option value="">{t("reports.recruiting_funnel.no_cycles")}</option>
                   ) : (
                     cycles.map((cycle) => (
                       <option key={cycle.value} value={cycle.value}>
@@ -300,30 +318,43 @@ function RecruitingFunnelPage() {
             <section className="grid gap-4 xl:grid-cols-12">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4 xl:col-span-8">
                 <div className="mb-3">
-                  <h3 className="text-lg font-semibold text-gray-900">Воронка найма</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {t("reports.recruiting_funnel.hiring_funnel_heading")}
+                  </h3>
                 </div>
                 {hasFunnel ? (
                   <FunnelChart steps={funnel} />
                 ) : (
                   <div className="flex h-[320px] items-center justify-center text-sm text-gray-500">
-                    Нет данных для воронки
+                    {t("reports.recruiting_funnel.no_funnel_data")}
                   </div>
                 )}
               </article>
 
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:col-span-4 xl:grid-cols-1">
-                <MetricCard title="Всего кандидатов" value={`${summary.total_candidates}`} />
-                <MetricCard title="В работе" value={`${summary.active}`} />
-                <MetricCard title="Нанято" value={`${summary.hired}`} />
-                <MetricCard title="Отклонено" value={`${summary.rejected}`} />
-                <MetricCard title="Конверсия в оффер" value={formatPercent(summary.conversion_rate)} />
+                <MetricCard
+                  title={t("reports.recruiting_funnel.card_total_candidates")}
+                  value={`${summary.total_candidates}`}
+                />
+                <MetricCard title={t("reports.recruiting_funnel.card_active")} value={`${summary.active}`} />
+                <MetricCard title={t("reports.recruiting_funnel.card_hired")} value={`${summary.hired}`} />
+                <MetricCard
+                  title={t("reports.recruiting_funnel.card_rejected")}
+                  value={`${summary.rejected}`}
+                />
+                <MetricCard
+                  title={t("reports.recruiting_funnel.card_conversion")}
+                  value={formatPercent(summary.conversion_rate)}
+                />
               </div>
             </section>
 
             {/* Rejection reasons */}
             <section className="grid gap-4 xl:grid-cols-2">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                <h3 className="text-lg font-semibold text-gray-900">Причины отказа</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {t("reports.recruiting_funnel.rejection_reasons_heading")}
+                </h3>
                 <div className="mt-2">
                   {hasRejections ? (
                     <div className="flex justify-center">
@@ -331,7 +362,7 @@ function RecruitingFunnelPage() {
                     </div>
                   ) : (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-                      Нет отклонённых кандидатов
+                      {t("reports.recruiting_funnel.no_rejections")}
                     </div>
                   )}
                 </div>
@@ -343,8 +374,12 @@ function RecruitingFunnelPage() {
         {/* Per-vacancy distribution */}
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           <div className="border-b border-gray-100 px-4 py-3">
-            <h3 className="text-lg font-semibold text-gray-900">Кандидаты по вакансиям</h3>
-            <p className="text-xs text-gray-500">Текущее распределение по этапам</p>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t("reports.recruiting_funnel.by_vacancy_heading")}
+            </h3>
+            <p className="text-xs text-gray-500">
+              {t("reports.recruiting_funnel.by_vacancy_subheading")}
+            </p>
           </div>
 
           <div className="relative overflow-x-auto">
@@ -352,7 +387,7 @@ function RecruitingFunnelPage() {
               <thead>
                 <tr className="bg-gray-50">
                   <th className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700">
-                    Вакансия
+                    {t("reports.recruiting_funnel.col_vacancy")}
                   </th>
                   {tableStages.map((stage) => (
                     <th
@@ -371,7 +406,7 @@ function RecruitingFunnelPage() {
                       colSpan={tableStages.length + 1}
                       className="px-4 py-6 text-center text-sm text-gray-500"
                     >
-                      Нет вакансий в этом цикле
+                      {t("reports.recruiting_funnel.no_vacancies")}
                     </td>
                   </tr>
                 ) : (
@@ -401,7 +436,7 @@ function RecruitingFunnelPage() {
                 <tfoot>
                   <tr className="bg-gray-50">
                     <td className="border-t border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-800">
-                      Общее
+                      {t("reports.recruiting_funnel.total_row")}
                     </td>
                     {tableStages.map((stage) => (
                       <td
@@ -419,7 +454,7 @@ function RecruitingFunnelPage() {
         </section>
 
         {isFetching ? (
-          <p className="text-right text-xs text-gray-400">Обновление данных...</p>
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
         ) : null}
       </div>
     </>

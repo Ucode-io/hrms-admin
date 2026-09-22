@@ -42,10 +42,12 @@ import AddRowLine from "./components/AddRowLine";
 import ColumnHead from "./components/ColumnHead";
 import MatrixRowLine from "./components/MatrixRowLine";
 import type { CellDraft } from "./types";
+import { useTranslation } from "../../../i18n";
 
 type PendingDelete = { kind: "column" | "row"; id: string; title: string; note: string };
 
 export default function GradeMatrixSettingsPage() {
+  const { t } = useTranslation();
   const { data, isLoading, isError, error } = useGradeMatrixQuery();
 
   const saveColumn = useSaveMatrixColumn();
@@ -100,7 +102,7 @@ export default function GradeMatrixSettingsPage() {
   };
 
   const handleCellSave = (rowId: string, value: Omit<CellDraft, "rowId">) =>
-    saveCell.mutate({ rowId, ...value }, { onError: notifyError("Не удалось сохранить ячейку.") });
+    saveCell.mutate({ rowId, ...value }, { onError: notifyError(t("settings_grade_matrix.errors.save_cell")) });
 
   const handleColumnDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -113,7 +115,7 @@ export default function GradeMatrixSettingsPage() {
 
     reorder.mutate(
       { target: "columns", ids: arrayMove(ids, from, to) },
-      { onError: notifyError("Не удалось сохранить порядок ступеней.") }
+      { onError: notifyError(t("settings_grade_matrix.errors.reorder_columns")) }
     );
   };
 
@@ -122,7 +124,7 @@ export default function GradeMatrixSettingsPage() {
     if (!over || active.id === over.id) return;
 
     if (search.trim()) {
-      toast.error("Очистите поиск, чтобы менять порядок строк.");
+      toast.error(t("settings_grade_matrix.errors.clear_search_to_reorder"));
       return;
     }
 
@@ -133,7 +135,7 @@ export default function GradeMatrixSettingsPage() {
     // Перенос должности в другой отдел — не перетаскивание, а смена родителя:
     // молча делать её из drag'n'drop нельзя.
     if (activeRow.type === "position" && activeRow.departmentId !== overRow.departmentId) {
-      toast.error("Должность можно двигать только внутри своего отдела.");
+      toast.error(t("settings_grade_matrix.errors.move_within_department"));
       return;
     }
 
@@ -149,13 +151,13 @@ export default function GradeMatrixSettingsPage() {
 
     reorder.mutate(
       { target: "rows", ids: arrayMove(ids, from, to) },
-      { onError: notifyError("Не удалось сохранить порядок строк.") }
+      { onError: notifyError(t("settings_grade_matrix.errors.reorder_rows")) }
     );
   };
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
-    const options = { onError: notifyError("Не удалось удалить.") };
+    const options = { onError: notifyError(t("settings_grade_matrix.errors.delete")) };
     if (pendingDelete.kind === "column") deleteColumn.mutate(pendingDelete.id, options);
     else deleteRow.mutate(pendingDelete.id, options);
     setPendingDelete(null);
@@ -172,7 +174,7 @@ export default function GradeMatrixSettingsPage() {
   if (isError) {
     return (
       <div className="rounded-2xl border border-error-200 bg-error-50 px-5 py-8 text-center text-sm text-error-600">
-        {error instanceof Error ? error.message : "Не удалось загрузить матрицу грейдов."}
+        {error instanceof Error ? error.message : t("settings_grade_matrix.errors.load_matrix")}
       </div>
     );
   }
@@ -180,27 +182,26 @@ export default function GradeMatrixSettingsPage() {
   const addColumn = () =>
     saveColumn.mutate(
       { minMonths: null, maxSalary: null },
-      { onError: notifyError("Не удалось добавить ступень.") }
+      { onError: notifyError(t("settings_grade_matrix.errors.add_column")) }
     );
 
   return (
     <div className="w-full space-y-4">
       <PageMeta
-        title="Зарплаты по грейдам | Настройки"
-        description="Матрица грейдов: ступени, отделы и должности"
+        title={t("settings_grade_matrix.page.meta_title")}
+        description={t("settings_grade_matrix.page.meta_description")}
       />
 
       {/* ── Заголовок ───────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Зарплаты по грейдам</h1>
+          <h1 className="text-xl font-bold text-gray-900">{t("settings_grade_matrix.page.title")}</h1>
           <p className="mt-1 max-w-3xl text-sm text-gray-500">
-            Столбец — ступень роста: стаж и потолок оклада. Строка — отдел или должность.
-            В ячейке — грейд из{" "}
+            {t("settings_grade_matrix.page.intro_before_link")}{" "}
             <Link to="/settings/experience-levels" className="text-brand-500 hover:underline">
-              уровней опыта
+              {t("settings_grade_matrix.page.intro_link_label")}
             </Link>{" "}
-            или переход на другую должность.
+            {t("settings_grade_matrix.page.intro_after_link")}
           </p>
         </div>
 
@@ -210,7 +211,7 @@ export default function GradeMatrixSettingsPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Отдел или должность..."
+              placeholder={t("settings_grade_matrix.page.search_placeholder")}
               className="h-9 w-full rounded-lg border border-gray-300 pl-9 pr-3 text-sm text-gray-800 outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
             />
           </div>
@@ -221,7 +222,7 @@ export default function GradeMatrixSettingsPage() {
             className="h-9 shrink-0 px-3 py-0 text-sm"
           >
             <Plus size={15} />
-            Ступень
+            {t("settings_grade_matrix.page.add_column_button")}
           </Button>
         </div>
       </div>
@@ -230,7 +231,7 @@ export default function GradeMatrixSettingsPage() {
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            Таблицы матрицы ещё не заведены в u-code — заполнять матрицу пока нельзя.
+            {t("settings_grade_matrix.page.not_configured_notice")}
           </span>
         </div>
       )}
@@ -244,7 +245,7 @@ export default function GradeMatrixSettingsPage() {
               <div
                 className={`flex items-end px-4 pb-2.5 pt-3 text-[11px] font-medium uppercase tracking-wide text-gray-400 ${TITLE_CELL} ${STICKY_TITLE} bg-white`}
               >
-                Отдел / должность
+                {t("settings_grade_matrix.page.column_header_label")}
               </div>
 
               <DndContext
@@ -265,15 +266,15 @@ export default function GradeMatrixSettingsPage() {
                       onSave={(minMonths, maxSalary) =>
                         saveColumn.mutate(
                           { guid: column.id, minMonths, maxSalary },
-                          { onError: notifyError("Не удалось сохранить ступень.") }
+                          { onError: notifyError(t("settings_grade_matrix.errors.save_column")) }
                         )
                       }
                       onDelete={() =>
                         setPendingDelete({
                           kind: "column",
                           id: column.id,
-                          title: `Ступень ${stepNumber(index)}`,
-                          note: "Грейды, проставленные в этой ступени, будут удалены.",
+                          title: t("settings_grade_matrix.page.step_title", { number: stepNumber(index) }),
+                          note: t("settings_grade_matrix.page.delete_column_note"),
                         })
                       }
                     />
@@ -306,7 +307,7 @@ export default function GradeMatrixSettingsPage() {
                           kind: "row",
                           id: group.department.id,
                           title: group.department.title,
-                          note: "Вместе с отделом из матрицы уйдут его должности и все их грейды.",
+                          note: t("settings_grade_matrix.page.delete_department_note"),
                         })
                       }
                     />
@@ -325,7 +326,7 @@ export default function GradeMatrixSettingsPage() {
                             kind: "row",
                             id: row.id,
                             title: row.title,
-                            note: "Грейды этой должности будут удалены.",
+                            note: t("settings_grade_matrix.page.delete_position_note"),
                           })
                         }
                       />
@@ -333,10 +334,10 @@ export default function GradeMatrixSettingsPage() {
 
                     {!search.trim() && group.department.departmentId && (
                       <AddRowLine
-                        label="Должность"
+                        label={t("settings_grade_matrix.page.add_position_label")}
                         indented
                         options={freePositions}
-                        emptyText="Все должности уже в матрице"
+                        emptyText={t("settings_grade_matrix.page.all_positions_used")}
                         disabled={isPendingId(group.department.id)}
                         onPick={(positionId) =>
                           saveRow.mutate(
@@ -345,7 +346,7 @@ export default function GradeMatrixSettingsPage() {
                               departmentId: group.department.departmentId as string,
                               positionId,
                             },
-                            { onError: notifyError("Не удалось добавить должность.") }
+                            { onError: notifyError(t("settings_grade_matrix.errors.add_position")) }
                           )
                         }
                       />
@@ -357,7 +358,7 @@ export default function GradeMatrixSettingsPage() {
 
             {groups.length === 0 && search.trim() && (
               <div className="border-t border-gray-100 py-10 text-center text-sm text-gray-500">
-                Ничего не найдено
+                {t("settings_grade_matrix.page.nothing_found")}
               </div>
             )}
 
@@ -365,21 +366,21 @@ export default function GradeMatrixSettingsPage() {
               <div className="border-t border-gray-100 py-12 text-center">
                 <LayoutGrid className="mx-auto mb-3 h-7 w-7 text-gray-300" />
                 <p className="text-sm text-gray-500">
-                  Матрица пустая — добавьте отдел, а потом должности внутри него
+                  {t("settings_grade_matrix.page.empty_matrix")}
                 </p>
               </div>
             )}
 
             {!search.trim() && (
               <AddRowLine
-                label="Отдел"
+                label={t("settings_grade_matrix.page.add_department_label")}
                 options={freeDepartments}
-                emptyText="Все отделы уже в матрице"
+                emptyText={t("settings_grade_matrix.page.all_departments_used")}
                 disabled={!isConfigured}
                 onPick={(departmentId) =>
                   saveRow.mutate(
                     { rowType: "department", departmentId },
-                    { onError: notifyError("Не удалось добавить отдел.") }
+                    { onError: notifyError(t("settings_grade_matrix.errors.add_department")) }
                   )
                 }
               />
@@ -389,8 +390,7 @@ export default function GradeMatrixSettingsPage() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Изменения сохраняются сразу. Порядок меняется перетаскиванием: ступени — за номер
-        в шапке, строки — за ручку слева.
+        {t("settings_grade_matrix.page.footer_hint")}
       </p>
 
       {/* ── Подтверждение удаления ──────────────────────────────────────── */}
@@ -402,10 +402,10 @@ export default function GradeMatrixSettingsPage() {
       >
         <div className="px-5 py-4">
           <h3 className="text-lg font-semibold text-gray-900">
-            Убрать «{pendingDelete?.title}» из матрицы?
+            {t("settings_grade_matrix.page.delete_confirm_title", { title: pendingDelete?.title ?? "" })}
           </h3>
           <p className="mt-2 text-sm text-gray-500">
-            {pendingDelete?.note} Сам справочник не меняется.
+            {pendingDelete?.note} {t("settings_grade_matrix.page.delete_confirm_note_suffix")}
           </p>
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-3">
@@ -414,13 +414,13 @@ export default function GradeMatrixSettingsPage() {
             onClick={() => setPendingDelete(null)}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_grade_matrix.page.cancel_button")}
           </Button>
           <Button
             onClick={confirmDelete}
             className="min-w-[110px] bg-error-500 px-3 py-2 text-sm hover:bg-error-600"
           >
-            Удалить
+            {t("settings_grade_matrix.page.delete_button")}
           </Button>
         </div>
       </Modal>

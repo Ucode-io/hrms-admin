@@ -2,6 +2,8 @@
 // stored in the `approval_processes` collection (items API) — see
 // api/services/approval.service.ts. This file is the shared type source.
 
+import { type MessageKey } from "../../../i18n/messages";
+
 export type ApprovalProcessType =
   | "absence_approval"
   | "attendance_change_approval"
@@ -30,15 +32,20 @@ export interface ApprovalProcess {
   stages: ApprovalStage[];
 }
 
-export const PROCESS_TYPES: { value: ApprovalProcessType; label: string }[] = [
-  { value: "absence_approval", label: "Одобрение отсутствия" },
-  { value: "attendance_change_approval", label: "Одобрение изменения по посещаемости" },
-  { value: "manual_time_approval", label: "Одобрение ручного времени в табеле" },
-  { value: "employee_work_approval", label: "Одобрение изменений в работе" },
-];
+export const PROCESS_TYPES = [
+  { value: "absence_approval", labelKey: "settings_approvals.process_types.absence_approval" },
+  { value: "attendance_change_approval", labelKey: "settings_approvals.process_types.attendance_change_approval" },
+  { value: "manual_time_approval", labelKey: "settings_approvals.process_types.manual_time_approval" },
+  { value: "employee_work_approval", labelKey: "settings_approvals.process_types.employee_work_approval" },
+] as const satisfies ReadonlyArray<{ value: ApprovalProcessType; labelKey: MessageKey }>;
 
-export const getProcessTypeLabel = (type: ApprovalProcessType): string =>
-  PROCESS_TYPES.find((item) => item.value === type)?.label || type;
+export const getProcessTypeLabel = (
+  type: ApprovalProcessType,
+  t: (key: MessageKey) => string,
+): string => {
+  const found = PROCESS_TYPES.find((item) => item.value === type);
+  return found ? t(found.labelKey) : type;
+};
 
 const genId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;

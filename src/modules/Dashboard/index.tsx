@@ -18,6 +18,8 @@ import { observer } from "mobx-react-lite";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { useTranslation } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 import PageMeta from "../../components/common/PageMeta";
 import Spinner from "../../components/ui/Spinner";
 import AbsenceRequestModal, {
@@ -45,31 +47,31 @@ type AgendaDay = {
   isWeekend: boolean;
 };
 
-const WEEKDAY_LABELS_RU = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"] as const;
-const WEEKDAY_SHORT_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-const MONTH_SHORT_RU = [
-  "янв.",
-  "фев.",
-  "мар.",
-  "апр.",
-  "май",
-  "июн.",
-  "июл.",
-  "авг.",
-  "сен.",
-  "окт.",
-  "ноя.",
-  "дек.",
-];
+// Weekday keys indexed by Date#getDay() — Sunday first.
+const WEEKDAY_KEYS = [
+  "tasks.calendar.weekday_sun",
+  "tasks.calendar.weekday_mon",
+  "tasks.calendar.weekday_tue",
+  "tasks.calendar.weekday_wed",
+  "tasks.calendar.weekday_thu",
+  "tasks.calendar.weekday_fri",
+  "tasks.calendar.weekday_sat",
+] as const;
+const MONTH_SHORT_KEYS = Array.from(
+  { length: 12 },
+  (_, index) => `employees.absences.month_short_${index}`,
+) as MessageKey[];
 const FEED_PAGE_SIZE = 4;
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
-const formatFeedDate = (value: string) => {
-  if (!value) return "Без даты";
+type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+const formatFeedDate = (value: string, locale: string, t: Translate) => {
+  if (!value) return t("notifications_news.no_date");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Без даты";
-  return date.toLocaleString("ru-RU", {
+  if (Number.isNaN(date.getTime())) return t("notifications_news.no_date");
+  return date.toLocaleString(locale, {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -105,7 +107,7 @@ const getWeekStartMonday = (value: Date): Date => {
   return base;
 };
 
-const buildAgendaWeek = (baseDate: Date): AgendaDay[] => {
+const buildAgendaWeek = (baseDate: Date, t: Translate): AgendaDay[] => {
   const weekStart = getWeekStartMonday(baseDate);
   return Array.from({ length: 7 }, (_, index) => {
     const current = new Date(weekStart);
@@ -115,7 +117,7 @@ const buildAgendaWeek = (baseDate: Date): AgendaDay[] => {
 
     return {
       id: dateKey,
-      label: WEEKDAY_LABELS_RU[dayOfWeek],
+      label: t(WEEKDAY_KEYS[dayOfWeek]),
       dateKey,
       dateLabel: String(current.getDate()).padStart(2, "0"),
       isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
@@ -123,19 +125,24 @@ const buildAgendaWeek = (baseDate: Date): AgendaDay[] => {
   });
 };
 
-const formatAgendaInfoDate = (value: string, todayIso: string): string => {
+const formatAgendaInfoDate = (
+  value: string,
+  todayIso: string,
+  locale: string,
+  t: Translate,
+): string => {
   const date = parseIsoDate(value);
-  if (!date) return "Без даты";
+  if (!date) return t("notifications_news.no_date");
 
   const formatted = date
-    .toLocaleDateString("ru-RU", {
+    .toLocaleDateString(locale, {
       day: "2-digit",
       month: "short",
       year: "numeric",
     })
     .replace(/\sг\.$/u, "");
 
-  return value === todayIso ? `Сегодня, ${formatted}` : formatted;
+  return value === todayIso ? t("dashboard.agenda.today_date", { date: formatted }) : formatted;
 };
 
 const formatDays = (value: number, fixed = 1): string => {
@@ -157,7 +164,7 @@ const withOpacity = (hexColor: string, alpha: number): string => {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
 
-const getDateBreakdown = (from: string, to: string): AbsenceRequestBreakdownItem[] => {
+const getDateBreakdown = (from: string, to: string, t: Translate): AbsenceRequestBreakdownItem[] => {
   const start = parseIsoDate(from);
   const end = parseIsoDate(to);
   if (!start || !end || start > end) return [];
@@ -171,8 +178,8 @@ const getDateBreakdown = (from: string, to: string): AbsenceRequestBreakdownItem
     list.push({
       iso: toIsoDate(cursor),
       day: String(cursor.getDate()),
-      month: MONTH_SHORT_RU[cursor.getMonth()],
-      weekday: WEEKDAY_SHORT_RU[dayOfWeek],
+      month: t(MONTH_SHORT_KEYS[cursor.getMonth()]),
+      weekday: t(WEEKDAY_KEYS[dayOfWeek]),
       isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
       value: 1,
     });
@@ -192,12 +199,13 @@ const resolveRelationTitle = (value: unknown): string => {
 };
 
 function DashboardPage() {
+  const { t, locale } = useTranslation();
   const user = authStore.user_data || authStore.user;
   const userBaseId = typeof user?.guid === "string" ? user.guid : "";
   const departmentId = typeof user?.departments_id === "string" ? user.departments_id : "";
   const locationId = typeof user?.locations_id === "string" ? user.locations_id : "";
   const employmentTypeId = typeof user?.employment_types_id === "string" ? user.employment_types_id : "";
-  const displayName = user?.first_name || user?.login || "Сотрудник";
+  const displayName = user?.first_name || user?.login || t("dashboard.greeting.fallback_name");
   const avatar =
     (typeof user?.photo === "string" && user.photo.trim()) ||
     (typeof user?.avatar === "string" && user.avatar.trim()) ||
@@ -221,7 +229,7 @@ function DashboardPage() {
     querySettings: { enabled: Boolean(employmentTypeId) },
   });
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
-  const agendaDays = useMemo(() => buildAgendaWeek(new Date()), []);
+  const agendaDays = useMemo(() => buildAgendaWeek(new Date(), t), [t]);
   const [selectedAgendaDate, setSelectedAgendaDate] = useState<string>(todayIso);
 
   const agendaDateFrom = agendaDays[0]?.dateKey || todayIso;
@@ -308,8 +316,8 @@ function DashboardPage() {
   }, [agendaDays, agendaEventsByDate]);
 
   const selectedAgendaInfoDate = useMemo(
-    () => formatAgendaInfoDate(selectedAgendaDate, todayIso),
-    [selectedAgendaDate, todayIso]
+    () => formatAgendaInfoDate(selectedAgendaDate, todayIso, locale, t),
+    [selectedAgendaDate, todayIso, locale, t]
   );
 
   useEffect(() => {
@@ -365,8 +373,8 @@ function DashboardPage() {
   );
 
   const requestBreakdown = useMemo(
-    () => getDateBreakdown(requestDateFrom, requestDateTo),
-    [requestDateFrom, requestDateTo]
+    () => getDateBreakdown(requestDateFrom, requestDateTo, t),
+    [requestDateFrom, requestDateTo, t]
   );
   const requestRequestedDays = requestBreakdown.length;
   const requestAvailableDays = requestAvailableByPolicy.get(requestPolicyId) || 0;
@@ -378,9 +386,13 @@ function DashboardPage() {
   );
 
   const vacationSlideLabel = useMemo(() => {
-    if (vacationSummaries.length === 0) return "0 из 0";
-    return `${vacationSlideIndex + 1} из ${vacationSummaries.length}`;
-  }, [vacationSlideIndex, vacationSummaries.length]);
+    if (vacationSummaries.length === 0)
+      return t("dashboard.vacation.slide_counter", { current: 0, total: 0 });
+    return t("dashboard.vacation.slide_counter", {
+      current: vacationSlideIndex + 1,
+      total: vacationSummaries.length,
+    });
+  }, [t, vacationSlideIndex, vacationSummaries.length]);
 
   const canSlideVacation = vacationSummaries.length > 1;
 
@@ -400,13 +412,13 @@ function DashboardPage() {
 
   const openVacationRequestModal = () => {
     if (!userBaseId) {
-      toast.error("Не найден сотрудник.");
+      toast.error(t("employees.absences.employee_not_found"));
       return;
     }
 
     const fallbackPolicyId = activeVacation?.policyGuid || vacationSummaries[0]?.policyGuid || "";
     if (!fallbackPolicyId) {
-      toast.error("Тип отсутствия не найден.");
+      toast.error(t("labels.absence_type_not_found"));
       return;
     }
 
@@ -437,14 +449,14 @@ function DashboardPage() {
 
     const remainingSlots = MAX_ATTACHMENTS - requestAttachments.length;
     if (remainingSlots <= 0) {
-      toast.error(`Можно добавить максимум ${MAX_ATTACHMENTS} файлов.`);
+      toast.error(t("employees.absences.max_attachments_error", { max: MAX_ATTACHMENTS }));
       return;
     }
 
     const queue = Array.from(files).slice(0, remainingSlots);
     const rejectedBySize = queue.filter((file) => file.size > MAX_FILE_SIZE_BYTES);
     if (rejectedBySize.length > 0) {
-      toast.error("Размер каждого файла должен быть не больше 50MB.");
+      toast.error(t("employees.absences.max_file_size_error"));
     }
 
     const accepted = queue.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
@@ -464,10 +476,10 @@ function DashboardPage() {
       }
 
       setRequestAttachments((prev) => [...prev, ...uploadedItems]);
-      toast.success("Файлы успешно загружены.");
+      toast.success(t("employees.absences.attachments_uploaded"));
     } catch (error) {
       console.error("Failed to upload dashboard absence attachments:", error);
-      toast.error("Не удалось загрузить вложения.");
+      toast.error(t("employees.absences.attachments_upload_failed"));
     } finally {
       setIsUploadingRequestAttachments(false);
     }
@@ -479,27 +491,27 @@ function DashboardPage() {
 
   const submitVacationRequest = async () => {
     if (!userBaseId) {
-      toast.error("Не найден сотрудник.");
+      toast.error(t("employees.absences.employee_not_found"));
       return;
     }
 
     if (!requestPolicyId) {
-      toast.error("Выберите тип отсутствия.");
+      toast.error(t("employees.absences.select_absence_type"));
       return;
     }
 
     if (!requestDateFrom || !requestDateTo) {
-      toast.error("Укажите диапазон дат.");
+      toast.error(t("employees.absences.date_range_required"));
       return;
     }
 
     if (requestDateFrom > requestDateTo) {
-      toast.error("Дата начала не может быть позже даты окончания.");
+      toast.error(t("employees.absences.start_after_end"));
       return;
     }
 
     if (requestRequestedDays <= 0) {
-      toast.error("В запросе должен быть хотя бы один день.");
+      toast.error(t("employees.absences.at_least_one_day"));
       return;
     }
 
@@ -521,11 +533,11 @@ function DashboardPage() {
         status: ["pending"],
       });
 
-      toast.success("Запрос на отсутствие создан.");
+      toast.success(t("employees.absences.request_created"));
       closeVacationRequestModal();
     } catch (error) {
       console.error("Failed to create absence request from dashboard:", error);
-      toast.error("Не удалось создать запрос.");
+      toast.error(t("employees.absences.request_create_failed"));
     }
   };
 
@@ -618,7 +630,7 @@ function DashboardPage() {
 
   return (
     <>
-      <PageMeta title="Главная страница" description="Главная страница" />
+      <PageMeta title={t("breadcrumb.dashboard")} description={t("breadcrumb.dashboard")} />
 
       {/* @container, not viewport breakpoints: the copilot dock shrinks this
           column while the viewport stays wide, and a 12-col split at 690px
@@ -631,7 +643,7 @@ function DashboardPage() {
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
                 <CalendarDays size={17} />
               </span>
-              <h3 className="text-xl font-semibold text-gray-900">Повестка дня</h3>
+              <h3 className="text-xl font-semibold text-gray-900">{t("dashboard.agenda.title")}</h3>
             </div>
 
             <div className="space-y-4 px-5 py-4">
@@ -640,7 +652,11 @@ function DashboardPage() {
                   const isSelected = selectedAgendaDate === day.dateKey;
                   const dayStatus = agendaDayStatusByDate.get(day.dateKey) || null;
                   const dayStatusLabel =
-                    dayStatus === "holiday" ? "Праздник" : dayStatus === "weekend" ? "Выходной" : "";
+                    dayStatus === "holiday"
+                      ? t("settings_holiday_policies.holiday_default_title")
+                      : dayStatus === "weekend"
+                        ? t("reports.timesheet.day_off")
+                        : "";
 
                   return (
                     <button
@@ -676,10 +692,10 @@ function DashboardPage() {
                 </div>
 
                 {isAgendaLoading ? (
-                  <p className="mt-1 text-sm text-gray-500">Загрузка событий...</p>
+                  <p className="mt-1 text-sm text-gray-500">{t("dashboard.agenda.loading_events")}</p>
                 ) : isAgendaError ? (
                   <div className="mt-2 rounded-lg border border-error-200 bg-error-50 p-2">
-                    <p className="text-xs font-medium text-error-700">Не удалось загрузить праздники</p>
+                    <p className="text-xs font-medium text-error-700">{t("dashboard.agenda.holidays_error")}</p>
                     <button
                       type="button"
                       onClick={() => {
@@ -687,11 +703,11 @@ function DashboardPage() {
                       }}
                       className="mt-2 inline-flex h-7 items-center rounded-lg bg-error-600 px-2.5 text-xs font-semibold text-white transition hover:bg-error-700"
                     >
-                      Повторить
+                      {t("common.retry")}
                     </button>
                   </div>
                 ) : selectedAgendaEvents.length === 0 ? (
-                  <p className="mt-1 text-sm text-gray-500">Нет событий</p>
+                  <p className="mt-1 text-sm text-gray-500">{t("dashboard.agenda.no_events")}</p>
                 ) : (
                   <div className="mt-1 space-y-1">
                     {selectedAgendaEvents.map((event) => (
@@ -703,7 +719,7 @@ function DashboardPage() {
                 )}
 
                 {isAgendaFetching && !isAgendaLoading ? (
-                  <p className="mt-2 text-xs text-gray-400">Обновление...</p>
+                  <p className="mt-2 text-xs text-gray-400">{t("reports.common.updating")}</p>
                 ) : null}
               </div>
             </div>
@@ -719,7 +735,7 @@ function DashboardPage() {
                   <Icon icon={activeVacationIcon} width={18} height={18} color={activeVacationColor} />
                 </span>
                 <h3 className="truncate text-xl font-semibold text-gray-900">
-                  {activeVacation?.policyTitle || "Отпуск"}
+                  {activeVacation?.policyTitle || t("dashboard.vacation.fallback_title")}
                 </h3>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -748,7 +764,7 @@ function DashboardPage() {
             <div className="space-y-4 px-5 py-4">
               {isVacationError ? (
                 <div className="rounded-xl border border-error-200 bg-error-50 p-3">
-                  <p className="text-xs font-medium text-error-700">Не удалось загрузить данные по отпуску</p>
+                  <p className="text-xs font-medium text-error-700">{t("dashboard.vacation.load_error")}</p>
                   <button
                     type="button"
                     onClick={() => {
@@ -756,14 +772,14 @@ function DashboardPage() {
                     }}
                     className="mt-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                   >
-                    Повторить
+                    {t("common.retry")}
                   </button>
                 </div>
               ) : (
                 <>
                   <p className="text-3xl font-semibold text-brand-500">
                     {vacationAvailableLabel}{" "}
-                    <span className="text-base font-medium text-gray-600">доступные дни</span>
+                    <span className="text-base font-medium text-gray-600">{t("dashboard.vacation.available_days")}</span>
                   </p>
                 </>
               )}
@@ -772,7 +788,7 @@ function DashboardPage() {
                 onClick={openVacationRequestModal}
                 className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
               >
-                Запросить выходной
+                {t("dashboard.vacation.request_day_off")}
               </button>
               {canSlideVacation ? (
                 <div className="flex items-center justify-center gap-1">
@@ -787,7 +803,7 @@ function DashboardPage() {
                 </div>
               ) : null}
               {isVacationFetching && !isVacationLoading ? (
-                <p className="text-xs text-gray-400">Обновление баланса...</p>
+                <p className="text-xs text-gray-400">{t("dashboard.vacation.updating_balance")}</p>
               ) : null}
             </div>
           </article>
@@ -828,10 +844,10 @@ function DashboardPage() {
                 )}
                 <div className="space-y-1">
                   <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
-                    Добрый день, {String(displayName).toUpperCase()}{" "}
+                    {t("dashboard.greeting.title", { name: String(displayName).toUpperCase() })}{" "}
                     <Sparkles className="mb-1 inline-flex text-amber-400" size={20} />
                   </h1>
-                  <p className="text-sm font-medium text-slate-500">Хорошего и продуктивного дня</p>
+                  <p className="text-sm font-medium text-slate-500">{t("dashboard.greeting.subtitle")}</p>
                 </div>
               </div>
 
@@ -857,15 +873,15 @@ function DashboardPage() {
           <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Лента новостей</h2>
-                <p className="text-xs text-gray-500">Корпоративные объявления и события</p>
+                <h2 className="text-xl font-semibold text-gray-900">{t("dashboard.feed.title")}</h2>
+                <p className="text-xs text-gray-500">{t("dashboard.feed.subtitle")}</p>
               </div>
               <Link
                 to="/settings/news"
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
               >
                 <Plus size={16} />
-                Создать объявление
+                {t("dashboard.feed.create_announcement")}
               </Link>
             </div>
 
@@ -876,7 +892,7 @@ function DashboardPage() {
             ) : isFeedError && !hasFeedItems ? (
               <div className="px-5 py-4">
                 <div className="rounded-xl border border-error-200 bg-error-50 p-3">
-                  <p className="text-sm font-medium text-error-700">Не удалось загрузить ленту новостей</p>
+                  <p className="text-sm font-medium text-error-700">{t("dashboard.feed.load_error")}</p>
                   <button
                     type="button"
                     onClick={() => {
@@ -884,12 +900,12 @@ function DashboardPage() {
                     }}
                     className="mt-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                   >
-                    Повторить
+                    {t("common.retry")}
                   </button>
                 </div>
               </div>
             ) : feedItems.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-gray-500">Пока нет активных новостей</div>
+              <div className="px-5 py-10 text-center text-sm text-gray-500">{t("dashboard.feed.empty")}</div>
             ) : (
               <>
                 <div className="space-y-4 px-5 py-4">
@@ -919,7 +935,7 @@ function DashboardPage() {
 
                         <div className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400">
                           <Calendar size={13} />
-                          {formatFeedDate(item.published_at)}
+                          {formatFeedDate(item.published_at, locale, t)}
                         </div>
                       </div>
                     </article>
@@ -929,7 +945,7 @@ function DashboardPage() {
                 {isFeedError ? (
                   <div className="px-5 pb-4">
                     <div className="rounded-xl border border-error-200 bg-error-50 p-3">
-                      <p className="text-xs font-medium text-error-700">Не удалось подгрузить следующие новости</p>
+                      <p className="text-xs font-medium text-error-700">{t("dashboard.feed.load_more_error")}</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -937,14 +953,14 @@ function DashboardPage() {
                         }}
                         className="mt-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("common.retry")}
                       </button>
                     </div>
                   </div>
                 ) : null}
 
                 {isLoadingMoreFeed ? (
-                  <div className="px-5 pb-4 text-center text-xs font-medium text-gray-400">Загрузка новостей...</div>
+                  <div className="px-5 pb-4 text-center text-xs font-medium text-gray-400">{t("dashboard.feed.loading_more")}</div>
                 ) : null}
 
                 {hasMoreFeed && !isFeedError ? <div ref={loadMoreRef} className="h-1 w-full" /> : null}
@@ -952,7 +968,7 @@ function DashboardPage() {
             )}
 
             {isFeedFetching && !isFeedLoading ? (
-              <div className="border-t border-gray-100 px-5 py-2 text-xs text-gray-400">Обновление ленты...</div>
+              <div className="border-t border-gray-100 px-5 py-2 text-xs text-gray-400">{t("dashboard.feed.updating")}</div>
             ) : null}
           </article>
         </main>
@@ -990,8 +1006,8 @@ function DashboardPage() {
           requestRequestedDays <= 0
         }
         onSubmit={() => void submitVacationRequest()}
-        submitIdleLabel="Создать запрос"
-        submitLoadingLabel="Отправка..."
+        submitIdleLabel={t("employees.absences.create_request")}
+        submitLoadingLabel={t("contracts.client_search.sending")}
       />
     </>
   );

@@ -10,11 +10,13 @@ import {
 } from "../../../components/ui/tabs";
 import Button from "../../../components/ui/button/Button";
 import DocumentCardsTab, { type DocumentsCardItem } from "./components/DocumentCardsTab";
+import { useTranslation } from "../../../i18n";
 
 const DOCUMENT_FOLDERS_SLUG = "document_folders";
 const DOCUMENT_TEMPLATES_SLUG = "document_templates";
 
 export default function DocumentsSettingsPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() =>
     searchParams.get("tab") === "templates" ? "templates" : "folders"
@@ -22,7 +24,10 @@ export default function DocumentsSettingsPage() {
   const [createRequestId, setCreateRequestId] = useState(0);
   const navigate = useNavigate();
 
-  const pageTitle = activeTab === "templates" ? "Шаблоны документов" : "Папки документов";
+  const pageTitle =
+    activeTab === "templates"
+      ? t("settings_documents.index.templates_title")
+      : t("settings_documents.index.folders_title");
 
   const openTemplateDetails = (item: DocumentsCardItem) => {
     navigate(`/settings/documents/templates/${item.guid}`);
@@ -51,14 +56,14 @@ export default function DocumentsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Документы | Настройки" description="Управление папками и шаблонами документов" />
+      <PageMeta title={t("settings_documents.index.page_title")} description={t("settings_documents.index.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900">{pageTitle}</h1>
             <p className="mt-1 text-base font-medium text-gray-500">
-              Управление папками и шаблонами документов
+              {t("settings_documents.index.subtitle")}
             </p>
           </div>
           <Button
@@ -66,14 +71,14 @@ export default function DocumentsSettingsPage() {
             startIcon={<Plus size={16} />}
             onClick={handleAdd}
           >
-            Добавить
+            {t("settings_documents.index.add_button")}
           </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} defaultValue="folders">
           <TabsList className="mb-3">
-            <TabsTrigger value="folders">Папки</TabsTrigger>
-            <TabsTrigger value="templates">Шаблоны</TabsTrigger>
+            <TabsTrigger value="folders">{t("settings_documents.index.folders_tab")}</TabsTrigger>
+            <TabsTrigger value="templates">{t("settings_documents.index.templates_tab")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="folders">
@@ -81,18 +86,18 @@ export default function DocumentsSettingsPage() {
               slug={DOCUMENT_FOLDERS_SLUG}
               createRequestId={createRequestId}
               isActive={activeTab === "folders"}
-              emptyText="Папки документов не найдены"
-              itemTitle="папку"
-              createModalTitle="Новая папка"
-              editModalTitle="Изменить папку"
-              deleteModalTitle="Удалить папку"
-              titleRequiredText="Название папки обязательно."
-              descriptionLabel="Описание"
-              createSuccessText="Папка документов создана."
-              updateSuccessText="Папка документов обновлена."
-              deleteSuccessText="Папка документов удалена."
-              saveErrorText="Не удалось сохранить папку документов."
-              deleteErrorText="Не удалось удалить папку документов."
+              emptyText={t("settings_documents.index.folders_empty")}
+              itemTitle={t("settings_documents.index.folder_item")}
+              createModalTitle={t("settings_documents.index.folder_create_title")}
+              editModalTitle={t("settings_documents.index.folder_edit_title")}
+              deleteModalTitle={t("settings_documents.index.folder_delete_title")}
+              titleRequiredText={t("settings_documents.index.folder_title_required")}
+              descriptionLabel={t("settings_documents.index.description_label")}
+              createSuccessText={t("settings_documents.index.folder_created")}
+              updateSuccessText={t("settings_documents.index.folder_updated")}
+              deleteSuccessText={t("settings_documents.index.folder_deleted")}
+              saveErrorText={t("settings_documents.index.folder_save_error")}
+              deleteErrorText={t("settings_documents.index.folder_delete_error")}
               showCount
             />
           </TabsContent>
@@ -102,20 +107,20 @@ export default function DocumentsSettingsPage() {
               slug={DOCUMENT_TEMPLATES_SLUG}
               createRequestId={createRequestId}
               isActive={activeTab === "templates"}
-              emptyText="Шаблоны документов не найдены"
-              itemTitle="шаблон"
-              createModalTitle="Новый шаблон"
-              editModalTitle="Изменить шаблон"
-              deleteModalTitle="Удалить шаблон"
-              titleRequiredText="Название шаблона обязательно."
-              descriptionLabel="Описание"
-              createSuccessText="Шаблон документа создан."
-              updateSuccessText="Шаблон документа обновлен."
-              deleteSuccessText="Шаблон документа удален."
-              saveErrorText="Не удалось сохранить шаблон документа."
-              deleteErrorText="Не удалось удалить шаблон документа."
+              emptyText={t("settings_documents.index.templates_empty")}
+              itemTitle={t("settings_documents.index.template_item")}
+              createModalTitle={t("settings_documents.index.template_create_title")}
+              editModalTitle={t("settings_documents.index.template_edit_title")}
+              deleteModalTitle={t("settings_documents.index.template_delete_title")}
+              titleRequiredText={t("settings_documents.index.template_title_required")}
+              descriptionLabel={t("settings_documents.index.description_label")}
+              createSuccessText={t("settings_documents.index.template_created")}
+              updateSuccessText={t("settings_documents.index.template_updated")}
+              deleteSuccessText={t("settings_documents.index.template_deleted")}
+              saveErrorText={t("settings_documents.index.template_save_error")}
+              deleteErrorText={t("settings_documents.index.template_delete_error")}
               includeFileField
-              fileRequiredText="DOCX файл обязателен."
+              fileRequiredText={t("settings_documents.index.template_file_required")}
               onCardClick={openTemplateDetails}
               onEditItem={openTemplateEditPage}
             />

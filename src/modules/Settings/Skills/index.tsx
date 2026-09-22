@@ -34,6 +34,7 @@ import {
   useSkillsQuery,
   useUpdateSkill,
 } from "../../../api/services/skill.service";
+import { useTranslation } from "../../../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -45,6 +46,7 @@ const resolveEmployeesCount = (skill: Skill): number => {
 };
 
 export default function SkillsSettingsPage() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -122,7 +124,7 @@ export default function SkillsSettingsPage() {
     const title = skillTitle.trim();
 
     if (!title) {
-      toast.error("Название навыка обязательно.");
+      toast.error(t("settings_misc.skills.title_required"));
       return;
     }
 
@@ -135,16 +137,16 @@ export default function SkillsSettingsPage() {
             title,
           },
         });
-        toast.success("Навык успешно обновлен.");
+        toast.success(t("settings_misc.skills.updated_success"));
       } else {
         await createMutation.mutateAsync({ title });
-        toast.success("Навык успешно создан.");
+        toast.success(t("settings_misc.skills.created_success"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error("Failed to save skill:", error);
-      toast.error("Не удалось сохранить навык. Попробуйте еще раз.");
+      toast.error(t("settings_misc.skills.save_error"));
     }
   };
 
@@ -164,11 +166,11 @@ export default function SkillsSettingsPage() {
 
     try {
       await deleteMutation.mutateAsync(skillToDelete.guid);
-      toast.success("Навык удален.");
+      toast.success(t("settings_misc.skills.deleted_success"));
       closeDeleteModal();
     } catch (error) {
       console.error("Failed to delete skill:", error);
-      toast.error("Не удалось удалить навык.");
+      toast.error(t("settings_misc.skills.delete_error"));
     }
   };
 
@@ -180,22 +182,22 @@ export default function SkillsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Навыки | Настройки" description="Список навыков компании" />
+      <PageMeta title={t("settings_misc.skills.page_title")} description={t("settings_misc.skills.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Навыки</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_misc.skills.heading")}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-11"
               startIcon={<Download size={16} />}
-              onClick={() => toast.info("Экспорт будет доступен позже.")}
+              onClick={() => toast.info(t("settings_misc.skills.export_soon"))}
             >
-              Экспорт
+              {t("settings_misc.skills.export")}
             </Button>
             <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-              Новый
+              {t("settings_misc.skills.new")}
             </Button>
           </div>
         </div>
@@ -211,7 +213,7 @@ export default function SkillsSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_misc.skills.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -222,13 +224,13 @@ export default function SkillsSettingsPage() {
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_misc.skills.col_title")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Сотрудники
+                    {t("settings_misc.skills.col_employees")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_misc.skills.col_actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -251,14 +253,14 @@ export default function SkillsSettingsPage() {
                 ) : skills.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Навыки не найдены
+                      {t("settings_misc.skills.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
                   skills.map((skill) => (
                     <TableRow key={skill.guid} className="hover:bg-gray-50 transition-colors">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(skill.title || "Без названия")}
+                        {String(skill.title || t("settings_misc.skills.untitled"))}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-right text-sm text-gray-700">
                         {resolveEmployeesCount(skill)}
@@ -269,7 +271,7 @@ export default function SkillsSettingsPage() {
                             type="button"
                             onClick={() => toggleActionsMenu(skill.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Открыть действия"
+                            aria-label={t("settings_misc.skills.open_actions")}
                             ref={(el) => {
                               actionButtonRefs.current[skill.guid] = el;
                             }}
@@ -288,13 +290,13 @@ export default function SkillsSettingsPage() {
                               onClick={() => openEditModal(skill)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
-                              Изменить
+                              {t("settings_misc.skills.edit")}
                             </DropdownItem>
                             <DropdownItem
                               onClick={() => openDeleteModal(skill)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
-                              Удалить
+                              {t("settings_misc.skills.delete")}
                             </DropdownItem>
                           </Dropdown>
                         </div>
@@ -309,7 +311,7 @@ export default function SkillsSettingsPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm">
                   <Loader2 size={16} className="animate-spin" />
-                  Загрузка...
+                  {t("settings_misc.skills.loading")}
                 </div>
               </div>
             )}
@@ -333,13 +335,13 @@ export default function SkillsSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingSkill ? "Изменить навык" : "Новый навык"}
+            {editingSkill ? t("settings_misc.skills.modal_edit_title") : t("settings_misc.skills.modal_new_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_misc.skills.close")}
           >
             <X size={18} />
           </button>
@@ -347,13 +349,13 @@ export default function SkillsSettingsPage() {
 
         <div className="space-y-3 px-4 py-4">
           <label htmlFor="skill-title" className="block text-sm font-medium text-gray-700">
-            Название
+            {t("settings_misc.skills.col_title")}
           </label>
           <input
             id="skill-title"
             value={skillTitle}
             onChange={(event) => setSkillTitle(event.target.value)}
-            placeholder="Введите название навыка"
+            placeholder={t("settings_misc.skills.title_placeholder")}
             autoFocus
             className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
@@ -365,10 +367,10 @@ export default function SkillsSettingsPage() {
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_misc.skills.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_misc.skills.saving") : t("settings_misc.skills.save")}
           </Button>
         </div>
       </Modal>
@@ -381,12 +383,12 @@ export default function SkillsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить навык</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_misc.skills.delete_modal_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_misc.skills.close")}
             >
               <X size={16} />
             </button>
@@ -395,12 +397,12 @@ export default function SkillsSettingsPage() {
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Это действие нельзя отменить.
+            {t("settings_misc.skills.delete_warning")}
           </p>
           <p className="text-sm text-gray-700">
             {skillToDelete
-              ? `Вы уверены, что хотите удалить "${String(skillToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить этот навык?"}
+              ? t("settings_misc.skills.delete_confirm_named", { title: String(skillToDelete.title) })
+              : t("settings_misc.skills.delete_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -409,14 +411,14 @@ export default function SkillsSettingsPage() {
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_misc.skills.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_misc.skills.deleting") : t("settings_misc.skills.delete")}
             </Button>
           </div>
         </div>

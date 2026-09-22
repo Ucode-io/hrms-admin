@@ -43,6 +43,7 @@ import {
   useSaveBudgetRow,
 } from "../../api/services/budget.service";
 import type { BudgetDepartment, BudgetEmployeeOption, BudgetMonth, BudgetRow } from "./types";
+import { useTranslation } from "../../i18n";
 
 const CURRENT_YEAR = 2026;
 
@@ -69,6 +70,7 @@ type PendingDelete =
  * только снизу вверх, иначе итог и сумма слагаемых разъезжаются.
  */
 export default function BudgetingPage() {
+  const { t } = useTranslation();
   const [year, setYear] = useState(CURRENT_YEAR);
   const [periodView, setPeriodView] = useState<PeriodView>("month");
   const [columns, setColumns] = useState<VisibleColumns>(readStoredColumns);

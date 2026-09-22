@@ -13,6 +13,7 @@
  * строку, thinking и tool_result выбрасываем целиком, колонку artifacts
  * игнорируем. Понадобятся чарты в readonly-просмотре — тогда и порт replay.ts.
  */
+import { translate } from "../../i18n";
 
 export type ChatMessageRole = "user" | "assistant" | "tool";
 
@@ -91,7 +92,7 @@ export const projectThread = (raw: unknown, idPrefix = ""): ChatMessage[] => {
         messages.push({
           id: `${idPrefix}${index}-t${toolIndex}`,
           role: "tool",
-          text: typeof block.name === "string" ? block.name : "инструмент",
+          text: typeof block.name === "string" ? block.name : translate("chats.tool"),
         });
       });
   });

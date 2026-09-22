@@ -10,6 +10,7 @@ import FormDatePicker from "../../../components/HookFormElements/FormDatePicker"
 import { useCreateClient, useUpdateClient, useClientQuery } from "../../../api/services/client.service";
 import { useMerchantsQuery } from "../../../api/services/merchant.service";
 import Spinner from "../../../components/ui/Spinner";
+import { useTranslation } from "../../../i18n";
 
 interface ClientFormData {
   first_name: string;
@@ -27,6 +28,7 @@ interface ClientFormData {
 }
 
 export default function ClientFormPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = !!id;

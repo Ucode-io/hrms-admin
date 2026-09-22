@@ -68,6 +68,7 @@ import type {
   ShiftsFilters,
   ShiftsScale,
 } from "./types";
+import { useTranslation } from "../../i18n";
 
 const BREADCRUMBS = [{ label: "График работы", to: "/shifts" }];
 
@@ -131,6 +132,7 @@ const groupKeyOfShift = (shift: Shift, groupBy: GroupBy): { key: string; label: 
 };
 
 export default function ShiftsPage() {
+  const { t } = useTranslation();
   useHeaderBreadcrumbItems(BREADCRUMBS);
 
   const [searchParams, setSearchParams] = useSearchParams();

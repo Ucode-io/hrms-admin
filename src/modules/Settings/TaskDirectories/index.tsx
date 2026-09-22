@@ -38,6 +38,8 @@ import type {
   TaskDirectoryKind,
   TaskStatusGroup,
 } from "../../Tasks/types";
+import { useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 /**
  * Справочники модуля «Задачи»: статусы, приоритеты, типы и теги.
@@ -63,47 +65,47 @@ type TabKey = Extract<TaskDirectoryKind, "status" | "priority" | "type" | "tag">
 const TABS: {
   key: TabKey;
   listKey: keyof TaskDirectories;
-  title: string;
-  hint: string;
+  titleKey: MessageKey;
+  hintKey: MessageKey;
   hasIcon: boolean;
-  flag?: { field: "isInitial" | "isDefault"; label: string; hint: string };
+  flag?: { field: "isInitial" | "isDefault"; labelKey: MessageKey; hintKey: MessageKey };
 }[] = [
   {
     key: "status",
     listKey: "statuses",
-    title: "Статусы",
-    hint: "Колонки доски. Группа задаёт, какие даты проставятся задаче при переходе.",
+    titleKey: "settings_misc.task_directories.tab_statuses",
+    hintKey: "settings_misc.task_directories.tab_statuses_hint",
     hasIcon: false,
     flag: {
       field: "isInitial",
-      label: "Стартовый",
-      hint: "В этот статус попадает новая задача. Может быть только один.",
+      labelKey: "settings_misc.task_directories.flag_initial_label",
+      hintKey: "settings_misc.task_directories.flag_initial_hint",
     },
   },
   {
     key: "priority",
     listKey: "priorities",
-    title: "Приоритеты",
-    hint: "Порядок задаёт сортировку «по важности».",
+    titleKey: "settings_misc.task_directories.tab_priorities",
+    hintKey: "settings_misc.task_directories.tab_priorities_hint",
     hasIcon: true,
     flag: {
       field: "isDefault",
-      label: "По умолчанию",
-      hint: "Подставляется новой задаче. Может быть только один.",
+      labelKey: "settings_misc.task_directories.flag_default_label",
+      hintKey: "settings_misc.task_directories.flag_default_hint",
     },
   },
   {
     key: "type",
     listKey: "types",
-    title: "Типы",
-    hint: "Задача, ошибка, доработка…",
+    titleKey: "settings_misc.task_directories.tab_types",
+    hintKey: "settings_misc.task_directories.tab_types_hint",
     hasIcon: true,
   },
   {
     key: "tag",
     listKey: "tags",
-    title: "Теги",
-    hint: "Метки задач с собственным цветом.",
+    titleKey: "settings_misc.task_directories.tab_tags",
+    hintKey: "settings_misc.task_directories.tab_tags_hint",
     hasIcon: false,
   },
 ];
@@ -214,6 +216,7 @@ function SortableDirectoryRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
     id: item.id,
   });
@@ -237,7 +240,7 @@ function SortableDirectoryRow({
         {...attributes}
         {...listeners}
         className="shrink-0 cursor-grab text-gray-300 transition hover:text-gray-500 active:cursor-grabbing"
-        aria-label={`Перетащить «${item.title}»`}
+        aria-label={t("settings_misc.task_directories.drag_aria", { title: item.title })}
       >
         <GripVertical size={14} />
       </button>
@@ -255,12 +258,12 @@ function SortableDirectoryRow({
 
         {item.isInitial && (
           <span className="rounded-md bg-blue-light-50 px-2 py-0.5 text-[11px] font-medium text-blue-light-600">
-            стартовый
+            {t("settings_misc.task_directories.badge_initial")}
           </span>
         )}
         {item.isDefault && (
           <span className="rounded-md bg-blue-light-50 px-2 py-0.5 text-[11px] font-medium text-blue-light-600">
-            по умолчанию
+            {t("settings_misc.task_directories.badge_default")}
           </span>
         )}
       </button>
@@ -269,7 +272,7 @@ function SortableDirectoryRow({
         type="button"
         onClick={onDelete}
         className="shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-error-50 hover:text-error-600"
-        aria-label={`Удалить «${item.title}»`}
+        aria-label={t("settings_misc.task_directories.delete_aria", { title: item.title })}
       >
         <Trash2 size={15} />
       </button>
@@ -278,6 +281,7 @@ function SortableDirectoryRow({
 }
 
 export default function TaskDirectoriesSettingsPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>("status");
   const [draft, setDraft] = useState<DraftItem | null>(null);
   const [toDelete, setToDelete] = useState<TaskDirectoryItem | null>(null);
@@ -314,9 +318,9 @@ export default function TaskDirectoriesSettingsPage() {
         isDefault: draft.isDefault,
       });
       setDraft(null);
-      toast.success("Сохранено.");
+      toast.success(t("settings_misc.task_directories.toast_saved"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить.");
+      toast.error(error instanceof Error ? error.message : t("settings_misc.task_directories.toast_save_failed"));
     }
   };
 
@@ -326,10 +330,10 @@ export default function TaskDirectoriesSettingsPage() {
     try {
       await deleteMutation.mutateAsync({ kind: tab.key, id: toDelete.id });
       setToDelete(null);
-      toast.success("Удалено.");
+      toast.success(t("settings_misc.task_directories.toast_deleted"));
     } catch (error) {
       // Сервер не даёт удалить статус, приоритет или тип, пока на нём есть задачи.
-      toast.error(error instanceof Error ? error.message : "Не удалось удалить.");
+      toast.error(error instanceof Error ? error.message : t("settings_misc.task_directories.toast_delete_failed"));
     }
   };
 
@@ -373,7 +377,7 @@ export default function TaskDirectoriesSettingsPage() {
       }
     } catch (error) {
       if (previousData) queryClient.setQueryData(TASK_DIRECTORIES_KEY, previousData);
-      toast.error(error instanceof Error ? error.message : "Не удалось изменить порядок.");
+      toast.error(error instanceof Error ? error.message : t("settings_misc.task_directories.toast_reorder_failed"));
     } finally {
       queryClient.invalidateQueries(TASK_DIRECTORIES_KEY);
     }
@@ -407,13 +411,13 @@ export default function TaskDirectoriesSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Справочники задач | Настройки" description="Статусы, приоритеты, типы и теги задач" />
+      <PageMeta title={t("settings_misc.task_directories.page_title")} description={t("settings_misc.task_directories.page_description")} />
 
       <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Справочники задач</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t("settings_misc.task_directories.heading")}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Статусы, приоритеты, типы и теги — их видит вся компания
+            {t("settings_misc.task_directories.subheading")}
           </p>
         </div>
 
@@ -432,7 +436,7 @@ export default function TaskDirectoriesSettingsPage() {
                   : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
-              {item.title}
+              {t(item.titleKey)}
             </button>
           ))}
         </div>
@@ -440,8 +444,8 @@ export default function TaskDirectoriesSettingsPage() {
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <div>
-              <p className="text-[15px] font-semibold text-gray-900">{tab.title}</p>
-              <p className="mt-0.5 text-xs text-gray-500">{tab.hint}</p>
+              <p className="text-[15px] font-semibold text-gray-900">{t(tab.titleKey)}</p>
+              <p className="mt-0.5 text-xs text-gray-500">{t(tab.hintKey)}</p>
             </div>
             {/* У статусов кнопка добавления живёт в каждой группе: без выбора
                 группы непонятно, какие даты будет ставить новый статус. */}
@@ -452,7 +456,7 @@ export default function TaskDirectoriesSettingsPage() {
                 startIcon={<Plus size={15} />}
                 onClick={() => setDraft(emptyDraft())}
               >
-                Добавить
+                {t("settings_misc.task_directories.add_button")}
               </Button>
             )}
           </div>
@@ -460,11 +464,11 @@ export default function TaskDirectoriesSettingsPage() {
           {isLoading ? (
             <div className="flex items-center justify-center gap-2 px-6 py-12 text-sm text-gray-500">
               <Loader2 size={16} className="animate-spin" />
-              Загружаем справочники...
+              {t("settings_misc.task_directories.loading")}
             </div>
           ) : isError ? (
             <p className="px-6 py-12 text-center text-sm text-error-500">
-              Не удалось загрузить справочники. Обновите страницу.
+              {t("settings_misc.task_directories.load_error")}
             </p>
           ) : tab.key === "status" ? (
             STATUS_GROUP_ORDER.map((group) => {
@@ -480,9 +484,9 @@ export default function TaskDirectoriesSettingsPage() {
                           className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: meta.color }}
                         />
-                        {meta.label}
+                        {t(meta.labelKey)}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-gray-500">{meta.hint}</p>
+                      <p className="mt-0.5 text-[11px] text-gray-500">{t(meta.hintKey)}</p>
                     </div>
                     <button
                       type="button"
@@ -490,13 +494,13 @@ export default function TaskDirectoriesSettingsPage() {
                       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-[12px] font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-600"
                     >
                       <Plus size={14} />
-                      Статус
+                      {t("settings_misc.task_directories.add_status_button")}
                     </button>
                   </div>
 
                   {groupItems.length === 0 ? (
                     <p className="px-4 py-4 text-[13px] text-gray-400">
-                      В этой группе пока нет статусов
+                      {t("settings_misc.task_directories.group_empty")}
                     </p>
                   ) : (
                     renderList(groupItems)
@@ -506,7 +510,7 @@ export default function TaskDirectoriesSettingsPage() {
             })
           ) : items.length === 0 ? (
             <p className="px-6 py-12 text-center text-sm text-gray-500">
-              Пока пусто — добавьте первый элемент
+              {t("settings_misc.task_directories.list_empty")}
             </p>
           ) : (
             renderList(items)
@@ -525,20 +529,23 @@ export default function TaskDirectoriesSettingsPage() {
           <>
             <div className="px-6 pb-2 pt-6">
               <h2 className="text-lg font-semibold text-gray-900">
-                {draft.id ? "Изменить" : "Добавить"} · {tab.title.toLowerCase()}
+                {t("settings_misc.task_directories.modal_title", {
+                  action: draft.id ? t("settings_misc.task_directories.modal_edit") : t("settings_misc.task_directories.modal_add"),
+                  tab: t(tab.titleKey).toLowerCase(),
+                })}
               </h2>
             </div>
 
             <div className="space-y-4 px-6 pb-5">
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                  Название
+                  {t("settings_misc.task_directories.field_title")}
                 </label>
                 <input
                   autoFocus
                   value={draft.title}
                   onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-                  placeholder="Например: В работе"
+                  placeholder={t("settings_misc.task_directories.field_title_placeholder")}
                   className="h-10 w-full rounded-lg border border-slate-200 px-3 text-[13px] outline-none transition focus:border-brand-300"
                 />
               </div>
@@ -546,7 +553,7 @@ export default function TaskDirectoriesSettingsPage() {
               {tab.key === "status" && (
                 <div>
                   <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                    Группа
+                    {t("settings_misc.task_directories.field_group")}
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {STATUS_GROUP_ORDER.map((group) => (
@@ -560,18 +567,18 @@ export default function TaskDirectoriesSettingsPage() {
                             : "border-slate-200 text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        {STATUS_GROUP_META[group].label}
+                        {t(STATUS_GROUP_META[group].labelKey)}
                       </button>
                     ))}
                   </div>
                   <p className="mt-1.5 text-[12px] text-slate-400">
-                    {STATUS_GROUP_META[draft.group].hint}
+                    {t(STATUS_GROUP_META[draft.group].hintKey)}
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Цвет</label>
+                <label className="mb-1.5 block text-[13px] font-medium text-slate-700">{t("settings_misc.task_directories.field_color")}</label>
                 <div className="flex flex-wrap gap-2">
                   {PALETTE.map((color) => (
                     <button
@@ -591,7 +598,7 @@ export default function TaskDirectoriesSettingsPage() {
               {tab.hasIcon && (
                 <div>
                   <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                    Иконка
+                    {t("settings_misc.task_directories.field_icon")}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {ICON_KEYS.map((icon) => (
@@ -624,9 +631,9 @@ export default function TaskDirectoriesSettingsPage() {
                   />
                   <span>
                     <span className="block text-[13px] font-medium text-slate-700">
-                      {tab.flag.label}
+                      {t(tab.flag.labelKey)}
                     </span>
-                    <span className="block text-[12px] text-slate-400">{tab.flag.hint}</span>
+                    <span className="block text-[12px] text-slate-400">{t(tab.flag.hintKey)}</span>
                   </span>
                 </label>
               )}
@@ -634,14 +641,14 @@ export default function TaskDirectoriesSettingsPage() {
 
             <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
               <Button variant="outline" className="h-10" onClick={() => setDraft(null)}>
-                Отмена
+                {t("settings_misc.task_directories.cancel_button")}
               </Button>
               <Button
                 className="h-10"
                 disabled={!draft.title.trim() || saveMutation.isLoading}
                 onClick={handleSave}
               >
-                Сохранить
+                {t("settings_misc.task_directories.save_button")}
               </Button>
             </div>
           </>
@@ -656,22 +663,21 @@ export default function TaskDirectoriesSettingsPage() {
         className="mx-4 w-full max-w-[440px] overflow-hidden rounded-2xl"
       >
         <div className="px-6 pb-2 pt-6">
-          <h2 className="text-lg font-semibold text-gray-900">Удалить?</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t("settings_misc.task_directories.delete_modal_title")}</h2>
           <p className="mt-2 text-sm text-gray-500">
-            «{toDelete?.title}» будет удалён. Если на нём есть задачи, сервер не даст этого
-            сделать — сначала переведите их.
+            {t("settings_misc.task_directories.delete_modal_body", { title: toDelete?.title ?? "" })}
           </p>
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
           <Button variant="outline" className="h-11" onClick={() => setToDelete(null)}>
-            Отмена
+            {t("settings_misc.task_directories.cancel_button")}
           </Button>
           <Button
             className="h-11 !bg-error-500 hover:!bg-error-600"
             disabled={deleteMutation.isLoading}
             onClick={handleDelete}
           >
-            Удалить
+            {t("settings_misc.task_directories.delete_button")}
           </Button>
         </div>
       </Modal>

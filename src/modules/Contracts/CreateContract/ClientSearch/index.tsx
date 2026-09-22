@@ -4,6 +4,7 @@ import PageMeta from "../../../../components/common/PageMeta";
 import { useUserSearch, useUserInvite } from "../../../../api/services/financeApi.service";
 import Button from "../../../../components/ui/button/Button";
 import Spinner from "../../../../components/ui/Spinner";
+import { useTranslation } from "../../../../i18n";
 
 interface UserData {
   guid: string;
@@ -18,6 +19,7 @@ interface UserData {
 }
 
 export default function ClientSearch() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [searchResult, setSearchResult] = useState<{
@@ -119,19 +121,19 @@ export default function ClientSearch() {
 
   return (
     <>
-      <PageMeta title="Создать контракт | Поиск клиента" description="Поиск клиента для создания контракта" />
+      <PageMeta title={t("contracts.client_search.page_title")} description={t("contracts.client_search.page_description")} />
 
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-          Статус клиента
+          {t("contracts.client_search.title")}
         </h1>
 
         {/* Search Section */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
             <label className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-              Проверьте статус клиента
+              {t("contracts.client_search.check_label")}
             </label>
 
             <div className="flex flex-1 items-center w-full max-w-sm">
@@ -142,7 +144,7 @@ export default function ClientSearch() {
                 type="text"
                 value={phoneNumber}
                 onChange={handlePhoneChange}
-                placeholder="94 020-20-87"
+                placeholder={t("contracts.client_search.phone_placeholder")}
                 maxLength={12}
                 className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-r-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               />
@@ -154,7 +156,7 @@ export default function ClientSearch() {
               disabled={isSearchDisabled || userSearchMutation.isLoading}
               className="whitespace-nowrap"
             >
-              Проверить клиента
+              {t("contracts.client_search.check_button")}
             </Button>
           </div>
         </div>
@@ -164,7 +166,7 @@ export default function ClientSearch() {
           <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-6">
             <div className="flex flex-col items-center justify-center gap-3">
               <Spinner className="w-6 h-6" />
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Поиск клиента...</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">{t("contracts.client_search.searching")}</p>
             </div>
           </div>
         )}
@@ -175,7 +177,7 @@ export default function ClientSearch() {
             {searchResult.found && searchResult.data ? (
               <>
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
-                  Результат
+                  {t("contracts.client_search.result_title")}
                 </h2>
 
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -204,18 +206,20 @@ export default function ClientSearch() {
                       </svg>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Доступная рассрочка:</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.client_search.available_limit_label")}</p>
                       <p className="font-medium text-brand-600 dark:text-brand-400 text-sm">
-                        {formatAmount(searchResult.data.available_installment || searchResult.data.limit_amount || 0)} сум
+                        {t("contracts.client_search.amount_suffix", {
+                          amount: formatAmount(searchResult.data.available_installment || searchResult.data.limit_amount || 0),
+                        })}
                       </p>
                     </div>
                   </div>
 
                   {/* Total Debt */}
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Сумма задолженности:</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.client_search.total_debt_label")}</p>
                     <p className="font-medium text-amber-600 dark:text-amber-400 text-sm">
-                      {formatAmount(searchResult.data.total_debt)} сум
+                      {t("contracts.client_search.amount_suffix", { amount: formatAmount(searchResult.data.total_debt) })}
                     </p>
                   </div>
 
@@ -227,8 +231,11 @@ export default function ClientSearch() {
                         ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
                         : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
                       }`}>
-                      {searchResult.data.status === 'approved' ? 'Верифицирован' :
-                        searchResult.data.status === 'pending' ? 'На проверке' : searchResult.data.status}
+                      {searchResult.data.status === 'approved'
+                        ? t("contracts.client_search.status_approved")
+                        : searchResult.data.status === 'pending'
+                          ? t("contracts.client_search.status_pending")
+                          : searchResult.data.status}
                     </span>
                   </div>
                 </div>
@@ -243,7 +250,7 @@ export default function ClientSearch() {
                       navigate(`/contracts/create/form?client=${searchResult.data?.guid}`);
                     }}
                   >
-                    Создать контракт
+                    {t("contracts.client_search.create_contract")}
                   </Button>
                 </div>
               </>
@@ -262,10 +269,10 @@ export default function ClientSearch() {
                       </div>
 
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                        Приглашение отправлено!
+                        {t("contracts.client_search.invitation_sent")}
                       </h3>
                       <p className="text-gray-500 dark:text-gray-400 text-sm">
-                        На номер {formatPhoneDisplay(searchResult.searchedPhone)}
+                        {t("contracts.client_search.invitation_sent_to", { phone: formatPhoneDisplay(searchResult.searchedPhone) })}
                       </p>
                     </>
                   ) : (
@@ -306,14 +313,14 @@ export default function ClientSearch() {
                       </div>
 
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">
-                        Упс! Клиент с номером
+                        {t("contracts.client_search.not_found_title")}
                       </h3>
                       <p className="text-lg font-bold text-gray-900 dark:text-white mb-3">
-                        {formatPhoneDisplay(searchResult.searchedPhone)} не найден!
+                        {t("contracts.client_search.not_found_phone", { phone: formatPhoneDisplay(searchResult.searchedPhone) })}
                       </p>
                       <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-xs mx-auto text-sm leading-relaxed">
-                        Этот номер не найден! Проверьте его еще раз.<br />
-                        Если клиента нет в системе, отправьте ему приглашение!
+                        {t("contracts.client_search.not_found_hint_1")}<br />
+                        {t("contracts.client_search.not_found_hint_2")}
                       </p>
 
                       <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -324,7 +331,7 @@ export default function ClientSearch() {
                             navigate(`/contracts/create/form?client_phone=${encodeURIComponent(searchResult.searchedPhone)}`);
                           }}
                         >
-                          Создать контракт
+                          {t("contracts.client_search.create_contract")}
                         </Button>
                         <Button
                           variant="primary"
@@ -332,7 +339,7 @@ export default function ClientSearch() {
                           onClick={handleSendInvitation}
                           disabled={userInviteMutation.isLoading}
                         >
-                          {userInviteMutation.isLoading ? "Отправка..." : "Отправить приглашение"}
+                          {userInviteMutation.isLoading ? t("contracts.client_search.sending") : t("contracts.client_search.send_invitation_button")}
                         </Button>
                       </div>
                     </>

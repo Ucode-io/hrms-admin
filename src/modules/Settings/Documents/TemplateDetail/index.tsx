@@ -17,6 +17,7 @@ import {
 } from "../../../../api/services/settingsDirectory.service";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
+import { useTranslation } from "../../../../i18n";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -34,6 +35,7 @@ type DocumentTemplateItem = SettingsDirectoryItem & {
 };
 
 export default function DocumentTemplateDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const guid = String(id || "");
 
@@ -64,7 +66,7 @@ export default function DocumentTemplateDetailPage() {
 
   const onDocumentLoadError = (error: Error) => {
     console.error("Failed to load document template PDF:", error);
-    toast.error("Не удалось загрузить PDF файл.");
+    toast.error(t("settings_documents.detail.load_error"));
   };
 
   const canGoPrev = pageNumber > 1;
@@ -75,14 +77,14 @@ export default function DocumentTemplateDetailPage() {
   if (!guid) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Идентификатор шаблона не указан.
+        {t("settings_documents.detail.no_guid")}
       </div>
     );
   }
 
   return (
     <>
-      <PageMeta title="Шаблон документа | Настройки" description="Предпросмотр PDF шаблона документа" />
+      <PageMeta title={t("settings_documents.detail.page_title")} description={t("settings_documents.detail.page_description")} />
 
       <div className="space-y-4">
         {isLoading ? (
@@ -93,16 +95,16 @@ export default function DocumentTemplateDetailPage() {
           </div>
         ) : isError || !template ? (
           <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-            Шаблон документа не найден.
+            {t("settings_documents.detail.not_found")}
           </div>
         ) : (
           <>
             <div className="space-y-1">
               <h1 className="text-3xl font-semibold text-gray-900">
-                {String(template.title || "Шаблон документа")}
+                {String(template.title || t("settings_documents.detail.default_title"))}
               </h1>
               <p className="text-base font-medium text-gray-500">
-                {String(template.description || "Без описания")}
+                {String(template.description || t("settings_documents.detail.no_description"))}
               </p>
             </div>
 
@@ -164,7 +166,7 @@ export default function DocumentTemplateDetailPage() {
                         className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                       >
                         <ExternalLink size={14} />
-                        Открыть PDF
+                        {t("settings_documents.detail.open_pdf")}
                       </a>
                     )}
                   </div>
@@ -179,12 +181,12 @@ export default function DocumentTemplateDetailPage() {
                         onLoadError={onDocumentLoadError}
                         loading={
                           <div className="flex h-[320px] w-[240px] items-center justify-center text-sm text-gray-500">
-                            Загрузка PDF...
+                            {t("settings_documents.detail.loading_pdf")}
                           </div>
                         }
                         error={
                           <div className="flex h-[320px] w-[240px] items-center justify-center text-sm text-error-600">
-                            Не удалось отобразить PDF.
+                            {t("settings_documents.detail.error_display")}
                           </div>
                         }
                       >
@@ -194,15 +196,15 @@ export default function DocumentTemplateDetailPage() {
                   </div>
                 ) : (
                   <div className="px-4 py-10 text-center text-sm text-gray-500">
-                    Для этого шаблона не указан URL PDF файла.
+                    {t("settings_documents.detail.no_pdf_url")}
                   </div>
                 )}
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs">
-                <h3 className="text-lg font-semibold text-gray-900">Обнаруженные переменные</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{t("settings_documents.detail.detected_variables")}</h3>
                 <p className="mt-2 text-sm font-medium text-gray-500">
-                  Список переменных будет добавлен позже.
+                  {t("settings_documents.detail.variables_coming_soon")}
                 </p>
               </div>
             </div>

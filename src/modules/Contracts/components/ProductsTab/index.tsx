@@ -8,12 +8,14 @@ import {
   TableRow,
 } from "../../../../components/ui/table";
 import encodeJsonToUrlParam from "../../../../utils/encodeJsonToUrlParam";
+import { useTranslation } from "../../../../i18n";
 
 interface ProductsTabProps {
   contractId: string;
 }
 
 export default function ProductsTab({ contractId }: ProductsTabProps) {
+  const { t } = useTranslation();
   const { data: productsData, isLoading } = useContractProductsQuery({
     params: {
       data: encodeJsonToUrlParam({ contracts_id: contractId })
@@ -24,7 +26,7 @@ export default function ProductsTab({ contractId }: ProductsTabProps) {
 
   const formatAmount = (amount: number) => {
     if (!amount && amount !== 0) return "-";
-    return new Intl.NumberFormat("ru-RU").format(amount) + " сум";
+    return t("contracts.common.amount_suffix", { amount: new Intl.NumberFormat("ru-RU").format(amount) });
   };
 
   if (isLoading) {
@@ -38,7 +40,7 @@ export default function ProductsTab({ contractId }: ProductsTabProps) {
   if (products.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-8 text-center">
-        <p className="text-gray-500 dark:text-gray-400">Нет продуктов</p>
+        <p className="text-gray-500 dark:text-gray-400">{t("contracts.products_tab.empty")}</p>
       </div>
     );
   }
@@ -52,11 +54,11 @@ export default function ProductsTab({ contractId }: ProductsTabProps) {
       {/* Summary */}
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-4">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Всего товаров</p>
-          <p className="text-lg font-semibold text-gray-800 dark:text-white/90">{totalCount} шт</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("contracts.products_tab.total_count_label")}</p>
+          <p className="text-lg font-semibold text-gray-800 dark:text-white/90">{t("contracts.products_tab.count_value", { count: totalCount })}</p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-4">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Общая сумма</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("contracts.products_tab.total_amount_label")}</p>
           <p className="text-lg font-semibold text-gray-800 dark:text-white/90">{formatAmount(totalAmount)}</p>
         </div>
       </div>
@@ -77,7 +79,7 @@ export default function ProductsTab({ contractId }: ProductsTabProps) {
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  Название
+                  {t("contracts.products_tab.column_name")}
                 </TableCell>
                 <TableCell
                   isHeader
@@ -89,19 +91,19 @@ export default function ProductsTab({ contractId }: ProductsTabProps) {
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400"
                 >
-                  Цена
+                  {t("contracts.products_tab.column_price")}
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
                 >
-                  Кол-во
+                  {t("contracts.products_tab.column_quantity")}
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400"
                 >
-                  Сумма
+                  {t("contracts.products_tab.column_amount")}
                 </TableCell>
               </TableRow>
             </TableHeader>

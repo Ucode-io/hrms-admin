@@ -23,6 +23,7 @@ import {
   generalDraftFromItem,
   type PropertyGeneralDraft,
 } from "../types";
+import { useTranslation } from "../../../i18n";
 
 const labelCls = "mb-1.5 block text-sm font-medium text-gray-700";
 const inputCls =
@@ -66,6 +67,7 @@ const draftToPayload = (draft: PropertyGeneralDraft): PropertyWritePayload => ({
 });
 
 export default function PropertyForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -73,10 +75,10 @@ export default function PropertyForm() {
   useHeaderBreadcrumbItems(
     useMemo(
       () => [
-        { label: "Имущество", to: "/property" },
-        { label: isEdit ? "Редактировать" : "Новое имущество", to: "#" },
+        { label: t("property.breadcrumb"), to: "/property" },
+        { label: isEdit ? t("common.edit_action") : t("property.form.breadcrumb_new"), to: "#" },
       ],
-      [isEdit]
+      [isEdit, t]
     )
   );
 
@@ -119,20 +121,20 @@ export default function PropertyForm() {
     event.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Выберите изображение");
+      toast.error(t("placeholders.select_image"));
       return;
     }
     try {
       const url = await uploadMutation.mutateAsync(file);
       update("photo", url);
     } catch {
-      toast.error("Не удалось загрузить фото");
+      toast.error(t("property.form.photo_upload_failed"));
     }
   };
 
   const handleSubmit = async () => {
     if (!draft.name.trim()) {
-      setErrors({ name: "Введите наименование" });
+      setErrors({ name: t("property.form.name_required") });
       return;
     }
     setErrors({});
@@ -144,14 +146,14 @@ export default function PropertyForm() {
     try {
       if (isEdit && id) {
         await updateMutation.mutateAsync({ guid: id, payload });
-        toast.success("Сохранено");
+        toast.success(t("property.form.saved"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Добавлено");
+        toast.success(t("property.form.created"));
       }
       navigate("/property");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить");
+      toast.error(err instanceof Error ? err.message : t("property.form.save_failed"));
     }
   };
 
@@ -166,8 +168,8 @@ export default function PropertyForm() {
   return (
     <>
       <PageMeta
-        title={isEdit ? "Редактировать имущество | HRMS" : "Новое имущество | HRMS"}
-        description="Форма имущества"
+        title={isEdit ? t("property.form.page_title_edit") : t("property.form.page_title_new")}
+        description={t("property.form.page_description")}
       />
 
       <div className="mx-auto max-w-[920px] space-y-5 pb-24">
@@ -178,16 +180,16 @@ export default function PropertyForm() {
           </span>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {isEdit ? "Редактирование имущества" : "Новое имущество"}
+              {isEdit ? t("property.form.title_edit") : t("property.form.breadcrumb_new")}
             </h2>
-            <p className="text-sm text-gray-500">Заполните данные о единице имущества</p>
+            <p className="text-sm text-gray-500">{t("property.form.subtitle")}</p>
           </div>
         </div>
 
-        <Card title="Основное">
+        <Card title={t("property.form.section_main")}>
           <div className="space-y-4">
             {/* Photo */}
-            <Field label="Фотография">
+            <Field label={t("employees.form_fields.photo")}>
               <div className="flex items-center gap-4">
                 <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50">
                   {draft.photo ? (
@@ -220,9 +222,9 @@ export default function PropertyForm() {
                     className="inline-flex h-9 items-center gap-2 rounded-xl border border-gray-200 px-3.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-60"
                   >
                     <ImagePlus size={16} />
-                    {draft.photo ? "Заменить" : "Загрузить фото"}
+                    {draft.photo ? t("settings_documents.create.replace_button") : t("property.form.photo_upload")}
                   </button>
-                  <p className="mt-1.5 text-xs text-gray-400">JPG, PNG до 10 МБ</p>
+                  <p className="mt-1.5 text-xs text-gray-400">{t("property.form.photo_hint")}</p>
                 </div>
                 <input
                   ref={fileInputRef}
@@ -234,10 +236,10 @@ export default function PropertyForm() {
               </div>
             </Field>
 
-            <Field label="Наименование" required>
+            <Field label={t("property.form.name_label")} required>
               <input
                 className={`${inputCls} ${errors.name ? "border-rose-300" : ""}`}
-                placeholder='Например: MacBook Pro 14"'
+                placeholder={t("property.form.name_placeholder")}
                 value={draft.name}
                 onChange={(e) => update("name", e.target.value)}
               />
@@ -245,17 +247,17 @@ export default function PropertyForm() {
             </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Категория">
+              <Field label={t("property.form.category_label")}>
                 <FormSelect
                   options={categoryOptions}
                   value={draft.categoryId}
                   onChange={(v) => update("categoryId", v || null)}
-                  placeholder="Без категории"
+                  placeholder={t("property.form.category_empty")}
                   isClearable
                   menuPortal
                 />
               </Field>
-              <Field label="Серийный номер">
+              <Field label={t("property.form.serial_label")}>
                 <input
                   className={inputCls}
                   placeholder="SN-000001"
@@ -266,7 +268,7 @@ export default function PropertyForm() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Стоимость">
+              <Field label={t("property.form.cost_label")}>
                 <input
                   type="number"
                   min={0}
@@ -276,7 +278,7 @@ export default function PropertyForm() {
                   onChange={(e) => update("cost", Number(e.target.value) || 0)}
                 />
               </Field>
-              <Field label="Дата покупки">
+              <Field label={t("labels.purchase_date")}>
                 <DateInput
                   className={inputCls}
                   value={draft.purchaseDate ?? ""}
@@ -285,7 +287,7 @@ export default function PropertyForm() {
               </Field>
             </div>
 
-            <Field label="Гарантия до">
+            <Field label={t("property.form.warranty_label")}>
               <DateInput
                 className={inputCls}
                 value={draft.warrantyUntil ?? ""}
@@ -293,11 +295,11 @@ export default function PropertyForm() {
               />
             </Field>
 
-            <Field label="Описание">
+            <Field label={t("labels.description")}>
               <textarea
                 rows={3}
                 className={`${inputCls} h-auto resize-none py-2.5`}
-                placeholder="Характеристики, комплектация, дополнительная информация"
+                placeholder={t("property.form.description_placeholder")}
                 value={draft.description}
                 onChange={(e) => update("description", e.target.value)}
               />
@@ -309,14 +311,14 @@ export default function PropertyForm() {
       {/* Sticky save bar */}
       <SidebarAwareFixedFooter>
         <span className="text-sm text-gray-500">
-          {isEdit ? "Редактирование имущества" : "Новое имущество"}
+          {isEdit ? t("property.form.title_edit") : t("property.form.breadcrumb_new")}
         </span>
         <div className="ml-auto flex items-center gap-3">
           <Button variant="outline" onClick={() => navigate(-1)} className="px-5">
-            Отменить
+            {t("recruiting.common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="px-6">
-            {isSaving ? "Сохранение..." : isEdit ? "Сохранить" : "Создать имущество"}
+            {isSaving ? t("common.saving") : isEdit ? t("common.save") : t("property.form.submit_create")}
           </Button>
         </div>
       </SidebarAwareFixedFooter>

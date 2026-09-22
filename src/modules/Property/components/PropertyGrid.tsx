@@ -1,6 +1,7 @@
 import { ArrowLeftRight, Hash, Pencil, Trash2, User } from "lucide-react";
 import { formatCurrency, type PropertyItem } from "../types";
 import StatusBadge from "./StatusBadge";
+import { useTranslation } from "../../../i18n";
 
 interface PropertyGridProps {
   items: PropertyItem[];
@@ -10,13 +11,13 @@ interface PropertyGridProps {
   onDelete: (item: PropertyItem) => void;
 }
 
-export default function PropertyGrid({
-  items,
+export default function PropertyGrid({ items,
   onOpenDetail,
   onEdit,
   onMovement,
   onDelete,
 }: PropertyGridProps) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
@@ -55,7 +56,7 @@ export default function PropertyGrid({
               <div className="flex items-center gap-2 text-gray-500">
                 <User size={14} className="shrink-0 text-gray-400" />
                 <span className={item.assignedToName ? "text-gray-700" : "text-gray-300"}>
-                  {item.assignedToName || "Не назначено"}
+                  {item.assignedToName || t("property.table.not_assigned")}
                 </span>
               </div>
             </div>
@@ -72,8 +73,8 @@ export default function PropertyGrid({
                     onMovement(item);
                   }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-brand-50 hover:text-brand-600"
-                  aria-label="Движение"
-                  title="Движение (статус, назначение)"
+                  aria-label={t("property.movement.action")}
+                  title={t("property.movement.action_title")}
                 >
                   <ArrowLeftRight size={15} />
                 </button>
@@ -84,8 +85,8 @@ export default function PropertyGrid({
                     onEdit(item);
                   }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                  aria-label="Редактировать"
-                  title="Редактировать"
+                  aria-label={t("common.edit_action")}
+                  title={t("common.edit_action")}
                 >
                   <Pencil size={15} />
                 </button>
@@ -96,8 +97,8 @@ export default function PropertyGrid({
                     onDelete(item);
                   }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
-                  aria-label="Удалить"
-                  title="Удалить"
+                  aria-label={t("common.delete")}
+                  title={t("common.delete")}
                 >
                   <Trash2 size={15} />
                 </button>

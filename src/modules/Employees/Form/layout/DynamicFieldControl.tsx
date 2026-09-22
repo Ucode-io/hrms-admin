@@ -7,6 +7,7 @@ import {
 
 import type { CustomField } from "../../../Settings/CustomFields/types";
 import type { EmployeeFormValues } from "../types";
+import { translate } from "../../../../i18n";
 
 /**
  * Рендер динамического поля в стиле формы сотрудника.
@@ -56,7 +57,7 @@ export const dynamicFieldValidators = (
   // Переключатель «да/нет» всегда имеет значение — обязательность бессмысленна.
   if (field.rules.required && field.type !== "boolean") {
     validate.required = (value) =>
-      isEmptyValue(value) ? "Заполните поле" : true;
+      isEmptyValue(value) ? translate("employees.dynamic_field.validation.required") : true;
   }
 
   const { minLength, maxLength, min, max, minDate, maxDate, pattern } = field.rules;
@@ -65,10 +66,10 @@ export const dynamicFieldValidators = (
     validate.length = (value) => {
       if (typeof value !== "string" || value === "") return true;
       if (minLength !== null && value.length < minLength) {
-        return `Минимум ${minLength} символов`;
+        return translate("employees.dynamic_field.validation.min_length", { min: minLength });
       }
       if (maxLength !== null && value.length > maxLength) {
-        return `Максимум ${maxLength} символов`;
+        return translate("employees.dynamic_field.validation.max_length", { max: maxLength });
       }
       return true;
     };
@@ -78,9 +79,9 @@ export const dynamicFieldValidators = (
     validate.range = (value) => {
       if (isEmptyValue(value)) return true;
       const parsed = Number(value);
-      if (Number.isNaN(parsed)) return "Введите число";
-      if (min !== null && parsed < min) return `Не меньше ${min}`;
-      if (max !== null && parsed > max) return `Не больше ${max}`;
+      if (Number.isNaN(parsed)) return translate("employees.dynamic_field.validation.not_a_number");
+      if (min !== null && parsed < min) return translate("employees.dynamic_field.validation.min_value", { min });
+      if (max !== null && parsed > max) return translate("employees.dynamic_field.validation.max_value", { max });
       return true;
     };
   }
@@ -88,8 +89,8 @@ export const dynamicFieldValidators = (
   if (minDate || maxDate) {
     validate.dateRange = (value) => {
       if (typeof value !== "string" || !value) return true;
-      if (minDate && value < minDate) return `Не раньше ${minDate}`;
-      if (maxDate && value > maxDate) return `Не позже ${maxDate}`;
+      if (minDate && value < minDate) return translate("employees.dynamic_field.validation.not_before", { date: minDate });
+      if (maxDate && value > maxDate) return translate("employees.dynamic_field.validation.not_after", { date: maxDate });
       return true;
     };
   }
@@ -100,7 +101,7 @@ export const dynamicFieldValidators = (
       try {
         return new RegExp(pattern).test(value)
           ? true
-          : field.rules.patternMessage || "Значение не соответствует формату";
+          : field.rules.patternMessage || translate("employees.dynamic_field.validation.pattern_mismatch");
       } catch {
         // Некорректное регулярное выражение в справочнике не должно ломать форму.
         return true;
@@ -111,14 +112,14 @@ export const dynamicFieldValidators = (
   if (field.type === "email") {
     validate.email = (value) =>
       typeof value === "string" && value && !EMAIL_PATTERN.test(value)
-        ? "Некорректный адрес"
+        ? translate("employees.dynamic_field.validation.invalid_email")
         : true;
   }
 
   if (field.type === "url") {
     validate.url = (value) =>
       typeof value === "string" && value && !URL_PATTERN.test(value)
-        ? "Ссылка должна начинаться с http:// или https://"
+        ? translate("employees.dynamic_field.validation.invalid_url")
         : true;
   }
 
@@ -200,7 +201,7 @@ function OptionChips({
   };
 
   if (field.options.length === 0) {
-    return <p style={{ fontSize: "13px", color: "#94a3b8" }}>Варианты не заданы</p>;
+    return <p style={{ fontSize: "13px", color: "#94a3b8" }}>{translate("employees.dynamic_field.no_options")}</p>;
   }
 
   return (
@@ -281,7 +282,7 @@ function BooleanControl({
           }}
         />
       </span>
-      <span style={{ fontSize: "14px", color: "#475569" }}>{checked ? "Да" : "Нет"}</span>
+      <span style={{ fontSize: "14px", color: "#475569" }}>{checked ? translate("employees.dynamic_field.yes") : translate("employees.dynamic_field.no")}</span>
     </button>
   );
 }
@@ -308,7 +309,7 @@ export function DynamicFieldInput({
   brandColor: string;
   invalid?: boolean;
 }) {
-  const placeholder = field.placeholder || "Введите значение";
+  const placeholder = field.placeholder || translate("employees.dynamic_field.enter_value");
   const disabled = field.rules.readOnly;
   const style: React.CSSProperties = invalid
     ? { ...inputStyle, borderColor: "#f04438" }
@@ -331,12 +332,12 @@ export function DynamicFieldInput({
             color: "#94a3b8",
           }}
         >
-          <span>Загрузка файла</span>
+          <span>{translate("employees.dynamic_field.file_upload")}</span>
           <span style={{ fontSize: "12px" }}>
             {field.rules.allowedExtensions.length > 0
               ? field.rules.allowedExtensions.join(", ").toUpperCase()
-              : "Любой формат"}
-            {field.rules.maxFileSizeMb ? ` · до ${field.rules.maxFileSizeMb} МБ` : ""}
+              : translate("employees.dynamic_field.any_format")}
+            {field.rules.maxFileSizeMb ? ` · ${translate("employees.dynamic_field.up_to_mb", { size: field.rules.maxFileSizeMb })}` : ""}
           </span>
         </div>
       );
@@ -380,7 +381,7 @@ export function DynamicFieldInput({
           onBlur={onBlur}
           style={{ ...style, appearance: "none", cursor: "pointer" }}
         >
-          <option value="">{field.placeholder || "Выберите значение"}</option>
+          <option value="">{field.placeholder || translate("employees.dynamic_field.select_value")}</option>
           {field.options.map((option) => (
             <option key={option.id} value={option.value}>
               {option.label}
@@ -430,7 +431,7 @@ export function DynamicFieldInput({
           onBlur={onBlur}
           placeholder={
             field.placeholder ||
-            (field.type === "employee" ? "Найдите сотрудника" : "Выберите из справочника")
+            (field.type === "employee" ? translate("employees.dynamic_field.find_employee") : translate("employees.dynamic_field.select_from_directory"))
           }
           style={style}
         />

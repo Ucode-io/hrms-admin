@@ -21,10 +21,12 @@ import DepartmentUpsertModal from "./components/DepartmentUpsertModal";
 import DepartmentsTable from "./components/DepartmentsTable";
 import type { FlattenedTreeRow, Option } from "./types";
 import { resolveDepartmentLeaderName } from "./utils";
+import { useTranslation } from "../../../i18n";
 
 const ROOT_KEY = "__root__";
 
 export default function DepartmentsSettingsPage() {
+  const { t } = useTranslation();
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -229,7 +231,7 @@ export default function DepartmentsSettingsPage() {
   }, [departments, editingDepartment]);
 
   const parentOptions = useMemo<Option[]>(() => {
-    const options: Option[] = [{ value: "", label: "Без родителя" }];
+    const options: Option[] = [{ value: "", label: t("settings_departments.page.no_parent") }];
 
     const allowed = departments
       .filter((dep) => !forbiddenParentIds.has(dep.guid))
@@ -238,11 +240,14 @@ export default function DepartmentsSettingsPage() {
     for (const dep of allowed) {
       const level = departmentLevels.get(dep.guid) || 0;
       const prefix = level > 0 ? `${"|- ".repeat(Math.min(level, 4))}` : "";
-      options.push({ value: dep.guid, label: `${prefix}${String(dep.title || "Без названия")}` });
+      options.push({
+        value: dep.guid,
+        label: `${prefix}${String(dep.title || t("settings_departments.page.untitled"))}`,
+      });
     }
 
     return options;
-  }, [departmentLevels, departments, forbiddenParentIds]);
+  }, [departmentLevels, departments, forbiddenParentIds, t]);
 
   const leaderFallbackLabel = useMemo(
     () => (editingDepartment ? resolveDepartmentLeaderName(editingDepartment) : ""),
@@ -279,7 +284,7 @@ export default function DepartmentsSettingsPage() {
     const title = departmentTitle.trim();
 
     if (!title) {
-      toast.error("Название департамента обязательно.");
+      toast.error(t("settings_departments.page.title_required"));
       return;
     }
 
@@ -298,16 +303,16 @@ export default function DepartmentsSettingsPage() {
             ...payload,
           },
         });
-        toast.success("Департамент успешно обновлен.");
+        toast.success(t("settings_departments.page.update_success"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Департамент успешно создан.");
+        toast.success(t("settings_departments.page.create_success"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error("Failed to save department:", error);
-      toast.error("Не удалось сохранить департамент. Попробуйте еще раз.");
+      toast.error(t("settings_departments.page.save_error"));
     }
   };
 
@@ -327,11 +332,11 @@ export default function DepartmentsSettingsPage() {
 
     try {
       await deleteMutation.mutateAsync(departmentToDelete.guid);
-      toast.success("Департамент удален.");
+      toast.success(t("settings_departments.page.delete_success"));
       closeDeleteModal();
     } catch (error) {
       console.error("Failed to delete department:", error);
-      toast.error("Не удалось удалить департамент.");
+      toast.error(t("settings_departments.page.delete_error"));
     }
   };
 
@@ -353,13 +358,13 @@ export default function DepartmentsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Департаменты | Настройки" description="Структура департаментов компании" />
+      <PageMeta title={t("settings_departments.page.page_meta_title")} description={t("settings_departments.page.page_meta_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Департаменты</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_departments.page.title")}</h1>
           <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-            Добавить
+            {t("settings_departments.page.add_button")}
           </Button>
         </div>
 
@@ -374,7 +379,7 @@ export default function DepartmentsSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_departments.page.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -421,12 +426,12 @@ export default function DepartmentsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить департамент</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_departments.page.delete_modal_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_departments.page.close_aria")}
             >
               <X size={16} />
             </button>
@@ -436,13 +441,13 @@ export default function DepartmentsSettingsPage() {
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-700">
             {departmentToDelete
-              ? `Вы уверены, что хотите удалить "${String(departmentToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить этот департамент?"}
+              ? t("settings_departments.page.delete_confirm_named", { title: String(departmentToDelete.title) })
+              : t("settings_departments.page.delete_confirm_generic")}
           </p>
 
           {deletingHasChildren && (
             <p className="text-xs text-error-600">
-              У выбранного департамента есть дочерние элементы. Сначала перенесите или удалите их.
+              {t("settings_departments.page.delete_has_children")}
             </p>
           )}
 
@@ -452,14 +457,14 @@ export default function DepartmentsSettingsPage() {
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_departments.page.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_departments.page.deleting") : t("settings_departments.page.delete_action")}
             </Button>
           </div>
         </div>

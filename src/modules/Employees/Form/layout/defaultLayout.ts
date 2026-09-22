@@ -1,5 +1,6 @@
 import { STATIC_FIELD_MAP } from "./staticFields";
 import type { EmployeeFormLayout, FormLayoutCard, FormLayoutItem } from "./types";
+import { translate } from "../../../../i18n";
 
 type CardSeed = {
   id: string;
@@ -12,24 +13,24 @@ type CardSeed = {
 };
 
 /** Раскладка «как было» до появления конструктора — она же кнопка «Сбросить». */
-const CARD_SEEDS: CardSeed[] = [
+const getCardSeeds = (): CardSeed[] => [
   {
     id: "crd_personal",
-    title: "Личное",
-    description: "Основные персональные данные сотрудника",
+    title: translate("employees.form_layout.card_personal_title"),
+    description: translate("employees.form_layout.card_personal_description"),
     column: "left",
     fields: ["photo", "second_name", "first_name", "middle_name", "birth_date", "gender"],
   },
   {
     id: "crd_contacts",
-    title: "Контакты",
-    description: "Рабочие и личные контакты",
+    title: translate("employees.form_layout.card_contacts_title"),
+    description: translate("employees.form_layout.card_contacts_description"),
     column: "left",
     fields: ["email", "personal_email", "phone", "work_phone", "telegram"],
   },
   {
     id: "crd_access",
-    title: "Доступ",
+    title: translate("employees.form_layout.card_access_title"),
     description: "",
     column: "left",
     fields: ["hrms_roles_id"],
@@ -38,7 +39,7 @@ const CARD_SEEDS: CardSeed[] = [
     // Данные employee_work — пишутся отдельным запросом при создании, поэтому
     // карточка живёт вне конструктора и её состав не настраивается.
     id: "crd_work",
-    title: "Рабочие данные",
+    title: translate("employees.form_layout.card_work_title"),
     description: "",
     column: "right",
     locked: true,
@@ -59,7 +60,7 @@ export const createDefaultLayout = (): EmployeeFormLayout => {
   const cards: FormLayoutCard[] = [];
   const items: FormLayoutItem[] = [];
 
-  CARD_SEEDS.forEach((seed, cardIndex) => {
+  getCardSeeds().forEach((seed, cardIndex) => {
     cards.push({
       id: seed.id,
       title: seed.title,

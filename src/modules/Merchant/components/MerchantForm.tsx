@@ -4,6 +4,7 @@ import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import { useCreateMerchant, useUpdateMerchant } from "../../../api/services/merchant.service";
+import { useTranslation } from "../../../i18n";
 
 interface MerchantFormProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface MerchantFormProps {
 }
 
 export default function MerchantForm({ isOpen, onClose, merchant, mode }: MerchantFormProps) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: "",
     director_fio: "",

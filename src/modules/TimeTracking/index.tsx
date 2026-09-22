@@ -38,6 +38,7 @@ import {
   type Td2TeamStatsUser,
   type Td2AutoMatchResult,
 } from "../../api/services/timedoctor.service";
+import { translate, useTranslation } from "../../i18n";
 
 // --- date helpers ---------------------------------------------------------
 
@@ -47,16 +48,17 @@ const monthRange = (year: number, month: number) => ({
   from_date: toIsoDate(new Date(year, month, 1)),
   to_date: toIsoDate(new Date(year, month + 1, 0)),
 });
-const MONTH_NAMES = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-];
+const MONTH_KEYS = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+] as const;
+const monthName = (index: number) => translate(`months.${MONTH_KEYS[index]}` as never);
 
 const formatHours = (hours: number | null | undefined): string => {
   const value = Number(hours || 0);
   const h = Math.floor(value);
   const m = Math.round((value - h) * 60);
-  return `${h}ч ${pad(m)}м`;
+  return translate("time_tracking.hours_minutes", { h, m: pad(m) });
 };
 
 const productivityColor = (pct: number): string => {
@@ -67,8 +69,7 @@ const productivityColor = (pct: number): string => {
 
 // --- Drill-down modal -----------------------------------------------------
 
-function UserStatsModal({
-  user,
+function UserStatsModal({ user,
   from_date,
   to_date,
   onClose,
@@ -78,6 +79,7 @@ function UserStatsModal({
   to_date: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const { data, isLoading } = useTd2UserStats({
     td2_user_mapping_id: user.td2_user_mapping_id,
     from_date,
@@ -94,9 +96,9 @@ function UserStatsModal({
       colors: [companyStore.mainColor],
       xaxis: {
         categories: daily.map((d) => d.work_date.slice(8)),
-        title: { text: "День месяца", style: { fontSize: "11px", fontWeight: 400 } },
+        title: { text: translate("time_tracking.day_of_month"), style: { fontSize: "11px", fontWeight: 400 } },
       },
-      yaxis: { title: { text: "Часы" }, labels: { formatter: (v) => v.toFixed(0) } },
+      yaxis: { title: { text: translate("time_tracking.hours") }, labels: { formatter: (v) => v.toFixed(0) } },
       tooltip: {
         y: { formatter: (v) => formatHours(v) },
       },
@@ -106,7 +108,7 @@ function UserStatsModal({
   );
 
   const chartSeries = useMemo(
-    () => [{ name: "Отработано", data: daily.map((d) => Number(d.total_hours.toFixed(2))) }],
+    () => [{ name: translate("time_tracking.worked"), data: daily.map((d) => Number(d.total_hours.toFixed(2))) }],
     [daily]
   );
 
@@ -115,7 +117,7 @@ function UserStatsModal({
       <div className="mb-4 flex items-start justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
-            {data?.user_name || user.user_name || "Сотрудник"}
+            {data?.user_name || user.user_name || t("time_tracking.employee")}
           </h3>
           <p className="text-sm text-gray-500">{data?.user_email || user.td2_email || ""}</p>
         </div>
@@ -134,20 +136,20 @@ function UserStatsModal({
       ) : (
         <>
           <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <SummaryCard label="Всего" value={formatHours(data?.summary.total_hours)} />
+            <SummaryCard label={t("time_tracking.total")} value={formatHours(data?.summary.total_hours)} />
             <SummaryCard
-              label="Продуктивность"
+              label={t("time_tracking.productivity")}
               value={`${(data?.summary.productivity_pct ?? 0).toFixed(0)}%`}
             />
-            <SummaryCard label="Дней" value={String(data?.summary.days_tracked ?? 0)} />
-            <SummaryCard label="Записей" value={String(data?.summary.total_worklog_count ?? 0)} />
+            <SummaryCard label={t("time_tracking.days")} value={String(data?.summary.days_tracked ?? 0)} />
+            <SummaryCard label={t("time_tracking.records")} value={String(data?.summary.total_worklog_count ?? 0)} />
           </div>
 
           {daily.length > 0 ? (
             <Chart options={chartOptions} series={chartSeries} type="bar" height={280} />
           ) : (
             <p className="py-10 text-center text-sm text-gray-500">
-              Нет данных за выбранный период. Запустите синхронизацию.
+              {t("time_tracking.no_data_period")}
             </p>
           )}
         </>
@@ -176,6 +178,7 @@ function StatsTab({
   to_date: string;
   hasConfig: boolean;
 }) {
+  const { t } = useTranslation();
   const teamQuery = useTd2TeamStats({ from_date, to_date }, hasConfig);
   const syncMutation = useTd2SyncAllUsers();
   const [selectedUser, setSelectedUser] = useState<Td2TeamStatsUser | null>(null);
@@ -185,11 +188,11 @@ function StatsTab({
   const handleSync = async () => {
     try {
       const result = await syncMutation.mutateAsync({ from_date, to_date });
-      toast.success(`Синхронизировано записей: ${result.worklogs_synced}.`);
+      toast.success(t("time_tracking.synced", { count: result.worklogs_synced }));
       await teamQuery.refetch();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Не удалось выполнить синхронизацию."
+        error instanceof Error ? error.message : t("time_tracking.sync_error")
       );
     }
   };
@@ -198,7 +201,7 @@ function StatsTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          {teamQuery.data ? `Сотрудников: ${users.length}` : "Данные учёта рабочего времени"}
+          {teamQuery.data ? t("time_tracking.employees_count", { count: users.length }) : t("time_tracking.subtitle")}
         </p>
         <Button
           onClick={() => void handleSync()}
@@ -206,7 +209,7 @@ function StatsTab({
           startIcon={<RefreshCw className={`h-4 w-4 ${syncMutation.isLoading ? "animate-spin" : ""}`} />}
           className="h-10"
         >
-          {syncMutation.isLoading ? "Синхронизация..." : "Синхронизировать за месяц"}
+          {syncMutation.isLoading ? t("time_tracking.syncing") : t("time_tracking.sync_month")}
         </Button>
       </div>
 
@@ -215,7 +218,7 @@ function StatsTab({
           <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end rounded-2xl bg-white/45 p-3">
             <span className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm">
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-              Загрузка...
+              {t("time_tracking.loading")}
             </span>
           </div>
         ) : null}
@@ -225,16 +228,16 @@ function StatsTab({
             <TableHeader className="border-b border-gray-100">
               <TableRow>
                 <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                  Сотрудник
+                  {t("time_tracking.employee")}
                 </TableCell>
                 <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                  Отработано
+                  {t("time_tracking.worked")}
                 </TableCell>
                 <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                  Продуктивность
+                  {t("time_tracking.productivity")}
                 </TableCell>
                 <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                  Дней
+                  {t("time_tracking.days")}
                 </TableCell>
               </TableRow>
             </TableHeader>
@@ -260,8 +263,8 @@ function StatsTab({
                 <TableRow>
                   <TableCell colSpan={4} className="px-4 py-12 text-center text-sm text-gray-500">
                     {hasConfig
-                      ? "Нет данных за выбранный месяц. Запустите синхронизацию."
-                      : "Сначала подключите Time Doctor в Настройках → Интеграции."}
+                      ? t("time_tracking.no_data_month")
+                      : t("time_tracking.connect_first")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -317,6 +320,7 @@ function MappingTab({
   configId: string | null;
   hasConfig: boolean;
 }) {
+  const { t } = useTranslation();
   const mappingQuery = useTd2MappingList(configId ?? undefined, hasConfig);
   const autoMatchMutation = useTd2AutoMatch();
   const createMutation = useTd2MappingCreate();
@@ -347,17 +351,17 @@ function MappingTab({
       const result = await autoMatchMutation.mutateAsync();
       setUnmatched(result.unmatched ?? []);
       toast.success(
-        `Создано: ${result.created_count}, без пары: ${result.unmatched_count}, пропущено: ${result.skipped_inactive}.`
+        t("time_tracking.automatch_result", { created: result.created_count, unmatched: result.unmatched_count, skipped: result.skipped_inactive })
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось выполнить авто-сопоставление.");
+      toast.error(error instanceof Error ? error.message : t("time_tracking.automatch_error"));
     }
   };
 
   const handleManualCreate = async (td2: Td2AutoMatchResult["unmatched"][number]) => {
     const userBaseId = assignments[td2.td2_user_id];
     if (!configId || !userBaseId) {
-      toast.error("Выберите сотрудника.");
+      toast.error(t("time_tracking.select_employee"));
       return;
     }
     try {
@@ -368,19 +372,19 @@ function MappingTab({
         td2_email: td2.td2_email ?? undefined,
         td2_user_name: td2.td2_user_name ?? undefined,
       });
-      toast.success("Привязка создана.");
+      toast.success(t("time_tracking.mapping_created"));
       setUnmatched((prev) => prev.filter((u) => u.td2_user_id !== td2.td2_user_id));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось создать привязку.");
+      toast.error(error instanceof Error ? error.message : t("time_tracking.mapping_create_error"));
     }
   };
 
   const handleDelete = async (guid: string) => {
     try {
       await deleteMutation.mutateAsync(guid);
-      toast.success("Привязка удалена.");
+      toast.success(t("time_tracking.mapping_deleted"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось удалить привязку.");
+      toast.error(error instanceof Error ? error.message : t("time_tracking.mapping_delete_error"));
     }
   };
 
@@ -388,7 +392,7 @@ function MappingTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          Связь сотрудников HRMS с пользователями Time Doctor.
+          {t("time_tracking.mapping_subtitle")}
         </p>
         <Button
           onClick={() => void handleAutoMatch()}
@@ -396,7 +400,7 @@ function MappingTab({
           startIcon={<Wand2 className="h-4 w-4" />}
           className="h-10"
         >
-          {autoMatchMutation.isLoading ? "Сопоставление..." : "Авто-сопоставить по email"}
+          {autoMatchMutation.isLoading ? t("time_tracking.matching") : t("time_tracking.automatch_email")}
         </Button>
       </div>
 
@@ -404,13 +408,13 @@ function MappingTab({
       {unmatched.length > 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
           <h4 className="mb-3 text-sm font-semibold text-amber-800">
-            Без пары ({unmatched.length}) — назначьте вручную
+            {t("time_tracking.unmatched", { count: unmatched.length })}
           </h4>
           <div className="mb-3">
             <input
               value={employeeSearch}
               onChange={(e) => setEmployeeSearch(e.target.value)}
-              placeholder="Поиск сотрудника для списков ниже..."
+              placeholder={t("time_tracking.search_employee_lists")}
               className="h-10 w-full max-w-sm rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-brand-400"
             />
           </div>
@@ -432,7 +436,7 @@ function MappingTab({
                       onChange={(val) =>
                         setAssignments((prev) => ({ ...prev, [u.td2_user_id]: val }))
                       }
-                      placeholder="Выберите сотрудника"
+                      placeholder={t("time_tracking.select_employee_placeholder")}
                       brandColor={companyStore.mainColor}
                     />
                   </div>
@@ -441,7 +445,7 @@ function MappingTab({
                     onClick={() => void handleManualCreate(u)}
                     disabled={createMutation.isLoading || !assignments[u.td2_user_id]}
                   >
-                    Связать
+                    {t("time_tracking.link")}
                   </Button>
                 </div>
               </div>
@@ -457,13 +461,13 @@ function MappingTab({
             <TableHeader className="border-b border-gray-100">
               <TableRow>
                 <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                  Сотрудник HRMS
+                  {t("time_tracking.hrms_employee")}
                 </TableCell>
                 <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
                   Time Doctor
                 </TableCell>
                 <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                  Действия
+                  {t("time_tracking.actions")}
                 </TableCell>
               </TableRow>
             </TableHeader>
@@ -477,7 +481,7 @@ function MappingTab({
               ) : mappings.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} className="px-4 py-12 text-center text-sm text-gray-500">
-                    Нет привязок. Запустите авто-сопоставление.
+                    {t("time_tracking.no_mappings")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -502,7 +506,7 @@ function MappingTab({
                           onClick={() => void handleDelete(m.guid)}
                           disabled={deleteMutation.isLoading}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          title="Удалить"
+                          title={t("common.delete")}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -522,6 +526,7 @@ function MappingTab({
 // --- Page -----------------------------------------------------------------
 
 export default function TimeTrackingModule() {
+  const { t } = useTranslation();
   const configQuery = useTd2Config();
   const config = configQuery.data ?? null;
   const hasConfig = Boolean(config);
@@ -547,7 +552,7 @@ export default function TimeTrackingModule() {
 
   return (
     <div className="p-4 sm:p-6">
-      <PageMeta title="Учёт времени работы" description="Отработанное время сотрудников (Time Doctor)" />
+      <PageMeta title={t("time_tracking.title")} description={t("time_tracking.page_description")} />
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -555,9 +560,9 @@ export default function TimeTrackingModule() {
             <Users className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Учёт времени работы</h1>
+            <h1 className="text-lg font-semibold text-gray-900">{t("time_tracking.title")}</h1>
             <p className="text-sm text-gray-500">
-              Сколько отработал каждый сотрудник за месяц.
+              {t("time_tracking.header_subtitle")}
             </p>
           </div>
         </div>
@@ -571,7 +576,7 @@ export default function TimeTrackingModule() {
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="min-w-[140px] text-center text-sm font-medium text-gray-800">
-            {MONTH_NAMES[cursor.month]} {cursor.year}
+            {monthName(cursor.month)} {cursor.year}
           </span>
           <button
             onClick={() => shiftMonth(1)}
@@ -590,8 +595,8 @@ export default function TimeTrackingModule() {
       ) : (
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-4">
-            <TabsTrigger value="stats">Статистика</TabsTrigger>
-            <TabsTrigger value="mapping">Сопоставление</TabsTrigger>
+            <TabsTrigger value="stats">{t("time_tracking.tab_stats")}</TabsTrigger>
+            <TabsTrigger value="mapping">{t("time_tracking.tab_mapping")}</TabsTrigger>
           </TabsList>
           <TabsContent value="stats">
             <StatsTab from_date={from_date} to_date={to_date} hasConfig={hasConfig} />

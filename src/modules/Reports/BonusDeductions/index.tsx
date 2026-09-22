@@ -10,10 +10,11 @@ import reportsService, {
   useBonusDeductionsReportQuery,
   useBonusDeductionsTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const getErrorMessage = (error) => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.bonus_deductions.load_error");
 };
 
 const toOptions = (items) => {
@@ -205,6 +206,7 @@ const base64ToBlob = (base64, mimeType) => {
 };
 
 function BonusDeductionsPage() {
+  const { t } = useTranslation();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [isExporting, setIsExporting] = useState(false);
@@ -299,7 +301,7 @@ function BonusDeductionsPage() {
       const payload = response.result;
 
       if (!payload.file_base64) {
-        throw new Error("Файл не получен.");
+        throw new Error(t("reports.bonus_deductions.file_not_received"));
       }
 
       const blob = base64ToBlob(payload.file_base64, payload.mime_type);
@@ -328,7 +330,10 @@ function BonusDeductionsPage() {
   if (isReportLoading) {
     return (
       <>
-        <PageMeta title="Ведомость бонусов и удержаний | HRMS" description="Отчет по начислениям и удержаниям" />
+        <PageMeta
+          title={t("reports.bonus_deductions.page_title")}
+          description={t("reports.bonus_deductions.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -339,7 +344,10 @@ function BonusDeductionsPage() {
   if (isReportError) {
     return (
       <>
-        <PageMeta title="Ведомость бонусов и удержаний | HRMS" description="Отчет по начислениям и удержаниям" />
+        <PageMeta
+          title={t("reports.bonus_deductions.page_title")}
+          description={t("reports.bonus_deductions.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(reportError)}</p>
           <button
@@ -349,7 +357,7 @@ function BonusDeductionsPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -358,7 +366,10 @@ function BonusDeductionsPage() {
 
   return (
     <>
-      <PageMeta title="Ведомость бонусов и удержаний | HRMS" description="Отчет по начислениям и удержаниям" />
+      <PageMeta
+        title={t("reports.bonus_deductions.page_title")}
+        description={t("reports.bonus_deductions.page_description")}
+      />
 
       <div className="-mx-4 -mt-4 -mb-4 flex h-[calc(100dvh-64px)] min-h-0 flex-col md:-mx-6 md:-mt-6 md:-mb-6 md:h-[calc(100dvh-64px)]">
         <section className="flex h-full min-h-0 flex-col bg-white">
@@ -374,7 +385,7 @@ function BonusDeductionsPage() {
                     type="text"
                     value={searchInput}
                     onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="Поиск..."
+                    placeholder={t("reports.bonus_deductions.search_placeholder")}
                     className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                   />
                 </label>
@@ -393,7 +404,7 @@ function BonusDeductionsPage() {
                 />
 
                 <div className="min-w-[220px] flex-1">
-                  <p className="sr-only">Сотрудник</p>
+                  <p className="sr-only">{t("reports.bonus_deductions.employee_label")}</p>
                   <Select
                     isMulti
                     options={employeeOptions}
@@ -402,7 +413,9 @@ function BonusDeductionsPage() {
                       const values = Array.isArray(value) ? value : [];
                       setSelectedEmployeeIds(values.map((item) => String(item.value)));
                     }}
-                    placeholder={`${employeeOptions.length} вариантов`}
+                    placeholder={t("reports.bonus_deductions.select_options_placeholder", {
+                      count: employeeOptions.length,
+                    })}
                     closeMenuOnSelect={false}
                     menuPosition="fixed"
                     menuPortalTarget={selectPortalTarget}
@@ -411,7 +424,7 @@ function BonusDeductionsPage() {
                 </div>
 
                 <div className="min-w-[220px] flex-1">
-                  <p className="sr-only">Департамент</p>
+                  <p className="sr-only">{t("reports.bonus_deductions.department_label")}</p>
                   <Select
                     isMulti
                     options={departmentOptions}
@@ -420,7 +433,9 @@ function BonusDeductionsPage() {
                       const values = Array.isArray(value) ? value : [];
                       setSelectedDepartmentIds(values.map((item) => String(item.value)));
                     }}
-                    placeholder={`${departmentOptions.length} вариантов`}
+                    placeholder={t("reports.bonus_deductions.select_options_placeholder", {
+                      count: departmentOptions.length,
+                    })}
                     closeMenuOnSelect={false}
                     menuPosition="fixed"
                     menuPortalTarget={selectPortalTarget}
@@ -434,7 +449,7 @@ function BonusDeductionsPage() {
                     onClick={resetFilters}
                     className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                   >
-                    Сбросить фильтры
+                    {t("reports.bonus_deductions.reset_filters_button")}
                   </button>
                 ) : null}
 
@@ -447,7 +462,7 @@ function BonusDeductionsPage() {
                   className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Download size={15} />
-                  {isExporting ? "Экспорт..." : "Экспорт в excel"}
+                  {isExporting ? t("reports.bonus_deductions.exporting") : t("reports.common.export_to_excel")}
                 </button>
               </div>
             </div>
@@ -460,51 +475,51 @@ function BonusDeductionsPage() {
                       rowSpan={2}
                       className="sticky left-0 top-0 z-40 w-[240px] min-w-[240px] max-w-[240px] whitespace-nowrap border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-left text-xs font-semibold text-gray-700"
                     >
-                      Имя и фамилия
+                      {t("reports.bonus_deductions.col_full_name")}
                     </th>
                     <th
                       rowSpan={2}
                       className="sticky left-[240px] top-0 z-40 w-[130px] min-w-[130px] max-w-[130px] whitespace-nowrap border-b border-r border-gray-200 bg-[#f8fbff] px-2 py-2 text-left text-xs font-semibold text-gray-700"
                     >
-                      Департамент
+                      {t("reports.bonus_deductions.col_department")}
                     </th>
                     <th
                       rowSpan={2}
                       className="sticky left-[370px] top-0 z-40 w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap border-b border-r border-gray-200 bg-[#f8fbff] px-2 py-2 text-center text-xs font-semibold text-gray-700"
                     >
-                      Оклад
+                      {t("reports.bonus_deductions.col_salary")}
                     </th>
 
                     <th
                       colSpan={accrualColumnCount}
                       className="sticky top-0 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
                     >
-                      Начисления
+                      {t("reports.bonus_deductions.col_accruals")}
                     </th>
                     <th
                       colSpan={deductionColumnCount}
                       className="sticky top-0 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
                     >
-                      Удержания
+                      {t("reports.bonus_deductions.col_deductions")}
                     </th>
 
                     <th
                       rowSpan={2}
                       className="sticky top-0 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-emerald-700"
                     >
-                      Итого начислено
+                      {t("reports.bonus_deductions.col_total_accrued")}
                     </th>
                     <th
                       rowSpan={2}
                       className="sticky top-0 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-rose-700"
                     >
-                      Итого удержано
+                      {t("reports.bonus_deductions.col_total_deducted")}
                     </th>
                     <th
                       rowSpan={2}
                       className="sticky top-0 z-30 border-b border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-center text-xs font-semibold text-gray-700"
                     >
-                      К выплате
+                      {t("reports.bonus_deductions.col_to_pay")}
                     </th>
                   </tr>
 
@@ -577,14 +592,14 @@ function BonusDeductionsPage() {
                           }}
                           className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                         >
-                          Повторить
+                          {t("reports.common.retry_button")}
                         </button>
                       </td>
                     </tr>
                   ) : items.length === 0 ? (
                     <tr>
                       <td colSpan={totalColumns} className="px-4 py-6 text-center text-sm text-gray-500">
-                        Нет данных по выбранным фильтрам
+                        {t("reports.bonus_deductions.no_data_filtered")}
                       </td>
                     </tr>
                   ) : (
@@ -653,7 +668,7 @@ function BonusDeductionsPage() {
                         colSpan={2}
                         className="sticky left-0 z-30 border-r border-gray-200 bg-[#f8fbff] px-3 py-2 text-right text-sm font-semibold text-gray-900"
                       >
-                        Итого (сумма)
+                        {t("reports.bonus_deductions.totals_label")}
                       </td>
                       <td className="sticky left-[370px] z-30 border-r border-gray-200 bg-[#f8fbff] px-2 py-2 text-center text-sm font-semibold text-gray-900">
                         {renderMoneyValue(totals.base_salary)}
@@ -707,7 +722,9 @@ function BonusDeductionsPage() {
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                   <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                     <Spinner size="sm" className="h-5 w-5" />
-                    <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                    <span className="text-sm font-medium text-gray-600">
+                      {t("reports.common.loading")}
+                    </span>
                   </div>
                 </div>
               ) : null}

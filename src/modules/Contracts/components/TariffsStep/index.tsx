@@ -5,6 +5,7 @@ import "./DatePickerCustom.css";
 import { ru } from "date-fns/locale/ru";
 import { useTariffsQuery } from "../../../../api/services/tariff.service";
 import Spinner from "../../../../components/ui/Spinner";
+import { useTranslation } from "../../../../i18n";
 
 // Register Russian locale
 registerLocale("ru", ru);
@@ -30,6 +31,7 @@ interface TariffsStepProps {
 }
 
 export default function TariffsStep({ data, totalAmount, onChange }: TariffsStepProps) {
+  const { t } = useTranslation();
   const { data: tariffsData, isLoading } = useTariffsQuery({
     params: { limit: 100 },
   });
@@ -78,7 +80,7 @@ export default function TariffsStep({ data, totalAmount, onChange }: TariffsStep
       {/* Заголовок выбора даты */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Выберите дату оплаты
+          {t("contracts.tariffs_step.date_title")}
         </label>
 
         <DatePicker
@@ -93,7 +95,7 @@ export default function TariffsStep({ data, totalAmount, onChange }: TariffsStep
           maxDate={maxDate}
           locale="ru"
           dateFormat="d MMMM yyyy"
-          placeholderText="Выберите дату*"
+          placeholderText={t("contracts.tariffs_step.date_placeholder")}
           wrapperClassName="w-full"
           className="w-full h-10 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
         />
@@ -102,12 +104,12 @@ export default function TariffsStep({ data, totalAmount, onChange }: TariffsStep
       {/* Выбор периода */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Выбор периода
+          {t("contracts.tariffs_step.period_title")}
         </h2>
 
         {sortedTariffs.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            <p>Нет доступных тарифов</p>
+            <p>{t("contracts.tariffs_step.empty")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -143,15 +145,15 @@ export default function TariffsStep({ data, totalAmount, onChange }: TariffsStep
                       <div className="flex-1 space-y-3">
                         {/* Срок */}
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Срок:</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.tariffs_step.term_label")}</span>
                           <span className="text-base font-semibold text-gray-900 dark:text-white">
-                            {tariff.period} месяцев
+                            {t("contracts.tariffs_step.months_value", { count: tariff.period })}
                           </span>
                         </div>
 
                         {/* Процентная ставка */}
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Процентная ставка:</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.tariffs_step.rate_label")}</span>
                           <span className="text-base font-semibold text-gray-900 dark:text-white">
                             {tariff.commission_percentage}%
                           </span>
@@ -159,17 +161,17 @@ export default function TariffsStep({ data, totalAmount, onChange }: TariffsStep
 
                         {/* За месяц */}
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">За месяц:</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.tariffs_step.per_month_label")}</span>
                           <span className="text-base font-semibold text-gray-900 dark:text-white">
-                            {formatAmount(monthlyPayment)} сум
+                            {t("contracts.common.amount_suffix", { amount: formatAmount(monthlyPayment) })}
                           </span>
                         </div>
 
                         {/* Общая сумма */}
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Общая сумма:</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">{t("contracts.tariffs_step.total_label")}</span>
                           <span className="text-base font-semibold text-gray-900 dark:text-white">
-                            {formatAmount(totalWithCommission)} сум
+                            {t("contracts.common.amount_suffix", { amount: formatAmount(totalWithCommission) })}
                           </span>
                         </div>
                       </div>
@@ -186,12 +188,18 @@ export default function TariffsStep({ data, totalAmount, onChange }: TariffsStep
       {selectedTariff && data.payment_date && (
         <div className="mt-6 p-4 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800">
           <h3 className="text-sm font-medium text-brand-800 dark:text-brand-300 mb-2">
-            Выбранные условия:
+            {t("contracts.tariffs_step.selected_title")}
           </h3>
           <div className="text-sm text-brand-700 dark:text-brand-400 space-y-1">
-            <p>• Период: {selectedTariff.period} месяцев</p>
-            <p>• Первый платеж: {data.payment_date ? new Date(data.payment_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}</p>
-            <p>• Процентная ставка: {selectedTariff.commission_percentage}%</p>
+            <p>{t("contracts.tariffs_step.selected_period", { count: selectedTariff.period })}</p>
+            <p>
+              {t("contracts.tariffs_step.selected_first_payment", {
+                date: data.payment_date
+                  ? new Date(data.payment_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+                  : '',
+              })}
+            </p>
+            <p>{t("contracts.tariffs_step.selected_rate", { rate: selectedTariff.commission_percentage })}</p>
           </div>
         </div>
       )}

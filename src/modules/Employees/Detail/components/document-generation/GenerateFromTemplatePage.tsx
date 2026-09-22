@@ -10,6 +10,7 @@ import { useUploadFile } from "../../../../../api/services/file-upload.service";
 import { useSettingsDirectoryItemQuery } from "../../../../../api/services/settingsDirectory.service";
 import documentTemplateGenerationService from "../../../../../api/services/documentTemplateGeneration.service";
 import DocxPreview from "./DocxPreview";
+import { useTranslation } from "../../../../../i18n";
 
 type TemplateItem = {
   guid: string;
@@ -76,6 +77,7 @@ function downloadGeneratedFile(file: File) {
 }
 
 export default function EmployeeGenerateDocumentFromTemplatePage() {
+  const { t } = useTranslation();
   const { id, templateId } = useParams<{ id?: string; templateId: string }>();
   const employeeGuidFromPath = String(id || "");
   const selectedTemplateGuid = String(templateId || "");
@@ -121,7 +123,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
       } catch (error) {
         console.error("Failed to extract template variables:", error);
         if (!isCancelled) {
-          toast.error("Не удалось получить переменные шаблона.");
+          toast.error(t("employees.generate_document.variables_extract_failed"));
           setVariables([]);
         }
       } finally {
@@ -151,11 +153,11 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
   const handleGenerate = async () => {
     if (!employeeGuid || !selectedTemplateGuid) return;
     if (!folderId) {
-      toast.error("Не удалось определить папку для сохранения документа.");
+      toast.error(t("employees.generate_document.folder_not_found"));
       return;
     }
     if (!templateFileUrl) {
-      toast.error("У шаблона отсутствует DOCX файл.");
+      toast.error(t("employees.generate_document.no_docx_file"));
       return;
     }
 
@@ -165,7 +167,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
       const generated = await documentTemplateGenerationService.generateDocument({
         template_url: templateFileUrl,
         variables: variableValues,
-        output_file_name: `${String(template?.title || "Документ")}.docx`,
+        output_file_name: `${String(template?.title || t("employees.generate_document.default_title"))}.docx`,
       });
 
       const generatedFile = base64ToFile(
@@ -185,7 +187,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
         document_folders_id: folderId,
       });
 
-      toast.success("Документ успешно сгенерирован.");
+      toast.success(t("employees.generate_document.generated"));
       if (isEmployeeContextRoute) {
         navigate(`/employees/${employeeGuid}`, { state: { activeTab: "Документы" } });
       } else {
@@ -193,7 +195,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
       }
     } catch (error) {
       console.error("Failed to generate employee document from template:", error);
-      toast.error("Не удалось сгенерировать документ.");
+      toast.error(t("employees.generate_document.generate_failed"));
     } finally {
       setIsGenerating(false);
     }
@@ -202,7 +204,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
   if (isTemplateLoading || isEmployeeLoading) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Загрузка...
+        {t("employees.detail.loading")}
       </div>
     );
   }
@@ -210,7 +212,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
   if (isTemplateError || !template) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Шаблон документа не найден.
+        {t("employees.generate_document.template_not_found")}
       </div>
     );
   }
@@ -218,7 +220,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
   if (!employeeGuid) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Не выбран сотрудник для генерации документа.
+        {t("employees.generate_document.no_employee_selected")}
       </div>
     );
   }
@@ -226,8 +228,8 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
   return (
     <>
       <PageMeta
-        title="Генерация документа | Сотрудники"
-        description="Генерация документа сотрудника по шаблону"
+        title={t("employees.generate_document.page_title")}
+        description={t("employees.generate_document.page_description")}
       />
 
       <div className="space-y-4">
@@ -237,19 +239,19 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
           className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-700"
         >
           <ChevronLeft size={16} />
-          {isEmployeeContextRoute ? "Назад к сотруднику" : "Назад к документам"}
+          {isEmployeeContextRoute ? t("employees.template_select.back_to_employee") : t("employees.generate_document.back_to_documents")}
         </Link>
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-[320px] flex-1 space-y-1">
             <textarea
-              value={String(template.title || "Без названия")}
+              value={String(template.title || t("employees.detail.no_title"))}
               readOnly
               rows={1}
               className="w-full resize-none overflow-hidden rounded-lg border border-transparent bg-transparent px-3 py-1 text-4xl font-semibold leading-tight text-gray-900 outline-none"
             />
             <textarea
-              value={String(template.description || "Без описания")}
+              value={String(template.description || t("employees.documents.no_description"))}
               readOnly
               rows={1}
               className="w-full resize-none overflow-hidden rounded-lg border border-transparent bg-transparent px-3 py-1 text-base font-medium text-gray-500 outline-none"
@@ -269,26 +271,26 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
               }}
               disabled={isSaving}
             >
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button className="h-11" onClick={handleGenerate} disabled={isSaving || isLoadingVariables}>
-              {isSaving ? "Генерация..." : "Сгенерировать файл"}
+              {isSaving ? t("employees.generate_document.generating") : t("employees.generate_document.generate_file")}
             </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <DocxPreview fileUrl={templateFileUrl} title="DOCX шаблон" />
+          <DocxPreview fileUrl={templateFileUrl} title={t("employees.docx_preview.default_title")} />
 
           <div className="flex max-h-[calc(100vh-150px)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs">
-            <h3 className="text-lg font-semibold text-gray-900">Переменные</h3>
-            <p className="mt-2 text-sm font-medium text-gray-500">Заполните значения для генерации документа</p>
+            <h3 className="text-lg font-semibold text-gray-900">{t("employees.generate_document.variables_title")}</h3>
+            <p className="mt-2 text-sm font-medium text-gray-500">{t("employees.generate_document.variables_description")}</p>
 
             <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
               {isLoadingVariables ? (
-                <p className="text-sm text-gray-500">Загрузка переменных шаблона...</p>
+                <p className="text-sm text-gray-500">{t("employees.generate_document.variables_loading")}</p>
               ) : variables.length === 0 ? (
-                <p className="text-sm text-gray-500">В шаблоне не найдены переменные.</p>
+                <p className="text-sm text-gray-500">{t("employees.generate_document.no_variables")}</p>
               ) : (
                 variables.map((variable) => (
                   <div key={variable} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
@@ -301,7 +303,7 @@ export default function EmployeeGenerateDocumentFromTemplatePage() {
                           [variable]: event.target.value,
                         }))
                       }
-                      placeholder="Введите значение"
+                      placeholder={t("employees.generate_document.value_placeholder")}
                       className="mt-2 h-9 w-full rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-800 outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
                     />
                   </div>

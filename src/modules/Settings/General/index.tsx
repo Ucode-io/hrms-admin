@@ -31,6 +31,8 @@ import TelegramGroupSection from "./TelegramGroupSection";
 // (ADR-0006, known-gaps §3). Список общий с регионами: два списка зон,
 // которые обязаны совпадать, однажды не совпадут.
 import { getTimezoneOptions } from "../../../utils/timezones";
+import { useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 type CompanyFormState = {
   guid: string;
@@ -53,15 +55,15 @@ type Option = {
   label: string;
 };
 
-const NAME_FORMAT_OPTIONS: Option[] = [
-  { value: "lf", label: "Фамилия Имя" },
-  { value: "fl", label: "Имя Фамилия" },
+const NAME_FORMAT_OPTIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: "lf", labelKey: "settings_general.name_format.last_first" },
+  { value: "fl", labelKey: "settings_general.name_format.first_last" },
 ];
 
-const DATE_FORMAT_OPTIONS: Option[] = [
-  { value: "dd.MM.yyyy", label: "ДД.MM.ГГГГ" },
-  { value: "yyyy-MM-dd", label: "ГГГГ-MM-ДД" },
-  { value: "MM/dd/yyyy", label: "MM/DD/YYYY" },
+const DATE_FORMAT_OPTIONS: { value: string; labelKey: MessageKey }[] = [
+  { value: "dd.MM.yyyy", labelKey: "settings_general.date_format.dmy" },
+  { value: "yyyy-MM-dd", labelKey: "settings_general.date_format.ymd" },
+  { value: "MM/dd/yyyy", labelKey: "settings_general.date_format.mdy" },
 ];
 
 const DEFAULT_COVER_HELPER =
@@ -211,6 +213,7 @@ const CoverPreview = ({
   onSelectFile: (file: File) => void;
   inputRef: RefObject<HTMLInputElement | null>;
 }) => {
+  const { t } = useTranslation();
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -229,7 +232,7 @@ const CoverPreview = ({
           className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
         >
           <ImagePlus size={14} />
-          Редактировать фото обложки
+          {t("settings_general.cover.edit_photo")}
         </button>
       </div>
 
@@ -260,6 +263,7 @@ const CoverPreview = ({
 };
 
 export default function SettingsGeneralPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data, isLoading, isFetching, isError } = useCompanySettingsQuery();
   const {
@@ -325,12 +329,20 @@ export default function SettingsGeneralPage() {
     [currencyApiOptions, form?.currencies_id]
   );
   const nameFormatOptions = useMemo(
-    () => ensureOption(NAME_FORMAT_OPTIONS, form?.name_format),
-    [form?.name_format]
+    () =>
+      ensureOption(
+        NAME_FORMAT_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
+        form?.name_format
+      ),
+    [form?.name_format, t]
   );
   const dateFormatOptions = useMemo(
-    () => ensureOption(DATE_FORMAT_OPTIONS, form?.date_format),
-    [form?.date_format]
+    () =>
+      ensureOption(
+        DATE_FORMAT_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
+        form?.date_format
+      ),
+    [form?.date_format, t]
   );
 
   const updateField = <K extends keyof CompanyFormState>(
@@ -348,10 +360,10 @@ export default function SettingsGeneralPage() {
       setUploadingField(field);
       const url = await uploadMutation.mutateAsync(file);
       updateField(field, url);
-      setStatusMessage("Файл успешно загружен. Не забудьте сохранить изменения.");
+      setStatusMessage(t("settings_general.status.upload_success"));
     } catch (error) {
       console.error("Upload failed:", error);
-      setStatusMessage("Ошибка загрузки файла. Проверьте формат и попробуйте снова.");
+      setStatusMessage(t("settings_general.status.upload_error"));
     } finally {
       setUploadingField(null);
     }
@@ -364,22 +376,22 @@ export default function SettingsGeneralPage() {
     try {
       await updateMutation.mutateAsync(toUpdatePayload(form));
       await companyStore.refreshCompany();
-      setStatusMessage("Настройки компании успешно сохранены.");
-      toast.success("Настройки компании успешно сохранены.");
+      setStatusMessage(t("settings_general.status.save_success"));
+      toast.success(t("settings_general.status.save_success"));
       navigate("/settings");
     } catch (error) {
       console.error("Update company settings failed:", error);
-      setStatusMessage("Не удалось сохранить настройки. Попробуйте ещё раз.");
-      toast.error("Не удалось сохранить настройки. Попробуйте ещё раз.");
+      setStatusMessage(t("settings_general.status.save_error"));
+      toast.error(t("settings_general.status.save_error"));
     }
   };
 
   if (isError) {
     return (
       <>
-        <PageMeta title="Общие настройки | HRMS" description="Настройки компании" />
+        <PageMeta title={t("settings_general.page_meta.title")} description={t("settings_general.page_meta.description")} />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-5 text-sm text-error-700">
-          Не удалось загрузить настройки компании. Проверьте доступ и обновите страницу.
+          {t("settings_general.load_error")}
         </div>
       </>
     );
@@ -388,7 +400,7 @@ export default function SettingsGeneralPage() {
   if (isLoading || !form) {
     return (
       <>
-        <PageMeta title="Общие настройки | HRMS" description="Настройки компании" />
+        <PageMeta title={t("settings_general.page_meta.title")} description={t("settings_general.page_meta.description")} />
         <div className="flex min-h-[360px] items-center justify-center">
           <Spinner />
         </div>
@@ -398,19 +410,19 @@ export default function SettingsGeneralPage() {
 
   return (
     <>
-      <PageMeta title="Общие настройки | HRMS" description="Настройки компании" />
+      <PageMeta title={t("settings_general.page_meta.title")} description={t("settings_general.page_meta.description")} />
 
       <div className="space-y-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-gray-900">Общие</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_general.heading")}</h1>
         </div>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Информация о компании</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">{t("settings_general.company_info.heading")}</h2>
           <div className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="company_name">Название компании</Label>
+                <Label htmlFor="company_name">{t("settings_general.company_info.name_label")}</Label>
                 <Input
                   id="company_name"
                   value={form.name}
@@ -419,7 +431,7 @@ export default function SettingsGeneralPage() {
               </div>
 
               <div>
-                <Label htmlFor="company_language">Язык по умолчанию</Label>
+                <Label htmlFor="company_language">{t("settings_general.company_info.language_label")}</Label>
                 <Select
                   inputId="company_language"
                   options={languageOptions}
@@ -428,22 +440,22 @@ export default function SettingsGeneralPage() {
                   isSearchable
                   isLoading={isLanguageLoading}
                   styles={searchSelectStyles}
-                  placeholder="Выберите язык"
-                  noOptionsMessage={() => "Ничего не найдено"}
-                  loadingMessage={() => "Загрузка..."}
+                  placeholder={t("settings_general.company_info.language_placeholder")}
+                  noOptionsMessage={() => t("settings_general.nothing_found")}
+                  loadingMessage={() => t("settings_general.loading")}
                 />
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Эти настройки языка по умолчанию будут применяться к новым сотрудникам.
+                  {t("settings_general.company_info.language_hint")}
                 </p>
                 {isLanguageError && (
                   <p className="mt-1.5 text-xs text-error-600">
-                    Не удалось загрузить языки из API.
+                    {t("settings_general.company_info.language_load_error")}
                   </p>
                 )}
               </div>
 
               <div>
-                <Label htmlFor="company_timezone">Часовой пояс по умолчанию</Label>
+                <Label htmlFor="company_timezone">{t("settings_general.company_info.timezone_label")}</Label>
                 <Select
                   inputId="company_timezone"
                   options={timezoneOptions}
@@ -451,13 +463,13 @@ export default function SettingsGeneralPage() {
                   onChange={(option) => updateField("timezone", option?.value || "")}
                   isSearchable
                   styles={searchSelectStyles}
-                  placeholder="Выберите часовой пояс"
-                  noOptionsMessage={() => "Ничего не найдено"}
+                  placeholder={t("settings_general.company_info.timezone_placeholder")}
+                  noOptionsMessage={() => t("settings_general.nothing_found")}
                 />
               </div>
 
               <div>
-                <Label htmlFor="company_currency">Валюта по умолчанию</Label>
+                <Label htmlFor="company_currency">{t("settings_general.company_info.currency_label")}</Label>
                 <Select
                   inputId="company_currency"
                   options={currencyOptions}
@@ -466,19 +478,19 @@ export default function SettingsGeneralPage() {
                   isSearchable
                   isLoading={isCurrencyLoading}
                   styles={searchSelectStyles}
-                  placeholder="Выберите валюту"
-                  noOptionsMessage={() => "Ничего не найдено"}
-                  loadingMessage={() => "Загрузка..."}
+                  placeholder={t("settings_general.company_info.currency_placeholder")}
+                  noOptionsMessage={() => t("settings_general.nothing_found")}
+                  loadingMessage={() => t("settings_general.loading")}
                 />
                 {isCurrencyError && (
                   <p className="mt-1.5 text-xs text-error-600">
-                    Не удалось загрузить валюты из API.
+                    {t("settings_general.company_info.currency_load_error")}
                   </p>
                 )}
               </div>
 
               <div>
-                <Label htmlFor="name_format">Отображение имени</Label>
+                <Label htmlFor="name_format">{t("settings_general.company_info.name_format_label")}</Label>
                 <select
                   id="name_format"
                   className="h-11 w-full rounded-lg border border-gray-300 px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
@@ -494,7 +506,7 @@ export default function SettingsGeneralPage() {
               </div>
 
               <div>
-                <Label htmlFor="date_format">Формат даты</Label>
+                <Label htmlFor="date_format">{t("settings_general.company_info.date_format_label")}</Label>
                 <select
                   id="date_format"
                   className="h-11 w-full rounded-lg border border-gray-300 px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
@@ -513,11 +525,11 @@ export default function SettingsGeneralPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Персонализация</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">{t("settings_general.personalization.heading")}</h2>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="grid gap-5 border-b border-gray-100 p-5 md:grid-cols-[1.4fr_1fr] md:p-6">
               <div>
-                <Label>Логотип</Label>
+                <Label>{t("settings_general.personalization.logo_label")}</Label>
                 <FileInput
                   onChange={(event) => {
                     const file = event.target.files?.[0];
@@ -527,23 +539,23 @@ export default function SettingsGeneralPage() {
                   }}
                 />
                 <p className="mt-2 text-xs text-gray-500">
-                  Логотип будет отображаться в левом верхнем углу. Поддерживаемые форматы: .svg, .jpg, .png
+                  {t("settings_general.personalization.logo_hint")}
                 </p>
               </div>
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                 {form.logo ? (
                   <img src={form.logo} alt="Company logo" className="h-14 w-auto object-contain" />
                 ) : (
-                  <div className="flex h-14 items-center text-sm text-gray-400">Логотип не выбран</div>
+                  <div className="flex h-14 items-center text-sm text-gray-400">{t("settings_general.personalization.logo_not_selected")}</div>
                 )}
               </div>
             </div>
 
             <div className="grid gap-4 border-b border-gray-100 p-5 md:grid-cols-[1fr_auto] md:items-center md:p-6">
               <div>
-                <Label>Основной цвет</Label>
+                <Label>{t("settings_general.personalization.main_color_label")}</Label>
                 <p className="text-xs text-gray-500">
-                  Кнопки действий и акценты будут отображаться в этом цвете.
+                  {t("settings_general.personalization.main_color_hint")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -563,7 +575,7 @@ export default function SettingsGeneralPage() {
 
             <div className="space-y-5 p-5 md:p-6">
               <CoverPreview
-                title="Включить обложку компании на главной странице"
+                title={t("settings_general.cover.company_toggle")}
                 enabled={form.enabled_company_cover}
                 image={form.company_cover}
                 onToggle={(checked) => updateField("enabled_company_cover", checked)}
@@ -572,7 +584,7 @@ export default function SettingsGeneralPage() {
               />
 
               <CoverPreview
-                title="Включить изображение обложки сотрудника"
+                title={t("settings_general.cover.employee_toggle")}
                 enabled={form.enabled_employee_cover}
                 image={form.employee_cover}
                 onToggle={(checked) => updateField("enabled_employee_cover", checked)}
@@ -587,7 +599,7 @@ export default function SettingsGeneralPage() {
 
         <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-4 backdrop-blur">
           <div className="text-sm text-gray-500">
-            {isFetching ? "Обновление данных..." : statusMessage || "Изменения не сохранены"}
+            {isFetching ? t("settings_general.status.refreshing") : statusMessage || t("settings_general.status.unsaved")}
           </div>
           <Button
             onClick={handleSave}
@@ -595,10 +607,10 @@ export default function SettingsGeneralPage() {
             className="min-w-[170px]"
           >
             {updateMutation.isLoading
-              ? "Сохранение..."
+              ? t("settings_general.action.saving")
               : uploadingField
-                ? "Загрузка файла..."
-                : "Сохранить изменения"}
+                ? t("settings_general.action.uploading_file")
+                : t("settings_general.action.save_changes")}
           </Button>
         </div>
       </div>

@@ -6,6 +6,7 @@ import {
   useEmployeeInterestsQuery,
   useUpdateEmployeeInterest,
 } from "../../../../api/services/employeeInterest.service";
+import { useTranslation } from "../../../../i18n";
 
 type InterestsSectionProps = {
   employeeGuid: string;
@@ -33,6 +34,7 @@ const toTime = (date: string) => {
 };
 
 function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
+  const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [creatingId, setCreatingId] = useState<string | null>(null);
@@ -129,7 +131,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
         setEditingTitle("");
         return;
       }
-      setError("Название интереса не может быть пустым.");
+      setError(t("employees.interests.empty_title_error"));
       return;
     }
 
@@ -153,7 +155,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
       setError("");
     } catch (saveError) {
       console.error("Interest save error:", saveError);
-      setError("Не удалось сохранить интерес. Попробуйте ещё раз.");
+      setError(t("employees.interests.save_failed"));
     }
   };
 
@@ -180,7 +182,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
       setError("");
     } catch (deleteError) {
       console.error("Interest delete error:", deleteError);
-      setError("Не удалось удалить интерес. Попробуйте ещё раз.");
+      setError(t("employees.interests.delete_failed"));
     }
   };
 
@@ -191,7 +193,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
           <span style={{ color: brandColor }}>
             <Heart className="w-4 h-4" />
           </span>
-          <h3 className="text-[15px] font-bold text-slate-900 m-0">Интересы</h3>
+          <h3 className="text-[15px] font-bold text-slate-900 m-0">{t("employees.interests.title")}</h3>
           <span className="text-[12px] font-medium text-slate-400">{records.length}</span>
         </div>
         <button
@@ -202,7 +204,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
           style={{ color: brandColor }}
         >
           <Plus className="w-3.5 h-3.5" />
-          Добавить
+          {t("common.add")}
         </button>
       </div>
 
@@ -221,7 +223,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
             />
           </div>
         ) : records.length === 0 ? (
-          <div className="py-2 text-[13px] text-slate-400">Интересы не добавлены</div>
+          <div className="py-2 text-[13px] text-slate-400">{t("employees.interests.none_added")}</div>
         ) : (
           <div className="flex flex-wrap gap-2">
             {records.map((record) => (
@@ -246,10 +248,10 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
                           cancelEdit();
                         }
                       }}
-                      placeholder="Новый интерес"
+                      placeholder={t("employees.interests.new_interest_placeholder")}
                       autoFocus
                       style={{
-                        width: `${Math.max((editingTitle || "Новый интерес").length + 1, 8)}ch`,
+                        width: `${Math.max((editingTitle || t("employees.interests.new_interest_placeholder")).length + 1, 8)}ch`,
                       }}
                       className="max-w-[220px] bg-transparent border-none p-0 text-[13px] text-slate-800 outline-none"
                     />
@@ -258,7 +260,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
                       onClick={() => void saveEdit()}
                       disabled={isSaving}
                       className="inline-flex items-center justify-center w-6 h-6 rounded-md border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="Сохранить"
+                      title={t("common.save")}
                     >
                       <Check className="w-3 h-3" />
                     </button>
@@ -267,7 +269,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
                       onClick={cancelEdit}
                       disabled={isSaving}
                       className="inline-flex items-center justify-center w-6 h-6 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="Отмена"
+                      title={t("common.cancel")}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -289,7 +291,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
                           ? "opacity-100"
                           : "opacity-0 group-hover:opacity-100"
                       }`}
-                      title="Действия"
+                      title={t("employees.interests.actions")}
                     >
                       <MoreHorizontal className="w-3.5 h-3.5" />
                     </button>
@@ -305,7 +307,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
                           className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12px] text-slate-700 rounded-md hover:bg-slate-100 cursor-pointer"
                         >
                           <Pencil className="w-4 h-4" />
-                          Редактировать
+                          {t("common.edit")}
                         </button>
                         <button
                           type="button"
@@ -313,7 +315,7 @@ function InterestsSection({ employeeGuid, brandColor }: InterestsSectionProps) {
                           className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[12px] text-rose-600 rounded-md hover:bg-rose-50 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
-                          Удалить
+                          {t("common.delete")}
                         </button>
                       </div>
                     )}

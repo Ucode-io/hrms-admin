@@ -6,6 +6,7 @@ import CalendarModule from "../Calendar";
 import TimeAttendancePage from "./Attendance";
 import AttendanceEventsPage from "./Attendance/AttendanceEventsPage";
 import AbsenceRequestsView from "./components/AbsenceRequestsView";
+import { useTranslation } from "../../i18n";
 
 type TimeView = "calendar" | "attendance" | "events" | "absence";
 
@@ -25,6 +26,7 @@ const isTimeView = (value: string | null): value is TimeView =>
   value === "absence";
 
 function TimeModule() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const activeView: TimeView = useMemo(() => {

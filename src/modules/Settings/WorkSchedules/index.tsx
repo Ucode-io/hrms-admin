@@ -33,13 +33,15 @@ import reportsService, {
   type WorkScheduleDayCode,
 } from "../../../api/services/reports.service";
 import TimeInput from "../../../components/form/TimeInput";
+import { useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 const WORK_SCHEDULES_QUERY_KEY = "WORK_SCHEDULES";
 const PAGE_SIZE = 20;
 
 type DayDef = {
   code: WorkScheduleDayCode;
-  label: string;
+  labelKey: MessageKey;
   defaultWorkStart: string;
   defaultWorkEnd: string;
   defaultLunchStart: string;
@@ -49,7 +51,7 @@ type DayDef = {
 
 type DaySchedule = {
   code: WorkScheduleDayCode;
-  label: string;
+  labelKey: MessageKey;
   workStart: string;
   workEnd: string;
   lunchStart: string;
@@ -58,13 +60,13 @@ type DaySchedule = {
 };
 
 const DAY_DEFS: DayDef[] = [
-  { code: "mon", label: "Понедельник", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
-  { code: "tue", label: "Вторник", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
-  { code: "wed", label: "Среда", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
-  { code: "thu", label: "Четверг", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
-  { code: "fri", label: "Пятница", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
-  { code: "sat", label: "Суббота", defaultWorkStart: "", defaultWorkEnd: "", defaultLunchStart: "", defaultLunchEnd: "", defaultDayOff: true },
-  { code: "sun", label: "Воскресенье", defaultWorkStart: "", defaultWorkEnd: "", defaultLunchStart: "", defaultLunchEnd: "", defaultDayOff: true },
+  { code: "mon", labelKey: "settings_misc.work_schedules.day_mon", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "tue", labelKey: "settings_misc.work_schedules.day_tue", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "wed", labelKey: "settings_misc.work_schedules.day_wed", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "thu", labelKey: "settings_misc.work_schedules.day_thu", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "fri", labelKey: "settings_misc.work_schedules.day_fri", defaultWorkStart: "09:00", defaultWorkEnd: "18:00", defaultLunchStart: "13:00", defaultLunchEnd: "14:00", defaultDayOff: false },
+  { code: "sat", labelKey: "settings_misc.work_schedules.day_sat", defaultWorkStart: "", defaultWorkEnd: "", defaultLunchStart: "", defaultLunchEnd: "", defaultDayOff: true },
+  { code: "sun", labelKey: "settings_misc.work_schedules.day_sun", defaultWorkStart: "", defaultWorkEnd: "", defaultLunchStart: "", defaultLunchEnd: "", defaultDayOff: true },
 ];
 
 const toNumber = (value: unknown, fallback = 0): number => {
@@ -111,7 +113,7 @@ const formatHoursWithComma = (value: number): string => value.toFixed(1).replace
 const buildDefaultDays = (): DaySchedule[] =>
   DAY_DEFS.map((day) => ({
     code: day.code,
-    label: day.label,
+    labelKey: day.labelKey,
     workStart: day.defaultWorkStart,
     workEnd: day.defaultWorkEnd,
     lunchStart: day.defaultLunchStart,
@@ -130,7 +132,7 @@ const resolveDaysFromSchedule = (schedule: WorkSchedule): DaySchedule[] => {
     if (!matched) {
       return {
         code: def.code,
-        label: def.label,
+        labelKey: def.labelKey,
         workStart: "",
         workEnd: "",
         lunchStart: "",
@@ -141,7 +143,7 @@ const resolveDaysFromSchedule = (schedule: WorkSchedule): DaySchedule[] => {
 
     return {
       code: def.code,
-      label: def.label,
+      labelKey: def.labelKey,
       workStart: matched.work_start_time || "",
       workEnd: matched.work_end_time || "",
       lunchStart: matched.lunch_start_time || "",
@@ -174,6 +176,7 @@ function TimeField({
 }
 
 export default function WorkSchedulesSettingsPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -256,7 +259,7 @@ export default function WorkSchedulesSettingsPage() {
       setDays(resolveDaysFromSchedule(schedule));
     } catch (error) {
       console.error("Failed to load work schedule details:", error);
-      toast.error("Не удалось загрузить данные графика.");
+      toast.error(t("settings_misc.work_schedules.toast_load_failed"));
       setEditingItem(item);
       setTitle(item.title || "");
       setIsRemote(Boolean(item.is_remote));
@@ -315,7 +318,7 @@ export default function WorkSchedulesSettingsPage() {
 
     const preparedTitle = title.trim();
     if (!preparedTitle) {
-      toast.error("Название графика обязательно.");
+      toast.error(t("settings_misc.work_schedules.toast_title_required"));
       return;
     }
 
@@ -327,7 +330,7 @@ export default function WorkSchedulesSettingsPage() {
     });
 
     if (invalidDay) {
-      toast.error(`${invalidDay.label}: конец рабочего дня должен быть позже начала.`);
+      toast.error(t("settings_misc.work_schedules.toast_invalid_day", { label: t(invalidDay.labelKey) }));
       return;
     }
 
@@ -350,13 +353,13 @@ export default function WorkSchedulesSettingsPage() {
         days: payloadDays,
       });
 
-      toast.success(editingItem ? "Рабочий график обновлен." : "Рабочий график создан.");
+      toast.success(editingItem ? t("settings_misc.work_schedules.toast_updated") : t("settings_misc.work_schedules.toast_created"));
       closeUpsertModal();
 
       await queryClient.invalidateQueries([WORK_SCHEDULES_QUERY_KEY]);
     } catch (error) {
       console.error("Failed to save work schedule:", error);
-      toast.error("Не удалось сохранить рабочий график.");
+      toast.error(t("settings_misc.work_schedules.toast_save_failed"));
     } finally {
       setIsSaving(false);
     }
@@ -379,12 +382,12 @@ export default function WorkSchedulesSettingsPage() {
     setIsDeleting(true);
     try {
       await reportsService.deleteWorkSchedule(itemToDelete.guid);
-      toast.success("Рабочий график удален.");
+      toast.success(t("settings_misc.work_schedules.toast_deleted"));
       closeDeleteModal();
       await queryClient.invalidateQueries([WORK_SCHEDULES_QUERY_KEY]);
     } catch (error) {
       console.error("Failed to delete work schedule:", error);
-      toast.error("Не удалось удалить рабочий график.");
+      toast.error(t("settings_misc.work_schedules.toast_delete_failed"));
     } finally {
       setIsDeleting(false);
     }
@@ -398,13 +401,13 @@ export default function WorkSchedulesSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Графики работы | Настройки" description="Управление рабочими графиками" />
+      <PageMeta title={t("settings_misc.work_schedules.page_title")} description={t("settings_misc.work_schedules.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Графики работы</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_misc.work_schedules.heading")}</h1>
           <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-            Добавить
+            {t("settings_misc.work_schedules.add_button")}
           </Button>
         </div>
 
@@ -419,33 +422,33 @@ export default function WorkSchedulesSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_misc.work_schedules.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
           </div>
 
           <div className="px-4 py-3 text-sm font-medium text-gray-500">
-            Отображение {visibleFrom} - {visibleTo} из {totalCount}
+            {t("settings_misc.work_schedules.showing_range", { from: visibleFrom, to: visibleTo, total: totalCount })}
           </div>
 
-          {isFetching && <div className="px-4 pb-2 text-xs text-gray-400">Обновление...</div>}
+          {isFetching && <div className="px-4 pb-2 text-xs text-gray-400">{t("settings_misc.work_schedules.updating")}</div>}
 
           <div className="max-w-full overflow-x-auto border-t border-gray-100">
             <Table>
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="min-w-[280px] px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_misc.work_schedules.col_title")}
                   </TableCell>
                   <TableCell isHeader className="min-w-[220px] px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Перерывы еженедельно (часов)
+                    {t("settings_misc.work_schedules.col_breaks")}
                   </TableCell>
                   <TableCell isHeader className="min-w-[240px] px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Работает еженедельно (часов)
+                    {t("settings_misc.work_schedules.col_worked")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_misc.work_schedules.col_actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -471,7 +474,7 @@ export default function WorkSchedulesSettingsPage() {
                 ) : items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Графики работы не найдены
+                      {t("settings_misc.work_schedules.empty_state")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -483,10 +486,10 @@ export default function WorkSchedulesSettingsPage() {
                       <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                         <TableCell className="px-4 py-3 text-sm text-gray-900">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold">{item.title || "Без названия"}</span>
+                            <span className="font-semibold">{item.title || t("settings_misc.work_schedules.untitled")}</span>
                             {item.is_remote && (
                               <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
-                                Удаленно
+                                {t("settings_misc.work_schedules.remote_badge")}
                               </span>
                             )}
                           </div>
@@ -503,7 +506,7 @@ export default function WorkSchedulesSettingsPage() {
                               type="button"
                               onClick={() => toggleActionsMenu(item.guid)}
                               className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                              aria-label="Открыть действия"
+                              aria-label={t("settings_misc.work_schedules.open_actions_aria")}
                               ref={(el) => {
                                 actionButtonRefs.current[item.guid] = el;
                               }}
@@ -522,13 +525,13 @@ export default function WorkSchedulesSettingsPage() {
                                 onClick={() => openEditModal(item)}
                                 className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                               >
-                                Изменить
+                                {t("settings_misc.work_schedules.action_edit")}
                               </DropdownItem>
                               <DropdownItem
                                 onClick={() => openDeleteModal(item)}
                                 className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                               >
-                                Удалить
+                                {t("settings_misc.work_schedules.action_delete")}
                               </DropdownItem>
                             </Dropdown>
                           </div>
@@ -559,13 +562,13 @@ export default function WorkSchedulesSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingItem ? "Изменить рабочий график" : "Новый рабочий график"}
+            {editingItem ? t("settings_misc.work_schedules.modal_edit_title") : t("settings_misc.work_schedules.modal_new_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_misc.work_schedules.close_aria")}
           >
             <X size={18} />
           </button>
@@ -581,13 +584,13 @@ export default function WorkSchedulesSettingsPage() {
             <>
               <div className="space-y-2">
                 <label htmlFor="work-schedule-title" className="block text-sm font-medium text-gray-700">
-                  Название
+                  {t("settings_misc.work_schedules.field_title")}
                 </label>
                 <input
                   id="work-schedule-title"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  placeholder="Введите название"
+                  placeholder={t("settings_misc.work_schedules.field_title_placeholder")}
                   autoFocus
                   className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
                 />
@@ -595,14 +598,14 @@ export default function WorkSchedulesSettingsPage() {
 
               <div className="rounded-xl border border-gray-200">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
-                  <h4 className="text-lg font-semibold text-gray-900">Рабочий график</h4>
+                  <h4 className="text-lg font-semibold text-gray-900">{t("settings_misc.work_schedules.section_schedule")}</h4>
 
                   <button
                     type="button"
                     onClick={() => setIsRemote((prev) => !prev)}
                     className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700"
                   >
-                    Удаленно
+                    {t("settings_misc.work_schedules.remote_toggle")}
                     <span
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
                         isRemote ? "bg-brand-500" : "bg-gray-200"
@@ -621,13 +624,13 @@ export default function WorkSchedulesSettingsPage() {
                   <table className="min-w-full">
                     <thead className="border-b border-gray-200 bg-gray-50">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Будний день</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Начало</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Конец</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Обед с</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Обед по</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Часов</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Выходной</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{t("settings_misc.work_schedules.col_weekday")}</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{t("settings_misc.work_schedules.col_start")}</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{t("settings_misc.work_schedules.col_end")}</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{t("settings_misc.work_schedules.col_lunch_from")}</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{t("settings_misc.work_schedules.col_lunch_to")}</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{t("settings_misc.work_schedules.col_hours")}</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">{t("settings_misc.work_schedules.col_day_off")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -635,7 +638,7 @@ export default function WorkSchedulesSettingsPage() {
                         const { workHours } = computeDayHours(day);
                         return (
                           <tr key={day.code} className="border-b border-gray-100 last:border-b-0">
-                            <td className="px-3 py-2 text-sm font-semibold text-gray-900">{day.label}</td>
+                            <td className="px-3 py-2 text-sm font-semibold text-gray-900">{t(day.labelKey)}</td>
                             <td className="px-3 py-2">
                               <TimeField
                                 value={day.workStart}
@@ -665,13 +668,15 @@ export default function WorkSchedulesSettingsPage() {
                               />
                             </td>
                             <td className="px-3 py-2 text-sm font-semibold text-gray-700">
-                              {day.isDayOff ? "—" : `${formatHoursWithComma(workHours)} ч`}
+                              {day.isDayOff
+                                ? "—"
+                                : t("settings_misc.work_schedules.hours_suffix", { hours: formatHoursWithComma(workHours) })}
                             </td>
                             <td className="px-3 py-2">
                               <button
                                 type="button"
                                 onClick={() => toggleDayOff(day.code)}
-                                aria-label="Выходной день"
+                                aria-label={t("settings_misc.work_schedules.day_off_aria")}
                                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
                                   day.isDayOff ? "bg-brand-500" : "bg-gray-200"
                                 }`}
@@ -690,10 +695,10 @@ export default function WorkSchedulesSettingsPage() {
                     <tfoot className="border-t border-gray-200 bg-gray-50">
                       <tr>
                         <td className="px-3 py-2 text-xs font-semibold text-gray-500" colSpan={5}>
-                          Общее
+                          {t("settings_misc.work_schedules.total_label")}
                         </td>
                         <td className="px-3 py-2 text-xs font-semibold text-gray-700">
-                          {formatHoursWithComma(totalWorkedInModal)} ч
+                          {t("settings_misc.work_schedules.hours_suffix", { hours: formatHoursWithComma(totalWorkedInModal) })}
                         </td>
                         <td className="px-3 py-2" />
                       </tr>
@@ -711,7 +716,7 @@ export default function WorkSchedulesSettingsPage() {
             disabled={isSaving || isModalLoading}
             className="min-w-[110px] px-3 py-2 text-sm"
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_misc.work_schedules.saving") : t("settings_misc.work_schedules.save_button")}
           </Button>
         </div>
       </Modal>
@@ -724,12 +729,12 @@ export default function WorkSchedulesSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить график</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_misc.work_schedules.delete_modal_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_misc.work_schedules.close_aria")}
             >
               <X size={16} />
             </button>
@@ -737,11 +742,11 @@ export default function WorkSchedulesSettingsPage() {
         </div>
 
         <div className="space-y-3 px-4 py-4 text-center">
-          <p className="text-sm text-gray-500">Это действие нельзя отменить.</p>
+          <p className="text-sm text-gray-500">{t("settings_misc.work_schedules.delete_modal_hint")}</p>
           <p className="text-sm text-gray-700">
             {itemToDelete
-              ? `Вы уверены, что хотите удалить "${itemToDelete.title}"?`
-              : "Вы уверены, что хотите удалить этот график?"}
+              ? t("settings_misc.work_schedules.delete_confirm_named", { title: itemToDelete.title })
+              : t("settings_misc.work_schedules.delete_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -750,14 +755,14 @@ export default function WorkSchedulesSettingsPage() {
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_misc.work_schedules.cancel_button")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={isDeleting}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {isDeleting ? "Удаление..." : "Удалить"}
+              {isDeleting ? t("settings_misc.work_schedules.deleting") : t("settings_misc.work_schedules.delete_button")}
             </Button>
           </div>
         </div>

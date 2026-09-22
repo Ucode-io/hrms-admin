@@ -14,6 +14,8 @@ import {
   useMainSettingsQuery,
   useSaveMainSettings,
 } from "../../../api/services/mainSettings.service";
+import { useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 /**
  * Насколько строго оклад обязан укладываться в матрицу грейдов.
@@ -25,23 +27,23 @@ import {
  */
 const GRADE_SALARY_POLICY_OPTIONS: {
   value: GradeSalaryPolicy;
-  label: string;
-  hint: string;
+  labelKey: MessageKey;
+  hintKey: MessageKey;
 }[] = [
   {
     value: "off",
-    label: "Не должен",
-    hint: "Оклад с матрицей грейдов не сверяется.",
+    labelKey: "settings_home.grade_policy.off_label",
+    hintKey: "settings_home.grade_policy.off_hint",
   },
   {
     value: "warn",
-    label: "Должен, но не обязательно",
-    hint: "Если оклад выше потолка ступени, покажем предупреждение, но сохранить дадим.",
+    labelKey: "settings_home.grade_policy.warn_label",
+    hintKey: "settings_home.grade_policy.warn_hint",
   },
   {
     value: "required",
-    label: "Должен",
-    hint: "Оклад выше потолка ступени сохранить нельзя.",
+    labelKey: "settings_home.grade_policy.required_label",
+    hintKey: "settings_home.grade_policy.required_hint",
   },
 ];
 
@@ -60,6 +62,7 @@ const DEFAULT_FORM: MainSettingsPayload = {
 };
 
 export default function HomeSettingsPage() {
+  const { t } = useTranslation();
   const { data, isLoading, isError } = useMainSettingsQuery();
   const saveMutation = useSaveMainSettings();
 
@@ -133,26 +136,26 @@ export default function HomeSettingsPage() {
       });
 
       setInitialForm(form);
-      toast.success("Настройки главной страницы сохранены.");
+      toast.success(t("settings_home.save_success"));
     } catch (error) {
       console.error("Failed to save main settings:", error);
-      toast.error("Не удалось сохранить настройки. Попробуйте еще раз.");
+      toast.error(t("settings_home.save_error"));
     }
   };
 
   return (
     <>
-      <PageMeta title="Главная | Настройки" description="Настройки главной страницы" />
+      <PageMeta title={t("settings_home.page_title")} description={t("settings_home.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Главная</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_home.heading")}</h1>
           <Button
             onClick={handleSave}
             disabled={!isDirty || saveMutation.isLoading || isLoading}
             className="h-10 px-4"
           >
-            {saveMutation.isLoading ? "Сохранение..." : "Сохранить"}
+            {saveMutation.isLoading ? t("settings_home.saving") : t("settings_home.save")}
           </Button>
         </div>
 
@@ -164,43 +167,41 @@ export default function HomeSettingsPage() {
               ))}
             </div>
           ) : isError ? (
-            <p className="text-sm text-error-600">Не удалось загрузить настройки.</p>
+            <p className="text-sm text-error-600">{t("settings_home.load_error")}</p>
           ) : (
             <div className="space-y-4">
               <Checkbox
                 checked={form.show_new_hires_widget}
                 onChange={(value) => setField("show_new_hires_widget", value)}
-                label="Показывать виджет приветствия новичков"
+                label={t("settings_home.widget.newcomers")}
               />
 
               <Checkbox
                 checked={form.show_anniversaries_widget}
                 onChange={(value) => setField("show_anniversaries_widget", value)}
-                label="Показать виджет годовщин"
+                label={t("settings_home.widget.anniversaries")}
               />
 
               <Checkbox
                 checked={form.show_birthdays_widget}
                 onChange={(value) => setField("show_birthdays_widget", value)}
-                label="Показать виджет дней рождения"
+                label={t("settings_home.widget.birthdays")}
               />
 
               <Checkbox
                 checked={form.show_absences_widget}
                 onChange={(value) => setField("show_absences_widget", value)}
-                label="Показать виджет отсутствий"
+                label={t("settings_home.widget.absences")}
               />
 
               <div className="space-y-1.5">
                 <Checkbox
                   checked={form.show_business_absences}
                   onChange={(value) => setField("show_business_absences", value)}
-                  label="Показать сотрудников, находящихся в рабочем отсутствии"
+                  label={t("settings_home.widget.work_absences")}
                 />
                 <p className="pl-8 text-sm leading-6 text-gray-500">
-                  По умолчанию мы показываем сотрудников в нерабочих отсутствиях (например, отпуск, больничный).
-                  Включите эту опцию, чтобы также показывать сотрудников в рабочих отсутствиях
-                  (например, командировка, удаленная работа).
+                  {t("settings_home.widget.work_absences_hint")}
                 </p>
               </div>
 
@@ -209,7 +210,7 @@ export default function HomeSettingsPage() {
                   htmlFor="lateness-penalty-coefficient"
                   className="block text-sm font-medium text-gray-700"
                 >
-                  Коэффициент штрафа за опоздания
+                  {t("settings_home.lateness.coefficient_label")}
                 </label>
                 <input
                   id="lateness-penalty-coefficient"
@@ -221,8 +222,7 @@ export default function HomeSettingsPage() {
                   className="h-10 w-full max-w-[200px] rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
                 />
                 <p className="text-sm leading-6 text-gray-500">
-                  Удержание за опоздания в ведомости зарплаты рассчитывается как
-                  (Оклад ÷ рабочие минуты в месяце) × (минуты опозданий − прощаемые минуты) × этот коэффициент.
+                  {t("settings_home.lateness.coefficient_hint")}
                 </p>
               </div>
 
@@ -231,7 +231,7 @@ export default function HomeSettingsPage() {
                   htmlFor="lateness-grace-minutes"
                   className="block text-sm font-medium text-gray-700"
                 >
-                  Прощаемые минуты опоздания
+                  {t("settings_home.lateness.grace_label")}
                 </label>
                 <input
                   id="lateness-grace-minutes"
@@ -243,23 +243,20 @@ export default function HomeSettingsPage() {
                   className="h-10 w-full max-w-[200px] rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
                 />
                 <p className="text-sm leading-6 text-gray-500">
-                  Это количество минут опоздания вычитается из минут опозданий сотрудника
-                  перед расчетом штрафа (не может уйти ниже 0).
+                  {t("settings_home.lateness.grace_hint")}
                 </p>
               </div>
 
               <div className="space-y-2 border-t border-gray-100 pt-4">
                 <p className="text-sm font-medium text-gray-700">
-                  Оклад сотрудника должен соответствовать матрице грейдов
+                  {t("settings_home.grade_policy.title")}
                 </p>
                 <p className="text-sm leading-6 text-gray-500">
-                  Оклад сверяется с потолком той ступени, на которой стоит грейд сотрудника
-                  (его должность × уровень опыта в{" "}
+                  {t("settings_home.grade_policy.hint_before_link")}{" "}
                   <Link to="/settings/grade-salaries" className="text-brand-500 hover:underline">
-                    зарплатах по грейдам
+                    {t("settings_home.grade_policy.hint_link")}
                   </Link>
-                  ). Если этой пары в матрице нет или у ступени не задан потолок — сверять не
-                  с чем, и оклад проходит в любом режиме.
+                  {t("settings_home.grade_policy.hint_after_link")}
                 </p>
 
                 <div className="space-y-2 pt-1">
@@ -278,10 +275,10 @@ export default function HomeSettingsPage() {
                       />
                       <span className="min-w-0">
                         <span className="block text-sm font-medium text-gray-800">
-                          {option.label}
+                          {t(option.labelKey)}
                         </span>
                         <span className="block text-sm leading-6 text-gray-500">
-                          {option.hint}
+                          {t(option.hintKey)}
                         </span>
                       </span>
                     </label>

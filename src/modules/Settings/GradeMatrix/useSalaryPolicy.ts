@@ -1,3 +1,4 @@
+import { translate } from "../../../i18n";
 import { useCallback } from "react";
 import {
   normalizeGradeSalaryPolicy,
@@ -67,7 +68,7 @@ export const evaluateGradeCheck = (
       issues: [
         {
           kind: "level",
-          message: `Уровень не указан, а для должности «${row.title}» в матрице грейдов заданы ступени: ${ladder}.`,
+          message: translate("settings_grade_matrix.policy.level_missing", { position: row.title, ladder }),
         },
       ],
     };
@@ -80,7 +81,11 @@ export const evaluateGradeCheck = (
       issues: [
         {
           kind: "level",
-          message: `Уровень ${levelTitle(input.levelId)} не задан для должности «${row.title}» — в матрице у неё ступени: ${ladder}.`,
+          message: translate("settings_grade_matrix.policy.level_not_in_ladder", {
+            level: levelTitle(input.levelId),
+            position: row.title,
+            ladder,
+          }),
         },
       ],
     };
@@ -95,9 +100,12 @@ export const evaluateGradeCheck = (
     issues: [
       {
         kind: "salary",
-        message: `Оклад ${formatMoney(input.salary)} выше потолка ступени ${levelTitle(
-          input.levelId
-        )} — ${formatMoney(column.maxSalary)} (стаж ${formatTenure(column.minMonths)}).`,
+        message: translate("settings_grade_matrix.policy.salary_above_cap", {
+          salary: formatMoney(input.salary),
+          level: levelTitle(input.levelId),
+          cap: formatMoney(column.maxSalary),
+          tenure: formatTenure(column.minMonths),
+        }),
       },
     ],
   };

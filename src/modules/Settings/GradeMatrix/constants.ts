@@ -1,3 +1,4 @@
+import { translate } from "../../../i18n";
 import type { MatrixCell, MatrixRow } from "./types";
 
 /**
@@ -20,15 +21,23 @@ export const formatMoney = (value: number | null): string =>
  * Округлённые до года значения показываем годами — так в исходной таблице.
  */
 export const formatTenure = (months: number | null): string => {
-  if (months === null) return "—";
-  if (months <= 0) return "с найма";
-  if (months < 12) return `${months} мес`;
+  if (months === null) return translate("settings_grade_matrix.tenure.empty");
+  if (months <= 0) return translate("settings_grade_matrix.tenure.from_hire");
+  if (months < 12) return translate("settings_grade_matrix.tenure.months", { months });
   if (months % 12 === 0) {
     const years = months / 12;
-    const suffix = years === 1 ? "год" : years < 5 ? "года" : "лет";
-    return `${years} ${suffix}`;
+    const key =
+      years === 1
+        ? "settings_grade_matrix.tenure.years_one"
+        : years < 5
+          ? "settings_grade_matrix.tenure.years_few"
+          : "settings_grade_matrix.tenure.years_many";
+    return translate(key, { years });
   }
-  return `${Math.floor(months / 12)} г ${months % 12} мес`;
+  return translate("settings_grade_matrix.tenure.years_months", {
+    years: Math.floor(months / 12),
+    months: months % 12,
+  });
 };
 
 /**

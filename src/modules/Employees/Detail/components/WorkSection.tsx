@@ -77,6 +77,7 @@ import {
   type WorkFormState,
   type WorkModalMode,
 } from "./work-layout/workFields";
+import { useTranslation, translate } from "../../../../i18n";
 
 type WorkSectionProps = {
   employeeGuid: string;
@@ -154,7 +155,7 @@ const createEmptyFormState = (): WorkFormState => ({
 const toRemoteOptions = (items: Array<{ guid: string; title?: string }>): RemoteSelectOption[] => {
   return items.map((item) => ({
     value: item.guid,
-    label: item.title || "Без названия",
+    label: item.title || translate("employees.detail.no_title"),
   }));
 };
 
@@ -230,7 +231,7 @@ const formatDate = (value: string): string => {
 };
 
 const formatTimelineDate = (dateFrom: string, dateTo: string): string => {
-  if (!dateFrom) return "Дата не указана";
+  if (!dateFrom) return translate("employees.work.no_date_specified");
   if (!dateTo) return formatDate(dateFrom);
   return `${formatDate(dateFrom)} - ${formatDate(dateTo)}`;
 };
@@ -265,9 +266,9 @@ const getDurationLabel = (dateFrom: string, dateTo: string): string => {
   const years = Math.floor(safeMonths / 12);
   const restMonths = safeMonths % 12;
 
-  if (years > 0 && restMonths > 0) return `${years} г. ${restMonths} мес.`;
-  if (years > 0) return `${years} г.`;
-  return `${Math.max(restMonths, 1)} мес.`;
+  if (years > 0 && restMonths > 0) return translate("employees.work.years_months", { years, months: restMonths });
+  if (years > 0) return translate("employees.work.years_only", { years });
+  return translate("employees.work.months_only", { months: Math.max(restMonths, 1) });
 };
 
 const parseSalary = (value: unknown): number | null => {
@@ -281,7 +282,7 @@ const parseSalary = (value: unknown): number | null => {
 
 const formatSalary = (value: number | null): string => {
   if (value === null) return "—";
-  return `${new Intl.NumberFormat("ru-RU").format(value)} сум`;
+  return `${new Intl.NumberFormat("ru-RU").format(value)} ${translate("employees.work.currency_suffix")}`;
 };
 
 const readString = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -320,7 +321,7 @@ const normalizeRecord = (row: EmployeeWork): WorkRecord => {
       (typeof row.locations_id_data?.title === "string" && row.locations_id_data.title) || "—",
     positionTitle:
       (typeof row.positions_id_data?.title === "string" && row.positions_id_data.title) ||
-      "Без должности",
+      translate("employees.work.no_position"),
     experienceLevelTitle:
       (typeof row.experience_levels_id_data?.title === "string" &&
         row.experience_levels_id_data.title) ||
@@ -361,12 +362,12 @@ const getWorkCountLabel = (count: number): string => {
   const lastDigit = count % 10;
 
   if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
-    return "записей";
+    return translate("employees.work.records_5plus");
   }
 
-  if (lastDigit === 1) return "запись";
-  if (lastDigit >= 2 && lastDigit <= 4) return "записи";
-  return "записей";
+  if (lastDigit === 1) return translate("employees.work.record_1");
+  if (lastDigit >= 2 && lastDigit <= 4) return translate("employees.work.records_2_4");
+  return translate("employees.work.records_5plus");
 };
 
 function TimelineTag({
@@ -430,12 +431,13 @@ function WorkTimelineCard({
   onToggleActions: () => void;
   actionButtonRef: (element: HTMLButtonElement | null) => void;
 }) {
+  const { t } = useTranslation();
   const primaryMeta = [record.departmentTitle, record.locationTitle].filter(
     (item) => item && item !== "—"
   );
   const secondaryMeta = [
     record.experienceLevelTitle,
-    record.workScheduleTitle !== "—" ? `График: ${record.workScheduleTitle}` : "",
+    record.workScheduleTitle !== "—" ? t("employees.work.schedule_label", { title: record.workScheduleTitle }) : "",
   ].filter((item) => item && item !== "—");
   const salaryValue = formatSalary(record.salary);
   const durationLabel = getDurationLabel(record.dateFrom, record.dateTo);
@@ -475,7 +477,7 @@ function WorkTimelineCard({
                 </h4>
                 {isCurrent ? (
                   <TimelineTag tone="success">
-                    Текущая должность
+                    {t("employees.work.current_position")}
                   </TimelineTag>
                 ) : null}
                 {record.employmentTypeTitle !== "—" ? (
@@ -486,12 +488,12 @@ function WorkTimelineCard({
                 {gradeMismatch ? (
                   <TimelineTag tone={gradeMismatch.tone}>
                     <TriangleAlert size={12} className="mr-1" />
-                    Не по матрице грейдов
+                    {t("employees.work.grade_mismatch_tag")}
                   </TimelineTag>
                 ) : null}
               </div>
               <p className="m-0 mt-1 text-[14px] leading-6 text-slate-500">
-                {primaryMeta.length > 0 ? primaryMeta.join(" • ") : "Структура не указана"}
+                {primaryMeta.length > 0 ? primaryMeta.join(" • ") : t("employees.work.structure_not_specified")}
               </p>
               {secondaryMeta.length > 0 ? (
                 <p className="m-0 mt-1 text-[13px] leading-5 text-slate-400">
@@ -505,7 +507,7 @@ function WorkTimelineCard({
                 type="button"
                 onClick={onToggleActions}
                 className="dropdown-toggle inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
-                aria-label="Открыть действия"
+                aria-label={t("employees.work.open_actions_aria")}
                 ref={actionButtonRef}
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -538,7 +540,7 @@ function WorkTimelineCard({
                   <span className="font-medium">{formatMonthYear(record.dateFrom)}</span>
                   <span className="text-slate-300">-</span>
                   <span className="font-medium">
-                    {record.dateTo ? formatMonthYear(record.dateTo) : "Настоящее время"}
+                    {record.dateTo ? formatMonthYear(record.dateTo) : t("employees.work.present_time")}
                   </span>
                   {durationLabel ? (
                     <span className="ml-1 text-[13px] text-slate-400">({durationLabel})</span>
@@ -581,6 +583,7 @@ export default function WorkSection({
   returnRequestKey = 0,
   onEmployeeReturned,
 }: WorkSectionProps) {
+  const { t } = useTranslation();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
@@ -663,7 +666,7 @@ export default function WorkSection({
       toast.error(
         error instanceof Error && error.message
           ? error.message
-          : "Не удалось сохранить раскладку формы."
+          : t("employees.work.layout_save_failed")
       );
     }
   };
@@ -866,7 +869,7 @@ export default function WorkSection({
     if (hireDate && form.dateFrom) {
       if (form.dateFrom < hireDate) {
         warnings.push(
-          `Должность начинается ${formatDate(form.dateFrom)}, а сотрудник принят на работу ${formatDate(hireDate)} — должность не может начаться раньше приёма.`
+          t("employees.work.position_before_hire_warning", { startDate: formatDate(form.dateFrom), hireDate: formatDate(hireDate) })
         );
       } else {
         const otherStartDates = sortedRecords
@@ -880,7 +883,7 @@ export default function WorkSection({
 
         if (isEarliest && form.dateFrom !== hireDate) {
           warnings.push(
-            `Это первая запись в истории работы, значит она и есть приём на работу. Но начинается она ${formatDate(form.dateFrom)}, а в карточке сотрудника дата приёма — ${formatDate(hireDate)}.`
+            t("employees.work.first_record_mismatch_warning", { startDate: formatDate(form.dateFrom), hireDate: formatDate(hireDate) })
           );
         }
       }
@@ -894,7 +897,7 @@ export default function WorkSection({
       const tenure = monthsBetween(hireDate, form.dateFrom);
       if (tenure < grade.minMonths) {
         warnings.push(
-          `Для уровня ${grade.title} нужен стаж ${formatTenure(grade.minMonths)}, а на ${formatDate(form.dateFrom)} у сотрудника будет ${formatTenure(tenure)} (принят ${formatDate(hireDate)}).`
+          t("employees.work.tenure_mismatch_warning", { level: grade.title, required: formatTenure(grade.minMonths), date: formatDate(form.dateFrom), actual: formatTenure(tenure), hireDate: formatDate(hireDate) })
         );
       }
     }
@@ -1221,23 +1224,23 @@ export default function WorkSection({
 
   const handleSave = async (skipDateWarnings = false) => {
     if (!form.positionsId) {
-      toast.error("Выберите должность");
+      toast.error(t("employees.work.select_position"));
       return;
     }
 
     if (!form.dateFrom) {
-      toast.error("Укажите дату начала");
+      toast.error(t("employees.work.select_start_date"));
       return;
     }
 
     if (modalMode === "edit" && form.dateTo && form.dateTo < form.dateFrom) {
-      toast.error("Дата окончания не может быть раньше даты начала");
+      toast.error(t("employees.work.end_before_start"));
       return;
     }
 
     const currentStartDate = readString(currentRaw?.date_from);
     if (modalMode !== "edit" && currentStartDate && form.dateFrom < currentStartDate) {
-      toast.error("Дата начала новой должности не может быть раньше текущей записи");
+      toast.error(t("employees.work.start_before_current"));
       return;
     }
 
@@ -1267,7 +1270,7 @@ export default function WorkSection({
       modalMode === "return" ? returnWorkReasonId : form.employeeWorkReasonId;
 
     if (modalMode === "return" && !employeeWorkReasonId) {
-      toast.error(`Не найдена причина "${RETURN_WORK_REASON_TITLE}"`);
+      toast.error(t("employees.work.reason_not_found", { title: RETURN_WORK_REASON_TITLE }));
       return;
     }
 
@@ -1276,7 +1279,7 @@ export default function WorkSection({
     if (salaryRaw) {
       const parsedSalary = Number(salaryRaw.replace(/\s+/g, ""));
       if (!Number.isFinite(parsedSalary) || parsedSalary < 0) {
-        toast.error("Оклад указан некорректно");
+        toast.error(t("employees.work.salary_invalid"));
         return;
       }
       salaryValue = parsedSalary;
@@ -1292,7 +1295,7 @@ export default function WorkSection({
     setCustomErrors(nextCustomErrors);
 
     if (Object.keys(nextCustomErrors).length > 0) {
-      toast.error("Проверьте дополнительные поля");
+      toast.error(t("employees.work.check_extra_fields"));
       return;
     }
 
@@ -1327,7 +1330,7 @@ export default function WorkSection({
     // уволенный остался бы уволенным с висящей заявкой на должность.
     if (workApprovalProcess && modalMode !== "return") {
       if (modalMode === "edit" && !editingRaw) {
-        toast.error("Не удалось найти запись для редактирования");
+        toast.error(t("employees.work.record_not_found_for_edit"));
         return;
       }
 
@@ -1340,13 +1343,13 @@ export default function WorkSection({
         });
         toast.success(
           modalMode === "edit"
-            ? "Заявка на изменение отправлена на согласование"
-            : "Заявка на добавление должности отправлена на согласование"
+            ? t("employees.work.request_update_sent")
+            : t("employees.work.request_create_sent")
         );
         resetEditModal();
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Не удалось отправить заявку"
+          error instanceof Error ? error.message : t("employees.work.request_send_failed")
         );
       }
       return;
@@ -1355,7 +1358,7 @@ export default function WorkSection({
     try {
       if (modalMode === "edit") {
         if (!editingRaw) {
-          toast.error("Не удалось найти запись для редактирования");
+          toast.error(t("employees.work.record_not_found_for_edit"));
           return;
         }
 
@@ -1368,7 +1371,7 @@ export default function WorkSection({
           await syncUserBaseFromCurrentWork();
         } catch (syncError) {
           console.error("Work updated but user_base sync failed:", syncError);
-          toast.error("Запись сохранена, но профиль сотрудника не синхронизирован.");
+          toast.error(t("employees.work.sync_failed_saved"));
         }
 
         try {
@@ -1385,7 +1388,7 @@ export default function WorkSection({
           toast.warning("Ish ma’lumoti saqlandi, lekin onboarding vazifalarini yaratib bo‘lmadi.");
         }
 
-        toast.success("Запись о работе обновлена");
+        toast.success(t("employees.work.record_updated"));
         resetEditModal();
         return;
       }
@@ -1429,7 +1432,7 @@ export default function WorkSection({
         await syncUserBaseFromCurrentWork();
       } catch (syncError) {
         console.error("Work created but user_base sync failed:", syncError);
-        toast.error("Должность добавлена, но профиль сотрудника не синхронизирован.");
+        toast.error(t("employees.work.sync_failed_added"));
       }
 
       try {
@@ -1451,16 +1454,16 @@ export default function WorkSection({
       }
 
       toast.success(
-        modalMode === "return" ? "Сотрудник возвращен" : "Новая должность добавлена"
+        modalMode === "return" ? t("employees.work.employee_returned") : t("employees.work.position_added")
       );
       resetEditModal();
     } catch {
       toast.error(
         modalMode === "edit"
-          ? "Не удалось сохранить изменения"
+          ? t("employees.work.save_failed")
           : modalMode === "return"
-            ? "Не удалось вернуть сотрудника"
-            : "Не удалось добавить должность"
+            ? t("employees.work.return_failed")
+            : t("employees.work.add_failed")
       );
     }
   };
@@ -1482,31 +1485,31 @@ export default function WorkSection({
     };
 
     if ("positions_id" in payload) {
-      rows.push({ label: "Должность", value: titleOf(positionsList, payload.positions_id) || "—" });
+      rows.push({ label: t("employees.work.field_position"), value: titleOf(positionsList, payload.positions_id) || "—" });
     }
     if ("departments_id" in payload) {
       rows.push({
-        label: "Отдел",
+        label: t("employees.work.field_department"),
         value: titleOf(departmentOptions, payload.departments_id) || "—",
       });
     }
     if ("experience_levels_id" in payload) {
       rows.push({
-        label: "Уровень",
+        label: t("employees.work.field_level"),
         value: titleOf(experienceLevelsList, payload.experience_levels_id) || "—",
       });
     }
     if ("salary" in payload) {
       rows.push({
-        label: "Оклад",
+        label: t("employees.work.field_salary"),
         value: formatSalary(typeof payload.salary === "number" ? payload.salary : null),
       });
     }
     if ("date_from" in payload) {
-      rows.push({ label: "Дата начала", value: formatDate(payload.date_from || "") });
+      rows.push({ label: t("employees.work.field_date_from"), value: formatDate(payload.date_from || "") });
     }
     if ("date_to" in payload && payload.date_to) {
-      rows.push({ label: "Дата окончания", value: formatDate(payload.date_to) });
+      rows.push({ label: t("employees.work.field_date_to"), value: formatDate(payload.date_to) });
     }
 
     return rows;
@@ -1527,13 +1530,13 @@ export default function WorkSection({
           await syncUserBaseFromCurrentWork();
         } catch (syncError) {
           console.error("Request applied but user_base sync failed:", syncError);
-          toast.error("Изменения применены, но профиль сотрудника не синхронизирован.");
+          toast.error(t("employees.work.request_applied_sync_failed"));
         }
       }
 
-      toast.success(status === "approved" ? "Изменения применены" : "Заявка отклонена");
+      toast.success(status === "approved" ? t("employees.work.request_applied") : t("employees.work.request_rejected"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось изменить статус заявки");
+      toast.error(error instanceof Error ? error.message : t("employees.work.request_status_change_failed"));
     }
   };
 
@@ -1541,9 +1544,9 @@ export default function WorkSection({
     try {
       await deleteWorkRequest.mutateAsync(request.guid);
       setApprovalRequest(null);
-      toast.success("Заявка отозвана");
+      toast.success(t("employees.work.request_withdrawn"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось отозвать заявку");
+      toast.error(error instanceof Error ? error.message : t("employees.work.request_withdraw_failed"));
     }
   };
 
@@ -1567,7 +1570,7 @@ export default function WorkSection({
             },
           });
         } catch {
-          toast.error("Запись удалена, но предыдущую должность не удалось сделать текущей");
+          toast.error(t("employees.work.delete_prev_not_current_failed"));
           closeDeleteModal();
           return;
         }
@@ -1577,13 +1580,13 @@ export default function WorkSection({
         await syncUserBaseFromCurrentWork();
       } catch (syncError) {
         console.error("Work deleted but user_base sync failed:", syncError);
-        toast.error("Запись удалена, но профиль сотрудника не синхронизирован.");
+        toast.error(t("employees.work.delete_sync_failed"));
       }
 
-      toast.success("Запись о работе удалена");
+      toast.success(t("employees.work.record_deleted"));
       closeDeleteModal();
     } catch {
-      toast.error("Не удалось удалить запись");
+      toast.error(t("employees.work.delete_failed"));
     }
   };
 
@@ -1596,12 +1599,12 @@ export default function WorkSection({
               <span style={{ color: brandColor }}>
                 <BriefcaseBusiness className="h-4 w-4" />
               </span>
-              <h3 className="m-0 text-[15px] font-bold text-slate-900">Работа</h3>
+              <h3 className="m-0 text-[15px] font-bold text-slate-900">{t("employees.work.title")}</h3>
             </div>
             <p className="m-0 mt-1 text-[13px] text-slate-500">
               {timelineRecords.length > 0
-                ? `${timelineRecords.length} ${getWorkCountLabel(timelineRecords.length)} в истории работы`
-                : "Добавьте первую должность, чтобы собрать карьерный timeline сотрудника"}
+                ? t("employees.work.count_in_history", { count: timelineRecords.length, label: getWorkCountLabel(timelineRecords.length) })
+                : t("employees.work.add_first_position")}
             </p>
           </div>
 
@@ -1613,7 +1616,7 @@ export default function WorkSection({
             disabled={isSaving}
           >
             <Plus className="h-4 w-4" />
-            Добавить должность
+            {t("employees.work.add_position")}
           </button>
         </div>
 
@@ -1621,7 +1624,7 @@ export default function WorkSection({
         {workApprovalProcess && pendingRequests.length > 0 ? (
           <div className="border-b border-slate-100 bg-amber-50/50 px-5 py-4 sm:px-6">
             <p className="m-0 text-[13px] font-semibold text-amber-800">
-              На согласовании: {pendingRequests.length}
+              {t("employees.work.on_approval_count", { count: pendingRequests.length })}
             </p>
             <div className="mt-3 space-y-2">
               {pendingRequests.map((request) => {
@@ -1637,8 +1640,8 @@ export default function WorkSection({
                       <div className="min-w-0">
                         <p className="m-0 text-[13px] font-semibold text-slate-900">
                           {request.action === "create"
-                            ? "Добавление должности"
-                            : "Изменение должности"}
+                            ? t("employees.work.request_add")
+                            : t("employees.work.request_edit")}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
                           {describeRequest(request).map((row) => (
@@ -1664,9 +1667,9 @@ export default function WorkSection({
                           }}
                           disabled={deleteWorkRequest.isLoading}
                           className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          title="Отозвать заявку"
+                          title={t("employees.work.withdraw_request_title")}
                         >
-                          Отозвать
+                          {t("employees.work.withdraw")}
                         </button>
                       </div>
                     </div>
@@ -1697,10 +1700,10 @@ export default function WorkSection({
                 <BriefcaseBusiness className="h-5 w-5" />
               </div>
               <p className="m-0 mt-4 text-[15px] font-semibold text-slate-900">
-                История работы пока пуста
+                {t("employees.work.history_empty_title")}
               </p>
               <p className="m-0 mt-1 text-[13px] text-slate-500">
-                Добавьте первую должность, и здесь появится удобный timeline по всем изменениям.
+                {t("employees.work.history_empty_description")}
               </p>
             </div>
           ) : (
@@ -1796,7 +1799,7 @@ export default function WorkSection({
                     }}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:bg-slate-50"
                   >
-                    {isHistoryExpanded ? "Скрыть историю" : `Показать историю (${historyTimelineRecords.length})`}
+                    {isHistoryExpanded ? t("employees.work.hide_history") : t("employees.work.show_history", { count: historyTimelineRecords.length })}
                     {isHistoryExpanded ? (
                       <ChevronUp className="h-3.5 w-3.5" />
                     ) : (
@@ -1819,21 +1822,21 @@ export default function WorkSection({
           <div className="min-w-0">
             <h4 className="m-0 text-[24px] font-bold text-slate-900">
               {builderMode
-                ? "Настройка формы"
+                ? t("employees.work.builder_mode_title")
                 : modalMode === "return"
-                  ? "Вернуть сотрудника"
+                  ? t("employees.work.return_employee_title")
                   : modalMode === "create"
-                    ? "Добавить должность"
-                    : "Редактировать должность"}
+                    ? t("employees.work.add_position_title")
+                    : t("employees.work.edit_position_title")}
             </h4>
             <p className="m-0 mt-1 text-[13px] text-slate-500">
               {builderMode
-                ? "Порядок и ширина полей. Изменения сохранятся по кнопке «Готово»."
+                ? t("employees.work.builder_mode_hint")
                 : modalMode === "return"
-                  ? "Новая запись станет текущей, а статус сотрудника изменится на активный."
+                  ? t("employees.work.return_hint")
                   : modalMode === "create"
-                    ? "Новая запись станет текущей, а предыдущая должность завершится выбранной датой."
-                    : "Обновите данные по выбранной записи в истории работы."}
+                    ? t("employees.work.create_hint")
+                    : t("employees.work.edit_hint")}
             </p>
           </div>
         </div>
@@ -1860,18 +1863,18 @@ export default function WorkSection({
               className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Сбросить раскладку
+              {t("employees.work.reset_layout")}
             </button>
           ) : (
             <button
               type="button"
               onClick={handleToggleBuilder}
               disabled={isSaving}
-              title="Настроить расположение полей"
+              title={t("employees.work.configure_layout_title")}
               className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              Настроить форму
+              {t("employees.work.configure_form")}
             </button>
           )}
 
@@ -1883,7 +1886,7 @@ export default function WorkSection({
                 disabled={isSaving}
                 className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Отмена
+                {t("common.cancel")}
               </button>
             )}
             <button
@@ -1895,19 +1898,19 @@ export default function WorkSection({
             >
               {builderMode
                 ? workLayout.isSaving
-                  ? "Сохраняем..."
-                  : "Готово"
+                  ? t("employees.work.saving_layout")
+                  : t("employees.work.done")
                 : isSaving
                   ? modalMode === "return"
-                    ? "Возврат..."
+                    ? t("employees.work.returning")
                     : modalMode === "create"
-                      ? "Добавление..."
-                      : "Сохранение..."
+                      ? t("employees.work.adding")
+                      : t("employees.work.saving")
                   : modalMode === "return"
-                    ? "Вернуть"
+                    ? t("employees.work.return_button")
                     : modalMode === "create"
-                      ? "Добавить"
-                      : "Сохранить"}
+                      ? t("common.add")
+                      : t("common.save")}
             </button>
           </div>
         </div>
@@ -1927,7 +1930,7 @@ export default function WorkSection({
               <TriangleAlert size={16} />
             </span>
             <h3 className="text-base font-semibold text-gray-900">
-              Не соответствует матрице грейдов
+              {t("employees.work.grade_mismatch_title")}
             </h3>
           </div>
         </div>
@@ -1939,8 +1942,7 @@ export default function WorkSection({
             </p>
           ))}
           <p className="text-sm text-gray-500">
-            В настройках компании оклад обязан соответствовать матрице грейдов — сохранить
-            такую запись нельзя.
+            {t("employees.work.grade_mismatch_description")}
           </p>
         </div>
 
@@ -1950,7 +1952,7 @@ export default function WorkSection({
             onClick={() => setGradeErrors([])}
             className="inline-flex h-10 items-center rounded-lg bg-error-500 px-4 text-sm font-semibold text-white transition hover:bg-error-600"
           >
-            Исправить
+            {t("employees.work.fix")}
           </button>
         </div>
       </Modal>
@@ -1968,7 +1970,7 @@ export default function WorkSection({
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
               <TriangleAlert size={16} />
             </span>
-            <h3 className="text-base font-semibold text-gray-900">Проверьте данные</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("employees.work.check_data_title")}</h3>
           </div>
         </div>
 
@@ -1979,7 +1981,7 @@ export default function WorkSection({
             </p>
           ))}
           <p className="text-sm text-gray-500">
-            Сохранить всё равно можно — проверьте, что дата указана верно.
+            {t("employees.work.save_anyway_description")}
           </p>
         </div>
 
@@ -1989,7 +1991,7 @@ export default function WorkSection({
             onClick={() => setDateWarnings([])}
             className="inline-flex h-10 items-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
           >
-            Исправить
+            {t("employees.work.fix")}
           </button>
           <button
             type="button"
@@ -2001,7 +2003,7 @@ export default function WorkSection({
             className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-white transition disabled:opacity-60"
             style={{ backgroundColor: brandColor }}
           >
-            {isSaving ? "Сохранение..." : "Всё равно сохранить"}
+            {isSaving ? t("employees.work.saving") : t("employees.work.save_anyway")}
           </button>
         </div>
       </Modal>
@@ -2014,12 +2016,12 @@ export default function WorkSection({
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить запись</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("employees.work.delete_record_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("employees.work.close_aria")}
             >
               <X size={16} />
             </button>
@@ -2027,11 +2029,11 @@ export default function WorkSection({
         </div>
 
         <div className="space-y-3 px-4 py-4 text-center">
-          <p className="text-sm text-gray-500">Это действие нельзя отменить.</p>
+          <p className="text-sm text-gray-500">{t("employees.work.cannot_undo")}</p>
           <p className="text-sm text-gray-700">
             {deletingTimelineRecord
-              ? `Удалить запись "${deletingTimelineRecord.record.positionTitle}" из истории работы?`
-              : "Вы уверены, что хотите удалить эту запись?"}
+              ? t("employees.work.delete_record_confirm", { title: deletingTimelineRecord.record.positionTitle })
+              : t("employees.work.delete_record_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -2041,7 +2043,7 @@ export default function WorkSection({
               disabled={isDeleting}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -2049,7 +2051,7 @@ export default function WorkSection({
               disabled={isDeleting}
               className="w-full rounded-lg bg-error-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-error-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isDeleting ? "Удаление..." : "Удалить"}
+              {isDeleting ? t("employees.sport_attendance.deleting") : t("common.delete")}
             </button>
           </div>
         </div>
@@ -2084,7 +2086,7 @@ export default function WorkSection({
           if (approvalRequest) void reviewRequest(approvalRequest, "rejected", comment);
         }}
         isRejecting={reviewWorkRequest.isLoading}
-        confirmLabel="Применить изменения"
+        confirmLabel={t("employees.work.apply_changes_label")}
       />
     </>
   );

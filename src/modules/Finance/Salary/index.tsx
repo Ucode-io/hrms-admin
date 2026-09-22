@@ -31,6 +31,7 @@ import {
 } from "../../../api/services/employeeCompensation.service";
 import { COMPANY_ID, useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 import EmployeeInfiniteSelect from "../../../components/autocomplete/EmployeeInfiniteSelect";
+import { useTranslation } from "../../../i18n";
 
 type OperationType = "income" | "deduction";
 type PaginationItem = number | string;
@@ -286,6 +287,7 @@ const resolveEmployeeName = (item: EmployeeCompensation): { guid: string; name: 
 };
 
 function FinanceSalaryPage() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");

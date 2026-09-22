@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import { UploadCloud, File, X } from "lucide-react";
 import {
   useAgreementQuery,
@@ -16,6 +17,7 @@ const selectClass =
   "w-full appearance-none rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#B38D80]/30 focus:border-[#B38D80] cursor-pointer bg-white";
 
 export default function AgreementForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id && id !== "new");
@@ -68,7 +70,7 @@ export default function AgreementForm() {
       handleChange("file", cdnUrl);
     } catch (err) {
       console.error("File upload error:", err);
-      alert("Ошибка при загрузке файла. Попробуйте ещё раз.");
+      alert(t("agreements.upload_error"));
     } finally {
       setUploadingFile(false);
     }
@@ -104,7 +106,7 @@ export default function AgreementForm() {
       navigate("/organization/agreements");
     } catch (error) {
       console.error("Failed to save agreement:", error);
-      alert("Ошибка при сохранении договора. Пожалуйста, проверьте данные.");
+      alert(t("agreements.save_error"));
     }
   };
 
@@ -119,8 +121,8 @@ export default function AgreementForm() {
   return (
     <>
       <PageMeta
-        title={isEditMode ? "Редактировать договор | NSTEX" : "Добавить договор | NSTEX"}
-        description={isEditMode ? "Редактирование договора" : "Добавление нового договора"}
+        title={isEditMode ? t("agreements.edit_title") : t("agreements.add_title")}
+        description={isEditMode ? t("agreements.edit_description") : t("agreements.add_description")}
       />
 
       {/* Back button */}
@@ -132,16 +134,16 @@ export default function AgreementForm() {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Назад
+          {t("agreements.back")}
         </button>
       </div>
 
       {/* Breadcrumb */}
       <div className="mb-6 flex items-center gap-2 text-sm">
-        <span className="text-[#B38D80]">Договора</span>
+        <span className="text-[#B38D80]">{t("agreements.breadcrumb")}</span>
         <span className="text-gray-400">/</span>
         <span className="text-gray-800 font-medium">
-          {isEditMode ? "Редактировать договор" : "Добавить договор"}
+          {isEditMode ? t("agreements.edit") : t("agreements.add")}
         </span>
       </div>
 
@@ -150,7 +152,7 @@ export default function AgreementForm() {
 
         {/* Document Upload Section */}
         <div className="mb-8">
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">Файл договора</label>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">{t("agreements.file_label")}</label>
           {formData.file ? (
             <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
               <div className="flex items-center gap-3 overflow-hidden">
@@ -164,15 +166,15 @@ export default function AgreementForm() {
                     rel="noopener noreferrer"
                     className="text-sm font-medium text-blue-600 hover:underline truncate block"
                   >
-                    {formData.file.startsWith("http") ? "Прикрепленный файл (открыть)" : "Файл"}
+                    {formData.file.startsWith("http") ? t("agreements.attached_file") : t("agreements.file")}
                   </a>
-                  <p className="text-xs text-gray-500">Документ</p>
+                  <p className="text-xs text-gray-500">{t("agreements.document")}</p>
                 </div>
               </div>
               <button
                 onClick={handleRemoveFile}
                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 cursor-pointer"
-                title="Удалить файл"
+                title={t("agreements.delete_file")}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -193,9 +195,9 @@ export default function AgreementForm() {
                 )}
               </div>
               <p className="text-sm font-medium text-[#B38D80]">
-                {uploadingFile ? "Загрузка..." : "Нажмите для загрузки файла"}
+                {uploadingFile ? t("agreements.uploading") : t("agreements.click_to_upload")}
               </p>
-              <p className="mt-1 text-xs text-gray-500">PDF, DOC, DOCX до 10MB</p>
+              <p className="mt-1 text-xs text-gray-500">{t("agreements.file_hint")}</p>
             </div>
           )}
           <input
@@ -211,35 +213,35 @@ export default function AgreementForm() {
           {/* Company Name */}
           <div className="md:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название компании <span className="text-red-500">*</span>
+              {t("agreements.company_name")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formData.company_name}
               onChange={(e) => handleChange("company_name", e.target.value)}
               className={inputClass}
-              placeholder="Введите название компании"
+              placeholder={t("agreements.company_placeholder")}
             />
           </div>
 
           {/* Contract Number */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Номер договора <span className="text-red-500">*</span>
+              {t("agreements.number")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={formData.contract_number}
               onChange={(e) => handleChange("contract_number", e.target.value)}
               className={inputClass}
-              placeholder="Например, 12345"
+              placeholder={t("agreements.number_placeholder")}
             />
           </div>
 
           {/* Contract Amount */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Сумма договора
+              {t("agreements.amount")}
             </label>
             <input
               type="number"
@@ -252,15 +254,15 @@ export default function AgreementForm() {
 
           {/* Status */}
           <div className="md:col-span-2 mt-2">
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Статус</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">{t("agreements.status")}</label>
             <div className="relative w-full md:w-1/2">
               <select
                 value={String(formData.status)}
                 onChange={(e) => handleChange("status", e.target.value)}
                 className={selectClass}
               >
-                <option value="true">Активный</option>
-                <option value="false">Неактивный</option>
+                <option value="true">{t("agreements.active")}</option>
+                <option value="false">{t("agreements.inactive")}</option>
               </select>
               <svg
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
@@ -291,7 +293,7 @@ export default function AgreementForm() {
               !isSaving && ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D2939")
             }
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>

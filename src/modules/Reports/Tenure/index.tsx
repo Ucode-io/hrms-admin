@@ -16,6 +16,7 @@ import {
   useTenureDistributionReportQuery,
   useTenureDistributionTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 type MetricCardProps = {
   title: string;
@@ -60,16 +61,16 @@ const formatYears = (value: number | null | undefined): string => {
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
-const formatStartDate = (value: string | null | undefined): string => {
+const formatStartDate = (value: string | null | undefined, locale: string): string => {
   if (!value) return "—";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -128,7 +129,7 @@ const normalizeAverageTenureBreakdown = (
   if (!Array.isArray(source)) return [];
   return source.map((item) => ({
     id: item.id,
-    label: item.label || "Не указано",
+    label: item.label || translate("reports.common.not_specified"),
     average_tenure_years:
       typeof item.average_tenure_years === "number" && Number.isFinite(item.average_tenure_years)
         ? Number(item.average_tenure_years.toFixed(1))
@@ -148,11 +149,12 @@ function MetricCard({ title, value, subtitle }: MetricCardProps) {
 }
 
 function EmployeeCard({ title, employee }: EmployeeCardProps) {
+  const { t } = useTranslation();
   const hasProfile = Boolean(employee?.guid);
   const yearsText =
     typeof employee?.tenure_years === "number" && Number.isFinite(employee.tenure_years)
-      ? `${formatYears(employee.tenure_years)} лет`
-      : "Стаж не указан";
+      ? t("reports.tenure.years_value", { years: formatYears(employee.tenure_years) })
+      : t("reports.tenure.tenure_not_specified");
 
   return (
     <article className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -189,6 +191,7 @@ function ChartBlock({ title, subtitle, options, series, height = 310 }: ChartBlo
 }
 
 function TenurePage() {
+  const { t, locale } = useTranslation();
   const brandColor = companyStore.mainColor || "#2980B9";
   const [tablePage, setTablePage] = useState(1);
   const [selectedTenureGroupKey, setSelectedTenureGroupKey] = useState<string | null>(null);
@@ -348,7 +351,7 @@ function TenurePage() {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value} сотруд.`,
+        formatter: (value: number) => t("reports.tenure.employees_count_short", { count: value }),
       },
     },
   };
@@ -404,7 +407,7 @@ function TenurePage() {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value} сотруд.`,
+        formatter: (value: number) => t("reports.tenure.employees_count_short", { count: value }),
       },
     },
   };
@@ -457,35 +460,36 @@ function TenurePage() {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value.toFixed(1).replace(".", ",")} лет`,
+        formatter: (value: number) =>
+          t("reports.tenure.years_value", { years: value.toFixed(1).replace(".", ",") }),
       },
     },
   });
 
   const tenureGroupsSeries: ApexAxisChartSeries = [
     {
-      name: "Сотрудники",
+      name: t("reports.tenure.employees_series"),
       data: tenureGroups.map((item) => item.count),
     },
   ];
 
   const anniversariesSeries: ApexAxisChartSeries = [
     {
-      name: "Сотрудники",
+      name: t("reports.tenure.employees_series"),
       data: anniversariesByMonth.map((item) => item.employees_count),
     },
   ];
 
   const departmentsSeries: ApexAxisChartSeries = [
     {
-      name: "Средний стаж",
+      name: t("reports.tenure.average_tenure_series"),
       data: averageTenureByDepartments.map((item) => item.average_tenure_years ?? 0),
     },
   ];
 
   const locationsSeries: ApexAxisChartSeries = [
     {
-      name: "Средний стаж",
+      name: t("reports.tenure.average_tenure_series"),
       data: averageTenureByLocations.map((item) => item.average_tenure_years ?? 0),
     },
   ];
@@ -493,7 +497,10 @@ function TenurePage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Стаж | HRMS" description="Отчет по стажу сотрудников" />
+        <PageMeta
+          title={t("reports.tenure.page_title")}
+          description={t("reports.tenure.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -504,7 +511,10 @@ function TenurePage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Стаж | HRMS" description="Отчет по стажу сотрудников" />
+        <PageMeta
+          title={t("reports.tenure.page_title")}
+          description={t("reports.tenure.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -514,7 +524,7 @@ function TenurePage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -523,14 +533,17 @@ function TenurePage() {
 
   return (
     <>
-      <PageMeta title="Стаж | HRMS" description="Отчет по стажу сотрудников" />
+      <PageMeta
+        title={t("reports.tenure.page_title")}
+        description={t("reports.tenure.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="grid gap-4 xl:grid-cols-12">
           <div className="xl:col-span-9">
             <ChartBlock
-              title="Стаж"
-              subtitle="Количество сотрудников"
+              title={t("reports.tenure.chart_title")}
+              subtitle={t("reports.tenure.employees_count_subtitle")}
               options={tenureGroupChartOptions}
               series={tenureGroupsSeries}
               height={320}
@@ -539,17 +552,20 @@ function TenurePage() {
 
           <div className="space-y-4 xl:col-span-3">
             <MetricCard
-              title="Средний срок работы"
+              title={t("reports.tenure.average_tenure_title")}
               value={formatYears(result.cards?.average_tenure_years)}
-              subtitle="лет"
+              subtitle={t("reports.tenure.years_subtitle")}
             />
-            <EmployeeCard title="Самый длительный срок работы" employee={result.cards?.longest_tenure_employee} />
+            <EmployeeCard
+              title={t("reports.tenure.longest_tenure_title")}
+              employee={result.cards?.longest_tenure_employee}
+            />
           </div>
         </section>
 
         <ChartBlock
-          title="Когда происходят годовщины работы?"
-          subtitle="Количество сотрудников по месяцам"
+          title={t("reports.tenure.anniversaries_title")}
+          subtitle={t("reports.tenure.anniversaries_subtitle")}
           options={anniversariesChartOptions}
           series={anniversariesSeries}
           height={320}
@@ -557,8 +573,8 @@ function TenurePage() {
 
         <section className="grid gap-4 xl:grid-cols-2">
           <ChartBlock
-            title="Средний срок работы по департаментам"
-            subtitle="В годах"
+            title={t("reports.tenure.by_departments_title")}
+            subtitle={t("reports.tenure.in_years_subtitle")}
             options={horizontalBarOptions(
               averageTenureByDepartments.map((item) => item.label),
               handleDepartmentSelect
@@ -568,8 +584,8 @@ function TenurePage() {
           />
 
           <ChartBlock
-            title="Средний срок работы по филиалу"
-            subtitle="В годах"
+            title={t("reports.tenure.by_locations_title")}
+            subtitle={t("reports.tenure.in_years_subtitle")}
             options={horizontalBarOptions(
               averageTenureByLocations.map((item) => item.label),
               handleLocationSelect
@@ -582,25 +598,35 @@ function TenurePage() {
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           {selectedTenureGroupKey || selectedAnniversaryMonth || selectedDepartmentId || selectedLocationId ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <span className="text-xs font-medium text-gray-500">Фильтр по графику:</span>
+              <span className="text-xs font-medium text-gray-500">
+                {t("reports.tenure.chart_filter_label")}
+              </span>
               {selectedTenureGroupKey ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Стаж: {selectedTenureGroupLabel || selectedTenureGroupKey}
+                  {t("reports.tenure.tenure_filter_tag", {
+                    value: selectedTenureGroupLabel || selectedTenureGroupKey || "",
+                  })}
                 </span>
               ) : null}
               {selectedAnniversaryMonth ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Месяц годовщины: {selectedAnniversaryMonthLabel || selectedAnniversaryMonth}
+                  {t("reports.tenure.anniversary_month_filter_tag", {
+                    value: selectedAnniversaryMonthLabel || selectedAnniversaryMonth || "",
+                  })}
                 </span>
               ) : null}
               {selectedDepartmentId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Департамент: {selectedDepartmentLabel || "Не указано"}
+                  {t("reports.tenure.department_filter_tag", {
+                    value: selectedDepartmentLabel || t("reports.common.not_specified"),
+                  })}
                 </span>
               ) : null}
               {selectedLocationId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Филиал: {selectedLocationLabel || "Не указано"}
+                  {t("reports.tenure.location_filter_tag", {
+                    value: selectedLocationLabel || t("reports.common.not_specified"),
+                  })}
                 </span>
               ) : null}
               <button
@@ -608,7 +634,7 @@ function TenurePage() {
                 onClick={resetChartFilters}
                 className="inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
               >
-                Сбросить
+                {t("reports.common.reset_button")}
               </button>
             </div>
           ) : null}
@@ -616,8 +642,12 @@ function TenurePage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -666,7 +696,12 @@ function TenurePage() {
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-gray-50">
-                  {["Полное имя", "Возраст", "Дата начала", "Срок работы"].map((column) => (
+                  {[
+                    t("reports.tenure.column_full_name"),
+                    t("reports.tenure.column_age"),
+                    t("reports.tenure.column_start_date"),
+                    t("reports.tenure.column_tenure"),
+                  ].map((column) => (
                     <th
                       key={column}
                       className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700"
@@ -699,14 +734,14 @@ function TenurePage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                      {t("reports.tenure.no_employees_for_filters")}
                     </td>
                   </tr>
                 ) : (
@@ -721,7 +756,7 @@ function TenurePage() {
                         {typeof item.age === "number" ? item.age : "—"}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {formatStartDate(item.start_date)}
+                        {formatStartDate(item.start_date, locale)}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
                         {item.tenure_label}
@@ -736,14 +771,18 @@ function TenurePage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="w-5 h-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
       </div>
     </>
   );

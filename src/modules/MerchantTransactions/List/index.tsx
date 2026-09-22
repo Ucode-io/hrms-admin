@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import { useMerchantTransactionsQuery } from "../../../api/services/merchantTransaction.service";
 import {
   Table,
@@ -13,6 +14,7 @@ import Button from "../../../components/ui/button/Button";
 import { Edit2 } from "lucide-react";
 
 export default function MerchantTransactionsList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [filters] = useState({});
 
@@ -55,9 +57,9 @@ export default function MerchantTransactionsList() {
     const typeValue = type?.[0]?.toLowerCase();
     switch (typeValue) {
       case "debit":
-        return "Дебет";
+        return t("merchant_transactions.type_debit");
       case "refund":
-        return "Возврат";
+        return t("merchant_transactions.type_refund");
       default:
         return typeValue || "-";
     }
@@ -66,8 +68,8 @@ export default function MerchantTransactionsList() {
   return (
     <>
       <PageMeta
-        title="Акт сверки | HRMS"
-        description="Акт сверки транзакций"
+        title={t("merchant_transactions.list_title")}
+        description={t("merchant_transactions.list_description")}
       />
       <div className="space-y-6">
         <div className="flex items-start justify-between mb-4">
@@ -99,16 +101,16 @@ export default function MerchantTransactionsList() {
                   </Link>
                 </li>
                 <li className="text-sm text-gray-800 dark:text-white/90">
-                  Акт сверки
+                  {t("merchant_transactions.title")}
                 </li>
               </ol>
             </nav>
             <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-              Акт сверки
+              {t("merchant_transactions.title")}
             </h3>
           </div>
           <Button onClick={() => navigate("/finance/merchant-reconciliation/new")}>
-            + Добавить платёж
+            {t("merchant_transactions.add_plus")}
           </Button>
         </div>
 
@@ -133,49 +135,49 @@ export default function MerchantTransactionsList() {
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Мерчант
+                    {t("merchant_transactions.merchant")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Тип
+                    {t("merchant_transactions.type")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    ID договора
+                    {t("merchant_transactions.agreement_id")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Сумма транзакции
+                    {t("merchant_transactions.amount")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Комментарии
+                    {t("merchant_transactions.comments")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Дата создания
+                    {t("merchant_transactions.created_at")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Дата обновления
+                    {t("merchant_transactions.updated_at")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
                   >
-                    Действия
+                    {t("merchant_transactions.actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -219,7 +221,7 @@ export default function MerchantTransactionsList() {
                       colSpan={10}
                       className="px-3 py-2.5 text-center text-gray-500 dark:text-gray-400"
                     >
-                      Нет данных
+                      {t("merchant_transactions.no_data")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -280,7 +282,7 @@ export default function MerchantTransactionsList() {
                           <button
                             onClick={() => navigate(`/finance/merchant-reconciliation/${transaction.guid}/edit`)}
                             className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                            title="Редактировать"
+                            title={t("common.edit_action")}
                           >
                             <Edit2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                           </button>

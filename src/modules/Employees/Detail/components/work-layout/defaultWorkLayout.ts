@@ -1,5 +1,6 @@
 import type { EmployeeFormLayout } from "../../../Form/layout/types";
 import { WORK_FIELDS, WORK_MODAL_CARD_ID } from "./workFields";
+import { translate } from "../../../../../i18n";
 
 /**
  * Раскладка модалки «как было» до появления конструктора — она же кнопка
@@ -10,7 +11,7 @@ export const createDefaultWorkLayout = (): EmployeeFormLayout => ({
   cards: [
     {
       id: WORK_MODAL_CARD_ID,
-      title: "Поля записи",
+      title: translate("employees.work_fields.default_card_title"),
       description: "",
       column: "left",
       system: true,

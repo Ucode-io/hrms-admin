@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatMoney, parseMoney } from "../constants";
+import { useTranslation } from "../../../i18n";
 
 interface MoneyCellProps {
   value: number;
@@ -17,6 +18,7 @@ interface MoneyCellProps {
  * только там, куда нажали; Enter и потеря фокуса сохраняют, Escape отменяет.
  */
 export default function MoneyCell({ value, ariaLabel, tone, onCommit }: MoneyCellProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<string | null>(null);
 
   if (draft !== null) {

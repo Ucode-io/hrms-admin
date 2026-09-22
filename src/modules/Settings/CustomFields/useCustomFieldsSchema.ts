@@ -1,3 +1,4 @@
+import { translate } from "../../../i18n";
 import { useCallback, useMemo } from "react";
 
 import {
@@ -49,7 +50,7 @@ export const useCustomFieldsSchema = () => {
         // Новый id-заглушка: сервер поймёт, что это создание, а не изменение.
         id: createId("fld"),
         key: `${source.key}_copy`,
-        label: `${source.label} (копия)`,
+        label: `${source.label} ${translate("settings_custom_fields.copy_label")}`,
         system: false,
         options: source.options.map((option) => ({
           ...option,

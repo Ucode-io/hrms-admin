@@ -41,8 +41,7 @@ interface BudgetRowLineProps {
  * произвольная пометка («Найм во втором полугодии»), а должность выбирается из
  * того же справочника, что и у людей.
  */
-export default function BudgetRowLine({
-  row,
+export default function BudgetRowLine({ row,
   positions,
   columns,
   periods,

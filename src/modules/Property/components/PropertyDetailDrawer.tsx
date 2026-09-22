@@ -10,6 +10,7 @@ import {
   type PropertyHistoryEntry,
   type PropertyItem,
 } from "../types";
+import { useTranslation } from "../../../i18n";
 
 interface PropertyDetailDrawerProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) =>
 );
 
 const HistoryItem = ({ entry, isLast }: { entry: PropertyHistoryEntry; isLast: boolean }) => {
+  const { t } = useTranslation();
   const toConfig = PROPERTY_STATUS_CONFIG[entry.toStatus];
   const fromConfig = entry.fromStatus ? PROPERTY_STATUS_CONFIG[entry.fromStatus] : null;
   return (
@@ -38,17 +40,17 @@ const HistoryItem = ({ entry, isLast }: { entry: PropertyHistoryEntry; isLast: b
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700">
           {fromConfig ? (
             <>
-              <span className="text-gray-400">{fromConfig.label}</span>
+              <span className="text-gray-400">{t(fromConfig.labelKey)}</span>
               <span className="text-gray-300">→</span>
-              <span className="font-medium">{toConfig.label}</span>
+              <span className="font-medium">{t(toConfig.labelKey)}</span>
             </>
           ) : (
-            <span className="font-medium">{toConfig.label}</span>
+            <span className="font-medium">{t(toConfig.labelKey)}</span>
           )}
         </div>
         {entry.assigneeName && (
           <div className="mt-0.5 text-sm text-gray-600">
-            Назначено: <span className="font-medium">{entry.assigneeName}</span>
+            {t("property.detail.assigned_prefix")} <span className="font-medium">{entry.assigneeName}</span>
             {entry.date ? ` · ${formatDate(entry.date)}` : ""}
           </div>
         )}
@@ -63,14 +65,14 @@ const HistoryItem = ({ entry, isLast }: { entry: PropertyHistoryEntry; isLast: b
   );
 };
 
-export default function PropertyDetailDrawer({
-  isOpen,
+export default function PropertyDetailDrawer({ isOpen,
   item,
   onClose,
   onEdit,
   onMovement,
   onDelete,
 }: PropertyDetailDrawerProps) {
+  const { t } = useTranslation();
   const { data: historyData, isLoading: isHistoryLoading } = usePropertyHistoryQuery(
     item?.id ?? null,
     isOpen
@@ -99,7 +101,7 @@ export default function PropertyDetailDrawer({
               <h3 className="truncate text-lg font-semibold text-gray-900">{item.name}</h3>
               <StatusBadge status={item.status} />
             </div>
-            <p className="mt-0.5 text-sm text-gray-500">{item.categoryTitle || "Без категории"}</p>
+            <p className="mt-0.5 text-sm text-gray-500">{item.categoryTitle || t("property.form.category_empty")}</p>
           </div>
           <button type="button" onClick={onClose}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-400 transition hover:bg-gray-50 hover:text-gray-600">
@@ -113,23 +115,23 @@ export default function PropertyDetailDrawer({
           <div className="mb-5 flex h-44 w-full items-center justify-center overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
             {item.photo
               ? <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
-              : <div className="flex flex-col items-center gap-1 text-gray-300"><ImageOff size={28} /><span className="text-xs">Нет фото</span></div>
+              : <div className="flex flex-col items-center gap-1 text-gray-300"><ImageOff size={28} /><span className="text-xs">{t("property.detail.no_photo")}</span></div>
             }
           </div>
 
           {/* Info */}
           <div className="divide-y divide-gray-100 rounded-2xl border border-gray-100 px-4">
-            <InfoRow label="Серийный номер" value={<span className="font-mono text-xs">{item.serialNumber}</span>} />
-            <InfoRow label="Стоимость" value={formatCurrency(item.cost)} />
-            <InfoRow label="Дата покупки" value={formatDate(item.purchaseDate)} />
-            <InfoRow label="Гарантия до" value={formatDate(item.warrantyUntil)} />
-            <InfoRow label="Назначено" value={item.assignedToName} />
-            <InfoRow label="Дата выдачи" value={formatDate(item.assignedDate)} />
+            <InfoRow label={t("property.table.serial")} value={<span className="font-mono text-xs">{item.serialNumber}</span>} />
+            <InfoRow label={t("property.table.cost")} value={formatCurrency(item.cost)} />
+            <InfoRow label={t("labels.purchase_date")} value={formatDate(item.purchaseDate)} />
+            <InfoRow label={t("property.form.warranty_label")} value={formatDate(item.warrantyUntil)} />
+            <InfoRow label={t("property.table.assigned")} value={item.assignedToName} />
+            <InfoRow label={t("property.movement.issue_date")} value={formatDate(item.assignedDate)} />
           </div>
 
           {item.description && (
             <div className="mt-4">
-              <p className="mb-1.5 text-sm font-medium text-gray-700">Описание</p>
+              <p className="mb-1.5 text-sm font-medium text-gray-700">{t("property.detail.description")}</p>
               <p className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-600">{item.description}</p>
             </div>
           )}
@@ -139,12 +141,12 @@ export default function PropertyDetailDrawer({
             <button type="button" onClick={() => onMovement(item)}
               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-medium text-white transition hover:bg-brand-600">
               <ArrowLeftRight size={16} />
-              Движение
+              {t("property.movement.action")}
             </button>
             <button type="button" onClick={() => onEdit(item)}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-600 transition hover:bg-gray-50">
               <Pencil size={16} />
-              Изменить
+              {t("common.edit")}
             </button>
             <button type="button" onClick={() => onDelete(item)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-100 text-rose-600 transition hover:bg-rose-50">
@@ -155,7 +157,7 @@ export default function PropertyDetailDrawer({
           {/* History */}
           <div className="mt-6">
             <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-gray-900">История изменений</h4>
+              <h4 className="text-sm font-semibold text-gray-900">{t("property.detail.history_title")}</h4>
               <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
                 {isHistoryLoading ? "…" : historyEntries.length}
               </span>
@@ -164,7 +166,7 @@ export default function PropertyDetailDrawer({
               <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-gray-400" /></div>
             ) : historyEntries.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
-                История пуста. Используйте действие «Движение», чтобы зафиксировать изменения.
+                {t("property.detail.history_empty")}
               </p>
             ) : (
               <ul className="pl-1">

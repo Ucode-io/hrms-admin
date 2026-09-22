@@ -11,6 +11,7 @@ import ProductsStep, { Product } from "../../components/ProductsStep";
 import TariffsStep from "../../components/TariffsStep";
 import ContactsStep, { Contact } from "../../components/ContactsStep";
 import ContractSuccessModal from "../../components/ContractSuccessModal";
+import { useTranslation } from "../../../../i18n";
 
 interface UserData {
   guid: string;
@@ -33,12 +34,13 @@ interface ContractFormData {
 }
 
 const STEPS = [
-  { id: 1, name: "Продукты" },
-  { id: 2, name: "Тарифы" },
-  { id: 3, name: "Контакты" },
+  { id: 1, nameKey: "contracts.form.step_products" },
+  { id: 2, nameKey: "contracts.form.step_tariffs" },
+  { id: 3, nameKey: "contracts.form.step_contacts" },
 ];
 
 export default function ContractForm() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const clientId = searchParams.get("client");
   const clientPhone = searchParams.get("client_phone");
@@ -207,13 +209,13 @@ export default function ContractForm() {
 
   return (
     <>
-      <PageMeta title="Создать контракт" description="Форма создания контракта" />
+      <PageMeta title={t("contracts.form.page_title")} description={t("contracts.form.page_description")} />
 
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Создать контракт
+            {t("contracts.form.page_title")}
           </h1>
         </div>
 
@@ -238,16 +240,18 @@ export default function ContractForm() {
               </div>
 
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Доступная рассрочка:</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.form.available_limit_label")}</p>
                 <p className="font-medium text-brand-600 dark:text-brand-400 text-sm">
-                  {formatAmount(clientData.available_installment || clientData.limit_amount || 0)} сум
+                  {t("contracts.form.amount_suffix", {
+                    amount: formatAmount(clientData.available_installment || clientData.limit_amount || 0),
+                  })}
                 </p>
               </div>
 
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Задолженность:</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.form.debt_label")}</p>
                 <p className="font-medium text-amber-600 dark:text-amber-400 text-sm">
-                  {formatAmount(clientData.total_debt)} сум
+                  {t("contracts.form.amount_suffix", { amount: formatAmount(clientData.total_debt) })}
                 </p>
               </div>
 
@@ -256,7 +260,7 @@ export default function ContractForm() {
                   ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
                   : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
                   }`}>
-                  {clientData.status === 'approved' ? 'Верифицирован' : clientData.status}
+                  {clientData.status === 'approved' ? t("contracts.form.status_approved") : clientData.status}
                 </span>
               </div>
             </div>
@@ -273,14 +277,14 @@ export default function ContractForm() {
                 </svg>
               </div>
               <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Номер телефона клиента:</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t("contracts.form.client_phone_label")}</p>
                 <p className="font-medium text-gray-900 dark:text-white text-sm">
                   {formatPhoneDisplay(clientPhone)}
                 </p>
               </div>
               <div className="ml-auto">
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800">
-                  Новый клиент
+                  {t("contracts.form.new_client_badge")}
                 </span>
               </div>
             </div>
@@ -303,7 +307,7 @@ export default function ContractForm() {
                 <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
                   {currentStep > step.id ? "✓" : step.id}
                 </span>
-                {step.name}
+                {t(step.nameKey)}
               </button>
               {index < STEPS.length - 1 && (
                 <ChevronRight className="w-4 h-4 text-gray-400 mx-1" />
@@ -354,7 +358,7 @@ export default function ContractForm() {
             className="flex items-center gap-2"
           >
             <ChevronLeft className="w-4 h-4" />
-            Назад
+            {t("contracts.form.back_button")}
           </Button>
 
           {currentStep < STEPS.length ? (
@@ -364,7 +368,7 @@ export default function ContractForm() {
               disabled={!isCurrentStepValid}
               className="flex items-center gap-2"
             >
-              Далее
+              {t("contracts.form.next_button")}
               <ChevronRight className="w-4 h-4" />
             </Button>
           ) : (
@@ -377,10 +381,10 @@ export default function ContractForm() {
               {createContractMutation.isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Создание...
+                  {t("contracts.form.creating")}
                 </>
               ) : (
-                'Создать контракт'
+                t("contracts.form.page_title")
               )}
             </Button>
           )}

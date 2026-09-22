@@ -35,6 +35,7 @@ import hickvisionService, { type LatenessResult } from "../../../api/services/hi
 import LocationViewLink from "../../../components/map/LocationViewLink";
 import { useOffices } from "../../../components/map/useOffices";
 import TimeInput from "../../../components/form/TimeInput";
+import { useTranslation } from "../../../i18n";
 
 const ATTENDANCE_ENTITY_TYPE = "attendance";
 const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
@@ -507,6 +508,7 @@ const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
 };
 
 export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode } = {}) {
+  const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => toIsoDate(new Date()));
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);

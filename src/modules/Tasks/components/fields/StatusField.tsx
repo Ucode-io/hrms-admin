@@ -7,6 +7,7 @@ import Popover from "../ui/Popover";
 import OptionPicker, { type PickerOption } from "../ui/OptionPicker";
 import { ControlButton, type ControlVariant } from "../ui/controls";
 import { StatusDot } from "../badges";
+import { useTranslation } from "../../../../i18n";
 
 interface StatusFieldProps {
   value: string | null;
@@ -18,6 +19,7 @@ interface StatusFieldProps {
 }
 
 export default function StatusField({ value, statuses, onChange, variant }: StatusFieldProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const current = findDirectoryItem(statuses, value);
 
@@ -28,7 +30,7 @@ export default function StatusField({ value, statuses, onChange, variant }: Stat
     value: status.id,
     label: status.title,
     icon: <StatusDot status={status} />,
-    group: { key: status.group, label: STATUS_GROUP_META[status.group].label },
+    group: { key: status.group, label: t(STATUS_GROUP_META[status.group].labelKey) },
   }));
 
   return (

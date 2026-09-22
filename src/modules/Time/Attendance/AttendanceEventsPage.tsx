@@ -34,6 +34,7 @@ import {
 } from "../../Timesheet/constants";
 import LocationViewLink from "../../../components/map/LocationViewLink";
 import { type Office, useOffices } from "../../../components/map/useOffices";
+import { useTranslation } from "../../../i18n";
 
 type DataRow = Record<string, unknown>;
 
@@ -217,6 +218,7 @@ const buildSummaryEvents = (rows: DataRow[]): AccessEvent[] =>
   }).sort((left, right) => left.time.localeCompare(right.time));
 
 function AttendanceDayCell({ day }: { day?: AttendanceDay }) {
+  const { t } = useTranslation();
   if (!day) return <span className="text-sm text-slate-300">—</span>;
   const workedMinutes = Math.max(0, Math.round(day.seconds / 60));
   const progress = Math.min(100, (workedMinutes / WORK_DAY_SCALE_MINUTES) * 100);

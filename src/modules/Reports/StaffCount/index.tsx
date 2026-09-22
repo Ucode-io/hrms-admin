@@ -13,6 +13,7 @@ import {
   useStaffCountReportQuery,
   useStaffCountTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const TABLE_PAGE_LIMIT = 20;
 const PIE_COLORS = ["#74A8C9", "#6B8FE3", "#666DCF", "#A78BFA", "#F59E0B", "#22C55E"];
@@ -30,7 +31,7 @@ const FALLBACK_CARDS: StaffCountCardMetrics = {
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const formatPercent = (value: number | null | undefined): string => {
@@ -42,18 +43,18 @@ const formatPeople = (value: number | null | undefined): string => {
   const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
 
   if (Number.isInteger(safe)) {
-    return `${safe} человек`;
+    return `${safe} ${translate("reports.staff_count.people_word_full")}`;
   }
 
-  return `${safe.toFixed(1).replace(".", ",")} чел.`;
+  return `${safe.toFixed(1).replace(".", ",")} ${translate("reports.staff_count.people_word_short")}`;
 };
 
-const formatDate = (value: string | null | undefined): string => {
+const formatDate = (value: string | null | undefined, locale: string): string => {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -117,6 +118,7 @@ function MetricCard({
 }
 
 function StaffCountPage() {
+  const { t, locale } = useTranslation();
   const [tablePage, setTablePage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -203,11 +205,11 @@ function StaffCountPage() {
   );
 
   const selectedEventTypeLabel = useMemo(() => {
-    if (selectedEventType === "new_hires") return "Новые сотрудники";
-    if (selectedEventType === "dismissed") return "Уволенные";
-    if (selectedEventType === "total") return "Общий";
+    if (selectedEventType === "new_hires") return t("reports.staff_count.event_type_new_hires");
+    if (selectedEventType === "dismissed") return t("reports.staff_count.event_type_dismissed");
+    if (selectedEventType === "total") return t("reports.staff_count.event_type_total");
     return null;
-  }, [selectedEventType]);
+  }, [selectedEventType, t]);
 
   const handleDynamicsPointSelect = (seriesIndex: number, dataPointIndex: number) => {
     if (dataPointIndex < 0) {
@@ -272,7 +274,7 @@ function StaffCountPage() {
     yaxis: [
       {
         title: {
-          text: "Количество сотрудников",
+          text: t("reports.staff_count.axis_employees_count"),
           style: { fontSize: "12px", color: "#64748b" },
         },
         labels: {
@@ -285,7 +287,7 @@ function StaffCountPage() {
       {
         opposite: true,
         title: {
-          text: "Общая численность",
+          text: t("reports.staff_count.axis_total_headcount"),
           style: { fontSize: "12px", color: "#64748b" },
         },
         labels: {
@@ -318,24 +320,25 @@ function StaffCountPage() {
       shared: true,
       intersect: false,
       y: {
-        formatter: (value: number) => `${Math.round(value)} сотруд.`,
+        formatter: (value: number) =>
+          `${Math.round(value)} ${t("reports.common.employees_short")}`,
       },
     },
   };
 
   const mixedSeries: ApexAxisChartSeries = [
     {
-      name: "Новые сотрудники",
+      name: t("reports.staff_count.event_type_new_hires"),
       type: "column",
       data: dynamics.map((item) => item.new_hires),
     },
     {
-      name: "Уволенные",
+      name: t("reports.staff_count.event_type_dismissed"),
       type: "column",
       data: dynamics.map((item) => item.dismissed),
     },
     {
-      name: "Общий",
+      name: t("reports.staff_count.event_type_total"),
       type: "line",
       data: dynamics.map((item) => item.total),
     },
@@ -419,7 +422,7 @@ function StaffCountPage() {
         formatter: (value: number, opts) => {
           const item = items[opts?.dataPointIndex ?? -1];
           const percent = item ? toPercentShort(item.percentage) : "0";
-          return `${value} сотруд. (${percent}%)`;
+          return `${value} ${t("reports.common.employees_short")} (${percent}%)`;
         },
       },
     },
@@ -447,10 +450,16 @@ function StaffCountPage() {
   };
 
   const departmentsBarSeries: ApexAxisChartSeries = [
-    { name: "Сотрудники", data: byDepartments.map((item) => item.employees_count) },
+    {
+      name: t("reports.staff_count.employees_series"),
+      data: byDepartments.map((item) => item.employees_count),
+    },
   ];
   const locationsBarSeries: ApexAxisChartSeries = [
-    { name: "Сотрудники", data: byLocations.map((item) => item.employees_count) },
+    {
+      name: t("reports.staff_count.employees_series"),
+      data: byLocations.map((item) => item.employees_count),
+    },
   ];
   const departmentsHasData = byDepartments.some((item) => item.employees_count > 0);
   const locationsHasData = byLocations.some((item) => item.employees_count > 0);
@@ -478,7 +487,10 @@ function StaffCountPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Численность персонала | HRMS" description="Отчет о приросте сотрудников" />
+        <PageMeta
+          title={t("reports.staff_count.page_title")}
+          description={t("reports.staff_count.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -489,7 +501,10 @@ function StaffCountPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Численность персонала | HRMS" description="Отчет о приросте сотрудников" />
+        <PageMeta
+          title={t("reports.staff_count.page_title")}
+          description={t("reports.staff_count.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -499,7 +514,7 @@ function StaffCountPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -508,7 +523,10 @@ function StaffCountPage() {
 
   return (
     <>
-      <PageMeta title="Численность персонала | HRMS" description="Отчет о приросте сотрудников" />
+      <PageMeta
+        title={t("reports.staff_count.page_title")}
+        description={t("reports.staff_count.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
@@ -516,11 +534,13 @@ function StaffCountPage() {
             <section className="grid gap-4 xl:grid-cols-12">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4 xl:col-span-9">
                 <div className="mb-3">
-                  <h3 className="text-lg font-semibold text-gray-900">Какая численность в моей компании?</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {t("reports.staff_count.dynamics_heading")}
+                  </h3>
                 </div>
                 {dynamics.length === 0 ? (
                   <div className="flex h-[320px] items-center justify-center text-sm text-gray-500">
-                    Нет данных для графика
+                    {t("reports.common.no_chart_data")}
                   </div>
                 ) : (
                   <Chart options={mixedChartOptions} series={mixedSeries} type="line" height={350} />
@@ -529,12 +549,12 @@ function StaffCountPage() {
 
               <div className="space-y-4 xl:col-span-3">
                 <MetricCard
-                  title="Средний прирост"
+                  title={t("reports.staff_count.card_average_growth")}
                   percent={cards.average_growth_percent}
                   people={cards.average_growth_people}
                 />
                 <MetricCard
-                  title="Средняя текучесть"
+                  title={t("reports.staff_count.card_average_turnover")}
                   percent={cards.average_turnover_percent}
                   people={cards.average_turnover_people}
                 />
@@ -543,11 +563,13 @@ function StaffCountPage() {
 
             <section className="grid gap-4 xl:grid-cols-2">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                <h3 className="text-lg font-semibold text-gray-900">Численность персонала по департаментам</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {t("reports.staff_count.by_departments_heading")}
+                </h3>
                 <div className="mt-2">
                   {!departmentsHasData ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-                      Нет данных для графика
+                      {t("reports.common.no_chart_data")}
                     </div>
                   ) : (
                     <Chart
@@ -561,11 +583,13 @@ function StaffCountPage() {
               </article>
 
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                <h3 className="text-lg font-semibold text-gray-900">Численность персонала по филиалам</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {t("reports.staff_count.by_locations_heading")}
+                </h3>
                 <div className="mt-2">
                   {!locationsHasData ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-                      Нет данных для графика
+                      {t("reports.common.no_chart_data")}
                     </div>
                   ) : (
                     <Chart
@@ -584,21 +608,26 @@ function StaffCountPage() {
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           {selectedDepartmentId || selectedLocationId || selectedEventMonth ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <span className="text-xs font-medium text-gray-500">Фильтр по графику:</span>
+              <span className="text-xs font-medium text-gray-500">
+                {t("reports.common.chart_filter_label")}
+              </span>
               {selectedEventMonth ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Месяц: {selectedEventMonthLabel || selectedEventMonth}
+                  {t("reports.staff_count.filter_month_prefix")}{" "}
+                  {selectedEventMonthLabel || selectedEventMonth}
                   {selectedEventTypeLabel ? ` (${selectedEventTypeLabel})` : ""}
                 </span>
               ) : null}
               {selectedDepartmentId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Департамент: {selectedDepartmentLabel || "Не указано"}
+                  {t("reports.common.filter_department_prefix")}{" "}
+                  {selectedDepartmentLabel || t("reports.common.not_specified")}
                 </span>
               ) : null}
               {selectedLocationId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Филиал: {selectedLocationLabel || "Не указано"}
+                  {t("reports.common.filter_location_prefix")}{" "}
+                  {selectedLocationLabel || t("reports.common.not_specified")}
                 </span>
               ) : null}
               <button
@@ -612,7 +641,7 @@ function StaffCountPage() {
                 }}
                 className="inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
               >
-                Сбросить
+                {t("reports.common.reset_button")}
               </button>
             </div>
           ) : null}
@@ -628,7 +657,7 @@ function StaffCountPage() {
                   type="text"
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Поиск..."
+                  placeholder={t("reports.common.search_placeholder")}
                   className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                 />
               </label>
@@ -638,9 +667,9 @@ function StaffCountPage() {
                 onChange={(event) => setEmploymentStatus(event.target.value as EmploymentStatusFilter)}
                 className="select-with-arrow h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-brand-300 md:min-w-[180px]"
               >
-                <option value="all">Все</option>
-                <option value="active">Активные</option>
-                <option value="dismissed">Уволенные</option>
+                <option value="all">{t("reports.staff_count.status_all")}</option>
+                <option value="active">{t("reports.staff_count.status_active")}</option>
+                <option value="dismissed">{t("reports.staff_count.status_dismissed")}</option>
               </select>
             </div>
           </div>
@@ -648,8 +677,12 @@ function StaffCountPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -698,14 +731,14 @@ function StaffCountPage() {
               <thead>
                 <tr className="bg-gray-50">
                   {[
-                    "Полное имя",
-                    "Дата начала",
-                    "Уволен с",
-                    "Уровень",
-                    "Должность",
-                    "Департамент",
-                    "Регион",
-                    "Филиал",
+                    t("reports.staff_count.col_full_name"),
+                    t("reports.staff_count.col_start_date"),
+                    t("reports.staff_count.col_dismissed_from"),
+                    t("reports.staff_count.col_level"),
+                    t("reports.staff_count.col_position"),
+                    t("reports.staff_count.col_department"),
+                    t("reports.staff_count.col_region"),
+                    t("reports.staff_count.col_location"),
                   ].map((column) => (
                     <th
                       key={column}
@@ -741,14 +774,14 @@ function StaffCountPage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                      {t("reports.common.no_employees_filtered")}
                     </td>
                   </tr>
                 ) : (
@@ -760,10 +793,10 @@ function StaffCountPage() {
                         </Link>
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {formatDate(item.start_date)}
+                        {formatDate(item.start_date, locale)}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {formatDate(item.dismissed_from)}
+                        {formatDate(item.dismissed_from, locale)}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
                         {item.level}
@@ -790,16 +823,20 @@ function StaffCountPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="w-5 h-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
         {isTableFetching && !isTableLoading ? (
-          <p className="text-right text-xs text-gray-400">Обновление таблицы...</p>
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating_table")}</p>
         ) : null}
       </div>
     </>

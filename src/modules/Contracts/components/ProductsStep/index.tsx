@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import Select from "react-select";
 import contractService from "../../../../api/services/contract.service";
 import { Trash2, AlertCircle } from "lucide-react";
+import { useTranslation } from "../../../../i18n";
 
 export interface Product {
   product_id: string;
@@ -24,6 +25,7 @@ const BRAND_500 = "var(--color-brand-500)";
 const BRAND_RING = "rgba(var(--company-color-rgb, 70, 95, 255), 0.3)";
 
 export default function ProductsStep({ products, onChange, availableInstallment = 0 }: ProductsStepProps) {
+  const { t } = useTranslation();
   const [merchantProducts, setMerchantProducts] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -125,7 +127,7 @@ export default function ProductsStep({ products, onChange, availableInstallment 
       )}
       <div className="min-w-0">
         <p className="text-sm truncate">{option.label}</p>
-        <p className="text-xs text-gray-500">{formatAmount(option.price)} сум</p>
+        <p className="text-xs text-gray-500">{t("contracts.common.amount_suffix", { amount: formatAmount(option.price) })}</p>
       </div>
     </div>
   );
@@ -257,22 +259,22 @@ export default function ProductsStep({ products, onChange, availableInstallment 
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-          Продукты
+          {t("contracts.products_step.title")}
         </h2>
         <Select
           value={null}
           onChange={handleSelectProduct}
           options={productOptions}
           formatOptionLabel={formatOptionLabel}
-          placeholder="Поиск продукта по названию..."
+          placeholder={t("contracts.products_step.search_placeholder")}
           isClearable
           isSearchable
           onInputChange={handleSearch}
           inputValue={searchQuery}
           isLoading={searchLoading}
           styles={styles}
-          noOptionsMessage={() => searchQuery ? "Продукты не найдены" : "Введите название для поиска"}
-          loadingMessage={() => "Поиск..."}
+          noOptionsMessage={() => (searchQuery ? t("contracts.products_step.not_found") : t("contracts.products_step.type_to_search"))}
+          loadingMessage={() => t("contracts.products_step.searching")}
         />
       </div>
 
@@ -287,22 +289,22 @@ export default function ProductsStep({ products, onChange, availableInstallment 
               {isOverLimit && <AlertCircle className="w-5 h-5 text-red-500" />}
               <span className={`text-sm font-medium ${isOverLimit ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
                 }`}>
-                Общая сумма:
+                {t("contracts.products_step.total_label")}
               </span>
             </div>
             <span className={`text-lg font-bold ${isOverLimit ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
               }`}>
-              {formatAmount(totalAmount)} сум
+              {t("contracts.common.amount_suffix", { amount: formatAmount(totalAmount) })}
             </span>
           </div>
 
           {availableInstallment > 0 && (
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                Доступный лимит:
+                {t("contracts.products_step.available_limit_label")}
               </span>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {formatAmount(availableInstallment)} сум
+                {t("contracts.common.amount_suffix", { amount: formatAmount(availableInstallment) })}
               </span>
             </div>
           )}
@@ -310,7 +312,7 @@ export default function ProductsStep({ products, onChange, availableInstallment 
           {isOverLimit && (
             <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
               <p className="text-sm text-red-700 dark:text-red-400 font-medium">
-                Сумма превышает доступный лимит на {formatAmount(totalAmount - availableInstallment)} сум
+                {t("contracts.products_step.limit_exceeded", { amount: formatAmount(totalAmount - availableInstallment) })}
               </p>
             </div>
           )}
@@ -319,8 +321,8 @@ export default function ProductsStep({ products, onChange, availableInstallment 
 
       {products.length === 0 ? (
         <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-          <p>Нет добавленных продуктов</p>
-          <p className="text-sm mt-1">Найдите продукт в поиске выше</p>
+          <p>{t("contracts.products_step.empty")}</p>
+          <p className="text-sm mt-1">{t("contracts.products_step.empty_hint")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -331,7 +333,7 @@ export default function ProductsStep({ products, onChange, availableInstallment 
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Продукт #{productIndex + 1}
+                  {t("contracts.products_step.product_index", { index: productIndex + 1 })}
                 </span>
                 <button
                   onClick={() => removeProduct(productIndex)}
@@ -345,13 +347,13 @@ export default function ProductsStep({ products, onChange, availableInstallment 
                 {/* Name */}
                 <div className="col-span-2" >
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Название
+                    {t("contracts.products_step.name_label")}
                   </label>
                   <input
                     type="text"
                     value={product.name}
                     onChange={(e) => updateProduct(productIndex, "name", e.target.value)}
-                    placeholder="Название продукта"
+                    placeholder={t("contracts.products_step.name_placeholder")}
                     className="w-full h-10 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
@@ -372,7 +374,7 @@ export default function ProductsStep({ products, onChange, availableInstallment 
                 {/* Category */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Категория
+                    {t("contracts.products_step.category_label")}
                   </label>
                   <input
                     type="text"
@@ -385,7 +387,7 @@ export default function ProductsStep({ products, onChange, availableInstallment 
                 {/* Quantity */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Количество
+                    {t("contracts.products_step.quantity_label")}
                   </label>
                   <input
                     type="number"
@@ -399,7 +401,7 @@ export default function ProductsStep({ products, onChange, availableInstallment 
                 {/* Price */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Цена (сум)
+                    {t("contracts.products_step.price_label")}
                   </label>
                   <input
                     type="number"
@@ -413,7 +415,10 @@ export default function ProductsStep({ products, onChange, availableInstallment 
 
               {/* Subtotal */}
               <div className="text-right text-sm text-gray-500 dark:text-gray-400">
-                Сумма: <span className="font-medium text-gray-900 dark:text-white">{formatAmount(product.price * product.quantity)} сум</span>
+                {t("contracts.products_step.row_amount")}{" "}
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {t("contracts.common.amount_suffix", { amount: formatAmount(product.price * product.quantity) })}
+                </span>
               </div>
             </div>
           ))}

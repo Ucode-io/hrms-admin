@@ -15,6 +15,8 @@ import {
   useTasksByStatusReportQuery,
   useTasksByStatusTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 const TABLE_PAGE_LIMIT = 20;
 
@@ -25,11 +27,11 @@ type PeriodPreset = "week" | "month" | "year" | "all";
 
 type DateRange = { from: string; to: string };
 
-const PERIOD_PRESETS: { key: PeriodPreset; label: string }[] = [
-  { key: "week", label: "Неделя" },
-  { key: "month", label: "Месяц" },
-  { key: "year", label: "Год" },
-  { key: "all", label: "Всё время" },
+const PERIOD_PRESETS: { key: PeriodPreset; labelKey: MessageKey }[] = [
+  { key: "week", labelKey: "reports.tasks.period_week" },
+  { key: "month", labelKey: "reports.tasks.period_month" },
+  { key: "year", labelKey: "reports.tasks.period_year_label" },
+  { key: "all", labelKey: "reports.tasks.period_all_time" },
 ];
 
 const DEFAULT_PERIOD: PeriodPreset = "year";
@@ -91,17 +93,47 @@ const defaultAnchor = (): string => periodRange(DEFAULT_PERIOD, toIsoDate(new Da
  */
 const DEADLINE_BUCKETS: {
   key: TaskDeadlineBucketKey;
-  label: string;
+  labelKey: MessageKey;
   /** Короткая подпись — для центра кольца, куда полная не помещается. */
-  short: string;
+  shortKey: MessageKey;
   color: string;
 }[] = [
-  { key: "overdue", label: "Просрочено", short: "Просрочено", color: "#F04438" },
-  { key: "today", label: "Сегодня", short: "Сегодня", color: "#F79009" },
-  { key: "week", label: "В течение недели", short: "На неделе", color: "#0BA5EC" },
-  { key: "later", label: "Позже", short: "Позже", color: "#7A5AF8" },
-  { key: "no_deadline", label: "Без срока", short: "Без срока", color: "#94A3B8" },
-  { key: "completed", label: "Завершено", short: "Завершено", color: "#12B76A" },
+  {
+    key: "overdue",
+    labelKey: "reports.tasks.bucket_overdue",
+    shortKey: "reports.tasks.bucket_overdue",
+    color: "#F04438",
+  },
+  {
+    key: "today",
+    labelKey: "reports.tasks.bucket_today",
+    shortKey: "reports.tasks.bucket_today",
+    color: "#F79009",
+  },
+  {
+    key: "week",
+    labelKey: "reports.tasks.bucket_week",
+    shortKey: "reports.tasks.bucket_week_short",
+    color: "#0BA5EC",
+  },
+  {
+    key: "later",
+    labelKey: "reports.tasks.bucket_later",
+    shortKey: "reports.tasks.bucket_later",
+    color: "#7A5AF8",
+  },
+  {
+    key: "no_deadline",
+    labelKey: "reports.tasks.bucket_no_deadline",
+    shortKey: "reports.tasks.bucket_no_deadline",
+    color: "#94A3B8",
+  },
+  {
+    key: "completed",
+    labelKey: "reports.tasks.bucket_completed",
+    shortKey: "reports.tasks.bucket_completed",
+    color: "#12B76A",
+  },
 ];
 
 const BUCKET_BY_KEY = new Map(DEADLINE_BUCKETS.map((bucket) => [bucket.key, bucket]));
@@ -122,7 +154,7 @@ const SUCCESS = "#039855";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const isHexColor = (value: string): boolean => /^#[0-9a-f]{3,8}$/i.test(value);
@@ -140,16 +172,16 @@ const formatDate = (value: string | null): string => {
 };
 
 // Дни: падеж считаем по последним цифрам — «1 день», «3 дня», «11 дней».
-const pluralizeDays = (count: number): string => {
+const daysKey = (count: number): MessageKey => {
   const abs = Math.abs(count);
   const mod10 = abs % 10;
   const mod100 = abs % 100;
-  if (mod10 === 1 && mod100 !== 11) return "день";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
-  return "дней";
+  if (mod10 === 1 && mod100 !== 11) return "reports.tasks.days_one";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "reports.tasks.days_few";
+  return "reports.tasks.days_many";
 };
 
-const formatDays = (count: number): string => `${count} ${pluralizeDays(count)}`;
+const formatDays = (count: number): string => translate(daysKey(count), { count });
 
 const formatPercent = (value: number): string => `${String(value).replace(".", ",")}%`;
 
@@ -289,26 +321,30 @@ const employeeSelectStyles: StylesConfig<{ value: string; label: string }, false
   loadingMessage: (base) => ({ ...base, fontSize: 13 }),
 };
 
-const MONTH_NAMES = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
+const MONTH_KEYS: MessageKey[] = [
+  "reports.common.month_january",
+  "reports.common.month_february",
+  "reports.common.month_march",
+  "reports.common.month_april",
+  "reports.common.month_may",
+  "reports.common.month_june",
+  "reports.common.month_july",
+  "reports.common.month_august",
+  "reports.common.month_september",
+  "reports.common.month_october",
+  "reports.common.month_november",
+  "reports.common.month_december",
 ];
 
 const periodCaption = (preset: PeriodPreset, range: DateRange): string => {
-  if (preset === "all" || !range.from) return "За всё время";
+  if (preset === "all" || !range.from) return translate("reports.tasks.period_all_time_label");
   const date = parseIsoDate(range.from);
-  if (preset === "month") return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
-  if (preset === "year") return `${date.getFullYear()} год`;
+  if (preset === "month") {
+    const monthKey = MONTH_KEYS[date.getMonth()];
+    return `${monthKey ? translate(monthKey) : ""} ${date.getFullYear()}`.trim();
+  }
+  if (preset === "year")
+    return translate("reports.tasks.period_year_caption", { year: date.getFullYear() });
   return `${formatDate(range.from)} — ${formatDate(range.to)}`;
 };
 
@@ -338,6 +374,7 @@ function ReportFilters({
   onEmployee,
   onReset,
 }: ReportFiltersProps) {
+  const { t } = useTranslation();
   const canShift = preset !== "all";
   const portalTarget = typeof document !== "undefined" ? document.body : undefined;
 
@@ -370,7 +407,7 @@ function ReportFilters({
                     boxShadow: isActive ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
                   }}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                 </button>
               );
             })}
@@ -381,7 +418,7 @@ function ReportFilters({
               type="button"
               onClick={() => onShift(-1)}
               disabled={!canShift}
-              aria-label="Предыдущий период"
+              aria-label={t("reports.tasks.previous_period_aria")}
               className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent"
             >
               <ChevronLeft size={16} />
@@ -393,7 +430,7 @@ function ReportFilters({
               type="button"
               onClick={() => onShift(1)}
               disabled={!canShift}
-              aria-label="Следующий период"
+              aria-label={t("reports.tasks.next_period_aria")}
               className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent"
             >
               <ChevronRight size={16} />
@@ -408,7 +445,7 @@ function ReportFilters({
             <EmployeeInfiniteSelect
               value={employeeId}
               onChange={onEmployee}
-              placeholder="Все сотрудники"
+              placeholder={t("reports.tasks.all_employees_placeholder")}
               styles={employeeSelectStyles}
               menuPortalTarget={portalTarget}
               classNamePrefix="tasks-report-employee"
@@ -422,7 +459,7 @@ function ReportFilters({
               className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
             >
               <RotateCcw size={14} />
-              Сбросить
+              {t("reports.common.reset_button")}
             </button>
           ) : null}
         </div>
@@ -430,13 +467,14 @@ function ReportFilters({
 
       <p className="mt-2 text-xs text-gray-400">
         {range.from && range.to ? `${formatDate(range.from)} — ${formatDate(range.to)} · ` : ""}
-        В отчёт попадают задачи, срок жизни которых пересекается с периодом
+        {t("reports.tasks.period_overlap_note")}
       </p>
     </section>
   );
 }
 
 function TasksReportPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<DetailTab>("tasks");
   const [tablePage, setTablePage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -578,7 +616,9 @@ function TasksReportPage() {
   const byDeadline = data?.result?.charts?.by_deadline ?? [];
   const topOverdue = data?.result?.charts?.top_overdue ?? [];
 
-  const countSeries = [{ name: "Задач", data: byStatus.map((item) => item.count) }];
+  const countSeries = [
+    { name: t("reports.tasks.tasks_series"), data: byStatus.map((item) => item.count) },
+  ];
 
   // Apex тянет столбец на всю ширину категории, поэтому при одном-двух
   // статусах «45%» превращались в сплошную плашку вместо графика.
@@ -598,7 +638,9 @@ function TasksReportPage() {
     },
     yaxis: { labels: { style: { fontSize: "12px", colors: ["#64748b"] } } },
     grid: { borderColor: "#e5e7eb", strokeDashArray: 4 },
-    tooltip: { y: { formatter: (value: number) => `${value} задач` } },
+    tooltip: {
+      y: { formatter: (value: number) => t("reports.tasks.tasks_count_short", { count: value }) },
+    },
   };
 
   /**
@@ -615,7 +657,7 @@ function TasksReportPage() {
 
   const deadlineOptions: ApexOptions = {
     chart: { type: "donut", fontFamily: "Outfit, sans-serif", toolbar: { show: false } },
-    labels: deadlineSlices.map((item) => item.label),
+    labels: deadlineSlices.map((item) => t(item.labelKey)),
     colors: deadlineSlices.map((item) => item.color),
     legend: { position: "bottom", fontSize: "12px" },
     stroke: { width: 0 },
@@ -637,18 +679,21 @@ function TasksReportPage() {
             name: {
               fontSize: "13px",
               color: "#64748b",
-              formatter: (value: string) =>
-                deadlineSlices.find((item) => item.label === value)?.short ?? value,
+              formatter: (value: string) => {
+                const slice = deadlineSlices.find((item) => t(item.labelKey) === value);
+                return slice ? t(slice.shortKey) : value;
+              },
             },
             value: {
               fontSize: "20px",
               fontWeight: 600,
               color: "#101828",
-              formatter: (value: string) => `${Number(value)} задач`,
+              formatter: (value: string) =>
+                t("reports.tasks.tasks_count_short", { count: Number(value) }),
             },
             total: {
               show: true,
-              label: "Всего задач",
+              label: t("reports.tasks.total_tasks_label"),
               fontSize: "13px",
               color: "#64748b",
               formatter: () => String(deadlineSlices.reduce((sum, item) => sum + item.count, 0)),
@@ -663,7 +708,7 @@ function TasksReportPage() {
     tooltip: {
       theme: "light",
       fillSeriesColor: false,
-      y: { formatter: (value: number) => `${value} задач` },
+      y: { formatter: (value: number) => t("reports.tasks.tasks_count_short", { count: value }) },
     },
   };
 
@@ -686,28 +731,28 @@ function TasksReportPage() {
   const refetchDetail = tab === "tasks" ? refetchTable : refetchEmployees;
 
   const taskColumns = [
-    "Код",
-    "Задача",
-    "Статус",
-    "Исполнители",
-    "Дедлайн",
-    "Закрыто",
-    "Просрочка",
-    "Срок",
+    t("reports.tasks.column_code"),
+    t("reports.tasks.column_task"),
+    t("reports.tasks.column_status"),
+    t("reports.tasks.column_assignees"),
+    t("reports.tasks.column_deadline"),
+    t("reports.tasks.column_closed"),
+    t("reports.tasks.column_overdue"),
+    t("reports.tasks.column_deadline_status"),
   ];
 
   const employeeColumns = [
-    "Сотрудник",
-    "Всего",
-    "Открытых",
-    "Просрочено",
-    "Завершено",
-    "В срок",
-    "С опозданием",
-    "% в срок",
-    "Просрочка, всего",
-    "Средняя",
-    "Максимум",
+    t("reports.tasks.column_employee"),
+    t("reports.tasks.column_total"),
+    t("reports.tasks.column_open"),
+    t("reports.tasks.bucket_overdue"),
+    t("reports.tasks.column_completed"),
+    t("reports.tasks.column_on_time"),
+    t("reports.tasks.column_late"),
+    t("reports.tasks.column_on_time_percent"),
+    t("reports.tasks.column_overdue_days_total"),
+    t("reports.tasks.column_average"),
+    t("reports.tasks.column_maximum"),
   ];
 
   const detailColumns = tab === "tasks" ? taskColumns : employeeColumns;
@@ -715,7 +760,10 @@ function TasksReportPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Задачи | Отчеты | HRMS" description="Отчет по задачам" />
+        <PageMeta
+          title={t("reports.tasks.page_title")}
+          description={t("reports.tasks.page_description")}
+        />
         <div className="space-y-4">
           {filtersBar}
           <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
@@ -729,7 +777,10 @@ function TasksReportPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Задачи | Отчеты | HRMS" description="Отчет по задачам" />
+        <PageMeta
+          title={t("reports.tasks.page_title")}
+          description={t("reports.tasks.page_description")}
+        />
         <div className="space-y-4">
           {filtersBar}
           <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
@@ -741,7 +792,7 @@ function TasksReportPage() {
               }}
               className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
             >
-              Повторить
+              {t("reports.common.retry_button")}
             </button>
           </div>
         </div>
@@ -751,66 +802,90 @@ function TasksReportPage() {
 
   return (
     <>
-      <PageMeta title="Задачи | Отчеты | HRMS" description="Отчет по задачам" />
+      <PageMeta
+        title={t("reports.tasks.page_title")}
+        description={t("reports.tasks.page_description")}
+      />
 
       <div className="space-y-4">
         {filtersBar}
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Всего задач" value={String(cards.total ?? 0)} />
           <MetricCard
-            title="Открытые"
-            value={String(cards.open ?? 0)}
-            hint={`К выполнению ${cards.todo ?? 0} · В работе ${cards.in_progress ?? 0}`}
+            title={t("reports.tasks.total_tasks_title")}
+            value={String(cards.total ?? 0)}
           />
           <MetricCard
-            title="Просрочено сейчас"
+            title={t("reports.tasks.open_title")}
+            value={String(cards.open ?? 0)}
+            hint={t("reports.tasks.open_hint", {
+              todo: cards.todo ?? 0,
+              in_progress: cards.in_progress ?? 0,
+            })}
+          />
+          <MetricCard
+            title={t("reports.tasks.overdue_now_title")}
             value={String(cards.overdue ?? 0)}
             accent={(cards.overdue ?? 0) > 0 ? DANGER : undefined}
-            hint={`Сегодня ${cards.due_today ?? 0} · На неделе ${cards.due_week ?? 0}`}
+            hint={t("reports.tasks.overdue_now_hint", {
+              today: cards.due_today ?? 0,
+              week: cards.due_week ?? 0,
+            })}
           />
           <MetricCard
-            title="Завершено"
+            title={t("reports.tasks.completed_title")}
             value={`${cards.completed ?? 0} (${formatPercent(cards.completion_rate ?? 0)})`}
-            hint={`Без дедлайна ${cards.completed_without_deadline ?? 0}`}
+            hint={t("reports.tasks.completed_hint", {
+              count: cards.completed_without_deadline ?? 0,
+            })}
           />
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            title="Закрыто вовремя"
+            title={t("reports.tasks.closed_on_time_title")}
             value={String(cards.completed_on_time ?? 0)}
             accent={SUCCESS}
-            hint={`${formatPercent(cards.on_time_rate ?? 0)} от завершённых с дедлайном`}
+            hint={t("reports.tasks.closed_on_time_hint", {
+              percent: formatPercent(cards.on_time_rate ?? 0),
+            })}
           />
           <MetricCard
-            title="Закрыто с опозданием"
+            title={t("reports.tasks.closed_late_title")}
             value={String(cards.completed_late ?? 0)}
             accent={(cards.completed_late ?? 0) > 0 ? DANGER : undefined}
-            hint={`Суммарно ${formatDays(cards.late_days_completed ?? 0)} сверх срока`}
+            hint={t("reports.tasks.closed_late_hint", {
+              days: formatDays(cards.late_days_completed ?? 0),
+            })}
           />
           <MetricCard
-            title="Общая просрочка"
+            title={t("reports.tasks.total_overdue_title")}
             value={formatDays(cards.late_days_total ?? 0)}
             accent={(cards.late_days_total ?? 0) > 0 ? DANGER : undefined}
-            hint={`Закрытые ${cards.late_days_completed ?? 0} · Открытые ${cards.late_days_open ?? 0}`}
+            hint={t("reports.tasks.total_overdue_hint", {
+              closed: cards.late_days_completed ?? 0,
+              open: cards.late_days_open ?? 0,
+            })}
           />
           <MetricCard
-            title="Просрочка на задачу"
+            title={t("reports.tasks.overdue_per_task_title")}
             value={formatDays(cards.avg_overdue_days ?? 0)}
-            hint={`Задач с просрочкой ${cards.tasks_with_delay ?? 0} · Максимум ${formatDays(
-              cards.max_overdue_days ?? 0
-            )}`}
+            hint={t("reports.tasks.overdue_per_task_hint", {
+              count: cards.tasks_with_delay ?? 0,
+              max: formatDays(cards.max_overdue_days ?? 0),
+            })}
           />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
           <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-            <h3 className="text-lg font-semibold text-gray-900">Задачи по статусам</h3>
-            <p className="text-sm text-gray-500">Количество задач в каждом статусе</p>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t("reports.tasks.by_status_title")}
+            </h3>
+            <p className="text-sm text-gray-500">{t("reports.tasks.by_status_subtitle")}</p>
             {byStatus.length === 0 ? (
               <div className="mt-2 flex h-[280px] items-center justify-center text-sm text-gray-500">
-                Нет данных для графика
+                {t("reports.common.no_chart_data")}
               </div>
             ) : (
               <div className="mt-2">
@@ -820,13 +895,13 @@ function TasksReportPage() {
           </article>
 
           <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-            <h3 className="text-lg font-semibold text-gray-900">Задачи по срокам</h3>
-            <p className="text-sm text-gray-500">
-              Просрочено, горит сегодня, в течение недели, позже и без срока
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t("reports.tasks.by_deadline_title")}
+            </h3>
+            <p className="text-sm text-gray-500">{t("reports.tasks.by_deadline_subtitle")}</p>
             {deadlineSeries.length === 0 ? (
               <div className="mt-2 flex h-[280px] items-center justify-center text-sm text-gray-500">
-                Нет данных для графика
+                {t("reports.common.no_chart_data")}
               </div>
             ) : (
               <div className="mt-2">
@@ -843,22 +918,30 @@ function TasksReportPage() {
 
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           <div className="border-b border-gray-100 px-4 py-3">
-            <h3 className="text-lg font-semibold text-gray-900">Самые просроченные задачи</h3>
-            <p className="text-sm text-gray-500">
-              Топ-10 по числу дней сверх дедлайна: и закрытые с опозданием, и висящие открытыми
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {t("reports.tasks.top_overdue_title")}
+            </h3>
+            <p className="text-sm text-gray-500">{t("reports.tasks.top_overdue_subtitle")}</p>
           </div>
 
           {topOverdue.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-gray-500">
-              Задач с просрочкой нет
+              {t("reports.tasks.no_overdue_tasks")}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0">
                 <thead>
                   <tr className="bg-gray-50">
-                    {["Код", "Задача", "Статус", "Исполнители", "Дедлайн", "Закрыто", "Просрочка"].map(
+                    {[
+                      t("reports.tasks.column_code"),
+                      t("reports.tasks.column_task"),
+                      t("reports.tasks.column_status"),
+                      t("reports.tasks.column_assignees"),
+                      t("reports.tasks.column_deadline"),
+                      t("reports.tasks.column_closed"),
+                      t("reports.tasks.column_overdue"),
+                    ].map(
                       (column) => (
                         <th
                           key={column}
@@ -878,7 +961,7 @@ function TasksReportPage() {
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
                         <Link to="/tasks" className="transition hover:text-brand-500">
-                          {item.title || "Без названия"}
+                          {item.title || t("reports.tasks.no_title")}
                         </Link>
                       </td>
                       <td className="whitespace-nowrap border-b border-gray-100 px-4 py-2.5">
@@ -912,8 +995,8 @@ function TasksReportPage() {
             <div className="inline-flex rounded-xl border border-gray-200 p-0.5">
               {(
                 [
-                  { key: "tasks", label: "Задачи" },
-                  { key: "employees", label: "По исполнителям" },
+                  { key: "tasks", label: t("reports.tasks.tab_tasks") },
+                  { key: "employees", label: t("reports.tasks.tab_employees") },
                 ] as { key: DetailTab; label: string }[]
               ).map((item) => (
                 <button
@@ -944,7 +1027,11 @@ function TasksReportPage() {
                   type="text"
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder={tab === "tasks" ? "Название или код..." : "Сотрудник..."}
+                  placeholder={
+                    tab === "tasks"
+                      ? t("reports.tasks.search_title_or_code")
+                      : t("reports.tasks.search_employee")
+                  }
                   className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                 />
               </label>
@@ -959,7 +1046,7 @@ function TasksReportPage() {
                     }}
                     className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                   >
-                    <option value="">Все статусы</option>
+                    <option value="">{t("reports.tasks.all_statuses")}</option>
                     {byStatus.map((status) => (
                       <option key={status.status_id ?? status.title} value={status.status_id ?? ""}>
                         {status.title} ({status.count})
@@ -975,12 +1062,12 @@ function TasksReportPage() {
                     }}
                     className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
                   >
-                    <option value="">Все сроки</option>
+                    <option value="">{t("reports.tasks.all_deadlines")}</option>
                     {DEADLINE_BUCKETS.map((item) => {
                       const count = byDeadline.find((entry) => entry.key === item.key)?.count ?? 0;
                       return (
                         <option key={item.key} value={item.key}>
-                          {item.label} ({count})
+                          {t(item.labelKey)} ({count})
                         </option>
                       );
                     })}
@@ -998,16 +1085,20 @@ function TasksReportPage() {
                   }}
                   className="h-4 w-4 accent-error-500"
                 />
-                Только с просрочкой
+                {t("reports.tasks.only_delayed_label")}
               </label>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
-              {totalCount > 0 ? `Отображение ${from} - ${to} из ${totalCount}` : "Нет данных"}
+              {totalCount > 0
+                ? t("reports.common.showing_range", { from, to, total: totalCount })
+                : t("reports.common.no_data")}
               {tab === "employees" && (employeesResult?.unassigned ?? 0) > 0
-                ? ` · Без исполнителя: ${employeesResult?.unassigned}`
+                ? ` · ${t("reports.tasks.unassigned_count", {
+                    count: employeesResult?.unassigned ?? 0,
+                  })}`
                 : ""}
             </p>
 
@@ -1061,7 +1152,7 @@ function TasksReportPage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
@@ -1072,7 +1163,7 @@ function TasksReportPage() {
                         colSpan={detailColumns.length}
                         className="px-4 py-6 text-center text-sm text-gray-500"
                       >
-                        Задач по выбранным условиям не найдено
+                        {t("reports.tasks.no_tasks_for_filters")}
                       </td>
                     </tr>
                   ) : (
@@ -1087,7 +1178,7 @@ function TasksReportPage() {
                           </td>
                           <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
                             <Link to="/tasks" className="transition hover:text-brand-500">
-                              {item.title || "Без названия"}
+                              {item.title || t("reports.tasks.no_title")}
                             </Link>
                             {item.priority ? (
                               <span
@@ -1139,23 +1230,27 @@ function TasksReportPage() {
                                 }}
                               >
                                 {item.completed_on_time === false
-                                  ? "С опозданием"
+                                  ? t("reports.tasks.status_late")
                                   : item.completed_on_time === true
-                                    ? "В срок"
-                                    : "Без дедлайна"}
+                                    ? t("reports.tasks.status_on_time")
+                                    : t("reports.tasks.status_no_deadline_completed")}
                               </span>
                             ) : daysLeft == null ? (
-                              <span className="text-xs text-gray-400">Без срока</span>
+                              <span className="text-xs text-gray-400">{t("reports.tasks.status_no_deadline")}</span>
                             ) : (
                               <span
                                 className="text-xs font-medium"
                                 style={{ color: bucketMeta?.color || "#475569" }}
                               >
                                 {daysLeft < 0
-                                  ? `Просрочено на ${formatDays(Math.abs(daysLeft))}`
+                                  ? t("reports.tasks.overdue_by", {
+                                      days: formatDays(Math.abs(daysLeft)),
+                                    })
                                   : daysLeft === 0
-                                    ? "Сегодня"
-                                    : `Осталось ${formatDays(daysLeft)}`}
+                                    ? t("reports.tasks.status_today")
+                                    : t("reports.tasks.days_left", {
+                                        days: formatDays(daysLeft),
+                                      })}
                               </span>
                             )}
                           </td>
@@ -1169,7 +1264,7 @@ function TasksReportPage() {
                       colSpan={detailColumns.length}
                       className="px-4 py-6 text-center text-sm text-gray-500"
                     >
-                      Исполнителей по выбранным условиям не найдено
+                      {t("reports.tasks.no_employees_for_filters")}
                     </td>
                   </tr>
                 ) : (
@@ -1243,14 +1338,18 @@ function TasksReportPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="h-5 w-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
       </div>
     </>
   );

@@ -16,12 +16,13 @@ import {
   type Td2ConfigTestResult,
 } from "../../../../api/services/timedoctor.service";
 import EmployeesScopeTab from "./EmployeesScopeTab";
+import { useTranslation } from "../../../../i18n";
 
 type SettingsTab = "connection" | "employees";
 
 const TABS: { key: SettingsTab; label: string }[] = [
-  { key: "connection", label: "Подключение" },
-  { key: "employees", label: "Сотрудники" },
+  { key: "connection", labelKey: "settings_integrations.timedoctor.tab_connection" },
+  { key: "employees", labelKey: "settings_integrations.timedoctor.tab_employees" },
 ];
 
 const formatDateTime = (value: string | null | undefined): string => {
@@ -63,6 +64,7 @@ const getErrorMessage = (error: unknown, fallback: string): string =>
 const nonEmpty = (value: string | undefined | null): string => value?.trim() ?? "";
 
 export default function TimeDoctorIntegrationSettingsPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<SettingsTab>("connection");
   const configQuery = useTd2Config();
   const config = configQuery.data ?? null;
@@ -105,16 +107,16 @@ export default function TimeDoctorIntegrationSettingsPage() {
     if (password.trim()) payload.password = password;
 
     if (!payload.email && !payload.password) {
-      toast.info("Менять нечего.");
+      toast.info(t("settings_integrations.timedoctor.info_nothing_changed"));
       return;
     }
 
     try {
       await updateMutation.mutateAsync(payload);
       setPassword("");
-      toast.success("Данные сохранены. Обновите токен, чтобы применить их.");
+      toast.success(t("settings_integrations.timedoctor.success_saved_update_token"));
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось сохранить данные."));
+      toast.error(getErrorMessage(error, t("settings_integrations.timedoctor.error_save_credentials")));
     }
   };
 
@@ -122,10 +124,10 @@ export default function TimeDoctorIntegrationSettingsPage() {
     try {
       const result = await refreshMutation.mutateAsync();
       toast.success(
-        `Токен обновлён. Действует до ${formatDateTime(result.token_expires_at)}.`
+        t("settings_integrations.timedoctor.success_token_updated", { expires: formatDateTime(result.token_expires_at) })
       );
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось обновить токен."));
+      toast.error(getErrorMessage(error, t("settings_integrations.timedoctor.error_refresh_token")));
     }
   };
 
@@ -134,29 +136,29 @@ export default function TimeDoctorIntegrationSettingsPage() {
     try {
       const result = await testMutation.mutateAsync();
       setTestResult(result);
-      if (result.connected) toast.success("Соединение активно.");
-      else toast.error(result.error || "Токен недействителен.");
+      if (result.connected) toast.success(t("settings_integrations.timedoctor.success_connection_active_toast"));
+      else toast.error(result.error || t("settings_integrations.timedoctor.error_token_invalid"));
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось проверить соединение."));
+      toast.error(getErrorMessage(error, t("settings_integrations.timedoctor.error_check_connection")));
     }
   };
 
   const handleSync = async () => {
     if (range.from > range.to) {
-      toast.error("Дата начала позже даты окончания.");
+      toast.error(t("settings_integrations.timedoctor.error_start_after_end"));
       return;
     }
     try {
       await syncMutation.mutateAsync({ from_date: range.from, to_date: range.to });
-      toast.success("Синхронизация запущена — прогресс появится ниже.");
+      toast.success(t("settings_integrations.timedoctor.success_sync_started"));
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось запустить синхронизацию."));
+      toast.error(getErrorMessage(error, t("settings_integrations.timedoctor.error_start_sync")));
     }
   };
 
   const handleConnect = async () => {
     if (!connectEmail.trim() || !connectPassword.trim()) {
-      toast.error("Укажите email и пароль Time Doctor.");
+      toast.error(t("settings_integrations.timedoctor.error_enter_credentials"));
       return;
     }
     try {
@@ -164,11 +166,11 @@ export default function TimeDoctorIntegrationSettingsPage() {
         email: connectEmail.trim(),
         password: connectPassword,
       });
-      toast.success("Аккаунт Time Doctor подключён.");
+      toast.success(t("settings_integrations.timedoctor.success_connected"));
       setConnectEmail("");
       setConnectPassword("");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось подключить аккаунт."));
+      toast.error(getErrorMessage(error, t("settings_integrations.timedoctor.error_connect_account")));
     }
   };
 
@@ -176,9 +178,9 @@ export default function TimeDoctorIntegrationSettingsPage() {
     if (!config) return;
     try {
       await updateMutation.mutateAsync({ guid: config.guid, is_active: !config.is_active });
-      toast.success(config.is_active ? "Интеграция отключена." : "Интеграция включена.");
+      toast.success(config.is_active ? t("settings_integrations.timedoctor.success_disabled") : t("settings_integrations.timedoctor.success_enabled"));
     } catch (error) {
-      toast.error(getErrorMessage(error, "Не удалось изменить статус."));
+      toast.error(getErrorMessage(error, t("settings_integrations.timedoctor.error_change_status")));
     }
   };
 
@@ -187,7 +189,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <PageMeta title="Time Doctor — Интеграции" description="Подключение аккаунта Time Doctor" />
+      <PageMeta title={t("settings_integrations.timedoctor.page_title")} description={t("settings_integrations.timedoctor.page_description")} />
 
       <div className="mb-6 flex items-center gap-3">
         <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-500">
@@ -196,7 +198,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
         <div>
           <h1 className="text-lg font-semibold text-gray-900">Time Doctor</h1>
           <p className="text-sm text-gray-500">
-            Подключение компании Time Doctor и синхронизация отработанного времени.
+            {t("settings_integrations.timedoctor.page_subtitle")}
           </p>
         </div>
       </div>
@@ -215,7 +217,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
               color: tab === item.key ? "#ffffff" : "#475569",
             }}
           >
-            {item.label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>
@@ -231,10 +233,9 @@ export default function TimeDoctorIntegrationSettingsPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* ── Учётные данные ─────────────────────────────────────────── */}
             <div className={cardClass}>
-              <h2 className="text-base font-semibold text-gray-900">Учётные данные</h2>
+              <h2 className="text-base font-semibold text-gray-900">{t("settings_integrations.timedoctor.section_credentials")}</h2>
               <p className="mt-1 text-sm text-gray-500">
-                Данные администратора Time Doctor. Пароль хранится на сервере и нужен
-                для автоматического обновления токена.
+                {t("settings_integrations.timedoctor.section_credentials_help")}
               </p>
 
               <div className="mt-4 space-y-3">
@@ -250,13 +251,13 @@ export default function TimeDoctorIntegrationSettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Пароль</label>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">{t("settings_integrations.timedoctor.label_password")}</label>
                   <input
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     className={inputClass}
-                    placeholder="Оставьте пустым, чтобы не менять"
+                    placeholder={t("settings_integrations.timedoctor.password_placeholder")}
                     autoComplete="new-password"
                   />
                 </div>
@@ -269,7 +270,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
                   startIcon={<Save className="h-4 w-4" />}
                   className="h-10"
                 >
-                  {updateMutation.isLoading ? "Сохранение…" : "Сохранить"}
+                  {updateMutation.isLoading ? t("settings_integrations.timedoctor.btn_saving") : t("settings_integrations.timedoctor.btn_save")}
                 </Button>
                 <Button
                   variant="outline"
@@ -278,7 +279,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
                   startIcon={<RefreshCw className="h-4 w-4" />}
                   className="h-10"
                 >
-                  {refreshMutation.isLoading ? "Обновление…" : "Обновить токен"}
+                  {refreshMutation.isLoading ? t("settings_integrations.timedoctor.btn_updating") : t("settings_integrations.timedoctor.btn_refresh_token")}
                 </Button>
               </div>
             </div>
@@ -286,7 +287,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
             {/* ── Состояние подключения ──────────────────────────────────── */}
             <div className={cardClass}>
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Состояние подключения</h2>
+                <h2 className="text-base font-semibold text-gray-900">{t("settings_integrations.timedoctor.section_status")}</h2>
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
                     isActive ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-500"
@@ -297,16 +298,16 @@ export default function TimeDoctorIntegrationSettingsPage() {
                       isActive ? "bg-emerald-500" : "bg-gray-400"
                     }`}
                   />
-                  {isActive ? "Активно" : "Отключено"}
+                  {isActive ? t("settings_integrations.timedoctor.status_active") : t("settings_integrations.timedoctor.status_disabled")}
                 </span>
               </div>
 
               <dl className="mt-4 space-y-2.5">
                 {[
-                  ["Компания", config.time_doctor_company_name || "—"],
+                  [t("settings_integrations.timedoctor.field_company"), config.time_doctor_company_name || "—"],
                   ["Email", config.email || "—"],
-                  ["Токен действует до", formatDateTime(config.token_expires_at)],
-                  ["Последняя синхронизация", formatDateTime(config.last_sync_at)],
+                  [t("settings_integrations.timedoctor.field_token_expires"), formatDateTime(config.token_expires_at)],
+                  [t("settings_integrations.timedoctor.field_last_sync"), formatDateTime(config.last_sync_at)],
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-baseline gap-3">
                     <dt className="w-44 shrink-0 text-sm text-gray-500">{label}</dt>
@@ -323,7 +324,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
                   startIcon={<CheckCircle2 className="h-4 w-4" />}
                   className="h-10"
                 >
-                  {testMutation.isLoading ? "Проверка…" : "Проверить соединение"}
+                  {testMutation.isLoading ? t("settings_integrations.timedoctor.btn_testing") : t("settings_integrations.timedoctor.btn_test")}
                 </Button>
                 <Button
                   variant="outline"
@@ -331,7 +332,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
                   disabled={updateMutation.isLoading}
                   className="h-10"
                 >
-                  {isActive ? "Отключить" : "Включить"}
+                  {isActive ? t("settings_integrations.timedoctor.btn_disable") : t("settings_integrations.timedoctor.btn_enable")}
                 </Button>
               </div>
 
@@ -351,14 +352,14 @@ export default function TimeDoctorIntegrationSettingsPage() {
                   <div className="text-sm">
                     {testResult.connected ? (
                       <>
-                        <p className="font-medium text-emerald-700">Соединение активно</p>
+                        <p className="font-medium text-emerald-700">{t("settings_integrations.timedoctor.success_connection_active")}</p>
                         <p className="text-emerald-600">
                           {testResult.company_name} · {testResult.user_email}
                         </p>
                       </>
                     ) : (
                       <>
-                        <p className="font-medium text-rose-700">Соединение недоступно</p>
+                        <p className="font-medium text-rose-700">{t("settings_integrations.timedoctor.error_connection_failed")}</p>
                         <p className="text-rose-600">{testResult.error}</p>
                       </>
                     )}
@@ -370,15 +371,14 @@ export default function TimeDoctorIntegrationSettingsPage() {
 
           {/* ── Синхронизация ────────────────────────────────────────────── */}
           <div className={cardClass}>
-            <h2 className="text-base font-semibold text-gray-900">Синхронизация</h2>
+            <h2 className="text-base font-semibold text-gray-900">{t("settings_integrations.timedoctor.section_sync")}</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Загружает из Time Doctor проекты, задачи и отработанное время за период.
-              Запускается в фоне — страницу можно закрыть.
+              {t("settings_integrations.timedoctor.section_sync_help")}
             </p>
 
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">С</label>
+                <label className="mb-1 block text-xs font-medium text-gray-500">{t("settings_integrations.timedoctor.label_date_from")}</label>
                 <DateInput
                   value={range.from}
                   onChange={(next) => setRange((prev) => ({ ...prev, from: next }))}
@@ -387,7 +387,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">По</label>
+                <label className="mb-1 block text-xs font-medium text-gray-500">{t("settings_integrations.timedoctor.label_date_to")}</label>
                 <DateInput
                   value={range.to}
                   onChange={(next) => setRange((prev) => ({ ...prev, to: next }))}
@@ -403,13 +403,13 @@ export default function TimeDoctorIntegrationSettingsPage() {
                 }
                 className="h-11"
               >
-                {isSyncRunning ? "Синхронизация…" : "Синхронизировать"}
+                {isSyncRunning ? t("settings_integrations.timedoctor.btn_syncing") : t("settings_integrations.timedoctor.btn_sync")}
               </Button>
             </div>
 
             {!isActive && (
               <p className="mt-2 text-xs text-amber-600">
-                Интеграция отключена — включите её, чтобы запускать синхронизацию.
+                {t("settings_integrations.timedoctor.sync_disabled_notice")}
               </p>
             )}
 
@@ -427,29 +427,34 @@ export default function TimeDoctorIntegrationSettingsPage() {
                       }`}
                     />
                     {isSyncRunning
-                      ? nonEmpty(syncStatus.phase) || "Выполняется"
+                      ? nonEmpty(syncStatus.phase) || t("settings_integrations.timedoctor.sync_running")
                       : syncError
-                        ? "Завершилась с ошибкой"
-                        : "Простаивает"}
+                        ? t("settings_integrations.timedoctor.sync_failed")
+                        : t("settings_integrations.timedoctor.sync_idle")}
                   </span>
                   {nonEmpty(syncStatus.from_date) && (
                     <span className="text-gray-500">
-                      Период: {syncStatus.from_date} — {syncStatus.to_date}
+                      {t("settings_integrations.timedoctor.sync_period", { from: syncStatus.from_date ?? "", to: syncStatus.to_date ?? "" })}
                     </span>
                   )}
                   <span className="text-gray-500">
-                    Записей загружено: {syncStatus.worklogs_synced ?? 0}
+                    {t("settings_integrations.timedoctor.sync_worklogs", { count: syncStatus.worklogs_synced ?? 0 })}
                   </span>
                   {nonEmpty(syncStatus.trigger) && (
                     <span className="text-gray-500">
-                      Запуск: {syncStatus.trigger === "manual" ? "вручную" : syncStatus.trigger}
+                      {t("settings_integrations.timedoctor.sync_trigger", {
+                        trigger:
+                          syncStatus.trigger === "manual"
+                            ? t("settings_integrations.timedoctor.sync_trigger_manual")
+                            : syncStatus.trigger ?? "",
+                      })}
                     </span>
                   )}
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
-                  <span>Начало: {formatDateTime(nonEmpty(syncStatus.started_at))}</span>
-                  <span>Окончание: {formatDateTime(nonEmpty(syncStatus.finished_at))}</span>
+                  <span>{t("settings_integrations.timedoctor.sync_started_at", { time: formatDateTime(nonEmpty(syncStatus.started_at)) })}</span>
+                  <span>{t("settings_integrations.timedoctor.sync_finished_at", { time: formatDateTime(nonEmpty(syncStatus.finished_at)) })}</span>
                 </div>
 
                 {syncError && (
@@ -464,10 +469,9 @@ export default function TimeDoctorIntegrationSettingsPage() {
       ) : (
         /* ── Первое подключение ───────────────────────────────────────────── */
         <div className={`${cardClass} max-w-xl`}>
-          <h2 className="text-base font-semibold text-gray-900">Подключить аккаунт</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t("settings_integrations.timedoctor.section_connect")}</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Войдите с учётными данными владельца аккаунта Time Doctor. Пароль хранится
-            для автоматического обновления токена.
+            {t("settings_integrations.timedoctor.section_connect_help")}
           </p>
           <div className="mt-4 space-y-3">
             <div>
@@ -482,7 +486,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Пароль</label>
+              <label className="mb-1 block text-xs font-medium text-gray-500">{t("settings_integrations.timedoctor.label_password")}</label>
               <input
                 type="password"
                 value={connectPassword}
@@ -499,7 +503,7 @@ export default function TimeDoctorIntegrationSettingsPage() {
               }
               className="h-11"
             >
-              {createMutation.isLoading ? "Подключение…" : "Подключить"}
+              {createMutation.isLoading ? t("settings_integrations.timedoctor.btn_connecting") : t("settings_integrations.timedoctor.btn_connect")}
             </Button>
           </div>
         </div>

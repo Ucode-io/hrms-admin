@@ -58,6 +58,7 @@ import type { Employee } from "../../../api/services/employee.service";
 import type { ShiftEmployee } from "../types";
 import TimeInput from "../../../components/form/TimeInput";
 import DateInput from "../../../components/form/DateInput";
+import { useTranslation } from "../../../i18n";
 
 type Directory = { guid: string; title: string };
 
@@ -204,6 +205,7 @@ const listDows = (dates: string[]): string => {
  * один человек» — а это ровно то, что потом снимет остальным смены.
  */
 function SeriesLoading() {
+  const { t } = useTranslation();
   return (
     <span className="ml-2 inline-flex items-center gap-1.5 align-middle text-[11px] font-normal text-gray-400 dark:text-gray-500">
       <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-gray-300 border-t-transparent dark:border-gray-600 dark:border-t-transparent" />

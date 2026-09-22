@@ -40,6 +40,8 @@ import type { Option } from "../../Settings/Departments/types";
 import DepartmentUpsertModal from "../../Settings/Departments/components/DepartmentUpsertModal";
 import { resolveDepartmentLeaderName } from "../../Settings/Departments/utils";
 
+import { translate, useTranslation } from "../../../i18n";
+
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 132;
 const HORIZONTAL_GAP = 52;
@@ -128,7 +130,7 @@ const COLOR_PALETTE = [
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить оргструктуру. Попробуйте снова.";
+  return translate("org_structure.load_error");
 };
 
 const getPaletteByLevel = (level: number) => {
@@ -177,23 +179,23 @@ const buildSubtitle = (node: OrgStructureDisplayNode): string => {
     }
 
     if (node.manager?.guid) {
-      return [node.manager?.position_title || "Без должности", node.employeeDepartmentTitle]
+      return [node.manager?.position_title || translate("org_structure.no_position"), node.employeeDepartmentTitle]
         .filter(Boolean)
         .join(" • ");
     }
     const peopleCount = Number.isFinite(Number(node.direct_employees_count))
       ? Number(node.direct_employees_count)
       : 0;
-    return `${peopleCount} чел.`;
+    return translate("org_structure.people_count", { count: peopleCount });
   }
 
-  const position = node.manager?.position_title || "Руководитель";
+  const position = node.manager?.position_title || translate("org_structure.manager");
   const peopleCount = Number.isFinite(Number(node.direct_employees_count))
     ? Number(node.direct_employees_count)
     : 0;
 
   if (node.parent_id && peopleCount > 0) {
-    return `${position} • ${peopleCount} чел.`;
+    return `${position} • ${translate("org_structure.people_count", { count: peopleCount })}`;
   }
 
   return position;
@@ -217,7 +219,7 @@ const buildPositionNodes = (positions: PositionItem[], employees: Employee[]): O
     return (
       employee.positions_id_data?.title ||
       (positionId !== UNASSIGNED_POSITION_KEY ? positionsById.get(positionId)?.title : "") ||
-      "Без должности"
+      translate("org_structure.no_position")
     );
   };
 
@@ -399,7 +401,7 @@ const getEmployeeFullName = (employee: Employee): string => {
     return String(employee.phone).trim();
   }
 
-  return "Сотрудник";
+  return translate("org_structure.employee");
 };
 
 const getEmployeeInitials = (employee: Employee): string => {
@@ -504,6 +506,7 @@ const getFilterSelectStyles = <
 });
 
 const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
+  const { t } = useTranslation();
   return (
     <div
       className="group relative cursor-pointer overflow-visible rounded-2xl border-2 px-4 py-3 shadow-sm transition hover:shadow-md"
@@ -514,7 +517,7 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
         backgroundColor: data.isHighlighted ? "#fffbeb" : data.backgroundColor,
         boxShadow: data.isHighlighted ? "0 0 0 2px rgba(245, 158, 11, 0.25)" : undefined,
       }}
-      title={`Открыть сотрудников: ${data.managerName}`}
+      title={t("org_structure.open_employees", { name: data.managerName })}
     >
       <Handle
         id="target-top"
@@ -550,7 +553,7 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
         <button
           type="button"
           className="pointer-events-none absolute bottom-0 left-1/2 z-10 inline-flex h-7 w-7 -translate-x-1/2 translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-lg leading-none text-slate-600 opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-slate-50 focus:pointer-events-auto focus:opacity-100"
-          title={data.isCollapsed ? "Показать дочерние узлы" : "Скрыть дочерние узлы"}
+          title={data.isCollapsed ? t("org_structure.expand_children") : t("org_structure.collapse_children")}
           onClick={(event) => {
             event.stopPropagation();
             data.onToggleCollapse?.(data.nodeId);
@@ -565,7 +568,7 @@ const OrgNodeCard = ({ data }: { data: OrgNodeData }) => {
           className={`pointer-events-none absolute bottom-0 inline-flex h-7 w-7 translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-slate-50 focus:pointer-events-auto focus:opacity-100 ${
             data.hasChildren ? "left-1/2 translate-x-[14px]" : "left-1/2 -translate-x-1/2"
           }`}
-          title="Добавить дочерний отдел"
+          title={t("org_structure.add_child_department")}
           onClick={(event) => {
             event.stopPropagation();
             data.onAddChild?.(data.nodeId);
@@ -1172,7 +1175,7 @@ const buildHierarchyLayout = (
 
   const graphNodes: Node<OrgNodeData>[] = visibleNodes.map((node) => {
     const palette = getPaletteByLevel(node.hierarchy_level);
-    const managerName = node.manager?.full_name || "Не назначен";
+    const managerName = node.manager?.full_name || translate("org_structure.not_assigned");
     const managerInitials = node.manager?.initials || "U";
     const managerPhoto = node.manager?.photo || null;
 
@@ -1338,14 +1341,14 @@ interface OrganizationStructureModuleProps {
   createRequestKey?: number;
 }
 
-function OrganizationStructureModule({
-  embedded = false,
+function OrganizationStructureModule({ embedded = false,
   searchValue,
   onSearchValueChange,
   filtersOpen = false,
   onActiveFiltersCountChange,
   createRequestKey,
 }: OrganizationStructureModuleProps) {
+  const { t } = useTranslation();
   const [internalSearchInput, setInternalSearchInput] = useState("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [selectedHierarchyLevel, setSelectedHierarchyLevel] = useState("");
@@ -1536,7 +1539,7 @@ function OrganizationStructureModule({
   }, [settingsDepartments, editingDepartment]);
 
   const parentOptions = useMemo<Option[]>(() => {
-    const options: Option[] = [{ value: "", label: "Без родителя" }];
+    const options: Option[] = [{ value: "", label: t("org_structure.no_parent") }];
     const allowed = settingsDepartments
       .filter((dep) => !forbiddenParentIds.has(dep.guid))
       .sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ru"));
@@ -1544,7 +1547,7 @@ function OrganizationStructureModule({
     for (const dep of allowed) {
       const level = departmentLevels.get(dep.guid) || 0;
       const prefix = level > 0 ? `${"|- ".repeat(Math.min(level, 4))}` : "";
-      options.push({ value: dep.guid, label: `${prefix}${String(dep.title || "Без названия")}` });
+      options.push({ value: dep.guid, label: `${prefix}${String(dep.title || t("org_structure.untitled"))}` });
     }
 
     return options;
@@ -1691,7 +1694,7 @@ function OrganizationStructureModule({
   const handleSubmitDepartment = async () => {
     const title = departmentTitle.trim();
     if (!title) {
-      toast.error("Название департамента обязательно.");
+      toast.error(t("org_structure.department_title_required"));
       return;
     }
 
@@ -1711,13 +1714,13 @@ function OrganizationStructureModule({
         await createDepartmentMutation.mutateAsync(payload);
       }
 
-      toast.success(editingDepartment ? "Департамент обновлен." : "Департамент создан.");
+      toast.success(editingDepartment ? t("org_structure.department_updated") : t("org_structure.department_created"));
       closeUpsertModal();
       setSelectedNodeId(null);
       void refetch();
     } catch (submitError) {
       console.error("Failed to save department from org structure:", submitError);
-      toast.error(editingDepartment ? "Не удалось обновить департамент." : "Не удалось создать департамент.");
+      toast.error(editingDepartment ? t("org_structure.department_update_error") : t("org_structure.department_create_error"));
     }
   };
 
@@ -1725,13 +1728,13 @@ function OrganizationStructureModule({
     if (!departmentToDelete) return;
     try {
       await deleteDepartmentMutation.mutateAsync(departmentToDelete.guid);
-      toast.success("Департамент удален.");
+      toast.success(t("org_structure.department_deleted"));
       closeDeleteModal();
       setSelectedNodeId(null);
       void refetch();
     } catch (deleteError) {
       console.error("Failed to delete department from org structure:", deleteError);
-      toast.error("Не удалось удалить департамент.");
+      toast.error(t("org_structure.department_delete_error"));
     }
   };
 
@@ -1758,13 +1761,13 @@ function OrganizationStructureModule({
       {isFetching ? (
         <div className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white/95 px-3 py-2 text-xs font-medium text-gray-600 shadow-sm">
           <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-          Обновляем данные...
+          {t("org_structure.updating")}
         </div>
       ) : null}
 
       {layout.graphNodes.length === 0 ? (
         <div className="flex h-full items-center justify-center text-sm text-gray-500">
-          Нет данных по выбранным фильтрам
+          {t("org_structure.no_data_filters")}
         </div>
       ) : (
         <div className="h-full">
@@ -1818,7 +1821,7 @@ function OrganizationStructureModule({
 
     return (
       <>
-        <PageMeta title="Орг структура | HRMS" description="Оргструктура компании" />
+        <PageMeta title={t("org_structure.page_title")} description={t("org_structure.page_description")} />
         <div className="flex min-h-[340px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -1838,7 +1841,7 @@ function OrganizationStructureModule({
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("common.retry")}
           </button>
         </div>
       );
@@ -1846,7 +1849,7 @@ function OrganizationStructureModule({
 
     return (
       <>
-        <PageMeta title="Орг структура | HRMS" description="Оргструктура компании" />
+        <PageMeta title={t("org_structure.page_title")} description={t("org_structure.page_description")} />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -1856,7 +1859,7 @@ function OrganizationStructureModule({
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("common.retry")}
           </button>
         </div>
       </>
@@ -1886,10 +1889,10 @@ function OrganizationStructureModule({
               )}
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-xl font-semibold text-slate-900">
-                  {selectedNode.manager.full_name || selectedNode.title || "Сотрудник"}
+                  {selectedNode.manager.full_name || selectedNode.title || t("org_structure.employee")}
                 </h2>
                 <p className="mt-1 text-sm font-medium text-slate-500">
-                  {selectedNode.manager.position_title || "Без должности"}
+                  {selectedNode.manager.position_title || t("org_structure.no_position")}
                 </p>
               </div>
             </div>
@@ -1898,11 +1901,11 @@ function OrganizationStructureModule({
               <div className="grid gap-3 text-sm">
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">Email</span>
-                  <span className="truncate font-medium text-slate-800">{selectedNode.manager.email || "Не указан"}</span>
+                  <span className="truncate font-medium text-slate-800">{selectedNode.manager.email || t("org_structure.not_specified")}</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-slate-500">Телефон</span>
-                  <span className="truncate font-medium text-slate-800">{selectedNode.manager.phone || "Не указан"}</span>
+                  <span className="text-slate-500">{t("org_structure.phone")}</span>
+                  <span className="truncate font-medium text-slate-800">{selectedNode.manager.phone || t("org_structure.not_specified")}</span>
                 </div>
               </div>
             </div>
@@ -1912,7 +1915,7 @@ function OrganizationStructureModule({
               className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               onClick={() => setSelectedNodeId(null)}
             >
-              Открыть профиль
+              {t("org_structure.open_profile")}
             </Link>
           </>
         ) : (
@@ -1920,15 +1923,15 @@ function OrganizationStructureModule({
             <div className="pr-10">
               <h2 className="text-xl font-semibold text-slate-900">
                 {isPositionsMode
-                  ? selectedNode?.title || "Должность"
-                  : selectedNode?.manager?.full_name || "Руководитель"}
+                  ? selectedNode?.title || t("org_structure.position")
+                  : selectedNode?.manager?.full_name || t("org_structure.manager")}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 {isPositionsMode
                   ? selectedNode?.manager?.guid
-                    ? `${selectedNode?.manager?.position_title || "Без должности"}`
-                    : `Сотрудников: ${Number(selectedNode?.direct_employees_count || 0)}`
-                  : `${selectedNode?.manager?.position_title || "Руководитель"} • ${selectedNode?.title || "Отдел"}`}
+                    ? `${selectedNode?.manager?.position_title || t("org_structure.no_position")}`
+                    : t("org_structure.employees_count", { count: Number(selectedNode?.direct_employees_count || 0) })
+                  : `${selectedNode?.manager?.position_title || t("org_structure.manager")} • ${selectedNode?.title || t("org_structure.department")}`}
               </p>
               {selectedNodeDepartment && !isPositionsMode ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1938,7 +1941,7 @@ function OrganizationStructureModule({
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     <Pencil size={13} />
-                    Редактировать
+                    {t("common.edit_action")}
                   </button>
                   <button
                     type="button"
@@ -1946,7 +1949,7 @@ function OrganizationStructureModule({
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
                   >
                     <Trash2 size={13} />
-                    Удалить
+                    {t("common.delete")}
                   </button>
                 </div>
               ) : null}
@@ -1961,7 +1964,7 @@ function OrganizationStructureModule({
                 type="text"
                 value={employeeSearch}
                 onChange={(event) => setEmployeeSearch(event.target.value)}
-                placeholder="Поиск сотрудника..."
+                placeholder={t("org_structure.search_employee")}
                 className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-brand-300"
               />
             </label>
@@ -1973,7 +1976,7 @@ function OrganizationStructureModule({
                 </div>
               ) : selectedEmployees.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-slate-500">
-                  Сотрудники не найдены
+                  {t("org_structure.employees_not_found")}
                 </div>
               ) : (
                 <ul className="divide-y divide-slate-100">
@@ -2005,7 +2008,7 @@ function OrganizationStructureModule({
                         className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                         onClick={() => setSelectedNodeId(null)}
                       >
-                        Профиль
+                        {t("org_structure.profile")}
                       </Link>
                     </li>
                   ))}
@@ -2045,10 +2048,10 @@ function OrganizationStructureModule({
     <Modal isOpen={isDeleteModalOpen} onClose={closeDeleteModal} className="mx-4 w-full max-w-md p-5">
       <div className="space-y-4">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Удалить департамент?</h3>
+          <h3 className="text-lg font-semibold text-slate-900">{t("org_structure.delete_department_title")}</h3>
           <p className="mt-2 text-sm text-slate-500">
-            Департамент <span className="font-semibold text-slate-700">{departmentToDelete?.title || "—"}</span>{" "}
-            будет удален без возможности восстановления.
+            {t("org_structure.delete_department_prefix")} <span className="font-semibold text-slate-700">{departmentToDelete?.title || "—"}</span>{" "}
+            {t("org_structure.delete_department_suffix")}
           </p>
         </div>
 
@@ -2059,7 +2062,7 @@ function OrganizationStructureModule({
             className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             disabled={deleteDepartmentMutation.isLoading}
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -2069,7 +2072,7 @@ function OrganizationStructureModule({
             className="inline-flex h-10 items-center justify-center rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={deleteDepartmentMutation.isLoading}
           >
-            {deleteDepartmentMutation.isLoading ? "Удаляем..." : "Удалить"}
+            {deleteDepartmentMutation.isLoading ? t("org_structure.deleting") : t("common.delete")}
           </button>
         </div>
       </div>
@@ -2092,13 +2095,13 @@ function OrganizationStructureModule({
                     onChange={(option: SingleValue<DepartmentTreeOption>) =>
                       setSelectedDepartmentId(option?.value || "")
                     }
-                    placeholder="Все отделы"
+                    placeholder={t("org_structure.all_departments")}
                     isSearchable
                     isClearable
                     styles={getFilterSelectStyles<DepartmentTreeOption>()}
                     menuPortalTarget={selectPortalTarget}
                     menuPosition="fixed"
-                    noOptionsMessage={() => "Отделы не найдены"}
+                    noOptionsMessage={() => t("org_structure.departments_not_found")}
                   />
                 </div>
 
@@ -2109,19 +2112,19 @@ function OrganizationStructureModule({
                     onChange={(option: SingleValue<LevelFilterOption>) =>
                       setSelectedHierarchyLevel(option?.value || "")
                     }
-                    placeholder="Все уровни"
+                    placeholder={t("org_structure.all_levels")}
                     isSearchable={false}
                     isClearable
                     styles={getFilterSelectStyles<LevelFilterOption>()}
                     menuPortalTarget={selectPortalTarget}
                     menuPosition="fixed"
-                    noOptionsMessage={() => "Уровни не найдены"}
+                    noOptionsMessage={() => t("org_structure.levels_not_found")}
                   />
                 </div>
               </>
             ) : (
               <p className="text-sm font-medium text-slate-500">
-                Для режима Сотрудники фильтры по отделам и уровням не применяются.
+                {t("org_structure.employees_mode_filters_note")}
               </p>
             )}
 
@@ -2130,7 +2133,7 @@ function OrganizationStructureModule({
               onClick={resetFilters}
               className="ml-auto inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
             >
-              Сбросить
+              {t("common.reset")}
             </button>
           </div>
         </div>
@@ -2147,7 +2150,7 @@ function OrganizationStructureModule({
 
   return (
 <>
-  <PageMeta title="Орг структура | HRMS" description="Оргструктура компании" />
+  <PageMeta title={t("org_structure.page_title")} description={t("org_structure.page_description")} />
 
   {/* ── Toolbar ─────────────────────────────────────────────────────── */}
   {/* Тот же тулбар, что у задач и табеля: страница жила со своей шапкой
@@ -2172,13 +2175,13 @@ function OrganizationStructureModule({
                   onChange={(option: SingleValue<DepartmentTreeOption>) =>
                     setSelectedDepartmentId(option?.value || "")
                   }
-                  placeholder="Все отделы"
+                  placeholder={t("org_structure.all_departments")}
                   isSearchable
                   isClearable
                   styles={getFilterSelectStyles<DepartmentTreeOption>()}
                   menuPortalTarget={selectPortalTarget}
                   menuPosition="fixed"
-                  noOptionsMessage={() => "Отделы не найдены"}
+                  noOptionsMessage={() => t("org_structure.departments_not_found")}
                   formatOptionLabel={(option, meta) => {
                     if (meta.context === "value") {
                       return <span>{option.label}</span>;
@@ -2204,13 +2207,13 @@ function OrganizationStructureModule({
                       onChange={(option: SingleValue<LevelFilterOption>) =>
                         setSelectedHierarchyLevel(option?.value || "")
                       }
-                      placeholder="Все уровни"
+                      placeholder={t("org_structure.all_levels")}
                       isSearchable={false}
                       isClearable
                       styles={getFilterSelectStyles<LevelFilterOption>()}
                       menuPortalTarget={selectPortalTarget}
                       menuPosition="fixed"
-                      noOptionsMessage={() => "Уровни не найдены"}
+                      noOptionsMessage={() => t("org_structure.levels_not_found")}
                     />
                   </div>
                 </>
@@ -2222,7 +2225,7 @@ function OrganizationStructureModule({
               onChange={setSearchInput}
               inputId="org-structure-search"
               placeholder={
-                structureViewMode === "positions" ? "Поиск должности..." : "Поиск отдела..."
+                structureViewMode === "positions" ? t("org_structure.search_position") : t("org_structure.search_department")
               }
               expandedWidth={300}
               collapsedSize={40}
@@ -2234,7 +2237,7 @@ function OrganizationStructureModule({
               onClick={resetFilters}
               className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Сбросить
+              {t("common.reset")}
             </button>
           </div>
         </div>

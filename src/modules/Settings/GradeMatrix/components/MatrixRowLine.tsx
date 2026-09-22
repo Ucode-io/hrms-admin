@@ -5,6 +5,7 @@ import GradeCell from "./GradeCell";
 import EditableValue from "./EditableValue";
 import { DATA_CELL, STICKY_TITLE, TITLE_CELL, cellAt } from "../constants";
 import type { CellDraft, MatrixColumn, MatrixLevel, MatrixRef, MatrixRow } from "../types";
+import { useTranslation } from "../../../../i18n";
 
 interface MatrixRowLineProps {
   row: MatrixRow;
@@ -32,6 +33,7 @@ export default function MatrixRowLine({
   onDelete,
   disabled = false,
 }: MatrixRowLineProps) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.id, disabled });
 
@@ -57,7 +59,7 @@ export default function MatrixRowLine({
           type="button"
           disabled={disabled}
           className="inline-flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-gray-300 opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing"
-          aria-label={`Переместить ${row.title}`}
+          aria-label={t("settings_grade_matrix.row.move_aria", { title: row.title })}
           {...attributes}
           {...listeners}
         >
@@ -80,7 +82,7 @@ export default function MatrixRowLine({
           onClick={onDelete}
           disabled={disabled}
           className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-300 opacity-0 transition hover:bg-error-50 hover:text-error-500 focus:opacity-100 group-hover/row:opacity-100"
-          aria-label={`Убрать ${row.title} из матрицы`}
+          aria-label={t("settings_grade_matrix.row.remove_aria", { title: row.title })}
         >
           <Trash2 size={13} />
         </button>
@@ -98,8 +100,8 @@ export default function MatrixRowLine({
               <EditableValue
                 value={cell?.text ?? ""}
                 display={cell?.text ?? ""}
-                placeholder="требование"
-                ariaLabel={`Требование отдела ${row.title}`}
+                placeholder={t("settings_grade_matrix.row.requirement_placeholder")}
+                ariaLabel={t("settings_grade_matrix.row.requirement_aria", { title: row.title })}
                 align="center"
                 className="text-[13px] text-gray-600"
                 // Подсказка проступает только при наведении: полтора десятка

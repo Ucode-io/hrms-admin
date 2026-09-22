@@ -28,6 +28,7 @@ import {
   useDeleteTraining,
   useTrainingsQuery,
 } from "../../api/services/training.service";
+import { useTranslation } from "../../i18n";
 
 const PAGE_SIZE = 20;
 const TRAININGS_BREADCRUMBS = [{ label: "Тренинги", to: "/trainings" }];
@@ -134,6 +135,7 @@ const formatPeriod = (training: Training): string => {
 };
 
 export default function TrainingsPage() {
+  const { t } = useTranslation();
   useHeaderBreadcrumbItems(TRAININGS_BREADCRUMBS);
   const navigate = useNavigate();
   const brandColor = companyStore.mainColor || "#2563eb";

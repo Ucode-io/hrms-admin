@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Download, Eye, ExternalLink, FileQuestion, X } from "lucide-react";
 import { renderAsync } from "docx-preview";
 import { Modal } from "../../../components/ui/modal";
+import { useTranslation } from "../../../i18n";
 
 export type PreviewKind =
   | "image"
@@ -68,6 +69,7 @@ export const FilePreviewButton: React.FC<{
   className?: string;
   size?: number;
 }> = ({ fileUrl, fileName, className, size = 14 }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   if (!fileUrl) return null;
 
@@ -80,8 +82,8 @@ export const FilePreviewButton: React.FC<{
           e.stopPropagation();
           setIsOpen(true);
         }}
-        title="Предпросмотр"
-        aria-label="Предпросмотр файла"
+        title={t("documents.preview")}
+        aria-label={t("documents.preview_file")}
         className={
           className ??
           "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-current opacity-70 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
@@ -99,12 +101,12 @@ export const FilePreviewButton: React.FC<{
   );
 };
 
-export default function DocumentPreviewModal({
-  isOpen,
+export default function DocumentPreviewModal({ isOpen,
   onClose,
   fileUrl,
   fileName,
 }: DocumentPreviewModalProps) {
+  const { t } = useTranslation();
   const docxContainerRef = useRef<HTMLDivElement | null>(null);
   const [isDocxLoading, setIsDocxLoading] = useState(false);
   const [docxError, setDocxError] = useState("");
@@ -148,11 +150,11 @@ export default function DocumentPreviewModal({
       });
     } catch (error) {
       console.error("Failed to render DOCX preview:", error);
-      setDocxError("Не удалось отобразить предпросмотр документа.");
+      setDocxError(t("documents.preview_docx_error"));
     } finally {
       setIsDocxLoading(false);
     }
-  }, [fileUrl, waitForDocxContainer]);
+  }, [fileUrl, waitForDocxContainer, t]);
 
   const preparePdf = useCallback(async () => {
     if (!fileUrl) return;
@@ -184,11 +186,11 @@ export default function DocumentPreviewModal({
       setTextContent(text.length > 200_000 ? `${text.slice(0, 200_000)}\n…` : text);
     } catch (error) {
       console.error("Failed to load text preview:", error);
-      setDocxError("Не удалось загрузить содержимое файла.");
+      setDocxError(t("documents.preview_text_error"));
     } finally {
       setIsDocxLoading(false);
     }
-  }, [fileUrl]);
+  }, [fileUrl, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -247,7 +249,7 @@ export default function DocumentPreviewModal({
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <Download size={15} />
-            Скачать
+            {t("documents.download")}
           </a>
           <a
             href={fileUrl}
@@ -256,14 +258,14 @@ export default function DocumentPreviewModal({
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <ExternalLink size={15} />
-            Открыть
+            {t("documents.open")}
           </a>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
-            aria-label="Закрыть"
-            title="Закрыть"
+            aria-label={t("documents.close")}
+            title={t("documents.close")}
           >
             <X size={17} />
           </button>
@@ -293,7 +295,7 @@ export default function DocumentPreviewModal({
           // page width (~816px), so a narrower card just clips it.
           <div className="mx-auto w-fit max-w-full rounded-lg bg-white p-4 shadow-sm">
             {isDocxLoading && (
-              <div className="py-10 text-center text-sm text-slate-500">Загрузка предпросмотра...</div>
+              <div className="py-10 text-center text-sm text-slate-500">{t("documents.preview_loading")}</div>
             )}
             {docxError && <div className="py-10 text-center text-sm text-rose-600">{docxError}</div>}
             <div ref={docxContainerRef} className="min-h-[320px]" />
@@ -315,7 +317,7 @@ export default function DocumentPreviewModal({
         ) : actualKind === "text" ? (
           <div className="mx-auto max-w-4xl rounded-lg bg-white p-4 shadow-sm">
             {isDocxLoading && (
-              <div className="py-10 text-center text-sm text-slate-500">Загрузка предпросмотра...</div>
+              <div className="py-10 text-center text-sm text-slate-500">{t("documents.preview_loading")}</div>
             )}
             {docxError && <div className="py-10 text-center text-sm text-rose-600">{docxError}</div>}
             {!isDocxLoading && !docxError && (
@@ -328,7 +330,7 @@ export default function DocumentPreviewModal({
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center">
             <FileQuestion className="h-12 w-12 text-slate-300" />
             <p className="m-0 text-sm text-slate-500">
-              Предпросмотр для этого типа файла недоступен.
+              {t("documents.preview_unsupported")}
             </p>
             <a
               href={fileUrl}
@@ -337,7 +339,7 @@ export default function DocumentPreviewModal({
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               <ExternalLink size={15} />
-              Открыть в новой вкладке
+              {t("documents.open_new_tab")}
             </a>
           </div>
         )}

@@ -27,14 +27,17 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import type { MessageKey } from "../../../i18n/messages";
 import type { FieldType } from "./types";
+
+export type FieldTypeGroup = "text" | "number" | "choice" | "relation";
 
 export type FieldTypeMeta = {
   type: FieldType;
-  title: string;
-  description: string;
+  titleKey: MessageKey;
+  descriptionKey: MessageKey;
   icon: LucideIcon;
-  group: "Текст" | "Числа и даты" | "Выбор" | "Связи";
+  group: FieldTypeGroup;
   hasOptions?: boolean;
   hasTextRules?: boolean;
   hasNumberRules?: boolean;
@@ -45,136 +48,136 @@ export type FieldTypeMeta = {
 export const FIELD_TYPES: FieldTypeMeta[] = [
   {
     type: "text",
-    title: "Текст",
-    description: "Однострочная строка",
+    titleKey: "settings_custom_fields.type.text.title",
+    descriptionKey: "settings_custom_fields.type.text.description",
     icon: Type,
-    group: "Текст",
+    group: "text",
     hasTextRules: true,
   },
   {
     type: "textarea",
-    title: "Многострочный текст",
-    description: "Абзац или заметка",
+    titleKey: "settings_custom_fields.type.textarea.title",
+    descriptionKey: "settings_custom_fields.type.textarea.description",
     icon: AlignLeft,
-    group: "Текст",
+    group: "text",
     hasTextRules: true,
   },
   {
     type: "email",
-    title: "Эл. почта",
-    description: "С проверкой формата",
+    titleKey: "settings_custom_fields.type.email.title",
+    descriptionKey: "settings_custom_fields.type.email.description",
     icon: AtSign,
-    group: "Текст",
+    group: "text",
     hasTextRules: true,
   },
   {
     type: "phone",
-    title: "Телефон",
-    description: "Маска +998 __ ___ __ __",
+    titleKey: "settings_custom_fields.type.phone.title",
+    descriptionKey: "settings_custom_fields.type.phone.description",
     icon: Phone,
-    group: "Текст",
+    group: "text",
     hasTextRules: true,
   },
   {
     type: "url",
-    title: "Ссылка",
-    description: "URL с проверкой",
+    titleKey: "settings_custom_fields.type.url.title",
+    descriptionKey: "settings_custom_fields.type.url.description",
     icon: Link2,
-    group: "Текст",
+    group: "text",
     hasTextRules: true,
   },
   {
     type: "number",
-    title: "Число",
-    description: "Целое или дробное",
+    titleKey: "settings_custom_fields.type.number.title",
+    descriptionKey: "settings_custom_fields.type.number.description",
     icon: Hash,
-    group: "Числа и даты",
+    group: "number",
     hasNumberRules: true,
   },
   {
     type: "money",
-    title: "Сумма",
-    description: "Денежное значение",
+    titleKey: "settings_custom_fields.type.money.title",
+    descriptionKey: "settings_custom_fields.type.money.description",
     icon: CircleDollarSign,
-    group: "Числа и даты",
+    group: "number",
     hasNumberRules: true,
   },
   {
     type: "date",
-    title: "Дата",
-    description: "Календарь",
+    titleKey: "settings_custom_fields.type.date.title",
+    descriptionKey: "settings_custom_fields.type.date.description",
     icon: Calendar,
-    group: "Числа и даты",
+    group: "number",
     hasDateRules: true,
   },
   {
     type: "datetime",
-    title: "Дата и время",
-    description: "Календарь со временем",
+    titleKey: "settings_custom_fields.type.datetime.title",
+    descriptionKey: "settings_custom_fields.type.datetime.description",
     icon: CalendarClock,
-    group: "Числа и даты",
+    group: "number",
     hasDateRules: true,
   },
   {
     type: "boolean",
-    title: "Переключатель",
-    description: "Да / Нет",
+    titleKey: "settings_custom_fields.type.boolean.title",
+    descriptionKey: "settings_custom_fields.type.boolean.description",
     icon: SquareCheck,
-    group: "Выбор",
+    group: "choice",
   },
   {
     type: "select",
-    title: "Список",
-    description: "Один вариант из списка",
+    titleKey: "settings_custom_fields.type.select.title",
+    descriptionKey: "settings_custom_fields.type.select.description",
     icon: ListFilter,
-    group: "Выбор",
+    group: "choice",
     hasOptions: true,
   },
   {
     type: "multiselect",
-    title: "Мультисписок",
-    description: "Несколько вариантов",
+    titleKey: "settings_custom_fields.type.multiselect.title",
+    descriptionKey: "settings_custom_fields.type.multiselect.description",
     icon: ListChecks,
-    group: "Выбор",
+    group: "choice",
     hasOptions: true,
   },
   {
     type: "radio",
-    title: "Радиокнопки",
-    description: "Варианты в строку",
+    titleKey: "settings_custom_fields.type.radio.title",
+    descriptionKey: "settings_custom_fields.type.radio.description",
     icon: CircleDot,
-    group: "Выбор",
+    group: "choice",
     hasOptions: true,
   },
   {
     type: "checkbox_group",
-    title: "Чекбоксы",
-    description: "Множественный выбор",
+    titleKey: "settings_custom_fields.type.checkbox_group.title",
+    descriptionKey: "settings_custom_fields.type.checkbox_group.description",
     icon: Layers,
-    group: "Выбор",
+    group: "choice",
     hasOptions: true,
   },
   {
     type: "file",
-    title: "Файл",
-    description: "Загрузка документа",
+    titleKey: "settings_custom_fields.type.file.title",
+    descriptionKey: "settings_custom_fields.type.file.description",
     icon: FileUp,
-    group: "Связи",
+    group: "relation",
     hasFileRules: true,
   },
   {
     type: "employee",
-    title: "Сотрудник",
-    description: "Ссылка на сотрудника",
+    titleKey: "settings_custom_fields.type.employee.title",
+    descriptionKey: "settings_custom_fields.type.employee.description",
     icon: UserRound,
-    group: "Связи",
+    group: "relation",
   },
   {
     type: "directory",
-    title: "Справочник",
-    description: "Значение из справочника",
+    titleKey: "settings_custom_fields.type.directory.title",
+    descriptionKey: "settings_custom_fields.type.directory.description",
     icon: Braces,
-    group: "Связи",
+    group: "relation",
   },
 ];
 
@@ -186,11 +189,11 @@ export const FIELD_TYPE_MAP: Record<FieldType, FieldTypeMeta> = FIELD_TYPES.redu
   {} as Record<FieldType, FieldTypeMeta>
 );
 
-export const FIELD_TYPE_GROUPS: FieldTypeMeta["group"][] = [
-  "Текст",
-  "Числа и даты",
-  "Выбор",
-  "Связи",
+export const FIELD_TYPE_GROUPS: { id: FieldTypeGroup; labelKey: MessageKey }[] = [
+  { id: "text", labelKey: "settings_custom_fields.type_group.text" },
+  { id: "number", labelKey: "settings_custom_fields.type_group.number" },
+  { id: "choice", labelKey: "settings_custom_fields.type_group.choice" },
+  { id: "relation", labelKey: "settings_custom_fields.type_group.relation" },
 ];
 
 /** Иконки таблиц (сущностей) — ключ хранится в `CustomFieldEntity.icon`. */
@@ -217,13 +220,13 @@ export const OPTION_COLORS = [
 ];
 
 /** Справочники u-code, доступные для типа «Справочник». */
-export const DIRECTORY_SLUGS: { value: string; label: string }[] = [
-  { value: "positions", label: "Должности" },
-  { value: "departments", label: "Департаменты" },
-  { value: "locations", label: "Филиалы" },
-  { value: "regions", label: "Регионы" },
-  { value: "skills", label: "Навыки" },
-  { value: "employment_types", label: "Типы трудоустройства" },
-  { value: "experience_levels", label: "Уровни опыта" },
-  { value: "property_categories", label: "Категории имущества" },
+export const DIRECTORY_SLUGS: { value: string; labelKey: MessageKey }[] = [
+  { value: "positions", labelKey: "settings_custom_fields.directory.positions" },
+  { value: "departments", labelKey: "settings_custom_fields.directory.departments" },
+  { value: "locations", labelKey: "settings_custom_fields.directory.locations" },
+  { value: "regions", labelKey: "settings_custom_fields.directory.regions" },
+  { value: "skills", labelKey: "settings_custom_fields.directory.skills" },
+  { value: "employment_types", labelKey: "settings_custom_fields.directory.employment_types" },
+  { value: "experience_levels", labelKey: "settings_custom_fields.directory.experience_levels" },
+  { value: "property_categories", labelKey: "settings_custom_fields.directory.property_categories" },
 ];

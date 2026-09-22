@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import { useClientTransactionsQuery } from "../../../api/services/clientTransaction.service";
 import {
   Table,
@@ -11,6 +12,7 @@ import {
 } from "../../../components/ui/table";
 
 export default function PaymentsList() {
+  const { t } = useTranslation();
   const [filters] = useState({});
 
   const { data, isLoading } = useClientTransactionsQuery({
@@ -44,13 +46,13 @@ export default function PaymentsList() {
     const statusValue = status?.[0]?.toLowerCase();
     switch (statusValue) {
       case "payed":
-        return "Оплачено";
+        return t("payments.status_payed");
       case "pending":
-        return "В ожидании";
+        return t("payments.status_pending");
       case "failed":
-        return "Ошибка";
+        return t("payments.status_failed");
       case "cancelled":
-        return "Отменено";
+        return t("payments.status_cancelled");
       default:
         return statusValue || "-";
     }
@@ -68,7 +70,7 @@ export default function PaymentsList() {
       case "humo":
         return "Humo";
       case "bank":
-        return "Банк";
+        return t("payments.type_bank");
       default:
         return typeValue || "-";
     }
@@ -77,8 +79,8 @@ export default function PaymentsList() {
   return (
     <>
       <PageMeta
-        title="Оплаты | HRMS"
-        description="Список оплат"
+        title={t("payments.list_title")}
+        description={t("payments.list_description")}
       />
       <div className="space-y-6">
         <div className="flex items-start justify-between mb-4">
@@ -110,12 +112,12 @@ export default function PaymentsList() {
                   </Link>
                 </li>
                 <li className="text-sm text-gray-800 dark:text-white/90">
-                  Оплаты
+                  {t("payments.title")}
                 </li>
               </ol>
             </nav>
             <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-              Оплаты
+              {t("payments.title")}
             </h3>
           </div>
         </div>
@@ -141,37 +143,37 @@ export default function PaymentsList() {
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Клиент
+                    {t("payments.client")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    ID договора
+                    {t("payments.agreement_id")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Сумма
+                    {t("payments.amount")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Тип оплаты
+                    {t("payments.payment_type")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Комментарий
+                    {t("payments.comment")}
                   </TableCell>
                   <TableCell
                     isHeader
                     className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                   >
-                    Статус
+                    {t("payments.status")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -212,7 +214,7 @@ export default function PaymentsList() {
                       colSpan={8}
                       className="px-3 py-2.5 text-center text-gray-500 dark:text-gray-400"
                     >
-                      Нет данных
+                      {t("payments.no_data")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -250,7 +252,7 @@ export default function PaymentsList() {
                         ) : "-"}
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-gray-800 text-theme-sm dark:text-white/90">
-                        {formatAmount(payment.amount)} сум
+                        {formatAmount(payment.amount)} {t("common.currency_sum")}
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-gray-800 text-theme-sm dark:text-white/90">
                         {getPaymentTypeLabel(payment.payment_type)}

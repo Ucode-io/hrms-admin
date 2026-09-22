@@ -46,6 +46,7 @@ import { useCustomFieldsSchema } from "../../Settings/CustomFields/useCustomFiel
 import { formatDynamicValue } from "../../Settings/CustomFields/formatValue";
 import { useEmployeeFormLayout } from "../Form/layout/useEmployeeFormLayout";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
+import { useTranslation, translate } from "../../../i18n";
 
 /**
  * Карточки конструктора формы, которым на детальной странице соответствует уже
@@ -83,15 +84,15 @@ type UniqueHikvisionUserItem = {
 
 /* ── helpers ── */
 const GENDER_MAP: Record<string, string> = {
-  male_slug: "Мужской",
-  female_slug: "Женский",
+  male_slug: "employees.detail.gender_male",
+  female_slug: "employees.detail.gender_female",
 };
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   try {
     const d = new Date(dateStr);
-    const months = ["Янв.", "Февр.", "Март", "Апр.", "Май", "Июн.", "Июл.", "Авг.", "Сент.", "Окт.", "Нояб.", "Дек."];
+    const months = Array.from({ length: 12 }, (_, i) => translate(`employees.detail.month_${i}` as never));
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   } catch {
     return dateStr;
@@ -130,10 +131,10 @@ function calcTenure(dateStr: string | null | undefined): string {
       months += 12;
     }
     const parts: string[] = [];
-    if (years > 0) parts.push(`${years} ${years === 1 ? "год" : years < 5 ? "года" : "лет"}`);
-    if (months > 0) parts.push(`${months} мес.`);
-    if (days > 0) parts.push(`${days} дн.`);
-    return parts.join(", ") || "Сегодня";
+    if (years > 0) parts.push(`${years} ${years === 1 ? translate("employees.detail.tenure_year_1") : years < 5 ? translate("employees.detail.tenure_year_2_4") : translate("employees.detail.tenure_year_5")}`);
+    if (months > 0) parts.push(`${months} ${translate("employees.detail.tenure_months")}`);
+    if (days > 0) parts.push(`${days} ${translate("employees.detail.tenure_days")}`);
+    return parts.join(", ") || translate("employees.detail.tenure_today");
   } catch {
     return "—";
   }
@@ -249,7 +250,7 @@ const buildHikvisionInitials = (name: string | null | undefined): string => {
 };
 
 const getHikvisionUserName = (item: UniqueHikvisionUserItem): string => {
-  return String(item.full_name || "").trim() || "Без имени";
+  return String(item.full_name || "").trim() || translate("employees.detail.hikvision_user_no_name");
 };
 
 const getHikvisionUserId = (item: UniqueHikvisionUserItem): string => {
@@ -260,6 +261,7 @@ const getHikvisionUserId = (item: UniqueHikvisionUserItem): string => {
  *  Main component
  * ──────────────────────────────────────────────── */
 function EmployeeDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -470,13 +472,21 @@ function EmployeeDetail() {
   const managerFullName = manager
     ? [manager.second_name, manager.first_name].filter(Boolean).join(" ")
     : "";
-  const genderLabel = emp.gender?.[0] ? GENDER_MAP[emp.gender[0]] || emp.gender[0] : "";
+  const genderLabel = emp.gender?.[0]
+    ? (GENDER_MAP[emp.gender[0]] ? t(GENDER_MAP[emp.gender[0]] as never) : emp.gender[0])
+    : "";
   const isDismissed = emp.status?.includes("dismissed");
+  const isActiveStatus = emp.status?.includes("active");
   const statusLabel = isDismissed
-    ? "Уволен"
-    : emp.status?.includes("active")
-      ? "Активный"
+    ? t("employees.list.dismissed_badge")
+    : isActiveStatus
+      ? t("employees.detail.status_active")
       : emp.status?.[0] || "";
+  const statusVariant: "active" | "dismissed" | undefined = isDismissed
+    ? "dismissed"
+    : isActiveStatus
+      ? "active"
+      : undefined;
   const isMoreTabActive = MORE_TABS.includes(activeTab as (typeof MORE_TABS)[number]);
   const dismissalDateLabel = formatDate(emp.dismissal_date);
   const dismissalTypeLabel =
@@ -493,7 +503,7 @@ function EmployeeDetail() {
       : dismissalTypesData?.response || []
   ).map((item) => ({
     value: item.guid,
-    label: String(item.title || "Без названия"),
+    label: String(item.title || t("employees.detail.no_title")),
   }));
   const dismissalReasonOptions = (
     dismissialReasonsData?.response?.length
@@ -501,7 +511,7 @@ function EmployeeDetail() {
       : dismissalReasonsData?.response || []
   ).map((item) => ({
     value: item.guid,
-    label: String(item.title || "Без названия"),
+    label: String(item.title || t("employees.detail.no_title")),
   }));
   const hikvisionUsers = ((hikvisionUsersQuery.data?.response || []) as UniqueHikvisionUserItem[])
     .filter((item) => getHikvisionUserId(item));
@@ -530,10 +540,10 @@ function EmployeeDetail() {
         hikvision_id: selectedHikvisionId || null,
       });
       setIsHikvisionModalOpen(false);
-      toast.success("Hikvision ID обновлен.");
+      toast.success(t("employees.detail.hikvision_id_updated"));
     } catch (error) {
       console.error("Update Hikvision ID error:", error);
-      toast.error("Не удалось обновить Hikvision ID.");
+      toast.error(t("employees.detail.hikvision_id_update_failed"));
     } finally {
       setIsSavingHikvisionId(false);
     }
@@ -542,15 +552,15 @@ function EmployeeDetail() {
   const handleDismissEmployee = async () => {
     const nextDismissalDate = toIsoDate(dismissalDate);
     if (!nextDismissalDate) {
-      toast.error("Укажите дату увольнения.");
+      toast.error(t("employees.detail.dismissal_date_required"));
       return;
     }
     if (!dismissalTypeId) {
-      toast.error("Выберите тип увольнения.");
+      toast.error(t("employees.detail.dismissal_type_required"));
       return;
     }
     if (!dismissalReasonId) {
-      toast.error("Выберите причину увольнения.");
+      toast.error(t("employees.detail.dismissal_reason_required"));
       return;
     }
 
@@ -568,10 +578,10 @@ function EmployeeDetail() {
       });
       setIsDismissModalOpen(false);
       setIsActionMenuOpen(false);
-      toast.success("Сотрудник уволен.");
+      toast.success(t("employees.detail.employee_dismissed"));
     } catch (error) {
       console.error("Dismiss employee error:", error);
-      toast.error("Не удалось уволить сотрудника.");
+      toast.error(t("employees.detail.dismiss_failed"));
     } finally {
       setIsDismissing(false);
     }
@@ -606,7 +616,7 @@ function EmployeeDetail() {
       setIsPasswordResultModalOpen(true);
     } catch (error) {
       console.error("Generate password error:", error);
-      toast.error("Не удалось сгенерировать пароль.");
+      toast.error(t("employees.detail.generate_password_failed"));
     } finally {
       setIsGeneratingPassword(false);
     }
@@ -632,7 +642,7 @@ function EmployeeDetail() {
       setIsPasswordCopied(true);
       setTimeout(() => setIsPasswordCopied(false), 1800);
     } catch {
-      toast.error("Не удалось скопировать пароль.");
+      toast.error(t("employees.detail.copy_password_failed"));
     }
   };
 
@@ -640,7 +650,7 @@ function EmployeeDetail() {
     <>
       <PageMeta
         title={`${fullName} | HRMS`}
-        description="Карточка сотрудника"
+        description={t("employees.detail.page_description")}
       />
 
       {/* ── Cover + Profile Header ── */}
@@ -696,7 +706,7 @@ function EmployeeDetail() {
                 </h1>
                 {isDismissed ? (
                   <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
-                    Уволен
+                    {t("employees.list.dismissed_badge")}
                   </span>
                 ) : null}
               </div>
@@ -720,17 +730,17 @@ function EmployeeDetail() {
                   {emp.telegram_chat_id ? (
                     <>
                       <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                      Телеграм бот
+                      {t("employees.detail.telegram_bot_connected")}
                     </>
                   ) : (
-                    "Телеграм бот: Не подключен"
+                    t("employees.detail.telegram_bot_not_connected")
                   )}
                 </span>
                 {/* Пишется на каждый запуск веб-аппа (login_touch), в том числе
                     из браузера и по восстановленной сессии. «—» значит «с
                     момента выката не заходил», а не «доступа нет». */}
                 <span className="flex items-center gap-1">
-                  Последний вход: {formatDateTime(emp.last_login_date as string | null | undefined)}
+                  {t("employees.detail.last_login_label", { value: formatDateTime(emp.last_login_date as string | null | undefined) })}
                 </span>
               </div>
             </div>
@@ -743,7 +753,7 @@ function EmployeeDetail() {
                 style={{ backgroundColor: brandColor }}
               >
                 <Pencil className="w-3.5 h-3.5" />
-                Редактировать
+                {t("common.edit")}
               </button>
               <div className="relative">
                 <button
@@ -752,7 +762,7 @@ function EmployeeDetail() {
                   onClick={() => setIsActionMenuOpen((prev) => !prev)}
                   className="dropdown-toggle flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-[13px] font-semibold cursor-pointer transition-colors hover:bg-slate-50"
                 >
-                  Действие
+                  {t("employees.detail.action_menu")}
                   <ChevronDown
                     className="h-3.5 w-3.5"
                     style={{
@@ -780,7 +790,7 @@ function EmployeeDetail() {
                     <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-50 text-brand-600">
                       <KeyRound className="h-4 w-4" />
                     </span>
-                    <span className="block font-medium">Сгенерировать пароль</span>
+                    <span className="block font-medium">{t("employees.detail.generate_password")}</span>
                   </button>
 
                   <button
@@ -803,7 +813,7 @@ function EmployeeDetail() {
                     <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-600">
                       <UserX className="h-4 w-4" />
                     </span>
-                    <span className="block font-medium">Уволить сотрудника</span>
+                    <span className="block font-medium">{t("employees.detail.dismiss_employee")}</span>
                   </button>
 
                   {isDismissed ? (
@@ -819,7 +829,7 @@ function EmployeeDetail() {
                       <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
                         <UserCheck className="h-4 w-4" />
                       </span>
-                      <span className="block font-medium">Вернуть сотрудника</span>
+                      <span className="block font-medium">{t("employees.detail.return_employee")}</span>
                     </button>
                   ) : null}
                 </Dropdown>
@@ -858,7 +868,7 @@ function EmployeeDetail() {
                 borderBottom: isMoreTabActive ? `2px solid ${brandColor}` : "2px solid transparent",
               }}
             >
-              Больше
+              {t("employees.detail.more_tab")}
               <ChevronDown
                 className="h-3.5 w-3.5"
                 style={{
@@ -897,13 +907,13 @@ function EmployeeDetail() {
           {/* Left column */}
           <div className="flex flex-col gap-5">
             {/* Личное */}
-            <InfoSection title="Личное" icon={null} brandColor={brandColor} showAction={false}>
-              <InfoRow label="ID сотрудника" value={emp.guid} />
-              <InfoRow label="Фамилия" value={emp.second_name} />
-              <InfoRow label="Имя" value={emp.first_name} />
-              <InfoRow label="Отчество" value={emp.middle_name} />
-              <InfoRow label="Дата рождения" value={formatDate(emp.birth_date)} />
-              <InfoRow label="Пол" value={genderLabel} />
+            <InfoSection title={t("employees.detail.section_personal")} icon={null} brandColor={brandColor} showAction={false}>
+              <InfoRow label={t("employees.detail.field_employee_id")} value={emp.guid} />
+              <InfoRow label={t("employees.detail.field_last_name")} value={emp.second_name} />
+              <InfoRow label={t("employees.detail.field_first_name")} value={emp.first_name} />
+              <InfoRow label={t("employees.detail.field_middle_name")} value={emp.middle_name} />
+              <InfoRow label={t("employees.detail.field_birth_date")} value={formatDate(emp.birth_date)} />
+              <InfoRow label={t("employees.detail.field_gender")} value={genderLabel} />
               <InfoRow
                 label="Hikvision ID"
                 value={emp.hikvision_id || "—"}
@@ -912,19 +922,19 @@ function EmployeeDetail() {
                     type="button"
                     onClick={openHikvisionModal}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
-                    title="Редактировать Hikvision ID"
-                    aria-label="Редактировать Hikvision ID"
+                    title={t("employees.detail.edit_hikvision_id")}
+                    aria-label={t("employees.detail.edit_hikvision_id")}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 }
               />
-              <InfoRow label="Статус" value={statusLabel} isStatus />
+              <InfoRow label={t("employees.detail.field_status")} value={statusLabel} statusVariant={statusVariant} />
               {isDismissed ? (
                 <>
-                  <InfoRow label="Дата увольнения" value={dismissalDateLabel} />
-                  <InfoRow label="Тип увольнения" value={dismissalTypeLabel} />
-                  <InfoRow label="Причина увольнения" value={dismissalReasonLabel} />
+                  <InfoRow label={t("employees.detail.field_dismissal_date")} value={dismissalDateLabel} />
+                  <InfoRow label={t("employees.detail.field_dismissal_type")} value={dismissalTypeLabel} />
+                  <InfoRow label={t("employees.detail.field_dismissal_reason")} value={dismissalReasonLabel} />
                 </>
               ) : null}
               {renderDynamicRows(DETAIL_CARD_SECTIONS.personal)}
@@ -932,16 +942,16 @@ function EmployeeDetail() {
 
             {/* Контакты */}
             <InfoSection
-              title="Контакты"
+              title={t("employees.detail.section_contacts")}
               icon={<Phone className="w-4 h-4" />}
               brandColor={brandColor}
               showAction={false}
             >
-              <InfoRow label="Эл. почта" value={emp.email || ""} linkType="email" />
-              <InfoRow label="Личная эл. почта" value={emp.personal_email || ""} linkType="email" />
-              <InfoRow label="Мобильный телефон" value={emp.phone} linkType="phone" />
-              <InfoRow label="Рабочий телефон" value={emp.work_phone || ""} linkType="phone" />
-              <InfoRow label="Телеграм" value={emp.telegram || ""} />
+              <InfoRow label={t("employees.detail.field_email")} value={emp.email || ""} linkType="email" />
+              <InfoRow label={t("employees.detail.field_personal_email")} value={emp.personal_email || ""} linkType="email" />
+              <InfoRow label={t("employees.detail.field_mobile_phone")} value={emp.phone} linkType="phone" />
+              <InfoRow label={t("employees.detail.field_work_phone")} value={emp.work_phone || ""} linkType="phone" />
+              <InfoRow label={t("employees.detail.field_telegram")} value={emp.telegram || ""} />
               {/* <InfoRow
                 label="Писал в AI чат"
                 valueNode={<CheckMark checked={hasCopilotChat} title="Писал в AI чат" />}
@@ -991,18 +1001,18 @@ function EmployeeDetail() {
             {/* Рабочие данные */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
               <h3 className="text-[15px] font-bold text-slate-900 m-0 mb-5">
-                Рабочие данные
+                {t("employees.detail.work_data_title")}
               </h3>
 
               <div className="flex flex-col gap-4">
-                <SummaryItem label="Дата начала" value={formatDate(workDateFrom)} />
-                <SummaryItem label="Тип работы" value={workEmploymentTypeTitle} />
-                <SummaryItem label="Должность" value={workPositionTitle} />
-                <SummaryItem label="Уровень" value={workExperienceLevelTitle} />
-                <SummaryItem label="Департамент" value={workDepartmentTitle} />
-                <SummaryItem label="Филиал" value={workLocationTitle} />
-                <SummaryItem label="Роль доступа" value={accessRoleTitle} />
-                <SummaryItem label="Срок работы" value={calcTenure(workDateFrom)} />
+                <SummaryItem label={t("employees.detail.field_date_from")} value={formatDate(workDateFrom)} />
+                <SummaryItem label={t("employees.detail.field_work_type")} value={workEmploymentTypeTitle} />
+                <SummaryItem label={t("employees.detail.field_position")} value={workPositionTitle} />
+                <SummaryItem label={t("employees.detail.field_level")} value={workExperienceLevelTitle} />
+                <SummaryItem label={t("employees.detail.field_department")} value={workDepartmentTitle} />
+                <SummaryItem label={t("employees.detail.field_location")} value={workLocationTitle} />
+                <SummaryItem label={t("employees.detail.field_access_role")} value={accessRoleTitle} />
+                <SummaryItem label={t("employees.detail.field_tenure")} value={calcTenure(workDateFrom)} />
               </div>
             </div>
 
@@ -1011,16 +1021,16 @@ function EmployeeDetail() {
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-4 h-4" style={{ color: brandColor }} />
                 <h3 className="text-[15px] font-bold text-slate-900 m-0">
-                  Руководитель
+                  {t("employees.detail.manager_title")}
                 </h3>
               </div>
               {!managerGuid ? (
                 <div className="text-[13px] text-slate-400 py-2">
-                  Не назначен
+                  {t("employees.detail.manager_not_assigned")}
                 </div>
               ) : isManagerLoading ? (
                 <div className="text-[13px] text-slate-400 py-2">
-                  Загрузка...
+                  {t("employees.detail.loading")}
                 </div>
               ) : manager ? (
                 <Link
@@ -1031,7 +1041,7 @@ function EmployeeDetail() {
                     {manager.photo ? (
                       <img
                         src={manager.photo}
-                        alt={managerFullName || "Руководитель"}
+                        alt={managerFullName || t("employees.detail.manager_title")}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -1052,7 +1062,7 @@ function EmployeeDetail() {
                 </Link>
               ) : (
                 <div className="text-[13px] text-slate-400 py-2">
-                  Не найден
+                  {t("employees.detail.manager_not_found")}
                 </div>
               )}
             </div>
@@ -1074,11 +1084,11 @@ function EmployeeDetail() {
             <div className="flex flex-col gap-2">
               <button className="flex items-center gap-2 px-5 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-800 text-[13px] font-semibold cursor-pointer transition-colors hover:bg-slate-50 w-full text-left">
                 <Building2 className="w-4 h-4" style={{ color: brandColor }} />
-                Посмотреть в орг. структуре
+                {t("employees.detail.view_in_org_structure")}
               </button>
               <button className="flex items-center gap-2 px-5 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-800 text-[13px] font-semibold cursor-pointer transition-colors hover:bg-slate-50 w-full text-left">
                 <Users className="w-4 h-4" style={{ color: brandColor }} />
-                Посмотреть в орг. структуре департамента
+                {t("employees.detail.view_in_department_org_structure")}
               </button>
             </div>
           </div>
@@ -1134,10 +1144,10 @@ function EmployeeDetail() {
             </svg>
           </div>
           <h3 className="text-[16px] font-semibold text-slate-800 m-0 mb-2">
-            Раздел «{activeTab}» в разработке
+            {t("employees.detail.section_in_development", { tab: activeTab })}
           </h3>
           <p className="text-[14px] text-slate-400 m-0 text-center max-w-[400px] leading-relaxed">
-            Этот модуль пока находится в разработке. Мы работаем над ним и скоро он будет доступен.
+            {t("employees.detail.in_development_text")}
           </p>
         </div>
       )}
@@ -1149,10 +1159,10 @@ function EmployeeDetail() {
         showCloseButton={false}
       >
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Изменить Hikvision ID
+          {t("employees.detail.hikvision_modal_title")}
         </h4>
         <p className="mb-6 mt-2 text-[13px] text-slate-500">
-          Выберите пользователя Hikvision, который будет связан с этим сотрудником.
+          {t("employees.detail.hikvision_modal_description")}
         </p>
         <div className="mb-5">
           <div className="relative">
@@ -1160,7 +1170,7 @@ function EmployeeDetail() {
             <input
               value={hikvisionSearch}
               onChange={(event) => setHikvisionSearch(event.target.value)}
-              placeholder="Поиск по имени или Hikvision ID"
+              placeholder={t("employees.detail.hikvision_search_placeholder")}
               disabled={isSavingHikvisionId}
               className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
             />
@@ -1169,7 +1179,7 @@ function EmployeeDetail() {
           {selectedHikvisionId ? (
             <div className="mt-3 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
               <div className="min-w-0 text-[12px] font-medium text-blue-700">
-                Выбран:{" "}
+                {t("employees.detail.hikvision_selected_label")}{" "}
                 <span className="font-semibold">
                   {selectedHikvisionUser
                     ? `${getHikvisionUserName(selectedHikvisionUser)} (${selectedHikvisionId})`
@@ -1182,7 +1192,7 @@ function EmployeeDetail() {
                 disabled={isSavingHikvisionId}
                 className="ml-3 shrink-0 text-[12px] font-semibold text-blue-700 transition hover:text-blue-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Очистить
+                {t("employees.detail.clear")}
               </button>
             </div>
           ) : null}
@@ -1201,7 +1211,7 @@ function EmployeeDetail() {
             ))
           ) : hikvisionUsers.length === 0 ? (
             <div className="px-4 py-10 text-center text-[13px] text-slate-500">
-              Пользователи Hikvision не найдены.
+              {t("employees.detail.hikvision_users_not_found")}
             </div>
           ) : (
             hikvisionUsers.map((user) => {
@@ -1227,7 +1237,7 @@ function EmployeeDetail() {
                       {userName}
                     </div>
                     <div className="mt-0.5 text-[12px] font-medium text-slate-500">
-                      Hikvision ID: {hikvisionId}
+                      {t("employees.detail.hikvision_id_label", { id: hikvisionId })}
                     </div>
                   </div>
                   {isSelected ? (
@@ -1247,7 +1257,7 @@ function EmployeeDetail() {
             disabled={isSavingHikvisionId}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <Button
             size="sm"
@@ -1255,7 +1265,7 @@ function EmployeeDetail() {
             onClick={() => void handleSaveHikvisionId()}
             disabled={isSavingHikvisionId}
           >
-            {isSavingHikvisionId ? "Сохранение..." : "Сохранить"}
+            {isSavingHikvisionId ? t("common.saving") : t("common.save")}
           </Button>
         </div>
       </Modal>
@@ -1273,20 +1283,20 @@ function EmployeeDetail() {
         showCloseButton={false}
       >
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Уволить сотрудника?
+          {t("employees.detail.dismiss_modal_title")}
         </h4>
         <p className="mb-6 mt-2 text-[13px] text-slate-500">
-          После подтверждения статус сотрудника изменится на `dismissed`.
+          {t("employees.detail.dismiss_modal_description")}
         </p>
         <div className="mb-6">
           <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-            Дата увольнения
+            {t("employees.detail.field_dismissal_date")}
           </label>
           <DatePicker
             selected={dismissalDate}
             onChange={(date) => setDismissalDate(date)}
             dateFormat="dd.MM.yyyy"
-            placeholderText="дд.мм.гггг"
+            placeholderText={t("employees.detail.dismissal_date_placeholder")}
             showMonthDropdown
             showYearDropdown
             dropdownMode="select"
@@ -1296,14 +1306,14 @@ function EmployeeDetail() {
         </div>
         <div className="mb-4">
           <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-            Тип увольнения
+            {t("employees.detail.field_dismissal_type")}
           </label>
           <select
             value={dismissalTypeId}
             onChange={(event) => setDismissalTypeId(event.target.value)}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
           >
-            <option value="">Выберите тип увольнения</option>
+            <option value="">{t("employees.detail.select_dismissal_type")}</option>
             {dismissalTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -1313,14 +1323,14 @@ function EmployeeDetail() {
         </div>
         <div className="mb-6">
           <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-            Причина увольнения
+            {t("employees.detail.field_dismissal_reason")}
           </label>
           <select
             value={dismissalReasonId}
             onChange={(event) => setDismissalReasonId(event.target.value)}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
           >
-            <option value="">Выберите причину увольнения</option>
+            <option value="">{t("employees.detail.select_dismissal_reason")}</option>
             {dismissalReasonOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -1340,7 +1350,7 @@ function EmployeeDetail() {
             disabled={isDismissing}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -1348,7 +1358,7 @@ function EmployeeDetail() {
             disabled={isDismissing}
             className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isDismissing ? "Увольнение..." : "Уволить"}
+            {isDismissing ? t("employees.detail.dismissing") : t("employees.detail.dismiss_button")}
           </button>
         </div>
       </Modal>
@@ -1363,10 +1373,10 @@ function EmployeeDetail() {
         showCloseButton={false}
       >
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Сгенерировать новый пароль?
+          {t("employees.detail.reset_password_modal_title")}
         </h4>
         <p className="mb-6 mt-2 text-[13px] text-slate-500">
-          Действующий пароль сотрудника будет сброшен. После подтверждения система создаст новый пароль и сохранит его в профиле.
+          {t("employees.detail.reset_password_modal_description")}
         </p>
         <div className="mt-6 flex justify-end gap-2">
           <Button
@@ -1376,7 +1386,7 @@ function EmployeeDetail() {
             onClick={() => setIsResetPasswordModalOpen(false)}
             disabled={isGeneratingPassword}
           >
-            Отмена
+            {t("common.cancel")}
           </Button>
           <Button
             size="sm"
@@ -1384,7 +1394,7 @@ function EmployeeDetail() {
             onClick={() => void handleGeneratePassword()}
             disabled={isGeneratingPassword}
           >
-            {isGeneratingPassword ? "Генерация..." : "Сгенерировать"}
+            {isGeneratingPassword ? t("employees.detail.generating") : t("employees.detail.generate_button")}
           </Button>
         </div>
       </Modal>
@@ -1401,13 +1411,13 @@ function EmployeeDetail() {
           </div>
         </div>
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Пароль успешно сгенерирован
+          {t("employees.detail.password_generated_title")}
         </h4>
         <p className="mb-5 mt-2 text-[13px] text-slate-500">
-          Новый пароль уже сохранен. Передайте его сотруднику безопасным способом.
+          {t("employees.detail.password_generated_description")}
         </p>
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-          <div className="text-[12px] font-medium text-slate-500">Новый пароль</div>
+          <div className="text-[12px] font-medium text-slate-500">{t("employees.detail.new_password_label")}</div>
           <div className="mt-1 break-all font-mono text-[22px] font-semibold leading-[1.35] text-slate-900">
             {generatedPassword}
           </div>
@@ -1426,14 +1436,14 @@ function EmployeeDetail() {
               )
             }
           >
-            {isPasswordCopied ? "Скопировано" : "Копировать"}
+            {isPasswordCopied ? t("employees.detail.copied") : t("employees.detail.copy")}
           </Button>
           <Button
             size="sm"
             className="!h-9 !px-4 !py-2 text-[13px]"
             onClick={() => setIsPasswordResultModalOpen(false)}
           >
-            Закрыть
+            {t("employees.detail.close")}
           </Button>
         </div>
       </Modal>
@@ -1492,6 +1502,7 @@ function InfoSection({
   actionLabel?: string;
   showAction?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-100">
@@ -1506,7 +1517,7 @@ function InfoSection({
             ) : (
               <>
                 <Pencil className="w-3 h-3" />
-                Редактировать
+                {t("common.edit")}
               </>
             )}
           </button>
@@ -1523,7 +1534,7 @@ function InfoRow({
   valueNode,
   isLink,
   linkType,
-  isStatus,
+  statusVariant,
   icon,
   action,
 }: {
@@ -1533,7 +1544,7 @@ function InfoRow({
   valueNode?: React.ReactNode;
   isLink?: boolean;
   linkType?: "email" | "phone" | "url";
-  isStatus?: boolean;
+  statusVariant?: "active" | "dismissed";
   icon?: React.ReactNode;
   action?: React.ReactNode;
 }) {
@@ -1564,9 +1575,9 @@ function InfoRow({
             color:
               isLinked && value
                 ? brandColor
-                : isStatus && value === "Активный"
+                : statusVariant === "active"
                   ? "#16a34a"
-                  : isStatus && value === "Уволен"
+                  : statusVariant === "dismissed"
                     ? "#dc2626"
                     : value
                       ? "#1e293b"

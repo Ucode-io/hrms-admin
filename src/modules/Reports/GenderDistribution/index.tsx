@@ -11,6 +11,7 @@ import {
   useGenderDistributionReportQuery,
   useGenderDistributionTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const TABLE_PAGE_LIMIT = 20;
 
@@ -18,7 +19,7 @@ const CHART_COLORS = ["#74A8C9", "#6B8FE3", "#666DCF"];
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const toPercentText = (value: number | null | undefined): string => {
@@ -49,6 +50,7 @@ const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7
 };
 
 function GenderDistributionPage() {
+  const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(1);
   const [selectedGenderKey, setSelectedGenderKey] = useState<string | null>(null);
 
@@ -130,7 +132,8 @@ function GenderDistributionPage() {
       },
       tooltip: {
         y: {
-          formatter: (value: number) => `${value} сотруд.`,
+          formatter: (value: number) =>
+            t("reports.gender_distribution.tooltip_employees", { count: value }),
         },
       },
       responsive: [
@@ -148,7 +151,7 @@ function GenderDistributionPage() {
         },
       ],
     }),
-    [distribution, pieLabels]
+    [distribution, pieLabels, t]
   );
 
   const tableResult = tableData?.result;
@@ -164,7 +167,10 @@ function GenderDistributionPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Гендерное распределение | HRMS" description="Гендерный отчет сотрудников" />
+        <PageMeta
+          title={t("reports.gender_distribution.page_title")}
+          description={t("reports.gender_distribution.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -175,7 +181,10 @@ function GenderDistributionPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Гендерное распределение | HRMS" description="Гендерный отчет сотрудников" />
+        <PageMeta
+          title={t("reports.gender_distribution.page_title")}
+          description={t("reports.gender_distribution.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -185,7 +194,7 @@ function GenderDistributionPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -194,13 +203,16 @@ function GenderDistributionPage() {
 
   return (
     <>
-      <PageMeta title="Гендерное распределение | HRMS" description="Гендерный отчет сотрудников" />
+      <PageMeta
+        title={t("reports.gender_distribution.page_title")}
+        description={t("reports.gender_distribution.page_description")}
+      />
 
       <div className="space-y-4">
         <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-          {distribution.length === 0 || pieSeries.every((value) => value === 0) ? (
+          {distribution.length === 0 || pieSeries.every((value: number) => value === 0) ? (
             <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-              Нет данных для графика
+              {t("reports.gender_distribution.no_chart_data")}
             </div>
           ) : (
             <div className="flex justify-center">
@@ -212,9 +224,12 @@ function GenderDistributionPage() {
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           {selectedGenderKey ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <span className="text-xs font-medium text-gray-500">Фильтр по графику:</span>
+              <span className="text-xs font-medium text-gray-500">
+                {t("reports.gender_distribution.chart_filter_label")}
+              </span>
               <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                Пол: {selectedGenderLabel || selectedGenderKey}
+                {t("reports.gender_distribution.filter_gender_prefix")}{" "}
+                {selectedGenderLabel || selectedGenderKey}
               </span>
               <button
                 type="button"
@@ -224,7 +239,7 @@ function GenderDistributionPage() {
                 }}
                 className="inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
               >
-                Сбросить
+                {t("reports.common.reset_button")}
               </button>
             </div>
           ) : null}
@@ -232,8 +247,12 @@ function GenderDistributionPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -284,13 +303,13 @@ function GenderDistributionPage() {
               <thead>
                 <tr className="bg-gray-50">
                   {[
-                    "Полное имя",
-                    "Пол",
-                    "Уровень",
-                    "Должность",
-                    "Департамент",
-                    "Регион",
-                    "Филиал",
+                    t("reports.gender_distribution.col_full_name"),
+                    t("reports.gender_distribution.col_gender"),
+                    t("reports.gender_distribution.col_level"),
+                    t("reports.gender_distribution.col_position"),
+                    t("reports.gender_distribution.col_department"),
+                    t("reports.gender_distribution.col_region"),
+                    t("reports.gender_distribution.col_location"),
                   ].map((column) => (
                     <th
                       key={column}
@@ -326,14 +345,14 @@ function GenderDistributionPage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                      {t("reports.common.no_employees_filtered")}
                     </td>
                   </tr>
                 ) : (
@@ -360,14 +379,18 @@ function GenderDistributionPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="w-5 h-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
       </div>
     </>
   );

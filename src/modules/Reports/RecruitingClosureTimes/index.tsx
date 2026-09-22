@@ -12,19 +12,21 @@ import {
   type RecruitingClosureTimesSummary,
   useRecruitingClosureTimesReportQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
-const DIMENSION_LABELS: Record<RecruitingClosureTimesDimension, string> = {
-  vacancies: "Вакансии",
-  positions: "Должности",
-  departments: "Департаменты",
-  locations: "Филиалы",
+const DIMENSION_LABEL_KEYS: Record<RecruitingClosureTimesDimension, MessageKey> = {
+  vacancies: "reports.recruiting_closure_times.dimension_vacancies",
+  positions: "reports.recruiting_closure_times.dimension_positions",
+  departments: "reports.recruiting_closure_times.dimension_departments",
+  locations: "reports.recruiting_closure_times.dimension_locations",
 };
 
-const DIMENSION_FIRST_COLUMN: Record<RecruitingClosureTimesDimension, string> = {
-  vacancies: "Вакансия",
-  positions: "Должность",
-  departments: "Департамент",
-  locations: "Филиал",
+const DIMENSION_FIRST_COLUMN_KEYS: Record<RecruitingClosureTimesDimension, MessageKey> = {
+  vacancies: "reports.recruiting_closure_times.col_vacancy",
+  positions: "reports.recruiting_closure_times.col_position",
+  departments: "reports.recruiting_closure_times.col_department",
+  locations: "reports.recruiting_closure_times.col_location",
 };
 
 const EMPTY_SUMMARY: RecruitingClosureTimesSummary = {
@@ -44,11 +46,11 @@ type FilterState = {
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 const defaultStartIso = (): string => `${new Date().getFullYear() - 2}-01-01`;
 
-const formatDate = (value: string | null): string => {
+const formatDate = (value: string | null, locale: string): string => {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -62,7 +64,7 @@ const formatPercent = (value: number | null | undefined): string => {
 
 const formatDays = (value: number | null): string => {
   if (value == null) return "";
-  return `${value} дней`;
+  return translate("reports.recruiting_closure_times.days_format", { count: value });
 };
 
 const toDateValue = (value: string): Date | null => {
@@ -81,7 +83,7 @@ const toIsoDate = (value: Date | null): string => {
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.recruiting_closure_times.load_error");
 };
 
 function MetricCard({ title, value }: { title: string; value: string }) {
@@ -102,6 +104,7 @@ function TimeCell({ value }: { value: number | null }) {
 }
 
 function RecruitingClosureTimesPage() {
+  const { t, locale } = useTranslation();
   const [dimension, setDimension] = useState<RecruitingClosureTimesDimension>("vacancies");
   const [draftFilters, setDraftFilters] = useState<FilterState>({
     date_from: defaultStartIso(),
@@ -150,7 +153,10 @@ function RecruitingClosureTimesPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Сроки закрытия вакансий | HRMS" description="Отчет по срокам закрытия вакансий" />
+        <PageMeta
+          title={t("reports.recruiting_closure_times.page_title")}
+          description={t("reports.recruiting_closure_times.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -161,7 +167,10 @@ function RecruitingClosureTimesPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Сроки закрытия вакансий | HRMS" description="Отчет по срокам закрытия вакансий" />
+        <PageMeta
+          title={t("reports.recruiting_closure_times.page_title")}
+          description={t("reports.recruiting_closure_times.page_description")}
+        />
         <div className="rounded-lg border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -171,7 +180,7 @@ function RecruitingClosureTimesPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -180,13 +189,16 @@ function RecruitingClosureTimesPage() {
 
   return (
     <>
-      <PageMeta title="Сроки закрытия вакансий | HRMS" description="Отчет по срокам закрытия вакансий" />
+      <PageMeta
+        title={t("reports.recruiting_closure_times.page_title")}
+        description={t("reports.recruiting_closure_times.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="px-4 py-3">
             <div className="flex flex-wrap gap-2">
-              {(Object.keys(DIMENSION_LABELS) as RecruitingClosureTimesDimension[]).map((item) => (
+              {(Object.keys(DIMENSION_LABEL_KEYS) as RecruitingClosureTimesDimension[]).map((item) => (
                 <button
                   key={item}
                   type="button"
@@ -197,7 +209,7 @@ function RecruitingClosureTimesPage() {
                       : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                   }`}
                 >
-                  {DIMENSION_LABELS[item]}
+                  {t(DIMENSION_LABEL_KEYS[item])}
                 </button>
               ))}
             </div>
@@ -216,7 +228,8 @@ function RecruitingClosureTimesPage() {
             }}
           >
             <span className="text-sm font-medium text-gray-600">
-              {DIMENSION_LABELS[dimension]} · {rows.length} строк
+              {t(DIMENSION_LABEL_KEYS[dimension])} · {rows.length}{" "}
+              {t("reports.recruiting_closure_times.rows_label")}
             </span>
           </div>
 
@@ -232,7 +245,7 @@ function RecruitingClosureTimesPage() {
           >
             <label className="block min-w-[300px] flex-1">
               <span className="mb-1.5 block text-xs font-semibold text-gray-600">
-                Кандидат подал заявку
+                {t("reports.recruiting_closure_times.date_range_label")}
               </span>
               <span className="relative block">
                 <CalendarDays
@@ -254,19 +267,21 @@ function RecruitingClosureTimesPage() {
                   selectsRange
                   isClearable
                   dateFormat="dd.MM.yyyy"
-                  placeholderText="Выберите период"
+                  placeholderText={t("reports.recruiting_closure_times.date_picker_placeholder")}
                   className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm font-medium text-gray-700 outline-none transition focus:border-brand-300"
                 />
               </span>
             </label>
 
             <div className="min-w-[260px] flex-1">
-              <span className="mb-1.5 block text-xs font-semibold text-gray-600">Уровень</span>
+              <span className="mb-1.5 block text-xs font-semibold text-gray-600">
+                {t("reports.recruiting_closure_times.level_label")}
+              </span>
               <FormSelect
                 options={levels}
                 value={draftFilters.level}
                 onChange={(value) => setDraftFilters((prev) => ({ ...prev, level: value }))}
-                placeholder="Все"
+                placeholder={t("reports.recruiting_closure_times.level_placeholder")}
                 isClearable
                 menuPortal
               />
@@ -277,7 +292,7 @@ function RecruitingClosureTimesPage() {
               onClick={handleFilter}
               className="inline-flex h-10 items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
             >
-              Применить
+              {t("reports.recruiting_closure_times.apply_button")}
             </button>
 
             {activeFiltersCount > 0 ? (
@@ -286,21 +301,27 @@ function RecruitingClosureTimesPage() {
                 onClick={resetFilters}
                 className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
               >
-                Сбросить
+                {t("reports.recruiting_closure_times.reset_button")}
               </button>
             ) : null}
           </div>
         </section>
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard title="Всего вакансий" value={`${summary.total_vacancies}`} />
-          <MetricCard title="Всего заявок" value={`${summary.total_candidates}`} />
           <MetricCard
-            title="Стадия “Нанято”"
+            title={t("reports.recruiting_closure_times.card_total_vacancies")}
+            value={`${summary.total_vacancies}`}
+          />
+          <MetricCard
+            title={t("reports.recruiting_closure_times.card_total_candidates")}
+            value={`${summary.total_candidates}`}
+          />
+          <MetricCard
+            title={t("reports.recruiting_closure_times.card_hired_stage")}
             value={`${summary.hired_count} (${formatPercent(summary.hired_percentage)})`}
           />
           <MetricCard
-            title="В среднем до заполнения"
+            title={t("reports.recruiting_closure_times.card_avg_time_to_fill")}
             value={summary.avg_days_to_fill == null ? "—" : formatDays(summary.avg_days_to_fill)}
           />
         </section>
@@ -311,28 +332,28 @@ function RecruitingClosureTimesPage() {
               <thead>
                 <tr className="bg-slate-50">
                   <th className="border-b border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                    {DIMENSION_FIRST_COLUMN[dimension]}
+                    {t(DIMENSION_FIRST_COLUMN_KEYS[dimension])}
                   </th>
                   <th className="whitespace-nowrap border-b border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                    Дата открытия
+                    {t("reports.recruiting_closure_times.col_opened_at")}
                   </th>
                   <th className="whitespace-nowrap border-b border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                    Дата закрытия
+                    {t("reports.recruiting_closure_times.col_closed_at")}
                   </th>
                   <th className="whitespace-nowrap border-b border-gray-200 px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                    Кандидаты
+                    {t("reports.recruiting_closure_times.col_candidates")}
                   </th>
                   <th className="whitespace-nowrap border-b border-gray-200 px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                    Нанято
+                    {t("reports.recruiting_closure_times.col_hired")}
                   </th>
                   <th className="whitespace-nowrap border-b border-gray-200 px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                    Мин. время до заполнения
+                    {t("reports.recruiting_closure_times.col_min_time")}
                   </th>
                   <th className="whitespace-nowrap border-b border-gray-200 px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                    Макс. время до заполнения
+                    {t("reports.recruiting_closure_times.col_max_time")}
                   </th>
                   <th className="whitespace-nowrap border-b border-gray-200 px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                    Среднее время до заполнения
+                    {t("reports.recruiting_closure_times.col_avg_time")}
                   </th>
                 </tr>
               </thead>
@@ -340,7 +361,7 @@ function RecruitingClosureTimesPage() {
                 {rows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
-                      Нет данных для выбранных фильтров
+                      {t("reports.recruiting_closure_times.no_data_filtered")}
                     </td>
                   </tr>
                 ) : (
@@ -350,10 +371,10 @@ function RecruitingClosureTimesPage() {
                         {row.title}
                       </td>
                       <td className="whitespace-nowrap border-b border-gray-100 px-4 py-2.5 text-sm font-medium text-gray-600">
-                        {formatDate(row.opened_at)}
+                        {formatDate(row.opened_at, locale)}
                       </td>
                       <td className="whitespace-nowrap border-b border-gray-100 px-4 py-2.5 text-sm font-medium text-gray-600">
-                        {row.closed_at ? formatDate(row.closed_at) : "—"}
+                        {row.closed_at ? formatDate(row.closed_at, locale) : "—"}
                       </td>
                       <td className="whitespace-nowrap border-b border-gray-100 px-4 py-2.5 text-right text-sm font-medium text-gray-700">
                         {row.candidates_count}
@@ -373,7 +394,7 @@ function RecruitingClosureTimesPage() {
         </section>
 
         {isFetching ? (
-          <p className="text-right text-xs text-gray-400">Обновление данных...</p>
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
         ) : null}
       </div>
     </>

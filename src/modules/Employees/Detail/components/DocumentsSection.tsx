@@ -32,6 +32,7 @@ import {
 } from "../../../../api/services/document.service";
 import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
 import DocumentPreviewModal from "../../../Documents/components/DocumentPreviewModal";
+import { useTranslation, translate } from "../../../../i18n";
 
 type DocumentsSectionProps = {
   employeeGuid?: string;
@@ -198,10 +199,10 @@ const getDocumentName = (doc: EmployeeDocumentItem): string => {
 
   if (doc.file && String(doc.file).trim()) {
     const parts = String(doc.file).split("/");
-    return parts[parts.length - 1] || "Без названия";
+    return parts[parts.length - 1] || translate("employees.detail.no_title");
   }
 
-  return "Без названия";
+  return translate("employees.detail.no_title");
 };
 
 const getDocumentEmployeeLabel = (doc: EmployeeDocumentItem): string => {
@@ -284,8 +285,8 @@ const ViewToggle = ({
     value={value}
     onChange={onChange}
     items={[
-      { key: "list", label: "Список", icon: <List size={16} /> },
-      { key: "grid", label: "Сетка", icon: <LayoutGrid size={16} /> },
+      { key: "list", label: translate("employees.documents.view_list"), icon: <List size={16} /> },
+      { key: "grid", label: translate("employees.documents.view_grid"), icon: <LayoutGrid size={16} /> },
     ]}
   />
 );
@@ -294,6 +295,7 @@ export default function EmployeeDocumentsSection({
   employeeGuid,
   brandColor,
 }: DocumentsSectionProps) {
+  const { t } = useTranslation();
   const normalizedEmployeeGuid = typeof employeeGuid === "string" ? employeeGuid.trim() : "";
   const isGlobalMode = !normalizedEmployeeGuid;
   const navigate = useNavigate();
@@ -412,9 +414,9 @@ export default function EmployeeDocumentsSection({
     () =>
       isGlobalMode && activeFolder
         ? [
-            { label: "Документы", to: "/documents" },
+            { label: t("breadcrumb.documents"), to: "/documents" },
             {
-              label: activeFolder.title || "Папка",
+              label: activeFolder.title || t("employees.documents.default_folder_label"),
               to: `/documents?folder=${encodeURIComponent(activeFolder.guid)}`,
             },
           ]
@@ -492,7 +494,7 @@ export default function EmployeeDocumentsSection({
   const continueUploadWithEmployee = () => {
     if (!pendingUploadFolder?.guid) return;
     if (!selectedUploadEmployeeGuid) {
-      toast.error("Выберите сотрудника для документа.");
+      toast.error(t("employees.documents.select_employee_for_document"));
       return;
     }
 
@@ -512,7 +514,7 @@ export default function EmployeeDocumentsSection({
   const uploadDocumentToFolder = async (folder: DocumentFolderItem, selectedFile: File) => {
     const uploadEmployeeGuid = getUploadEmployeeGuid();
     if (isGlobalMode && !uploadEmployeeGuid) {
-      toast.error("Выберите сотрудника для документа.");
+      toast.error(t("employees.documents.select_employee_for_document"));
       return;
     }
 
@@ -529,10 +531,10 @@ export default function EmployeeDocumentsSection({
         document_folders_id: folder.guid,
       });
 
-      toast.success(`Документ добавлен в папку «${folder.title}».`);
+      toast.success(t("employees.documents.document_added_to_folder", { title: folder.title }));
     } catch (error) {
       console.error("Failed to upload employee document:", error);
-      toast.error("Не удалось загрузить документ.");
+      toast.error(t("employees.documents.upload_failed"));
     } finally {
       setUploadingFolderId(null);
       closeUploadEmployeeModal();
@@ -566,7 +568,7 @@ export default function EmployeeDocumentsSection({
 
   const openGenerateTemplatePicker = () => {
     if (!activeFolder?.guid) {
-      toast.error("Сначала выберите папку для нового документа.");
+      toast.error(t("employees.documents.select_folder_first"));
       return;
     }
     setSelectedTemplateGuid("");
@@ -586,7 +588,7 @@ export default function EmployeeDocumentsSection({
 
     const generationEmployeeGuid = normalizedEmployeeGuid || selectedGenerateEmployeeGuid;
     if (!generationEmployeeGuid) {
-      toast.error("Выберите сотрудника для генерации документа.");
+      toast.error(t("employees.documents.select_employee_for_generation"));
       return;
     }
 
@@ -607,7 +609,7 @@ export default function EmployeeDocumentsSection({
 
   const handleOpenFile = (doc: EmployeeDocumentItem) => {
     if (!doc.file) {
-      toast.error("У документа нет файла.");
+      toast.error(t("employees.documents.no_file"));
       return;
     }
 
@@ -621,7 +623,7 @@ export default function EmployeeDocumentsSection({
     event.stopPropagation();
 
     if (!doc.file) {
-      toast.error("У документа нет файла.");
+      toast.error(t("employees.documents.no_file"));
       return;
     }
 
@@ -645,10 +647,10 @@ export default function EmployeeDocumentsSection({
     try {
       setDeletingDocumentId(doc.guid);
       await deleteDocumentMutation.mutateAsync(doc.guid);
-      toast.success(`Документ «${getDocumentName(doc)}» удален.`);
+      toast.success(t("employees.documents.document_deleted", { name: getDocumentName(doc) }));
     } catch (error) {
       console.error("Failed to delete employee document:", error);
-      toast.error("Не удалось удалить документ.");
+      toast.error(t("employees.documents.delete_failed"));
     } finally {
       setDeletingDocumentId(null);
     }
@@ -676,7 +678,7 @@ export default function EmployeeDocumentsSection({
     return (
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-6 py-5 text-[14px] text-slate-400">
-          Папки документов не найдены.
+          {t("employees.documents.folders_not_found")}
         </div>
       </div>
     );
@@ -710,7 +712,7 @@ export default function EmployeeDocumentsSection({
                       onClick={closeFolder}
                       className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
-                      К папкам
+                      {t("employees.documents.back_to_folders")}
                     </button>
                   ) : null}
                 </div>
@@ -722,7 +724,7 @@ export default function EmployeeDocumentsSection({
                     className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-default disabled:opacity-70"
                   >
                     <Upload className="h-4 w-4" style={{ color: brandColor }} />
-                    {uploadingFolderId === activeFolder.guid ? "Загрузка..." : "Добавить"}
+                    {uploadingFolderId === activeFolder.guid ? t("employees.detail.loading") : t("common.add")}
                   </button>
                   <button
                     type="button"
@@ -730,7 +732,7 @@ export default function EmployeeDocumentsSection({
                     className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     <FilePlus2 className="h-4 w-4" style={{ color: brandColor }} />
-                    Сгенерировать
+                    {t("employees.documents.generate")}
                   </button>
                 </div>
               </div>
@@ -760,7 +762,7 @@ export default function EmployeeDocumentsSection({
                           handleOpenFile(doc);
                         }
                       }}
-                      title="Двойной клик — открыть"
+                      title={t("employees.documents.double_click_open")}
                       className={`flex min-h-[270px] cursor-pointer select-none flex-col rounded-2xl bg-slate-100/80 p-3 transition ${
                         isSelected
                           ? "ring-2 ring-brand-300"
@@ -776,7 +778,7 @@ export default function EmployeeDocumentsSection({
                           type="button"
                           onClick={(event) => handleDownloadFile(event, doc)}
                           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-white"
-                          title="Скачать"
+                          title={t("employees.documents.download")}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </button>
@@ -789,7 +791,7 @@ export default function EmployeeDocumentsSection({
                           handleOpenFile(doc);
                         }}
                         className="flex h-[150px] items-center justify-center overflow-hidden rounded-lg bg-white text-slate-500 shadow-sm"
-                        title="Открыть"
+                        title={t("employees.documents.open")}
                       >
                         {type === "image" && doc.file ? (
                           <img
@@ -838,7 +840,7 @@ export default function EmployeeDocumentsSection({
                             handleOpenFile(doc);
                           }}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
-                          title="Открыть"
+                          title={t("employees.documents.open")}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
@@ -846,7 +848,7 @@ export default function EmployeeDocumentsSection({
                           type="button"
                           onClick={(event) => handleDownloadFile(event, doc)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
-                          title="Скачать"
+                          title={t("employees.documents.download")}
                         >
                           <Download className="h-4 w-4" />
                         </button>
@@ -854,7 +856,7 @@ export default function EmployeeDocumentsSection({
                           type="button"
                           onClick={(event) => void handleDeleteFile(event, doc)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-100 text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-                          title="Удалить"
+                          title={t("common.delete")}
                           disabled={deleting}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -870,7 +872,7 @@ export default function EmployeeDocumentsSection({
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-slate-50">
-                        {["", "Название", "Тип", "Сотрудник", ""].map((heading, index) => (
+                        {["", t("employees.documents.col_name"), t("employees.documents.col_type"), t("employees.documents.col_employee"), ""].map((heading, index) => (
                           <th
                             key={`doc-col-${index}`}
                             className="whitespace-nowrap border-b border-slate-200 px-4 py-2.5 text-left text-[12px] font-semibold text-slate-500"
@@ -894,7 +896,7 @@ export default function EmployeeDocumentsSection({
                             key={doc.guid}
                             aria-pressed={isSelected}
                             onClick={() => handleOpenFile(doc)}
-                            title="Открыть"
+                            title={t("employees.documents.open")}
                             className={`cursor-pointer select-none border-b border-slate-100 transition ${
                               isSelected ? "bg-brand-50" : "hover:bg-slate-50"
                             }`}
@@ -944,7 +946,7 @@ export default function EmployeeDocumentsSection({
                                     handleOpenFile(doc);
                                   }}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
-                                  title="Открыть"
+                                  title={t("employees.documents.open")}
                                 >
                                   <Eye className="h-4 w-4" />
                                 </button>
@@ -952,7 +954,7 @@ export default function EmployeeDocumentsSection({
                                   type="button"
                                   onClick={(event) => handleDownloadFile(event, doc)}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
-                                  title="Скачать"
+                                  title={t("employees.documents.download")}
                                 >
                                   <Download className="h-4 w-4" />
                                 </button>
@@ -960,7 +962,7 @@ export default function EmployeeDocumentsSection({
                                   type="button"
                                   onClick={(event) => void handleDeleteFile(event, doc)}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-100 text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-                                  title="Удалить"
+                                  title={t("common.delete")}
                                   disabled={deleting}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -984,7 +986,7 @@ export default function EmployeeDocumentsSection({
               />
 
               {activeFolderDocuments.length === 0 ? (
-                <p className="mt-3 text-[13px] text-slate-500">В этой папке пока нет файлов.</p>
+                <p className="mt-3 text-[13px] text-slate-500">{t("employees.documents.folder_empty")}</p>
               ) : null}
             </div>
           </div>
@@ -1017,7 +1019,7 @@ export default function EmployeeDocumentsSection({
                         openFolder(folder);
                       }
                     }}
-                    title="Двойной клик — открыть"
+                    title={t("employees.documents.double_click_open")}
                     className={`flex h-24 cursor-pointer select-none items-center gap-4 rounded-2xl bg-slate-100/80 px-5 text-left transition ${
                       isSelected
                         ? "ring-2 ring-brand-300"
@@ -1027,10 +1029,10 @@ export default function EmployeeDocumentsSection({
                     <Folder className="h-8 w-8 shrink-0 fill-slate-700 text-slate-700" />
                     <div className="min-w-0 flex-1">
                       <p className="m-0 truncate text-[16px] font-semibold text-slate-900">
-                        {folder.title || "Без названия"}
+                        {folder.title || t("employees.detail.no_title")}
                       </p>
                       <p className="mt-1 text-[12px] font-medium text-slate-500">
-                        {docsInFolder.length} файлов
+                        {t("employees.documents.files_count", { count: docsInFolder.length })}
                       </p>
                     </div>
                     <button
@@ -1040,8 +1042,8 @@ export default function EmployeeDocumentsSection({
                         event.stopPropagation();
                         openUploadDialog(folder);
                       }}
-                      title={isUploading ? "Загрузка..." : "Добавить файл"}
-                      aria-label={isUploading ? "Загрузка..." : "Добавить файл"}
+                      title={isUploading ? t("employees.detail.loading") : t("employees.documents.add_file")}
+                      aria-label={isUploading ? t("employees.detail.loading") : t("employees.documents.add_file")}
                     >
                       <MoreVertical className="h-5 w-5" />
                     </button>
@@ -1068,7 +1070,7 @@ export default function EmployeeDocumentsSection({
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-slate-50">
-                        {["", "Название", "Файлов", ""].map((heading, index) => (
+                        {["", t("employees.documents.col_name"), t("employees.documents.col_files"), ""].map((heading, index) => (
                           <th
                             key={`folder-col-${index}`}
                             className="whitespace-nowrap border-b border-slate-200 px-4 py-2.5 text-left text-[12px] font-semibold text-slate-500"
@@ -1089,7 +1091,7 @@ export default function EmployeeDocumentsSection({
                             key={folder.guid}
                             aria-pressed={isSelected}
                             onClick={() => openFolder(folder)}
-                            title="Открыть"
+                            title={t("employees.documents.open")}
                             className={`cursor-pointer select-none border-b border-slate-100 transition ${
                               isSelected ? "bg-brand-50" : "hover:bg-slate-50"
                             }`}
@@ -1098,10 +1100,10 @@ export default function EmployeeDocumentsSection({
                               <Folder className="h-6 w-6 fill-slate-700 text-slate-700" />
                             </td>
                             <td className="px-4 py-2.5 text-[14px] font-semibold text-slate-900">
-                              {folder.title || "Без названия"}
+                              {folder.title || t("employees.detail.no_title")}
                             </td>
                             <td className="px-4 py-2.5 text-[13px] text-slate-600">
-                              {docsInFolder.length} файлов
+                              {t("employees.documents.files_count", { count: docsInFolder.length })}
                             </td>
                             <td className="px-4 py-2.5">
                               <div className="flex items-center justify-end">
@@ -1112,10 +1114,10 @@ export default function EmployeeDocumentsSection({
                                     event.stopPropagation();
                                     openUploadDialog(folder);
                                   }}
-                                  title={isUploading ? "Загрузка..." : "Добавить файл"}
+                                  title={isUploading ? t("employees.detail.loading") : t("employees.documents.add_file")}
                                 >
                                   <Upload className="h-4 w-4" style={{ color: brandColor }} />
-                                  {isUploading ? "Загрузка..." : "Добавить"}
+                                  {isUploading ? t("employees.detail.loading") : t("common.add")}
                                 </button>
                                 <input
                                   ref={(element) => {
@@ -1151,18 +1153,18 @@ export default function EmployeeDocumentsSection({
       >
         <div className="space-y-4">
           <div className="pr-14">
-            <h3 className="text-xl font-semibold text-slate-900">Выбор сотрудника</h3>
+            <h3 className="text-xl font-semibold text-slate-900">{t("employees.documents.select_employee_title")}</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Выберите сотрудника, к которому будет прикреплен файл
+              {t("employees.documents.select_employee_description")}
             </p>
           </div>
 
           <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-700">Сотрудник</p>
+            <p className="text-sm font-medium text-slate-700">{t("employees.documents.employee_label")}</p>
             <EmployeeInfiniteSelect
               value={selectedUploadEmployeeGuid}
               onChange={setSelectedUploadEmployeeGuid}
-              placeholder="Выберите сотрудника"
+              placeholder={t("employees.documents.employee_select_placeholder")}
               styles={getGenerateEmployeeSelectStyles()}
               classNamePrefix="documents-upload-employee-select"
               menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
@@ -1171,13 +1173,13 @@ export default function EmployeeDocumentsSection({
 
           <div className="flex items-center justify-end gap-2">
             <Button variant="outline" onClick={closeUploadEmployeeModal}>
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={continueUploadWithEmployee}
               disabled={!pendingUploadFolder || !selectedUploadEmployeeGuid}
             >
-              Выбрать файл
+              {t("employees.documents.choose_file")}
             </Button>
           </div>
         </div>
@@ -1186,8 +1188,8 @@ export default function EmployeeDocumentsSection({
       <Modal isOpen={isTemplateModalOpen} onClose={closeTemplateModal} className="mx-4 w-full max-w-2xl p-6">
         <div className="space-y-4">
           <div>
-            <h3 className="text-xl font-semibold text-slate-900">Выбор шаблона</h3>
-            <p className="mt-1 text-sm text-slate-500">Выберите шаблон для генерации документа</p>
+            <h3 className="text-xl font-semibold text-slate-900">{t("employees.documents.select_template_title")}</h3>
+            <p className="mt-1 text-sm text-slate-500">{t("employees.documents.select_template_description")}</p>
           </div>
 
           <div className="relative">
@@ -1195,7 +1197,7 @@ export default function EmployeeDocumentsSection({
             <input
               value={templateSearch}
               onChange={(event) => setTemplateSearch(event.target.value)}
-              placeholder="Поиск шаблона..."
+              placeholder={t("employees.documents.search_template_placeholder")}
               className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
             />
           </div>
@@ -1212,7 +1214,7 @@ export default function EmployeeDocumentsSection({
               </div>
             ) : filteredTemplates.length === 0 ? (
               <p className="py-8 text-center text-sm text-slate-500">
-                {templateSearch.trim() ? "По вашему запросу ничего не найдено." : "Шаблоны документов не найдены."}
+                {templateSearch.trim() ? t("employees.documents.no_search_results") : t("employees.documents.no_templates")}
               </p>
             ) : (
               <div className="space-y-2">
@@ -1230,10 +1232,10 @@ export default function EmployeeDocumentsSection({
                       }`}
                     >
                       <p className="line-clamp-2 text-sm font-semibold text-slate-900">
-                        {String(template.title || "Без названия")}
+                        {String(template.title || t("employees.detail.no_title"))}
                       </p>
                       <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                        {String(template.description || "Без описания")}
+                        {String(template.description || t("employees.documents.no_description"))}
                       </p>
                     </button>
                   );
@@ -1244,11 +1246,11 @@ export default function EmployeeDocumentsSection({
 
           {isGlobalMode ? (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-slate-700">Сотрудник для генерации</p>
+              <p className="text-sm font-medium text-slate-700">{t("employees.documents.employee_for_generation")}</p>
               <EmployeeInfiniteSelect
                 value={selectedGenerateEmployeeGuid}
                 onChange={setSelectedGenerateEmployeeGuid}
-                placeholder="Выберите сотрудника"
+                placeholder={t("employees.documents.employee_select_placeholder")}
                 styles={getGenerateEmployeeSelectStyles()}
                 classNamePrefix="documents-generate-employee-select"
                 menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
@@ -1258,13 +1260,13 @@ export default function EmployeeDocumentsSection({
 
           <div className="flex items-center justify-end gap-2">
             <Button variant="outline" onClick={closeTemplateModal}>
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={openGeneratePage}
               disabled={!selectedTemplate || isTemplatesLoading || (isGlobalMode && !selectedGenerateEmployeeGuid)}
             >
-              Продолжить
+              {t("employees.documents.continue")}
             </Button>
           </div>
         </div>

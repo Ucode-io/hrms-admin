@@ -13,13 +13,14 @@ import {
   useSportAttendanceReportQuery,
   useSportAttendanceTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const TABLE_PAGE_LIMIT = 20;
 const CHART_COLORS = ["#74A8C9", "#6B8FE3", "#666DCF", "#A78BFA"];
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const toPercentText = (value: number | null | undefined): string => {
@@ -50,6 +51,7 @@ const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7
 };
 
 function SportAttendancePage() {
+  const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(1);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedBucketKey, setSelectedBucketKey] = useState<string | null>(null);
@@ -149,7 +151,7 @@ function SportAttendancePage() {
       },
       tooltip: {
         y: {
-          formatter: (value: number) => `${value} сотруд.`,
+          formatter: (value: number) => `${value} ${t("reports.common.employees_short")}`,
         },
       },
       responsive: [
@@ -167,7 +169,7 @@ function SportAttendancePage() {
         },
       ],
     }),
-    [distribution, pieLabels]
+    [distribution, pieLabels, t]
   );
 
   const tableResult = tableData?.result;
@@ -183,7 +185,10 @@ function SportAttendancePage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Посещение спорта | HRMS" description="Отчет по посещению спорта" />
+        <PageMeta
+          title={t("reports.sport_attendance.page_title")}
+          description={t("reports.sport_attendance.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -194,7 +199,10 @@ function SportAttendancePage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Посещение спорта | HRMS" description="Отчет по посещению спорта" />
+        <PageMeta
+          title={t("reports.sport_attendance.page_title")}
+          description={t("reports.sport_attendance.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -204,7 +212,7 @@ function SportAttendancePage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -213,7 +221,10 @@ function SportAttendancePage() {
 
   return (
     <>
-      <PageMeta title="Посещение спорта | HRMS" description="Отчет по посещению спорта" />
+      <PageMeta
+        title={t("reports.sport_attendance.page_title")}
+        description={t("reports.sport_attendance.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
@@ -231,7 +242,7 @@ function SportAttendancePage() {
             <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
               {distribution.length === 0 || pieSeries.every((value) => value === 0) ? (
                 <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
-                  Нет данных для графика
+                  {t("reports.common.no_chart_data")}
                 </div>
               ) : (
                 <div className="flex justify-center">
@@ -245,9 +256,11 @@ function SportAttendancePage() {
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           {selectedBucketKey ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <span className="text-xs font-medium text-gray-500">Фильтр по графику:</span>
+              <span className="text-xs font-medium text-gray-500">
+                {t("reports.common.chart_filter_label")}
+              </span>
               <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                Посещения: {selectedBucketLabel}
+                {t("reports.sport_attendance.filter_attendance_prefix")} {selectedBucketLabel}
               </span>
               <button
                 type="button"
@@ -257,7 +270,7 @@ function SportAttendancePage() {
                 }}
                 className="inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
               >
-                Сбросить
+                {t("reports.common.reset_button")}
               </button>
             </div>
           ) : null}
@@ -265,8 +278,12 @@ function SportAttendancePage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -316,7 +333,11 @@ function SportAttendancePage() {
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-gray-50">
-                  {["Сотрудник", "Месяц", "Количество посещений"].map((column) => (
+                  {[
+                    t("reports.sport_attendance.col_employee"),
+                    t("reports.sport_attendance.col_month"),
+                    t("reports.sport_attendance.col_attendance_count"),
+                  ].map((column) => (
                     <th
                       key={column}
                       className="border-b border-gray-200 px-4 py-2.5 text-left text-sm font-semibold text-gray-700"
@@ -351,14 +372,14 @@ function SportAttendancePage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                      {t("reports.common.no_employees_filtered")}
                     </td>
                   </tr>
                 ) : (
@@ -383,14 +404,18 @@ function SportAttendancePage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="h-5 w-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
       </div>
     </>
   );

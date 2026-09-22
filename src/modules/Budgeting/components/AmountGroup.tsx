@@ -29,8 +29,7 @@ interface AmountGroupProps {
  * разъехавшиеся правила округления в двух местах — верный способ получить
  * итог, который не сходится со слагаемыми.
  */
-export default function AmountGroup({
-  month,
+export default function AmountGroup({ month,
   columns,
   editable = false,
   label,

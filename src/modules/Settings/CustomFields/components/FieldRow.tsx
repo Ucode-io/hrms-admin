@@ -4,6 +4,7 @@ import { Copy, Lock, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
 import { FIELD_TYPE_MAP } from "../constants";
+import { useTranslation } from "../../../../i18n";
 import type { CustomField } from "../types";
 import { describeRules } from "../utils";
 
@@ -27,6 +28,7 @@ export default function FieldRow({
   onDuplicate,
   onDelete,
 }: FieldRowProps) {
+  const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -39,8 +41,8 @@ export default function FieldRow({
     <div
       title={
         isProtected
-          ? "Статичное поле таблицы — редактировать и удалять нельзя"
-          : "Нажмите, чтобы изменить поле"
+          ? t("settings_custom_fields.row.protected_hint")
+          : t("settings_custom_fields.row.edit_hint")
       }
       onClick={(event) => {
         if (isProtected) return;
@@ -68,7 +70,7 @@ export default function FieldRow({
                 isProtected ? "text-gray-600" : "text-gray-900"
               }`}
             >
-              {field.label || "Без названия"}
+              {field.label || t("settings_custom_fields.row.untitled")}
             </p>
             {field.rules.required && <span className="text-error-500">*</span>}
             {/* Бейджа «статичное» рядом с названием нет: он говорил ровно то
@@ -79,7 +81,7 @@ export default function FieldRow({
             <code className="rounded bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] text-gray-500">
               {field.key}
             </code>
-            <span className="text-[11px] text-gray-400">{meta?.title}</span>
+            <span className="text-[11px] text-gray-400">{meta ? t(meta.titleKey) : null}</span>
             {ruleChips.map((chip) => (
               <span
                 key={chip}
@@ -93,7 +95,7 @@ export default function FieldRow({
 
         {isProtected ? (
           <span className="mt-1 flex shrink-0 items-center gap-1 text-[11px] font-medium text-gray-400">
-            <Lock size={13} /> защищено
+            <Lock size={13} /> {t("settings_custom_fields.row.protected_badge")}
           </span>
         ) : (
           <div className="relative shrink-0">
@@ -102,7 +104,7 @@ export default function FieldRow({
               ref={menuButtonRef}
               onClick={() => setMenuOpen((prev) => !prev)}
               className="dropdown-toggle rounded-md p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Действия с полем"
+              aria-label={t("settings_custom_fields.row.actions_label")}
             >
               <MoreHorizontal size={16} />
             </button>
@@ -121,7 +123,7 @@ export default function FieldRow({
                 baseClassName=""
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
               >
-                <Pencil size={14} /> Изменить
+                <Pencil size={14} /> {t("settings_custom_fields.row.edit")}
               </DropdownItem>
               <DropdownItem
                 onClick={() => {
@@ -131,7 +133,7 @@ export default function FieldRow({
                 baseClassName=""
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
               >
-                <Copy size={14} /> Дублировать
+                <Copy size={14} /> {t("settings_custom_fields.row.duplicate")}
               </DropdownItem>
               <DropdownItem
                 onClick={() => {
@@ -141,7 +143,7 @@ export default function FieldRow({
                 baseClassName=""
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-error-500 hover:bg-error-50"
               >
-                <Trash2 size={14} /> Удалить
+                <Trash2 size={14} /> {t("settings_custom_fields.row.delete")}
               </DropdownItem>
             </Dropdown>
           </div>

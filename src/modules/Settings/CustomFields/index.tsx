@@ -11,8 +11,10 @@ import { ENTITY_ICONS } from "./constants";
 import type { CustomField } from "./types";
 import { useCustomFieldsSchema } from "./useCustomFieldsSchema";
 import { createEmptyField } from "./utils";
+import { useTranslation } from "../../../i18n";
 
 export default function CustomFieldsSettingsPage() {
+  const { t } = useTranslation();
   const {
     schema,
     stats,
@@ -99,18 +101,18 @@ export default function CustomFieldsSettingsPage() {
     try {
       await upsertField(field);
       setEditingField(null);
-      toast.success("Поле сохранено.");
+      toast.success(t("settings_custom_fields.toast.field_saved"));
     } catch (error) {
-      toast.error(describeError(error, "Не удалось сохранить поле."));
+      toast.error(describeError(error, t("settings_custom_fields.toast.field_save_error")));
     }
   };
 
   const handleDuplicateField = async (fieldId: string) => {
     try {
       await duplicateField(fieldId);
-      toast.success("Копия поля создана.");
+      toast.success(t("settings_custom_fields.toast.field_duplicated"));
     } catch (error) {
-      toast.error(describeError(error, "Не удалось скопировать поле."));
+      toast.error(describeError(error, t("settings_custom_fields.toast.field_duplicate_error")));
     }
   };
 
@@ -120,27 +122,27 @@ export default function CustomFieldsSettingsPage() {
     try {
       await deleteField(fieldToDelete.id);
       setFieldToDelete(null);
-      toast.success("Поле удалено.");
+      toast.success(t("settings_custom_fields.toast.field_deleted"));
     } catch (error) {
-      toast.error(describeError(error, "Не удалось удалить поле."));
+      toast.error(describeError(error, t("settings_custom_fields.toast.field_delete_error")));
     }
   };
 
   return (
     <>
       <PageMeta
-        title="Динамические поля | Настройки"
-        description="Дополнительные поля для таблиц HRMS"
+        title={t("settings_custom_fields.page.title")}
+        description={t("settings_custom_fields.page.description")}
       />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold text-gray-900">
-              Динамические поля
+              {t("settings_custom_fields.page.heading")}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Добавляйте собственные поля к таблицам HRMS
+              {t("settings_custom_fields.page.subheading")}
             </p>
           </div>
 
@@ -151,7 +153,7 @@ export default function CustomFieldsSettingsPage() {
             disabled={!activeEntity?.enabled || isSaving}
             onClick={handleAddField}
           >
-            Новое поле
+            {t("settings_custom_fields.page.new_field_button")}
           </Button>
         </div>
 
@@ -171,7 +173,7 @@ export default function CustomFieldsSettingsPage() {
                   setActiveEntityId(entity.id);
                   setSearch("");
                 }}
-                title={entity.enabled ? entity.slug : "Подключим на следующем этапе"}
+                title={entity.enabled ? entity.slug : t("settings_custom_fields.page.entity_disabled_tooltip")}
                 className={`flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition ${
                   isActive
                     ? "border-brand-500 bg-brand-50 text-brand-600"
@@ -204,7 +206,7 @@ export default function CustomFieldsSettingsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <div className="min-w-0">
               <p className="text-[15px] font-semibold text-gray-900">
-                {activeEntity?.title ?? "Таблица"}
+                {activeEntity?.title ?? t("settings_custom_fields.page.table_fallback")}
               </p>
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
                 {activeEntity && (
@@ -216,15 +218,15 @@ export default function CustomFieldsSettingsPage() {
                   </>
                 )}
                 <span>
-                  динамических: <b className="text-gray-800">{summary.custom}</b>
+                  {t("settings_custom_fields.page.summary.custom")}: <b className="text-gray-800">{summary.custom}</b>
                 </span>
                 <span className="text-gray-300">·</span>
                 <span>
-                  обязательных: <b className="text-gray-800">{summary.required}</b>
+                  {t("settings_custom_fields.page.summary.required")}: <b className="text-gray-800">{summary.required}</b>
                 </span>
                 <span className="text-gray-300">·</span>
                 <span>
-                  статичных: <b className="text-gray-800">{summary.system}</b>
+                  {t("settings_custom_fields.page.summary.system")}: <b className="text-gray-800">{summary.system}</b>
                 </span>
               </p>
             </div>
@@ -237,7 +239,7 @@ export default function CustomFieldsSettingsPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Поиск по полям..."
+                placeholder={t("settings_custom_fields.page.search_placeholder")}
                 className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -246,12 +248,12 @@ export default function CustomFieldsSettingsPage() {
           {isLoading ? (
             <div className="flex items-center justify-center gap-2 px-6 py-12 text-sm text-gray-500">
               <Loader2 size={16} className="animate-spin" />
-              Загружаем схему полей...
+              {t("settings_custom_fields.page.loading")}
             </div>
           ) : isError ? (
             <div className="px-6 py-12 text-center">
               <p className="text-sm text-error-500">
-                Не удалось загрузить схему полей. Обновите страницу.
+                {t("settings_custom_fields.page.error")}
               </p>
             </div>
           ) : visibleFields.length > 0 ? (
@@ -270,8 +272,8 @@ export default function CustomFieldsSettingsPage() {
             <div className="px-6 py-12 text-center">
               <p className="text-sm text-gray-500">
                 {normalizedSearch
-                  ? "Ничего не найдено — попробуйте другой запрос"
-                  : "У этой таблицы пока нет полей"}
+                  ? t("settings_custom_fields.page.empty_search")
+                  : t("settings_custom_fields.page.empty_state")}
               </p>
             </div>
           )}
@@ -285,8 +287,8 @@ export default function CustomFieldsSettingsPage() {
               >
                 <Plus size={16} />
                 {customFields.length === 0
-                  ? "Добавить первое динамическое поле"
-                  : "Добавить поле"}
+                  ? t("settings_custom_fields.page.add_first_field")
+                  : t("settings_custom_fields.page.add_field")}
               </button>
             </div>
           )}
@@ -308,30 +310,29 @@ export default function CustomFieldsSettingsPage() {
         className="mx-4 w-full max-w-[440px] overflow-hidden rounded-2xl border border-gray-200 shadow-xl"
       >
         <div className="flex items-start justify-between gap-4 px-6 pb-2 pt-6">
-          <h2 className="text-lg font-semibold text-gray-900">Удалить поле?</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t("settings_custom_fields.page.delete_modal.title")}</h2>
           <button
             type="button"
             onClick={() => setFieldToDelete(null)}
             className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_custom_fields.page.delete_modal.close_aria_label")}
           >
             <X size={18} />
           </button>
         </div>
         <p className="px-6 pb-5 text-sm text-gray-500">
-          Поле «{fieldToDelete?.label}» будет удалено из формы. Ранее сохранённые
-          значения останутся в базе.
+          {t("settings_custom_fields.page.delete_modal.message", { label: fieldToDelete?.label ?? "" })}
         </p>
         <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
           <Button variant="outline" className="h-11" onClick={() => setFieldToDelete(null)}>
-            Отмена
+            {t("settings_custom_fields.page.delete_modal.cancel")}
           </Button>
           <Button
             className="h-11 !bg-error-500 hover:!bg-error-600"
             disabled={isSaving}
             onClick={confirmDeleteField}
           >
-            Удалить
+            {t("settings_custom_fields.page.delete_modal.delete")}
           </Button>
         </div>
       </Modal>

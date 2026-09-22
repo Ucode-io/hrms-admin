@@ -3,6 +3,7 @@
 // process + a progress object, and resolve the acting (current) user.
 
 import authStore from "../../../store/auth.store";
+import { translate } from "../../../i18n";
 import { type ApprovalProcess } from "./mockData";
 
 export interface StageApproval {
@@ -22,9 +23,9 @@ export interface RequestApprovalProgress {
 /** Display name of the currently logged-in user (the acting approver). */
 export const getCurrentUserName = (): string => {
   const user = authStore.user;
-  if (!user) return "Текущий пользователь";
+  if (!user) return translate("settings_approvals.current_user_fallback");
   const name = [user.second_name, user.first_name].filter(Boolean).join(" ").trim();
-  return name || user.login || "Текущий пользователь";
+  return name || user.login || translate("settings_approvals.current_user_fallback");
 };
 
 /** Name + avatar of the currently logged-in user (the acting approver). */

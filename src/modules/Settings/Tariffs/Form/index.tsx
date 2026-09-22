@@ -13,8 +13,10 @@ import {
 import { useProductCategoriesQuery } from "../../../../api/services/productCategory.service";
 import { useMerchantsQuery } from "../../../../api/services/merchant.service";
 import Spinner from "../../../../components/ui/Spinner";
+import { useTranslation } from "../../../../i18n";
 
 export default function TariffForm() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = !!id;
@@ -110,13 +112,13 @@ export default function TariffForm() {
   return (
     <>
       <PageMeta
-        title={isEditMode ? "Редактировать тариф | HRMS" : "Добавить тариф | HRMS"}
-        description={isEditMode ? "Редактирование тарифа" : "Добавление нового тарифа"}
+        title={isEditMode ? t("settings_tariffs.edit_page_title") : t("settings_tariffs.add_page_title")}
+        description={isEditMode ? t("settings_tariffs.edit_description") : t("settings_tariffs.add_description")}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-          {isEditMode ? "Редактировать тариф" : "Добавить тариф"}
+          {isEditMode ? t("settings_tariffs.edit_heading") : t("settings_tariffs.add_heading")}
         </h2>
         <nav>
           <ol className="flex items-center gap-1.5">
@@ -125,7 +127,7 @@ export default function TariffForm() {
                 className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
                 to="/"
               >
-                Главная
+                {t("settings_tariffs.home")}
                 <svg
                   className="stroke-current"
                   width="17"
@@ -149,7 +151,7 @@ export default function TariffForm() {
                 className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
                 to="/settings/tariffs"
               >
-                Тарифы
+                {t("settings_tariffs.tariffs")}
                 <svg
                   className="stroke-current"
                   width="17"
@@ -169,7 +171,7 @@ export default function TariffForm() {
               </Link>
             </li>
             <li className="text-sm text-gray-800 dark:text-white/90">
-              {isEditMode ? "Редактировать" : "Добавить"}
+              {isEditMode ? t("settings_tariffs.edit") : t("settings_tariffs.add")}
             </li>
           </ol>
         </nav>
@@ -183,7 +185,7 @@ export default function TariffForm() {
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div>
-              <Label>Период (месяцев) *</Label>
+              <Label>{t("settings_tariffs.period_required")}</Label>
               <Input
                 type="number"
                 value={formData.period}
@@ -194,7 +196,7 @@ export default function TariffForm() {
             </div>
 
             <div>
-              <Label>Процент комиссии *</Label>
+              <Label>{t("settings_tariffs.commission_required")}</Label>
               <Input
                 type="number"
                 value={formData.commission_percentage}
@@ -206,32 +208,32 @@ export default function TariffForm() {
             </div>
 
             <div>
-              <Label>Категория продукта *</Label>
+              <Label>{t("settings_tariffs.category_required")}</Label>
               <Select
                 options={categories}
                 onChange={(value) => handleChange("product_categories_id", value)}
                 value={formData.product_categories_id}
-                placeholder="Выберите категорию"
+                placeholder={t("settings_tariffs.select_category")}
               />
             </div>
 
             <div>
-              <Label>Партнер *</Label>
+              <Label>{t("settings_tariffs.merchant_required")}</Label>
               <Select
                 options={merchants}
                 onChange={(value) => handleChange("merchants_id", value)}
                 value={formData.merchants_id}
-                placeholder="Выберите партнера"
+                placeholder={t("settings_tariffs.select_merchant")}
               />
             </div>
 
             <div>
-              <Label>Статус</Label>
+              <Label>{t("settings_tariffs.status")}</Label>
               <Select
                 options={statusOptions}
                 onChange={(value) => handleChange("status", [value])}
                 value={formData.status[0]}
-                placeholder="Выберите статус"
+                placeholder={t("settings_tariffs.select_status")}
               />
             </div>
 
@@ -243,10 +245,10 @@ export default function TariffForm() {
                 disabled={isLoading}
                 type="button"
               >
-                Отмена
+                {t("settings_tariffs.cancel")}
               </Button>
               <Button size="sm" type="submit" disabled={isLoading}>
-                {isLoading ? "Сохранение..." : isEditMode ? "Сохранить" : "Создать"}
+                {isLoading ? t("settings_tariffs.saving") : isEditMode ? t("settings_tariffs.save") : t("settings_tariffs.create")}
               </Button>
             </div>
           </form>

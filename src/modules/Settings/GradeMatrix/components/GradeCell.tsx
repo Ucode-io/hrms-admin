@@ -3,6 +3,7 @@ import { ArrowUpRight, Plus } from "lucide-react";
 import PickerMenu from "./PickerMenu";
 import { DATA_CELL } from "../constants";
 import type { MatrixCell, MatrixLevel, MatrixRef } from "../types";
+import { useTranslation } from "../../../../i18n";
 
 interface GradeCellProps {
   cell: MatrixCell | null;
@@ -29,6 +30,7 @@ export default function GradeCell({
   onSelect,
   disabled = false,
 }: GradeCellProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -50,7 +52,7 @@ export default function GradeCell({
         className={`dropdown-toggle flex h-8 w-full items-center justify-center rounded-lg text-sm font-semibold transition hover:bg-gray-50 disabled:cursor-not-allowed ${
           isOpen ? "ring-2 ring-brand-300" : ""
         } ${cell ? "" : "text-transparent hover:text-gray-300"}`}
-        aria-label="Выбрать грейд"
+        aria-label={t("settings_grade_matrix.grade_cell.select_aria")}
       >
         {/* Бейдж по размеру содержимого, а не во всю ячейку: полоса-подложка на
             каждом пересечении превращает таблицу в сплошную заливку. */}
@@ -67,7 +69,7 @@ export default function GradeCell({
           // Справочник почистили, а ячейка осталась — молча показать «пусто»
           // значило бы спрятать заполненный грейд.
           <span className="rounded-md border border-dashed border-amber-300 px-2 py-0.5 text-xs text-amber-600">
-            удалён
+            {t("settings_grade_matrix.grade_cell.deleted_label")}
           </span>
         ) : (
           <Plus size={14} />
@@ -81,12 +83,12 @@ export default function GradeCell({
         groups={[
           {
             key: "level",
-            label: "Уровни опыта",
+            label: t("settings_grade_matrix.grade_cell.levels_group"),
             items: levels.map((item) => ({ id: item.id, title: item.title })),
           },
           {
             key: "position",
-            label: "Переход на должность",
+            label: t("settings_grade_matrix.grade_cell.position_group"),
             tone: "amber",
             items: positions.map((item) => ({ id: item.id, title: item.title })),
           },

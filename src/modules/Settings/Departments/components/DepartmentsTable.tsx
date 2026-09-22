@@ -11,6 +11,7 @@ import { Dropdown } from "../../../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../../../components/ui/dropdown/DropdownItem";
 import type { Department } from "../../../../api/services/department.service";
 import type { FlattenedTreeRow } from "../types";
+import { useTranslation } from "../../../../i18n";
 
 interface DepartmentsTableProps {
   isLoading: boolean;
@@ -41,19 +42,20 @@ export default function DepartmentsTable({
   onDelete,
   getLeaderName,
 }: DepartmentsTableProps) {
+  const { t } = useTranslation();
   return (
     <div className="max-w-full overflow-x-auto border-t border-gray-100">
       <Table>
         <TableHeader className="border-b border-gray-100">
           <TableRow>
             <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-              Название
+              {t("settings_departments.table.column_title")}
             </TableCell>
             <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-              Руководитель
+              {t("settings_departments.table.column_leader")}
             </TableCell>
             <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-              Действия
+              {t("settings_departments.table.column_actions")}
             </TableCell>
           </TableRow>
         </TableHeader>
@@ -76,7 +78,7 @@ export default function DepartmentsTable({
           ) : flattenedRows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={3} className="px-4 py-10 text-center text-sm text-gray-500">
-                Департаменты не найдены
+                {t("settings_departments.table.empty")}
               </TableCell>
             </TableRow>
           ) : (
@@ -96,7 +98,7 @@ export default function DepartmentsTable({
                           type="button"
                           onClick={() => onToggleNode(department.guid)}
                           className="rounded-md p-0.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                          aria-label={isExpanded ? "Свернуть" : "Развернуть"}
+                          aria-label={isExpanded ? t("settings_departments.table.collapse_aria") : t("settings_departments.table.expand_aria")}
                         >
                           {isExpanded || debouncedSearch ? (
                             <ChevronDown size={16} />
@@ -108,7 +110,7 @@ export default function DepartmentsTable({
                         <span className="inline-block h-4 w-4" />
                       )}
 
-                      <span>{String(department.title || "Без названия")}</span>
+                      <span>{String(department.title || t("settings_departments.table.untitled"))}</span>
                     </div>
                   </TableCell>
 
@@ -122,7 +124,7 @@ export default function DepartmentsTable({
                         type="button"
                         onClick={() => onToggleActionsMenu(department.guid)}
                         className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                        aria-label="Открыть действия"
+                        aria-label={t("settings_departments.table.open_actions_aria")}
                         ref={(el) => {
                           actionButtonRefs.current[department.guid] = el;
                         }}
@@ -141,13 +143,13 @@ export default function DepartmentsTable({
                           onClick={() => onEdit(department)}
                           className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                         >
-                          Изменить
+                          {t("settings_departments.table.edit_action")}
                         </DropdownItem>
                         <DropdownItem
                           onClick={() => onDelete(department)}
                           className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                         >
-                          Удалить
+                          {t("settings_departments.table.delete_action")}
                         </DropdownItem>
                       </Dropdown>
                     </div>

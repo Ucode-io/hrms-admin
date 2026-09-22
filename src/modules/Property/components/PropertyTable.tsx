@@ -1,6 +1,7 @@
 import { ArrowLeftRight, Pencil, Trash2 } from "lucide-react";
 import { formatCurrency, type PropertyItem } from "../types";
 import StatusBadge from "./StatusBadge";
+import { useTranslation } from "../../../i18n";
 
 interface PropertyTableProps {
   items: PropertyItem[];
@@ -18,25 +19,25 @@ const getInitials = (name: string): string =>
     .slice(0, 2)
     .toUpperCase();
 
-export default function PropertyTable({
-  items,
+export default function PropertyTable({ items,
   onOpenDetail,
   onEdit,
   onMovement,
   onDelete,
 }: PropertyTableProps) {
+  const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[920px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-100 text-xs font-medium uppercase tracking-wide text-gray-400">
-            <th className="px-5 py-3">Наименование</th>
-            <th className="px-5 py-3">Категория</th>
-            <th className="px-5 py-3">Серийный номер</th>
-            <th className="px-5 py-3">Стоимость</th>
-            <th className="px-5 py-3">Назначено</th>
-            <th className="px-5 py-3">Статус</th>
-            <th className="px-5 py-3 text-right">Действия</th>
+            <th className="px-5 py-3">{t("property.table.name")}</th>
+            <th className="px-5 py-3">{t("property.table.category")}</th>
+            <th className="px-5 py-3">{t("property.table.serial")}</th>
+            <th className="px-5 py-3">{t("property.table.cost")}</th>
+            <th className="px-5 py-3">{t("property.table.assigned")}</th>
+            <th className="px-5 py-3">{t("property.table.status")}</th>
+            <th className="px-5 py-3 text-right">{t("property.table.actions")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -96,8 +97,8 @@ export default function PropertyTable({
                       onMovement(item);
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-brand-50 hover:text-brand-600"
-                    aria-label="Движение"
-                    title="Движение (статус, назначение)"
+                    aria-label={t("property.movement.action")}
+                    title={t("property.movement.action_title")}
                   >
                     <ArrowLeftRight size={15} />
                   </button>
@@ -108,8 +109,8 @@ export default function PropertyTable({
                       onEdit(item);
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-                    aria-label="Редактировать"
-                    title="Редактировать"
+                    aria-label={t("common.edit_action")}
+                    title={t("common.edit_action")}
                   >
                     <Pencil size={15} />
                   </button>
@@ -120,8 +121,8 @@ export default function PropertyTable({
                       onDelete(item);
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-600"
-                    aria-label="Удалить"
-                    title="Удалить"
+                    aria-label={t("common.delete")}
+                    title={t("common.delete")}
                   >
                     <Trash2 size={15} />
                   </button>

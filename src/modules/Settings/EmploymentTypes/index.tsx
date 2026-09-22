@@ -33,6 +33,7 @@ import {
   useEmploymentTypesQuery,
   useUpdateEmploymentType,
 } from "../../../api/services/employmentType.service";
+import { useTranslation } from "../../../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -44,6 +45,7 @@ const resolveEmployeesCount = (employmentType: EmploymentType): number => {
 };
 
 export default function EmploymentTypesSettingsPage() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -115,7 +117,7 @@ export default function EmploymentTypesSettingsPage() {
     const title = employmentTypeTitle.trim();
 
     if (!title) {
-      toast.error("Название вида занятости обязательно.");
+      toast.error(t("settings_misc.employment_types.title_required"));
       return;
     }
 
@@ -128,16 +130,16 @@ export default function EmploymentTypesSettingsPage() {
             title,
           },
         });
-        toast.success("Вид занятости успешно обновлен.");
+        toast.success(t("settings_misc.employment_types.update_success"));
       } else {
         await createMutation.mutateAsync({ title });
-        toast.success("Вид занятости успешно создан.");
+        toast.success(t("settings_misc.employment_types.create_success"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error("Failed to save employment type:", error);
-      toast.error("Не удалось сохранить вид занятости. Попробуйте еще раз.");
+      toast.error(t("settings_misc.employment_types.save_error"));
     }
   };
 
@@ -157,11 +159,11 @@ export default function EmploymentTypesSettingsPage() {
 
     try {
       await deleteMutation.mutateAsync(employmentTypeToDelete.guid);
-      toast.success("Вид занятости удален.");
+      toast.success(t("settings_misc.employment_types.delete_success"));
       closeDeleteModal();
     } catch (error) {
       console.error("Failed to delete employment type:", error);
-      toast.error("Не удалось удалить вид занятости.");
+      toast.error(t("settings_misc.employment_types.delete_error"));
     }
   };
 
@@ -173,22 +175,22 @@ export default function EmploymentTypesSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Виды занятости | Настройки" description="Список видов занятости компании" />
+      <PageMeta title={t("settings_misc.employment_types.page_title")} description={t("settings_misc.employment_types.page_description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Виды занятости</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_misc.employment_types.heading")}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-11"
               startIcon={<Download size={16} />}
-              onClick={() => toast.info("Экспорт будет доступен позже.")}
+              onClick={() => toast.info(t("settings_misc.employment_types.export_soon"))}
             >
-              Экспорт
+              {t("settings_misc.employment_types.export")}
             </Button>
             <Button className="h-11" startIcon={<Plus size={16} />} onClick={openCreateModal}>
-              Новый
+              {t("settings_misc.employment_types.new")}
             </Button>
           </div>
         </div>
@@ -204,7 +206,7 @@ export default function EmploymentTypesSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_misc.employment_types.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -215,13 +217,13 @@ export default function EmploymentTypesSettingsPage() {
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_misc.employment_types.col_title")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Сотрудники
+                    {t("settings_misc.employment_types.col_employees")}
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_misc.employment_types.col_actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -244,14 +246,14 @@ export default function EmploymentTypesSettingsPage() {
                 ) : employmentTypes.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Виды занятости не найдены
+                      {t("settings_misc.employment_types.empty_state")}
                     </TableCell>
                   </TableRow>
                 ) : (
                   employmentTypes.map((employmentType) => (
                     <TableRow key={employmentType.guid} className="hover:bg-gray-50 transition-colors">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(employmentType.title || "Без названия")}
+                        {String(employmentType.title || t("settings_misc.employment_types.untitled"))}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-right text-sm text-gray-700">
                         {resolveEmployeesCount(employmentType)}
@@ -262,7 +264,7 @@ export default function EmploymentTypesSettingsPage() {
                             type="button"
                             onClick={() => toggleActionsMenu(employmentType.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Открыть действия"
+                            aria-label={t("settings_misc.employment_types.open_actions")}
                             ref={(el) => {
                               actionButtonRefs.current[employmentType.guid] = el;
                             }}
@@ -281,13 +283,13 @@ export default function EmploymentTypesSettingsPage() {
                               onClick={() => openEditModal(employmentType)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
-                              Изменить
+                              {t("settings_misc.employment_types.edit")}
                             </DropdownItem>
                             <DropdownItem
                               onClick={() => openDeleteModal(employmentType)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
-                              Удалить
+                              {t("settings_misc.employment_types.delete")}
                             </DropdownItem>
                           </Dropdown>
                         </div>
@@ -317,13 +319,13 @@ export default function EmploymentTypesSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingEmploymentType ? "Изменить вид занятости" : "Новый вид занятости"}
+            {editingEmploymentType ? t("settings_misc.employment_types.modal_edit_title") : t("settings_misc.employment_types.modal_create_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_misc.employment_types.close")}
           >
             <X size={18} />
           </button>
@@ -331,13 +333,13 @@ export default function EmploymentTypesSettingsPage() {
 
         <div className="space-y-3 px-4 py-4">
           <label htmlFor="employment-type-title" className="block text-sm font-medium text-gray-700">
-            Название
+            {t("settings_misc.employment_types.col_title")}
           </label>
           <input
             id="employment-type-title"
             value={employmentTypeTitle}
             onChange={(event) => setEmploymentTypeTitle(event.target.value)}
-            placeholder="Введите название вида занятости"
+            placeholder={t("settings_misc.employment_types.title_placeholder")}
             autoFocus
             className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
@@ -349,10 +351,10 @@ export default function EmploymentTypesSettingsPage() {
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_misc.employment_types.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_misc.employment_types.saving") : t("settings_misc.employment_types.save")}
           </Button>
         </div>
       </Modal>
@@ -365,12 +367,12 @@ export default function EmploymentTypesSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить вид занятости</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_misc.employment_types.modal_delete_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_misc.employment_types.close")}
             >
               <X size={16} />
             </button>
@@ -379,12 +381,12 @@ export default function EmploymentTypesSettingsPage() {
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Это действие нельзя отменить.
+            {t("settings_misc.employment_types.delete_irreversible")}
           </p>
           <p className="text-sm text-gray-700">
             {employmentTypeToDelete
-              ? `Вы уверены, что хотите удалить "${String(employmentTypeToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить этот вид занятости?"}
+              ? t("settings_misc.employment_types.delete_confirm_named", { title: String(employmentTypeToDelete.title) })
+              : t("settings_misc.employment_types.delete_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -393,14 +395,14 @@ export default function EmploymentTypesSettingsPage() {
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_misc.employment_types.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_misc.employment_types.deleting") : t("settings_misc.employment_types.delete")}
             </Button>
           </div>
         </div>

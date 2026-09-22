@@ -78,6 +78,7 @@ import reportsService, {
   type KpiTableGroup,
   type KpiTableItem,
 } from "../../api/services/reports.service";
+import { useTranslation } from "../../i18n";
 
 registerLocale("ru", ru);
 
@@ -1250,6 +1251,7 @@ function SortableKpiRow({
   className?: string;
   children: (handle: DragHandleProps) => ReactNode;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
     id,
     data: { type: "item", position },

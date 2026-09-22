@@ -1,13 +1,15 @@
 import SimpleDirectorySettingsPage from "../components/SimpleDirectorySettingsPage";
+import { useTranslation } from "../../../i18n";
 
 export default function ProbationPoliciesSettingsPage() {
+  const { t } = useTranslation();
   return (
     <SimpleDirectorySettingsPage
       slug="probation_policies"
-      metaTitle="Политики испытательного срока | Настройки"
-      pageTitle="Политики испытательного срока"
-      pageDescription="Список политик испытательного срока"
-      emptyText="Политики испытательного срока не найдены"
+      metaTitle={t("settings_pages.probation_policies.meta_title")}
+      pageTitle={t("settings_pages.probation_policies.title")}
+      pageDescription={t("settings_pages.probation_policies.description")}
+      emptyText={t("settings_pages.probation_policies.empty")}
       includeDuration
     />
   );

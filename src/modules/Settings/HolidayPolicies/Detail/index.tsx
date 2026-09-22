@@ -24,6 +24,8 @@ import {
   useUpdateHolidayPolicy,
   useUpdateHolidayPolicyDay,
 } from "../../../../api/services/holidayPolicy.service";
+import { useTranslation } from "../../../../i18n";
+import type { MessageKey } from "../../../../i18n/messages";
 
 type CalendarCell = {
   key: string;
@@ -31,22 +33,30 @@ type CalendarCell = {
   dateKey: string | null;
 };
 
-const MONTH_NAMES = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
+const MONTH_NAME_KEYS: MessageKey[] = [
+  "settings_holiday_policies.month_january",
+  "settings_holiday_policies.month_february",
+  "settings_holiday_policies.month_march",
+  "settings_holiday_policies.month_april",
+  "settings_holiday_policies.month_may",
+  "settings_holiday_policies.month_june",
+  "settings_holiday_policies.month_july",
+  "settings_holiday_policies.month_august",
+  "settings_holiday_policies.month_september",
+  "settings_holiday_policies.month_october",
+  "settings_holiday_policies.month_november",
+  "settings_holiday_policies.month_december",
 ];
 
-const WEEKDAY_SHORT_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const WEEKDAY_SHORT_KEYS: MessageKey[] = [
+  "settings_holiday_policies.weekday_mon",
+  "settings_holiday_policies.weekday_tue",
+  "settings_holiday_policies.weekday_wed",
+  "settings_holiday_policies.weekday_thu",
+  "settings_holiday_policies.weekday_fri",
+  "settings_holiday_policies.weekday_sat",
+  "settings_holiday_policies.weekday_sun",
+];
 
 const pad = (value: number): string => String(value).padStart(2, "0");
 
@@ -107,6 +117,7 @@ const resolveHolidayTypeClassName = (holiday: HolidayPolicyDay): string => {
 };
 
 export default function HolidayPolicyDetailPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const policyGuid = String(id || "");
@@ -202,12 +213,12 @@ export default function HolidayPolicyDetailPage() {
     const preparedDate = holidayDate.trim();
 
     if (!preparedTitle) {
-      toast.error("Название обязательно.");
+      toast.error(t("settings_holiday_policies.title_required"));
       return;
     }
 
     if (!preparedDate) {
-      toast.error("Дата обязательна.");
+      toast.error(t("settings_holiday_policies.date_required"));
       return;
     }
 
@@ -230,15 +241,15 @@ export default function HolidayPolicyDetailPage() {
             ...payload,
           },
         });
-        toast.success("Праздник обновлен.");
+        toast.success(t("settings_holiday_policies.holiday_updated"));
       } else {
         await createDayMutation.mutateAsync(payload);
-        toast.success("Праздник добавлен.");
+        toast.success(t("settings_holiday_policies.holiday_added"));
       }
       closeHolidayModal();
     } catch (error) {
       console.error("Failed to save holiday day:", error);
-      toast.error("Не удалось сохранить праздник.");
+      toast.error(t("settings_holiday_policies.holiday_save_error"));
     }
   };
 
@@ -250,11 +261,11 @@ export default function HolidayPolicyDetailPage() {
         guid: editingHoliday.guid,
         policyGuid,
       });
-      toast.success("Праздник удален.");
+      toast.success(t("settings_holiday_policies.holiday_deleted"));
       closeHolidayModal();
     } catch (error) {
       console.error("Failed to delete holiday day:", error);
-      toast.error("Не удалось удалить праздник.");
+      toast.error(t("settings_holiday_policies.holiday_delete_error"));
     }
   };
 
@@ -275,7 +286,7 @@ export default function HolidayPolicyDetailPage() {
     const preparedTitle = policyTitle.trim();
 
     if (!preparedTitle) {
-      toast.error("Название обязательно.");
+      toast.error(t("settings_holiday_policies.title_required"));
       return;
     }
 
@@ -287,11 +298,11 @@ export default function HolidayPolicyDetailPage() {
           title: preparedTitle,
         },
       });
-      toast.success("Политика обновлена.");
+      toast.success(t("settings_holiday_policies.policy_updated"));
       closePolicyEditModal();
     } catch (error) {
       console.error("Failed to update holiday policy:", error);
-      toast.error("Не удалось обновить политику.");
+      toast.error(t("settings_holiday_policies.policy_update_error"));
     }
   };
 
@@ -300,11 +311,11 @@ export default function HolidayPolicyDetailPage() {
 
     try {
       await deletePolicyMutation.mutateAsync(policy.guid);
-      toast.success("Политика удалена.");
+      toast.success(t("settings_holiday_policies.policy_deleted"));
       navigate("/settings/holiday-policies");
     } catch (error) {
       console.error("Failed to delete holiday policy:", error);
-      toast.error("Не удалось удалить политику.");
+      toast.error(t("settings_holiday_policies.policy_delete_error"));
     }
   };
 
@@ -324,16 +335,16 @@ export default function HolidayPolicyDetailPage() {
   if (!policyGuid) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
-        Идентификатор политики не указан.
+        {t("settings_holiday_policies.policy_id_missing")}
       </div>
     );
   }
 
-  const policyTitleText = String(policy?.title || "Политика праздников");
+  const policyTitleText = String(policy?.title || t("settings_holiday_policies.policy_default_title"));
 
   return (
     <>
-      <PageMeta title="Политика праздников | Настройки" description="Календарь праздничных дней" />
+      <PageMeta title={t("settings_holiday_policies.page_title")} description={t("settings_holiday_policies.page_description")} />
 
       <div className="space-y-4">
         {isPolicyLoading ? (
@@ -355,7 +366,7 @@ export default function HolidayPolicyDetailPage() {
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
               onClick={() => setCurrentYear((prev) => prev - 1)}
-              aria-label="Предыдущий год"
+              aria-label={t("settings_holiday_policies.prev_year")}
             >
               <ChevronLeft size={16} />
             </button>
@@ -370,7 +381,7 @@ export default function HolidayPolicyDetailPage() {
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition hover:bg-gray-100"
               onClick={() => setCurrentYear((prev) => prev + 1)}
-              aria-label="Следующий год"
+              aria-label={t("settings_holiday_policies.next_year")}
             >
               <ChevronRight size={16} />
             </button>
@@ -383,7 +394,7 @@ export default function HolidayPolicyDetailPage() {
                 className="dropdown-toggle inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-100"
                 onClick={() => setIsActionsMenuOpen((prev) => !prev)}
                 ref={actionButtonRef}
-                aria-label="Действия политики"
+                aria-label={t("settings_holiday_policies.policy_actions")}
               >
                 <MoreHorizontal size={18} />
               </button>
@@ -398,7 +409,7 @@ export default function HolidayPolicyDetailPage() {
                   onClick={openPolicyEditModal}
                   className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                 >
-                  Изменить политику
+                  {t("settings_holiday_policies.edit_policy")}
                 </DropdownItem>
                 <DropdownItem
                   onClick={() => {
@@ -407,19 +418,20 @@ export default function HolidayPolicyDetailPage() {
                   }}
                   className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                 >
-                  Удалить политику
+                  {t("settings_holiday_policies.delete_policy")}
                 </DropdownItem>
               </Dropdown>
             </div>
 
             <Button className="h-10" startIcon={<Plus size={16} />} onClick={() => openCreateHolidayModal()}>
-              Новый праздник
+              {t("settings_holiday_policies.new_holiday")}
             </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          {MONTH_NAMES.map((monthLabel, monthIndex) => {
+          {MONTH_NAME_KEYS.map((monthKey, monthIndex) => {
+            const monthLabel = t(monthKey);
             const cells = buildMonthCells(currentYear, monthIndex);
             return (
               <div
@@ -429,12 +441,12 @@ export default function HolidayPolicyDetailPage() {
                 <h3 className="mb-3 text-center text-xl font-semibold text-gray-900">{monthLabel}</h3>
 
                 <div className="mb-2 grid grid-cols-7 gap-1">
-                  {WEEKDAY_SHORT_NAMES.map((dayLabel) => (
+                  {WEEKDAY_SHORT_KEYS.map((dayKey) => (
                     <div
-                      key={`${monthLabel}-${dayLabel}`}
+                      key={`${monthKey}-${dayKey}`}
                       className="py-1 text-center text-sm font-semibold text-gray-600"
                     >
-                      {dayLabel}
+                      {t(dayKey)}
                     </div>
                   ))}
                 </div>
@@ -459,7 +471,7 @@ export default function HolidayPolicyDetailPage() {
                             ? resolveHolidayTypeClassName(holiday as HolidayPolicyDay)
                             : "border-transparent text-gray-700 hover:border-gray-200 hover:bg-gray-50",
                         ].join(" ")}
-                        title={holiday ? String(holiday.title || "Праздник") : "Добавить праздник"}
+                        title={holiday ? String(holiday.title || t("settings_holiday_policies.holiday_default_title")) : t("settings_holiday_policies.add_holiday")}
                       >
                         {cell.day}
                       </button>
@@ -473,22 +485,22 @@ export default function HolidayPolicyDetailPage() {
 
         {isPolicyDaysLoading ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-500">
-            Загрузка праздников...
+            {t("settings_holiday_policies.loading_holidays")}
           </div>
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white px-4 py-2">
             <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
               <span className="inline-flex items-center gap-2">
                 <span className="h-3 w-3 rounded-sm border border-[#86EFAC] bg-[#DCFCE7]" />
-                Нерабочие праздники
+                {t("settings_holiday_policies.non_working_holidays")}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span className="h-3 w-3 rounded-sm border border-[#FCD34D] bg-[#FEF9C3]" />
-                Рабочие праздники
+                {t("settings_holiday_policies.working_holidays")}
               </span>
               <span className="inline-flex items-center gap-2">
                 <span className="h-3 w-3 rounded-sm border border-[#93C5FD] bg-[#DBEAFE]" />
-                Дни отработок
+                {t("settings_holiday_policies.workday_transfers")}
               </span>
             </div>
           </div>
@@ -503,13 +515,13 @@ export default function HolidayPolicyDetailPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-2xl font-semibold text-gray-900">
-            {editingHoliday ? "Изменить праздник" : "Добавить праздник"}
+            {editingHoliday ? t("settings_holiday_policies.edit_holiday") : t("settings_holiday_policies.add_holiday")}
           </h3>
           <button
             type="button"
             onClick={closeHolidayModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_holiday_policies.close")}
           >
             <X size={22} />
           </button>
@@ -523,18 +535,18 @@ export default function HolidayPolicyDetailPage() {
               onChange={(event) => setIsWorkingHoliday(event.target.checked)}
               className="h-5 w-5 rounded border-gray-300 text-brand-600 focus:ring-brand-500/30"
             />
-            Рабочий праздник
+            {t("settings_holiday_policies.working_holiday_checkbox")}
           </label>
 
           <div className="space-y-2">
             <label htmlFor="holiday-title" className="block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_holiday_policies.title")}
             </label>
             <input
               id="holiday-title"
               value={holidayTitle}
               onChange={(event) => setHolidayTitle(event.target.value)}
-              placeholder="Введите название"
+              placeholder={t("settings_holiday_policies.enter_title")}
               className="h-11 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               autoFocus
             />
@@ -542,7 +554,7 @@ export default function HolidayPolicyDetailPage() {
 
           <div className="space-y-2">
             <label htmlFor="holiday-date" className="block text-sm font-medium text-gray-700">
-              Дата
+              {t("settings_holiday_policies.date")}
             </label>
             <DateInput
               id="holiday-date"
@@ -560,7 +572,7 @@ export default function HolidayPolicyDetailPage() {
                 onChange={(event) => setIsWeekendTransfer(event.target.checked)}
                 className="h-5 w-5 rounded border-gray-300 text-brand-600 focus:ring-brand-500/30"
               />
-              Перенос выходного дня
+              {t("settings_holiday_policies.weekend_transfer_checkbox")}
             </label>
 
             <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -570,7 +582,7 @@ export default function HolidayPolicyDetailPage() {
                 onChange={(event) => setIsWorkdayTransfer(event.target.checked)}
                 className="h-5 w-5 rounded border-gray-300 text-brand-600 focus:ring-brand-500/30"
               />
-              Перенос рабочего дня
+              {t("settings_holiday_policies.workday_transfer_checkbox")}
             </label>
           </div>
         </div>
@@ -584,17 +596,17 @@ export default function HolidayPolicyDetailPage() {
                 onClick={handleHolidayDelete}
                 disabled={isHolidaySaving}
               >
-                Удалить
+                {t("settings_holiday_policies.delete")}
               </Button>
             ) : null}
           </div>
 
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={closeHolidayModal} className="min-w-[96px] px-3 py-2 text-sm">
-              Отмена
+              {t("settings_holiday_policies.cancel")}
             </Button>
             <Button onClick={handleHolidaySubmit} disabled={isHolidaySaving} className="min-w-[110px] px-3 py-2 text-sm">
-              {isHolidaySaving ? "Сохранение..." : "Сохранить"}
+              {isHolidaySaving ? t("settings_holiday_policies.saving") : t("settings_holiday_policies.save")}
             </Button>
           </div>
         </div>
@@ -607,12 +619,12 @@ export default function HolidayPolicyDetailPage() {
         className="mx-4 w-full max-w-[620px] overflow-hidden rounded-2xl border border-gray-200 shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
-          <h3 className="text-xl font-semibold text-gray-900">Изменить политику праздников</h3>
+          <h3 className="text-xl font-semibold text-gray-900">{t("settings_holiday_policies.edit_policy_title")}</h3>
           <button
             type="button"
             onClick={closePolicyEditModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_holiday_policies.close")}
           >
             <X size={18} />
           </button>
@@ -621,13 +633,13 @@ export default function HolidayPolicyDetailPage() {
         <div className="space-y-4 px-4 py-4">
           <div>
             <label htmlFor="policy-title" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_holiday_policies.title")}
             </label>
             <input
               id="policy-title"
               value={policyTitle}
               onChange={(event) => setPolicyTitle(event.target.value)}
-              placeholder="Введите название"
+              placeholder={t("settings_holiday_policies.enter_title")}
               className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
           </div>
@@ -635,10 +647,10 @@ export default function HolidayPolicyDetailPage() {
 
         <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3">
           <Button variant="outline" onClick={closePolicyEditModal} className="min-w-[96px] px-3 py-2 text-sm">
-            Отмена
+            {t("settings_holiday_policies.cancel")}
           </Button>
           <Button onClick={handlePolicySave} disabled={isPolicySaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isPolicySaving ? "Сохранение..." : "Сохранить"}
+            {isPolicySaving ? t("settings_holiday_policies.saving") : t("settings_holiday_policies.save")}
           </Button>
         </div>
       </Modal>
@@ -651,12 +663,12 @@ export default function HolidayPolicyDetailPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить политику</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_holiday_policies.delete_policy_title")}</h3>
             <button
               type="button"
               onClick={() => setIsPolicyDeleteModalOpen(false)}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_holiday_policies.close")}
             >
               <X size={16} />
             </button>
@@ -665,10 +677,10 @@ export default function HolidayPolicyDetailPage() {
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Это действие нельзя отменить.
+            {t("settings_holiday_policies.irreversible_action")}
           </p>
           <p className="text-sm text-gray-700">
-            {`Вы уверены, что хотите удалить "${policyTitleText}"?`}
+            {t("settings_holiday_policies.confirm_delete_policy", { name: policyTitleText })}
           </p>
 
           <div className="flex gap-2">
@@ -677,14 +689,14 @@ export default function HolidayPolicyDetailPage() {
               onClick={() => setIsPolicyDeleteModalOpen(false)}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_holiday_policies.cancel")}
             </Button>
             <Button
               onClick={handlePolicyDelete}
               disabled={deletePolicyMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deletePolicyMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deletePolicyMutation.isLoading ? t("settings_holiday_policies.deleting") : t("settings_holiday_policies.delete")}
             </Button>
           </div>
         </div>

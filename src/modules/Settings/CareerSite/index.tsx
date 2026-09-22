@@ -15,6 +15,7 @@ import {
   useSaveCareerSiteConfig,
 } from "../../../api/services/careerSiteSettings.service";
 import { useUploadFile } from "../../../api/services/file-upload.service";
+import { useTranslation } from "../../../i18n";
 
 type ImageField = "logo_url" | "favicon_url" | "bg_image_url";
 
@@ -65,6 +66,7 @@ const sanitizeSubdomain = (raw: string): string =>
     .replace(/^-+/, "");
 
 export default function CareerSiteSettingsPage() {
+  const { t } = useTranslation();
   const { data, isLoading, isError } = useCareerSiteConfigQuery();
   const saveMutation = useSaveCareerSiteConfig();
   const uploadMutation = useUploadFile({ folder: "Media" });
@@ -88,7 +90,7 @@ export default function CareerSiteSettingsPage() {
       updateField(field, url);
     } catch (error) {
       console.error("Upload failed:", error);
-      toast.error("Ошибка загрузки файла. Проверьте формат и попробуйте снова.");
+      toast.error(t("settings_misc.career_site.upload_error"));
     } finally {
       setUploadingField(null);
     }
@@ -98,7 +100,7 @@ export default function CareerSiteSettingsPage() {
     if (!form) return;
 
     if (form.enabled && !form.subdomain.trim()) {
-      toast.error("Укажите поддомен, чтобы включить карьерный сайт.");
+      toast.error(t("settings_misc.career_site.subdomain_required"));
       return;
     }
 
@@ -110,13 +112,13 @@ export default function CareerSiteSettingsPage() {
         contact_email: form.contact_email.trim(),
         website_url: form.website_url.trim(),
       });
-      toast.success("Настройки карьерного сайта сохранены.");
+      toast.success(t("settings_misc.career_site.save_success"));
     } catch (error) {
       console.error("Save career site settings failed:", error);
       const message =
         error instanceof Error && error.message
           ? error.message
-          : "Не удалось сохранить настройки. Попробуйте ещё раз.";
+          : t("settings_misc.career_site.save_error");
       toast.error(message);
     }
   };
@@ -124,9 +126,9 @@ export default function CareerSiteSettingsPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Карьерный сайт | HRMS" description="Настройки карьерного сайта" />
+        <PageMeta title={t("settings_misc.career_site.page_title")} description={t("settings_misc.career_site.page_description")} />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-5 text-sm text-error-700">
-          Не удалось загрузить настройки карьерного сайта. Обновите страницу и попробуйте снова.
+          {t("settings_misc.career_site.load_error")}
         </div>
       </>
     );
@@ -135,7 +137,7 @@ export default function CareerSiteSettingsPage() {
   if (isLoading || !form) {
     return (
       <>
-        <PageMeta title="Карьерный сайт | HRMS" description="Настройки карьерного сайта" />
+        <PageMeta title={t("settings_misc.career_site.page_title")} description={t("settings_misc.career_site.page_description")} />
         <div className="flex min-h-[360px] items-center justify-center">
           <Spinner />
         </div>
@@ -149,13 +151,13 @@ export default function CareerSiteSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Карьерный сайт | HRMS" description="Настройки карьерного сайта" />
+      <PageMeta title={t("settings_misc.career_site.page_title")} description={t("settings_misc.career_site.page_description")} />
 
       <div className="space-y-6">
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold text-gray-900">Карьерный сайт</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_misc.career_site.heading")}</h1>
           <p className="text-sm text-gray-500">
-            Публичная страница вакансий вашей компании на собственном поддомене.
+            {t("settings_misc.career_site.subheading")}
           </p>
         </div>
 
@@ -164,22 +166,22 @@ export default function CareerSiteSettingsPage() {
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-5 md:p-6">
               <div>
-                <p className="text-base font-semibold text-gray-900">Карьерный сайт</p>
+                <p className="text-base font-semibold text-gray-900">{t("settings_misc.career_site.heading")}</p>
                 <p className="text-sm text-gray-500">
                   {form.enabled
-                    ? "Сайт опубликован и доступен по адресу ниже."
-                    : "Сайт выключен и недоступен для посетителей."}
+                    ? t("settings_misc.career_site.status_enabled_hint")
+                    : t("settings_misc.career_site.status_disabled_hint")}
                 </p>
               </div>
               <Switch
-                label={form.enabled ? "Включён" : "Выключен"}
+                label={form.enabled ? t("settings_misc.career_site.switch_on") : t("settings_misc.career_site.switch_off")}
                 defaultChecked={form.enabled}
                 onChange={(checked) => updateField("enabled", checked)}
               />
             </div>
 
             <div className="p-5 md:p-6">
-              <Label htmlFor="subdomain">Поддомен</Label>
+              <Label htmlFor="subdomain">{t("settings_misc.career_site.subdomain_label")}</Label>
               <div className="flex items-stretch">
                 <input
                   id="subdomain"
@@ -195,7 +197,7 @@ export default function CareerSiteSettingsPage() {
                 </span>
               </div>
               <p className="mt-2 text-xs text-gray-500">
-                Латинские буквы, цифры и дефис (3–63 символа). Адрес сайта:{" "}
+                {t("settings_misc.career_site.subdomain_rules_hint")}{" "}
                 <span className="font-medium text-gray-700">https://{fullUrl}</span>
               </p>
             </div>
@@ -204,22 +206,22 @@ export default function CareerSiteSettingsPage() {
 
         {/* Branding */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Оформление</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">{t("settings_misc.career_site.branding_heading")}</h2>
           <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
             <div>
-              <Label htmlFor="title">Заголовок сайта</Label>
+              <Label htmlFor="title">{t("settings_misc.career_site.title_label")}</Label>
               <Input
                 id="title"
                 value={form.title}
                 onChange={(event) => updateField("title", event.target.value)}
               />
               <p className="mt-1.5 text-xs text-gray-500">
-                Название вкладки браузера и заголовок страницы.
+                {t("settings_misc.career_site.title_hint")}
               </p>
             </div>
 
             <div>
-              <Label htmlFor="description">Описание</Label>
+              <Label htmlFor="description">{t("settings_misc.career_site.description_label")}</Label>
               <textarea
                 id="description"
                 value={form.description}
@@ -228,26 +230,26 @@ export default function CareerSiteSettingsPage() {
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
               <p className="mt-1.5 text-xs text-gray-500">
-                Краткое описание для поисковых систем (meta description).
+                {t("settings_misc.career_site.description_hint")}
               </p>
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
               <ColorField
-                label="Основной цвет"
+                label={t("settings_misc.career_site.main_color_label")}
                 value={form.main_color}
                 onChange={(value) => updateField("main_color", value)}
               />
               <ColorField
-                label="Акцентный цвет"
+                label={t("settings_misc.career_site.accent_color_label")}
                 value={form.accent_color}
                 onChange={(value) => updateField("accent_color", value)}
               />
             </div>
 
             <ImageField
-              label="Логотип"
-              hint="Отображается в шапке сайта. .svg, .png или .jpg"
+              label={t("settings_misc.career_site.logo_label")}
+              hint={t("settings_misc.career_site.logo_hint")}
               value={form.logo_url}
               uploading={uploadingField === "logo_url"}
               onSelect={(file) => handleImageUpload("logo_url", file)}
@@ -255,8 +257,8 @@ export default function CareerSiteSettingsPage() {
             />
 
             <ImageField
-              label="Фавикон"
-              hint="Иконка вкладки браузера. Квадратное изображение .png или .svg"
+              label={t("settings_misc.career_site.favicon_label")}
+              hint={t("settings_misc.career_site.favicon_hint")}
               value={form.favicon_url}
               uploading={uploadingField === "favicon_url"}
               onSelect={(file) => handleImageUpload("favicon_url", file)}
@@ -264,8 +266,8 @@ export default function CareerSiteSettingsPage() {
             />
 
             <ImageField
-              label="Фоновое изображение"
-              hint="Большая обложка в шапке. Рекомендуется 1920 × 800 px"
+              label={t("settings_misc.career_site.bg_image_label")}
+              hint={t("settings_misc.career_site.bg_image_hint")}
               value={form.bg_image_url}
               uploading={uploadingField === "bg_image_url"}
               onSelect={(file) => handleImageUpload("bg_image_url", file)}
@@ -276,19 +278,19 @@ export default function CareerSiteSettingsPage() {
 
         {/* Hero + content */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Главный экран</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">{t("settings_misc.career_site.hero_heading")}</h2>
           <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
             <div>
-              <Label htmlFor="hero_headline">Заголовок на обложке</Label>
+              <Label htmlFor="hero_headline">{t("settings_misc.career_site.hero_headline_label")}</Label>
               <Input
                 id="hero_headline"
                 value={form.hero_headline}
                 onChange={(event) => updateField("hero_headline", event.target.value)}
-                placeholder="Присоединяйтесь к нашей команде"
+                placeholder={t("settings_misc.career_site.hero_headline_placeholder")}
               />
             </div>
             <div>
-              <Label htmlFor="hero_subtitle">Подзаголовок</Label>
+              <Label htmlFor="hero_subtitle">{t("settings_misc.career_site.hero_subtitle_label")}</Label>
               <textarea
                 id="hero_subtitle"
                 value={form.hero_subtitle}
@@ -298,7 +300,7 @@ export default function CareerSiteSettingsPage() {
               />
             </div>
             <div>
-              <Label htmlFor="about_text">О компании</Label>
+              <Label htmlFor="about_text">{t("settings_misc.career_site.about_text_label")}</Label>
               <textarea
                 id="about_text"
                 value={form.about_text}
@@ -312,10 +314,10 @@ export default function CareerSiteSettingsPage() {
 
         {/* Contacts */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Контакты</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">{t("settings_misc.career_site.contacts_heading")}</h2>
           <div className="grid gap-5 rounded-2xl border border-gray-200 bg-white p-5 sm:grid-cols-2 md:p-6">
             <div>
-              <Label htmlFor="contact_email">E-mail для связи</Label>
+              <Label htmlFor="contact_email">{t("settings_misc.career_site.contact_email_label")}</Label>
               <Input
                 id="contact_email"
                 type="email"
@@ -325,7 +327,7 @@ export default function CareerSiteSettingsPage() {
               />
             </div>
             <div>
-              <Label htmlFor="website_url">Основной сайт</Label>
+              <Label htmlFor="website_url">{t("settings_misc.career_site.website_url_label")}</Label>
               <Input
                 id="website_url"
                 value={form.website_url}
@@ -338,7 +340,7 @@ export default function CareerSiteSettingsPage() {
 
         <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-4 backdrop-blur">
           <div className="text-sm text-gray-500">
-            {uploadingField ? "Загрузка файла..." : "Изменения не сохранены"}
+            {uploadingField ? t("settings_misc.career_site.uploading_file") : t("settings_misc.career_site.unsaved_changes")}
           </div>
           <Button
             onClick={handleSave}
@@ -346,10 +348,10 @@ export default function CareerSiteSettingsPage() {
             className="min-w-[170px]"
           >
             {saveMutation.isLoading
-              ? "Сохранение..."
+              ? t("settings_misc.career_site.saving")
               : uploadingField
-                ? "Загрузка файла..."
-                : "Сохранить изменения"}
+                ? t("settings_misc.career_site.uploading_file")
+                : t("settings_misc.career_site.save_button")}
           </Button>
         </div>
       </div>
@@ -397,13 +399,14 @@ function ImageField({
   onSelect: (file: File) => void;
   preview: "cover" | "contain";
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid gap-4 border-t border-gray-100 pt-5 md:grid-cols-[1.4fr_1fr] md:items-center">
       <div>
         <Label>{label}</Label>
         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50">
           <ImagePlus size={14} />
-          {uploading ? "Загрузка..." : value ? "Заменить" : "Загрузить"}
+          {uploading ? t("settings_misc.career_site.uploading") : value ? t("settings_misc.career_site.replace") : t("settings_misc.career_site.upload")}
           <input
             type="file"
             accept=".png,.jpg,.jpeg,.webp,.svg"
@@ -433,7 +436,7 @@ function ImageField({
         {value && preview === "contain" ? (
           <img src={value} alt={label} className="max-h-16 w-auto object-contain" />
         ) : !value ? (
-          <span className="text-sm text-gray-400">Не выбрано</span>
+          <span className="text-sm text-gray-400">{t("settings_misc.career_site.not_selected")}</span>
         ) : null}
       </div>
     </div>

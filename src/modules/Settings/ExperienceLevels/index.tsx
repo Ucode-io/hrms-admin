@@ -30,8 +30,10 @@ import {
   useExperienceLevelGroupsQuery,
   useUpdateExperienceLevelGroup,
 } from "../../../api/services/experienceLevelGroup.service";
+import { useTranslation } from "../../../i18n";
 
 export default function ExperienceLevelsSettingsPage() {
+  const { t } = useTranslation();
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -159,7 +161,7 @@ export default function ExperienceLevelsSettingsPage() {
   const handleGroupSubmit = async () => {
     const title = groupTitle.trim();
     if (!title) {
-      toast.error("Название группы обязательно.");
+      toast.error(t("settings_experience_levels.group.title_required"));
       return;
     }
 
@@ -169,15 +171,15 @@ export default function ExperienceLevelsSettingsPage() {
           guid: editingGroup.guid,
           data: { ...editingGroup, title },
         });
-        toast.success("Группа успешно обновлена.");
+        toast.success(t("settings_experience_levels.group.update_success"));
       } else {
         await createGroupMutation.mutateAsync({ title });
-        toast.success("Группа успешно создана.");
+        toast.success(t("settings_experience_levels.group.create_success"));
       }
       closeGroupModal();
     } catch (error) {
       console.error("Failed to save experience level group:", error);
-      toast.error("Не удалось сохранить группу. Попробуйте еще раз.");
+      toast.error(t("settings_experience_levels.group.save_error"));
     }
   };
 
@@ -196,11 +198,11 @@ export default function ExperienceLevelsSettingsPage() {
     if (!groupToDelete) return;
     try {
       await deleteGroupMutation.mutateAsync(groupToDelete.guid);
-      toast.success("Группа удалена.");
+      toast.success(t("settings_experience_levels.group.delete_success"));
       closeDeleteGroup();
     } catch (error) {
       console.error("Failed to delete experience level group:", error);
-      toast.error("Не удалось удалить группу.");
+      toast.error(t("settings_experience_levels.group.delete_error"));
     }
   };
 
@@ -232,11 +234,11 @@ export default function ExperienceLevelsSettingsPage() {
   const handleLevelSubmit = async () => {
     const title = levelTitle.trim();
     if (!title) {
-      toast.error("Название уровня опыта обязательно.");
+      toast.error(t("settings_experience_levels.level.title_required"));
       return;
     }
     if (!levelGroupId) {
-      toast.error("Выберите группу для уровня опыта.");
+      toast.error(t("settings_experience_levels.level.group_required"));
       return;
     }
 
@@ -250,18 +252,18 @@ export default function ExperienceLevelsSettingsPage() {
             experience_level_groups_id: levelGroupId,
           },
         });
-        toast.success("Уровень опыта успешно обновлен.");
+        toast.success(t("settings_experience_levels.level.update_success"));
       } else {
         await createLevelMutation.mutateAsync({
           title,
           experience_level_groups_id: levelGroupId,
         });
-        toast.success("Уровень опыта успешно создан.");
+        toast.success(t("settings_experience_levels.level.create_success"));
       }
       closeLevelModal();
     } catch (error) {
       console.error("Failed to save experience level:", error);
-      toast.error("Не удалось сохранить уровень опыта. Попробуйте еще раз.");
+      toast.error(t("settings_experience_levels.level.save_error"));
     }
   };
 
@@ -280,11 +282,11 @@ export default function ExperienceLevelsSettingsPage() {
     if (!levelToDelete) return;
     try {
       await deleteLevelMutation.mutateAsync(levelToDelete.guid);
-      toast.success("Уровень опыта удален.");
+      toast.success(t("settings_experience_levels.level.delete_success"));
       closeDeleteLevel();
     } catch (error) {
       console.error("Failed to delete experience level:", error);
-      toast.error("Не удалось удалить уровень опыта.");
+      toast.error(t("settings_experience_levels.level.delete_error"));
     }
   };
 
@@ -293,22 +295,22 @@ export default function ExperienceLevelsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Уровень опыта | Настройки" description="Группы и уровни опыта компании" />
+      <PageMeta title={t("settings_experience_levels.page_meta.title")} description={t("settings_experience_levels.page_meta.description")} />
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900">Уровень опыта</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">{t("settings_experience_levels.heading")}</h1>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               className="h-11"
               startIcon={<Download size={16} />}
-              onClick={() => toast.info("Экспорт будет доступен позже.")}
+              onClick={() => toast.info(t("settings_experience_levels.export_soon"))}
             >
-              Экспорт
+              {t("settings_experience_levels.action.export")}
             </Button>
             <Button className="h-11" startIcon={<FolderPlus size={16} />} onClick={openCreateGroup}>
-              Новая группа
+              {t("settings_experience_levels.action.new_group")}
             </Button>
           </div>
         </div>
@@ -324,7 +326,7 @@ export default function ExperienceLevelsSettingsPage() {
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск по группам и уровням..."
+                placeholder={t("settings_experience_levels.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -342,7 +344,7 @@ export default function ExperienceLevelsSettingsPage() {
               </div>
             ) : visibleGroups.length === 0 ? (
               <div className="py-10 text-center text-sm text-gray-500">
-                {debouncedSearch ? "Ничего не найдено" : "Группы уровней опыта не найдены"}
+                {debouncedSearch ? t("settings_experience_levels.nothing_found") : t("settings_experience_levels.group.empty")}
               </div>
             ) : (
               <div className="space-y-3">
@@ -372,7 +374,7 @@ export default function ExperienceLevelsSettingsPage() {
                             )}
                           </span>
                           <span className="truncate text-sm font-semibold text-gray-900">
-                            {String(group.title || "Без названия")}
+                            {String(group.title || t("settings_experience_levels.untitled"))}
                           </span>
                           <span className="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
                             {(levelsByGroup.get(group.guid) || []).length}
@@ -386,7 +388,7 @@ export default function ExperienceLevelsSettingsPage() {
                             startIcon={<Plus size={14} />}
                             onClick={() => openCreateLevel(group.guid)}
                           >
-                            Уровень
+                            {t("settings_experience_levels.level.badge")}
                           </Button>
 
                           <div className="relative flex items-center">
@@ -394,7 +396,7 @@ export default function ExperienceLevelsSettingsPage() {
                               type="button"
                               onClick={() => toggleActionsMenu(groupActionsKey)}
                               className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                              aria-label="Открыть действия группы"
+                              aria-label={t("settings_experience_levels.group.open_actions")}
                               ref={(el) => {
                                 actionButtonRefs.current[groupActionsKey] = el;
                               }}
@@ -413,13 +415,13 @@ export default function ExperienceLevelsSettingsPage() {
                                 onClick={() => openEditGroup(group)}
                                 className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                               >
-                                Изменить группу
+                                {t("settings_experience_levels.group.action.edit")}
                               </DropdownItem>
                               <DropdownItem
                                 onClick={() => openDeleteGroup(group)}
                                 className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                               >
-                                Удалить группу
+                                {t("settings_experience_levels.group.action.delete")}
                               </DropdownItem>
                             </Dropdown>
                           </div>
@@ -430,7 +432,7 @@ export default function ExperienceLevelsSettingsPage() {
                         <div className="divide-y divide-gray-100 border-t border-gray-100">
                           {groupLevels.length === 0 ? (
                             <div className="px-4 py-4 text-sm text-gray-400">
-                              В этой группе пока нет уровней опыта.
+                              {t("settings_experience_levels.group.no_levels")}
                             </div>
                           ) : (
                             groupLevels.map((level) => {
@@ -441,7 +443,7 @@ export default function ExperienceLevelsSettingsPage() {
                                   className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
                                 >
                                   <span className="pl-6 text-sm text-gray-800">
-                                    {String(level.title || "Без названия")}
+                                    {String(level.title || t("settings_experience_levels.untitled"))}
                                   </span>
 
                                   <div className="flex items-center gap-4">
@@ -450,7 +452,7 @@ export default function ExperienceLevelsSettingsPage() {
                                         type="button"
                                         onClick={() => toggleActionsMenu(levelActionsKey)}
                                         className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                                        aria-label="Открыть действия уровня"
+                                        aria-label={t("settings_experience_levels.level.open_actions")}
                                         ref={(el) => {
                                           actionButtonRefs.current[levelActionsKey] = el;
                                         }}
@@ -469,13 +471,13 @@ export default function ExperienceLevelsSettingsPage() {
                                           onClick={() => openEditLevel(level)}
                                           className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                                         >
-                                          Изменить
+                                          {t("settings_experience_levels.action.edit")}
                                         </DropdownItem>
                                         <DropdownItem
                                           onClick={() => openDeleteLevel(level)}
                                           className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                                         >
-                                          Удалить
+                                          {t("settings_experience_levels.action.delete")}
                                         </DropdownItem>
                                       </Dropdown>
                                     </div>
@@ -504,13 +506,13 @@ export default function ExperienceLevelsSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingGroup ? "Изменить группу" : "Новая группа"}
+            {editingGroup ? t("settings_experience_levels.group.modal.edit_title") : t("settings_experience_levels.group.modal.create_title")}
           </h3>
           <button
             type="button"
             onClick={closeGroupModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_experience_levels.close")}
           >
             <X size={18} />
           </button>
@@ -518,13 +520,13 @@ export default function ExperienceLevelsSettingsPage() {
 
         <div className="space-y-3 px-4 py-4">
           <label htmlFor="experience-group-title" className="block text-sm font-medium text-gray-700">
-            Название группы
+            {t("settings_experience_levels.group.title_label")}
           </label>
           <input
             id="experience-group-title"
             value={groupTitle}
             onChange={(event) => setGroupTitle(event.target.value)}
-            placeholder="Введите название группы"
+            placeholder={t("settings_experience_levels.group.title_placeholder")}
             autoFocus
             className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
@@ -532,10 +534,10 @@ export default function ExperienceLevelsSettingsPage() {
 
         <div className="flex items-center justify-end gap-2 px-4 py-3">
           <Button variant="outline" onClick={closeGroupModal} className="min-w-[96px] px-3 py-2 text-sm">
-            Отмена
+            {t("settings_experience_levels.action.cancel")}
           </Button>
           <Button onClick={handleGroupSubmit} disabled={isSavingGroup} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSavingGroup ? "Сохранение..." : "Сохранить"}
+            {isSavingGroup ? t("settings_experience_levels.action.saving") : t("settings_experience_levels.action.save")}
           </Button>
         </div>
       </Modal>
@@ -549,13 +551,13 @@ export default function ExperienceLevelsSettingsPage() {
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingLevel ? "Изменить уровень опыта" : "Новый уровень опыта"}
+            {editingLevel ? t("settings_experience_levels.level.modal.edit_title") : t("settings_experience_levels.level.modal.create_title")}
           </h3>
           <button
             type="button"
             onClick={closeLevelModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_experience_levels.close")}
           >
             <X size={18} />
           </button>
@@ -564,7 +566,7 @@ export default function ExperienceLevelsSettingsPage() {
         <div className="space-y-3 px-4 py-4">
           <div>
             <label htmlFor="experience-level-group" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Группа
+              {t("settings_experience_levels.level.group_label")}
             </label>
             <select
               id="experience-level-group"
@@ -572,10 +574,10 @@ export default function ExperienceLevelsSettingsPage() {
               onChange={(event) => setLevelGroupId(event.target.value)}
               className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             >
-              <option value="">Выберите группу</option>
+              <option value="">{t("settings_experience_levels.level.group_select_placeholder")}</option>
               {groups.map((group) => (
                 <option key={group.guid} value={group.guid}>
-                  {String(group.title || "Без названия")}
+                  {String(group.title || t("settings_experience_levels.untitled"))}
                 </option>
               ))}
             </select>
@@ -583,13 +585,13 @@ export default function ExperienceLevelsSettingsPage() {
 
           <div>
             <label htmlFor="experience-level-title" className="mb-1.5 block text-sm font-medium text-gray-700">
-              Название
+              {t("settings_experience_levels.level.title_label")}
             </label>
             <input
               id="experience-level-title"
               value={levelTitle}
               onChange={(event) => setLevelTitle(event.target.value)}
-              placeholder="Введите название уровня опыта"
+              placeholder={t("settings_experience_levels.level.title_placeholder")}
               autoFocus
               className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
@@ -598,10 +600,10 @@ export default function ExperienceLevelsSettingsPage() {
 
         <div className="flex items-center justify-end gap-2 px-4 py-3">
           <Button variant="outline" onClick={closeLevelModal} className="min-w-[96px] px-3 py-2 text-sm">
-            Отмена
+            {t("settings_experience_levels.action.cancel")}
           </Button>
           <Button onClick={handleLevelSubmit} disabled={isSavingLevel} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSavingLevel ? "Сохранение..." : "Сохранить"}
+            {isSavingLevel ? t("settings_experience_levels.action.saving") : t("settings_experience_levels.action.save")}
           </Button>
         </div>
       </Modal>
@@ -615,12 +617,12 @@ export default function ExperienceLevelsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить группу</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_experience_levels.group.modal.delete_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteGroup}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_experience_levels.close")}
             >
               <X size={16} />
             </button>
@@ -628,28 +630,28 @@ export default function ExperienceLevelsSettingsPage() {
         </div>
 
         <div className="space-y-3 px-4 py-4 text-center">
-          <p className="text-sm text-gray-500">Это действие нельзя отменить.</p>
+          <p className="text-sm text-gray-500">{t("settings_experience_levels.modal.delete_irreversible")}</p>
           <p className="text-sm text-gray-700">
             {groupToDelete
-              ? `Вы уверены, что хотите удалить группу "${String(groupToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить эту группу?"}
+              ? t("settings_experience_levels.group.modal.delete_confirm_named", { title: String(groupToDelete.title) })
+              : t("settings_experience_levels.group.modal.delete_confirm_generic")}
           </p>
           {groupToDelete && (levelsByGroup.get(groupToDelete.guid) || []).length > 0 && (
             <p className="text-xs text-error-600">
-              В группе есть уровни опыта. Сначала перенесите или удалите их.
+              {t("settings_experience_levels.group.has_levels_warning")}
             </p>
           )}
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={closeDeleteGroup} className="w-full justify-center px-3 py-2 text-sm">
-              Отмена
+              {t("settings_experience_levels.action.cancel")}
             </Button>
             <Button
               onClick={confirmDeleteGroup}
               disabled={deleteGroupMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteGroupMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteGroupMutation.isLoading ? t("settings_experience_levels.action.deleting") : t("settings_experience_levels.action.delete")}
             </Button>
           </div>
         </div>
@@ -664,12 +666,12 @@ export default function ExperienceLevelsSettingsPage() {
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить уровень опыта</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_experience_levels.level.modal.delete_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteLevel}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_experience_levels.close")}
             >
               <X size={16} />
             </button>
@@ -677,23 +679,23 @@ export default function ExperienceLevelsSettingsPage() {
         </div>
 
         <div className="space-y-3 px-4 py-4 text-center">
-          <p className="text-sm text-gray-500">Это действие нельзя отменить.</p>
+          <p className="text-sm text-gray-500">{t("settings_experience_levels.modal.delete_irreversible")}</p>
           <p className="text-sm text-gray-700">
             {levelToDelete
-              ? `Вы уверены, что хотите удалить "${String(levelToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить этот уровень опыта?"}
+              ? t("settings_experience_levels.level.modal.delete_confirm_named", { title: String(levelToDelete.title) })
+              : t("settings_experience_levels.level.modal.delete_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={closeDeleteLevel} className="w-full justify-center px-3 py-2 text-sm">
-              Отмена
+              {t("settings_experience_levels.action.cancel")}
             </Button>
             <Button
               onClick={confirmDeleteLevel}
               disabled={deleteLevelMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteLevelMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteLevelMutation.isLoading ? t("settings_experience_levels.action.deleting") : t("settings_experience_levels.action.delete")}
             </Button>
           </div>
         </div>

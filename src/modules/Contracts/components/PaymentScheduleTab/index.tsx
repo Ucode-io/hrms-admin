@@ -8,12 +8,14 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../components/ui/table";
+import { useTranslation } from "../../../../i18n";
 
 interface PaymentScheduleTabProps {
   contractId: string;
 }
 
 export default function PaymentScheduleTab({ contractId }: PaymentScheduleTabProps) {
+  const { t } = useTranslation();
   const { data: scheduleData, isLoading } = usePaymentScheduleQuery({
     data: { contracts_id: contractId },
   });
@@ -34,18 +36,18 @@ export default function PaymentScheduleTab({ contractId }: PaymentScheduleTabPro
 
   const formatAmount = (amount: number) => {
     if (!amount && amount !== 0) return "-";
-    return new Intl.NumberFormat("ru-RU").format(amount) + " сум";
+    return t("contracts.common.amount_suffix", { amount: new Intl.NumberFormat("ru-RU").format(amount) });
   };
 
   const getStatusBadge = (status: string[]) => {
     const statusValue = status?.[0]?.toLowerCase();
     switch (statusValue) {
       case "payed":
-        return <Badge color="success">Оплачено</Badge>;
+        return <Badge color="success">{t("contracts.schedule_tab.status_paid")}</Badge>;
       case "scheduled":
-        return <Badge color="info">Запланировано</Badge>;
+        return <Badge color="info">{t("contracts.schedule_tab.status_planned")}</Badge>;
       case "overdue":
-        return <Badge color="error">Просрочено</Badge>;
+        return <Badge color="error">{t("contracts.schedule_tab.status_overdue")}</Badge>;
       default:
         return <Badge color="light">{statusValue || "-"}</Badge>;
     }
@@ -71,7 +73,7 @@ export default function PaymentScheduleTab({ contractId }: PaymentScheduleTabPro
   if (sortedSchedule.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-8 text-center">
-        <p className="text-gray-500 dark:text-gray-400">Нет графика платежей</p>
+        <p className="text-gray-500 dark:text-gray-400">{t("contracts.schedule_tab.empty")}</p>
       </div>
     );
   }
@@ -81,23 +83,23 @@ export default function PaymentScheduleTab({ contractId }: PaymentScheduleTabPro
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-4">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Общая сумма</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("contracts.schedule_tab.total_label")}</p>
           <p className="text-lg font-semibold text-gray-800 dark:text-white/90">{formatAmount(totalAmount)}</p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-4">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Оплачено</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("contracts.schedule_tab.paid_label")}</p>
           <p className="text-lg font-semibold text-success-600 dark:text-success-400">{formatAmount(paidAmount)}</p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-4">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Остаток</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("contracts.schedule_tab.remaining_label")}</p>
           <p className="text-lg font-semibold text-gray-800 dark:text-white/90">{formatAmount(remainingAmount)}</p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] p-4">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Платежи</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t("contracts.schedule_tab.payments_label")}</p>
           <p className="text-lg font-semibold text-gray-800 dark:text-white/90">
             {paidCount}/{sortedSchedule.length}
             {overdueCount > 0 && (
-              <span className="text-sm text-error-500 ml-2">({overdueCount} просрочено)</span>
+              <span className="text-sm text-error-500 ml-2">{t("contracts.schedule_tab.overdue_count", { count: overdueCount })}</span>
             )}
           </p>
         </div>
@@ -119,25 +121,25 @@ export default function PaymentScheduleTab({ contractId }: PaymentScheduleTabPro
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  Дата платежа
+                  {t("contracts.schedule_tab.column_due_date")}
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-end text-theme-xs dark:text-gray-400"
                 >
-                  Сумма
+                  {t("contracts.schedule_tab.column_amount")}
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  Дата оплаты
+                  {t("contracts.schedule_tab.column_paid_date")}
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-center text-theme-xs dark:text-gray-400"
                 >
-                  Статус
+                  {t("contracts.schedule_tab.column_status")}
                 </TableCell>
               </TableRow>
             </TableHeader>

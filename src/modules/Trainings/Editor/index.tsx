@@ -131,8 +131,7 @@ const resolveCreatedGuid = (payload: unknown): string | null => {
   return null;
 };
 
-function Toggle({
-  checked,
+function Toggle({ checked,
   onChange,
   label,
 }: {

@@ -10,6 +10,7 @@ import Label from "../../../components/form/Label";
 import FileInput from "../../../components/form/input/FileInput";
 import { useCreateMerchant, useUpdateMerchant, useMerchantQuery } from "../../../api/services/merchant.service";
 import Spinner from "../../../components/ui/Spinner";
+import { useTranslation } from "../../../i18n";
 
 interface MerchantFormData {
   name: string;
@@ -27,6 +28,7 @@ interface MerchantFormData {
 }
 
 export default function MerchantFormPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = !!id;

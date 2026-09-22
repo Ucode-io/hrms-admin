@@ -10,40 +10,46 @@ import {
   type BirthdaysMonthGroup,
   useBirthdaysReportQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
-const MONTH_LABELS_RU = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
+const MONTH_KEYS = [
+  "reports.birthdays.month_january",
+  "reports.birthdays.month_february",
+  "reports.birthdays.month_march",
+  "reports.birthdays.month_april",
+  "reports.birthdays.month_may",
+  "reports.birthdays.month_june",
+  "reports.birthdays.month_july",
+  "reports.birthdays.month_august",
+  "reports.birthdays.month_september",
+  "reports.birthdays.month_october",
+  "reports.birthdays.month_november",
+  "reports.birthdays.month_december",
 ] as const;
 
-const MONTH_SHORT_RU = [
-  "Янв",
-  "Фев",
-  "Мар",
-  "Апр",
-  "Май",
-  "Июн",
-  "Июл",
-  "Авг",
-  "Сен",
-  "Окт",
-  "Ноя",
-  "Дек",
+const MONTH_SHORT_KEYS = [
+  "reports.birthdays.month_short_january",
+  "reports.birthdays.month_short_february",
+  "reports.birthdays.month_short_march",
+  "reports.birthdays.month_short_april",
+  "reports.birthdays.month_short_may",
+  "reports.birthdays.month_short_june",
+  "reports.birthdays.month_short_july",
+  "reports.birthdays.month_short_august",
+  "reports.birthdays.month_short_september",
+  "reports.birthdays.month_short_october",
+  "reports.birthdays.month_short_november",
+  "reports.birthdays.month_short_december",
 ] as const;
+
+// ponytail: translate() — these run outside components too; it re-reads the locale per call.
+const monthName = (index: number) => (MONTH_KEYS[index] ? translate(MONTH_KEYS[index]) : "");
+const monthShortName = (index: number) =>
+  MONTH_SHORT_KEYS[index] ? translate(MONTH_SHORT_KEYS[index]) : "";
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const getInitials = (fullName: string): string => {
@@ -60,23 +66,23 @@ const getTurningAgeText = (value: number | null): string => {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return "";
   }
-  return `исполнится ${value}`;
+  return translate("reports.birthdays.turning_age", { age: value });
 };
 
 const pluralizeDays = (days: number): string => {
   const mod100 = days % 100;
   const mod10 = days % 10;
-  if (mod100 >= 11 && mod100 <= 14) return "дней";
-  if (mod10 === 1) return "день";
-  if (mod10 >= 2 && mod10 <= 4) return "дня";
-  return "дней";
+  if (mod100 >= 11 && mod100 <= 14) return translate("reports.birthdays.days_plural");
+  if (mod10 === 1) return translate("reports.birthdays.day_singular");
+  if (mod10 >= 2 && mod10 <= 4) return translate("reports.birthdays.days_few");
+  return translate("reports.birthdays.days_plural");
 };
 
 const getDaysUntilLabel = (days: number | null): string => {
   if (typeof days !== "number" || !Number.isFinite(days)) return "";
-  if (days === 0) return "Сегодня 🎉";
-  if (days === 1) return "Завтра";
-  return `через ${days} ${pluralizeDays(days)}`;
+  if (days === 0) return translate("reports.birthdays.today");
+  if (days === 1) return translate("reports.birthdays.tomorrow");
+  return translate("reports.birthdays.in_days", { days, unit: pluralizeDays(days) });
 };
 
 function UpcomingRow({ employee }: { employee: BirthdayEmployee }) {
@@ -109,7 +115,7 @@ function UpcomingRow({ employee }: { employee: BirthdayEmployee }) {
           {employee.full_name}
         </Link>
         <span className="block truncate text-xs text-gray-500">
-          {employee.birth_day} {MONTH_SHORT_RU[employee.birth_month - 1]}
+          {employee.birth_day} {monthShortName(employee.birth_month - 1)}
           {getTurningAgeText(employee.turning_age)
             ? ` · ${getTurningAgeText(employee.turning_age)}`
             : ""}
@@ -156,6 +162,7 @@ function EmployeeRow({ employee }: { employee: BirthdayEmployee }) {
         </Link>
         <span className="block truncate text-xs text-gray-500">
           {employee.position}
+          {/* not a UI string: the backend sends this exact placeholder for an empty department */}
           {employee.department && employee.department !== "Не указано"
             ? ` · ${employee.department}`
             : ""}
@@ -164,7 +171,7 @@ function EmployeeRow({ employee }: { employee: BirthdayEmployee }) {
 
       <span className="shrink-0 text-right">
         <span className="block text-sm font-semibold text-gray-900">
-          {employee.birth_day} {MONTH_SHORT_RU[employee.birth_month - 1]}
+          {employee.birth_day} {monthShortName(employee.birth_month - 1)}
         </span>
         {getTurningAgeText(employee.turning_age) ? (
           <span className="block text-xs text-gray-400">
@@ -177,6 +184,7 @@ function EmployeeRow({ employee }: { employee: BirthdayEmployee }) {
 }
 
 function MonthCard({ group }: { group: BirthdaysMonthGroup }) {
+  const { t } = useTranslation();
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white">
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
@@ -193,7 +201,7 @@ function MonthCard({ group }: { group: BirthdaysMonthGroup }) {
 
       {group.employees.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-4 py-6 text-xs text-gray-400">
-          Нет дней рождения
+          {t("reports.birthdays.no_birthdays")}
         </div>
       ) : (
         <ul className="divide-y divide-gray-50">
@@ -207,6 +215,7 @@ function MonthCard({ group }: { group: BirthdaysMonthGroup }) {
 }
 
 function BirthdaysPage() {
+  const { t } = useTranslation();
   const currentMonth = new Date().getMonth() + 1;
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
@@ -231,7 +240,10 @@ function BirthdaysPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Дни рождения | HRMS" description="Дни рождения сотрудников по месяцам" />
+        <PageMeta
+          title={t("reports.birthdays.page_title")}
+          description={t("reports.birthdays.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -242,7 +254,10 @@ function BirthdaysPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Дни рождения | HRMS" description="Дни рождения сотрудников по месяцам" />
+        <PageMeta
+          title={t("reports.birthdays.page_title")}
+          description={t("reports.birthdays.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -252,7 +267,7 @@ function BirthdaysPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -261,16 +276,23 @@ function BirthdaysPage() {
 
   return (
     <>
-      <PageMeta title="Дни рождения | HRMS" description="Дни рождения сотрудников по месяцам" />
+      <PageMeta
+        title={t("reports.birthdays.page_title")}
+        description={t("reports.birthdays.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <article className="rounded-2xl border border-gray-200 bg-white p-5">
-            <p className="text-sm font-medium text-gray-500">Всего сотрудников</p>
+            <p className="text-sm font-medium text-gray-500">
+              {t("reports.birthdays.card_total_employees")}
+            </p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
               {totalEmployees}
             </p>
-            <p className="mt-1 text-xs text-gray-500">с указанной датой рождения</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {t("reports.birthdays.card_with_birth_date")}
+            </p>
           </article>
 
           <article className="rounded-2xl border border-gray-200 bg-white p-5">
@@ -279,13 +301,15 @@ function BirthdaysPage() {
                 <Gift size={14} />
               </span>
               <p className="text-sm font-medium text-gray-500">
-                В этом месяце ({MONTH_LABELS_RU[currentMonth - 1]})
+                {t("reports.birthdays.card_this_month", { month: monthName(currentMonth - 1) })}
               </p>
             </div>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
               {currentMonthCount}
             </p>
-            <p className="mt-1 text-xs text-gray-500">именинников</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {t("reports.birthdays.card_birthday_people")}
+            </p>
           </article>
         </section>
 
@@ -296,7 +320,7 @@ function BirthdaysPage() {
                 <Gift size={14} />
               </span>
               <h2 className="text-sm font-semibold text-gray-900">
-                Ближайшие дни рождения
+                {t("reports.birthdays.upcoming_birthdays")}
               </h2>
             </div>
             <ul className="divide-y divide-gray-50">
@@ -319,7 +343,7 @@ function BirthdaysPage() {
               color: selectedMonth == null ? "#ffffff" : "#334155",
             }}
           >
-            Все месяцы
+            {t("reports.birthdays.all_months")}
           </button>
           {months.map((group) => {
             const isActive = selectedMonth === group.month;
@@ -335,7 +359,7 @@ function BirthdaysPage() {
                   color: isActive ? "#ffffff" : "#334155",
                 }}
               >
-                {MONTH_SHORT_RU[group.month - 1]}
+                {monthShortName(group.month - 1)}
                 <span
                   className="rounded px-1 text-[10px]"
                   style={{
@@ -352,9 +376,9 @@ function BirthdaysPage() {
 
         {totalEmployees === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center">
-            <p className="text-base font-medium text-gray-800">Нет данных</p>
+            <p className="text-base font-medium text-gray-800">{t("reports.common.no_data")}</p>
             <p className="mt-1 text-sm text-gray-500">
-              Ни у одного сотрудника не указана дата рождения.
+              {t("reports.birthdays.no_birth_dates")}
             </p>
           </div>
         ) : (
@@ -366,7 +390,7 @@ function BirthdaysPage() {
         )}
 
         {isFetching ? (
-          <p className="text-right text-xs text-gray-400">Обновление данных...</p>
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
         ) : null}
       </div>
     </>

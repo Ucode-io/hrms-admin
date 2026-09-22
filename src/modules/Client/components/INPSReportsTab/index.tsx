@@ -7,12 +7,14 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../components/ui/table";
+import { useTranslation } from "../../../../i18n";
 
 interface INPSReportsTabProps {
   clientId: string;
 }
 
 export default function INPSReportsTab({ clientId }: INPSReportsTabProps) {
+  const { t } = useTranslation();
   // Fetch INPS reports
   const { data: reportsData, isLoading } = useINPSReportsQuery({
     data: { limit: 1, clients_id: clientId },

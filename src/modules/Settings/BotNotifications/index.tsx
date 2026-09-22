@@ -12,6 +12,7 @@ import {
   notificationSettingsService,
   type NotificationEvent,
 } from "../../../api/services/notificationSettings.service";
+import { useTranslation } from "../../../i18n";
 
 /**
  * Что бот шлёт сотруднику и что — в группу компании.
@@ -25,6 +26,7 @@ import {
  * отправленное в неё не отзывается.
  */
 export default function BotNotificationsSettingsPage() {
+  const { t } = useTranslation();
   // Тот же источник, что у «Интеграций»: authStore заполнен к моменту, когда
   // защищённый маршрут вообще отрисовался, а companyStore — observable, и эта
   // страница не observer. На прямом заходе по ссылке он мог бы ещё не
@@ -63,7 +65,7 @@ export default function BotNotificationsSettingsPage() {
         // events остаётся null: пустая таблица плюс активная кнопка — это
         // способ стереть настройки компании одним кликом, не увидев их.
         setLoadError(true);
-        toast.error("Не удалось загрузить настройки уведомлений");
+        toast.error(t("settings_misc.bot_notifications.load_error"));
       });
 
     // Включить «в группу» без привязанной группы можно, но отправка молча
@@ -103,9 +105,9 @@ export default function BotNotificationsSettingsPage() {
     setIsSaving(true);
     try {
       await notificationSettingsService.save(companiesId, events);
-      toast.success("Настройки сохранены");
+      toast.success(t("settings_misc.bot_notifications.save_success"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : t("settings_misc.bot_notifications.save_error"));
     } finally {
       setIsSaving(false);
     }
@@ -113,15 +115,15 @@ export default function BotNotificationsSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Уведомления бота" description="Что бот шлёт сотрудникам и в группу компании" />
+      <PageMeta title={t("settings_misc.bot_notifications.page_title")} description={t("settings_misc.bot_notifications.page_description")} />
 
       <div className="space-y-6">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            Уведомления бота
+            {t("settings_misc.bot_notifications.page_title")}
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Что приходит сотруднику в личный чат и что — в общую группу компании.
+            {t("settings_misc.bot_notifications.page_subtitle")}
           </p>
         </div>
 
@@ -141,10 +143,10 @@ export default function BotNotificationsSettingsPage() {
         {loadError ? (
           <div className="rounded-xl border border-gray-200 p-8 text-center dark:border-gray-800">
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              Настройки сейчас недоступны
+              {t("settings_misc.bot_notifications.unavailable")}
             </p>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Попробуйте ещё раз. Если не поможет — напишите в поддержку.
+              {t("settings_misc.bot_notifications.unavailable_hint")}
             </p>
             <Button
               size="sm"
@@ -152,24 +154,24 @@ export default function BotNotificationsSettingsPage() {
               className="mt-4"
               onClick={() => setReloadToken((value) => value + 1)}
             >
-              Повторить
+              {t("settings_misc.bot_notifications.retry")}
             </Button>
           </div>
         ) : events === null ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">Загрузка…</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t("settings_misc.bot_notifications.loading")}</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 text-left dark:border-gray-800 dark:bg-white/[0.03]">
                   <th className="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
-                    Событие
+                    {t("settings_misc.bot_notifications.col_event")}
                   </th>
                   <th className="w-40 px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
-                    Сотруднику
+                    {t("settings_misc.bot_notifications.col_to_employee")}
                   </th>
                   <th className="w-40 px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
-                    В группу
+                    {t("settings_misc.bot_notifications.col_to_group")}
                   </th>
                 </tr>
               </thead>
@@ -236,7 +238,7 @@ export default function BotNotificationsSettingsPage() {
         {!loadError && events !== null && events.length > 0 && (
           <div className="flex justify-end">
             <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Сохранение…" : "Сохранить"}
+              {isSaving ? t("settings_misc.bot_notifications.saving") : t("settings_misc.bot_notifications.save")}
             </Button>
           </div>
         )}

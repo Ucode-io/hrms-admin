@@ -8,6 +8,8 @@ import {
 import hickvisionService, {
   type TelegramGroupPollResult,
 } from "../../../api/services/hickvision.service";
+import { translate, useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 /**
  * Почему опрос не привязался — словами.
@@ -15,27 +17,21 @@ import hickvisionService, {
  * Бот пишет то же самое в саму группу, но человек в этот момент смотрит в
  * админку, и «ничего не произошло» — худший из возможных ответов.
  */
-const POLL_REASONS: Record<string, string> = {
-  no_updates:
-    "Telegram ничего не прислал. Добавьте бота в группу и нажмите «Проверить» ещё раз.",
-  unknown_employee:
-    "Ваш Telegram не привязан к HRMS. Откройте мини-приложение, затем добавьте бота заново.",
-  ambiguous_company:
-    "Не удалось определить компанию: ваш Telegram привязан к нескольким. Используйте код.",
-  ambiguous_intent:
-    "Открыто несколько подключений к разным компаниям. Дождитесь, пока лишние истекут, и повторите.",
-  group_taken: "Эта группа уже привязана к другой компании.",
-  unknown_token: "Код не подошёл: он уже использован или истёк. Получите новый.",
-  conflict:
-    "Очередь Telegram читает кто-то ещё: у бота выставлен webhook или запущена вторая копия сервиса.",
+const POLL_REASON_KEYS: Record<string, MessageKey> = {
+  no_updates: "settings_general.telegram.poll_reason.no_updates",
+  unknown_employee: "settings_general.telegram.poll_reason.unknown_employee",
+  ambiguous_company: "settings_general.telegram.poll_reason.ambiguous_company",
+  ambiguous_intent: "settings_general.telegram.poll_reason.ambiguous_intent",
+  group_taken: "settings_general.telegram.poll_reason.group_taken",
+  unknown_token: "settings_general.telegram.poll_reason.unknown_token",
+  conflict: "settings_general.telegram.poll_reason.conflict",
 };
 
 const describePoll = (result: TelegramGroupPollResult): string => {
   const refusal = result.results?.find((item) => !item.linked && item.reason);
   const reason = refusal?.reason || result.reason;
-  return (
-    (reason && POLL_REASONS[reason]) ||
-    "Привязка не подтвердилась. Проверьте, что бот добавлен в группу."
+  return translate(
+    (reason && POLL_REASON_KEYS[reason]) || "settings_general.telegram.poll_reason.default"
   );
 };
 
@@ -58,6 +54,7 @@ export default function TelegramGroupSection({
    */
   onLinkedChange?: (linked: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const [isLinked, setIsLinked] = useState<boolean | null>(null);
   const [pass, setPass] = useState<TelegramGroupPass | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -89,7 +86,7 @@ export default function TelegramGroupSection({
     try {
       setPass(await telegramGroupService.createPass(companiesId));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось получить код");
+      toast.error(error instanceof Error ? error.message : t("settings_general.telegram.error.pass_failed"));
     } finally {
       setIsBusy(false);
     }
@@ -110,12 +107,12 @@ export default function TelegramGroupSection({
 
       if (linked) {
         setPass(null);
-        toast.success("Группа подключена.");
+        toast.success(t("settings_general.telegram.group_connected"));
       } else {
         toast.error(describePoll(result));
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось проверить");
+      toast.error(error instanceof Error ? error.message : t("settings_general.telegram.error.check_failed"));
     } finally {
       setIsBusy(false);
     }
@@ -127,9 +124,9 @@ export default function TelegramGroupSection({
       await telegramGroupService.unlink(companiesId);
       applyLinked(false);
       setPass(null);
-      toast.success("Группа отключена.");
+      toast.success(t("settings_general.telegram.group_disconnected"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось отключить группу");
+      toast.error(error instanceof Error ? error.message : t("settings_general.telegram.error.unlink_failed"));
     } finally {
       setIsBusy(false);
     }
@@ -139,29 +136,28 @@ export default function TelegramGroupSection({
 
   return (
     <section className="space-y-4">
-      <h2 className="text-2xl font-semibold text-gray-900">Telegram-группа</h2>
+      <h2 className="text-2xl font-semibold text-gray-900">{t("settings_general.telegram.heading")}</h2>
       <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
         <p className="text-sm text-gray-600">
-          В эту группу бот присылает опоздания и ежедневный лист посещаемости.
-          Одна группа принадлежит одной компании.
+          {t("settings_general.telegram.description")}
         </p>
 
         {isLinked === null ? (
-          <p className="text-sm text-gray-500">Загрузка...</p>
+          <p className="text-sm text-gray-500">{t("settings_general.telegram.loading")}</p>
         ) : isLinked ? (
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium text-success-600">Группа подключена</span>
+            <span className="text-sm font-medium text-success-600">{t("settings_general.telegram.connected_label")}</span>
             <Button size="sm" variant="outline" disabled={isBusy} onClick={handleUnlink}>
-              Отключить группу
+              {t("settings_general.telegram.action.disconnect")}
             </Button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
             <Button size="sm" disabled={isBusy} onClick={handleCreate}>
-              Подключить Telegram-группу
+              {t("settings_general.telegram.action.connect")}
             </Button>
             <Button size="sm" variant="outline" disabled={isBusy} onClick={handleCheck}>
-              Проверить
+              {t("settings_general.telegram.action.check")}
             </Button>
           </div>
         )}
@@ -169,7 +165,7 @@ export default function TelegramGroupSection({
         {pass && (
           <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div>
-              <p className="text-sm font-medium text-gray-800">Бота в группе ещё нет</p>
+              <p className="text-sm font-medium text-gray-800">{t("settings_general.telegram.bot_not_in_group")}</p>
               {pass.link ? (
                 <a
                   className="text-sm text-brand-600 underline"
@@ -177,19 +173,19 @@ export default function TelegramGroupSection({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Выбрать группу в Telegram
+                  {t("settings_general.telegram.select_group_link")}
                 </a>
               ) : (
                 <p className="text-sm text-error-600">
-                  Не задан TELEGRAM_BOT_USERNAME — ссылку собрать нечем, используйте код.
+                  {t("settings_general.telegram.missing_bot_username")}
                 </p>
               )}
             </div>
 
             <div>
-              <p className="text-sm font-medium text-gray-800">Бот уже в группе</p>
+              <p className="text-sm font-medium text-gray-800">{t("settings_general.telegram.bot_already_in_group")}</p>
               <p className="text-sm text-gray-600">
-                Отправьте в неё сообщение:{" "}
+                {t("settings_general.telegram.send_message_prefix")}{" "}
                 <code className="rounded bg-white px-1.5 py-0.5 font-mono text-gray-900">
                   /bind {pass.token}
                 </code>
@@ -197,17 +193,15 @@ export default function TelegramGroupSection({
             </div>
 
             <p className="text-xs text-gray-500">
-              Код одноразовый и действует {pass.expiresInMinutes} минут. Не пересылайте его
-              посторонним: он привязывает группу именно к этой компании.
+              {t("settings_general.telegram.pass_expiry_note", { minutes: pass.expiresInMinutes })}
             </p>
 
             <div className="flex flex-wrap items-center gap-3">
               <Button size="sm" disabled={isBusy} onClick={handleCheck}>
-                Проверить
+                {t("settings_general.telegram.action.check")}
               </Button>
               <span className="text-xs text-gray-500">
-                Бот узнаёт о добавлении не мгновенно — нажмите после того, как добавите его
-                в группу.
+                {t("settings_general.telegram.check_hint")}
               </span>
             </div>
           </div>

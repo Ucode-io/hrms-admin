@@ -16,6 +16,7 @@ import {
   UserSearch,
   WalletCards,
 } from "lucide-react";
+import type { MessageKey } from "../../../i18n/messages";
 
 /**
  * Toggle-able application modules. `key` is the stable machine identifier stored
@@ -42,8 +43,8 @@ export type ModuleKey =
 
 export type ModuleDefinition = {
   key: ModuleKey;
-  label: string;
-  description: string;
+  labelKey: MessageKey;
+  descriptionKey: MessageKey;
   icon: LucideIcon;
   paths: string[];
 };
@@ -51,36 +52,36 @@ export type ModuleDefinition = {
 export const MODULE_CATALOG: ModuleDefinition[] = [
   {
     key: "dashboard",
-    label: "Главная страница",
-    description: "Дашборд и обзор",
+    labelKey: "settings_roles.module_dashboard_label",
+    descriptionKey: "settings_roles.module_dashboard_desc",
     icon: Home,
     paths: ["/dashboard"],
   },
   {
     key: "tasks",
-    label: "Задачи",
-    description: "Задачи сотрудников",
+    labelKey: "settings_roles.module_tasks_label",
+    descriptionKey: "settings_roles.module_tasks_desc",
     icon: ListTodo,
     paths: ["/tasks"],
   },
   {
     key: "budgeting",
-    label: "Бюджетирование",
-    description: "План и факт фонда оплаты труда",
+    labelKey: "settings_roles.module_budgeting_label",
+    descriptionKey: "settings_roles.module_budgeting_desc",
     icon: Calculator,
     paths: ["/budgeting"],
   },
   {
     key: "kpi",
-    label: "Задачи и KPI",
-    description: "Цели и показатели",
+    labelKey: "settings_roles.module_kpi_label",
+    descriptionKey: "settings_roles.module_kpi_desc",
     icon: Target,
     paths: ["/kpi"],
   },
   {
     key: "employees",
-    label: "Сотрудники",
-    description: "Люди и профили",
+    labelKey: "settings_roles.module_employees_label",
+    descriptionKey: "settings_roles.module_employees_desc",
     icon: UserRoundCheck,
     // Оргструктура — тот же модуль «Люди», отдельный корень маршрута.
     // Чаты с AI здесь же: кто видит карточки сотрудников, видит и их
@@ -92,15 +93,15 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   },
   {
     key: "recruiting",
-    label: "Рекрутинг",
-    description: "Вакансии и кандидаты",
+    labelKey: "settings_roles.module_recruiting_label",
+    descriptionKey: "settings_roles.module_recruiting_desc",
     icon: UserSearch,
     paths: ["/recruiting"],
   },
   {
     key: "time",
-    label: "Время",
-    description: "Посещаемость, табель, смены и календарь",
+    labelKey: "settings_roles.module_time_label",
+    descriptionKey: "settings_roles.module_time_desc",
     icon: CalendarCheck,
     // "/timesheet" и "/shifts" — отдельные пути, а не подпути "/time": проверка
     // доступа сравнивает по сегментам, и под "/time" они не подпадают. Забыть
@@ -110,57 +111,57 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   },
   {
     key: "documents",
-    label: "Документы",
-    description: "Кадровые документы",
+    labelKey: "settings_roles.module_documents_label",
+    descriptionKey: "settings_roles.module_documents_desc",
     icon: FileText,
     paths: ["/documents"],
   },
   {
     key: "knowledge_base",
-    label: "База знаний",
-    description: "Статьи и инструкции",
+    labelKey: "settings_roles.module_knowledge_base_label",
+    descriptionKey: "settings_roles.module_knowledge_base_desc",
     icon: BookOpen,
     paths: ["/knowledge-base"],
   },
   {
     key: "property",
-    label: "Имущество",
-    description: "Активы и инвентарь",
+    labelKey: "settings_roles.module_property_label",
+    descriptionKey: "settings_roles.module_property_desc",
     icon: Package,
     paths: ["/property"],
   },
   {
     key: "surveys",
-    label: "Опросы",
-    description: "Опросники и результаты",
+    labelKey: "settings_roles.module_surveys_label",
+    descriptionKey: "settings_roles.module_surveys_desc",
     icon: ClipboardList,
     paths: ["/surveys"],
   },
   {
     key: "trainings",
-    label: "Тренинги",
-    description: "Обучение и домашние задания",
+    labelKey: "settings_roles.module_trainings_label",
+    descriptionKey: "settings_roles.module_trainings_desc",
     icon: GraduationCap,
     paths: ["/trainings"],
   },
   {
     key: "finance",
-    label: "Финансы",
-    description: "Зарплата и выплаты",
+    labelKey: "settings_roles.module_finance_label",
+    descriptionKey: "settings_roles.module_finance_desc",
     icon: WalletCards,
     paths: ["/finance"],
   },
   {
     key: "reports",
-    label: "Отчёты",
-    description: "Аналитика и отчёты",
+    labelKey: "settings_roles.module_reports_label",
+    descriptionKey: "settings_roles.module_reports_desc",
     icon: BarChart3,
     paths: ["/reports"],
   },
   {
     key: "settings",
-    label: "Настройки",
-    description: "Настройки системы",
+    labelKey: "settings_roles.module_settings_label",
+    descriptionKey: "settings_roles.module_settings_desc",
     icon: SettingsIcon,
     paths: ["/settings"],
   },

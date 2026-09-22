@@ -24,6 +24,7 @@ import {
   useDeleteSurvey,
   useSurveysQuery,
 } from "../../api/services/survey.service";
+import { useTranslation } from "../../i18n";
 
 const PAGE_SIZE = 20;
 const SURVEYS_BREADCRUMBS = [{ label: "Опросники", to: "/surveys" }];
@@ -59,6 +60,7 @@ const resolveStatus = (survey: Survey) => {
 };
 
 export default function SurveysSettingsPage() {
+  const { t } = useTranslation();
   useHeaderBreadcrumbItems(SURVEYS_BREADCRUMBS);
   const navigate = useNavigate();
   const brandColor = companyStore.mainColor || "#2563eb";

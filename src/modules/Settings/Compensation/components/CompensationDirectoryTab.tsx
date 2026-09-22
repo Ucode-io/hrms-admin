@@ -31,14 +31,15 @@ import {
   useSettingsDirectoryQuery,
   useUpdateSettingsDirectoryItem,
 } from "../../../../api/services/settingsDirectory.service";
+import { useTranslation } from "../../../../i18n";
 
 const PAGE_SIZE = 20;
 
 type OperationType = "income" | "deduction";
 
-const OPERATION_LABELS: Record<OperationType, string> = {
-  income: "Начисление",
-  deduction: "Удержание",
+const OPERATION_LABEL_KEYS: Record<OperationType, "settings_compensation.operation_type.income" | "settings_compensation.operation_type.deduction"> = {
+  income: "settings_compensation.operation_type.income",
+  deduction: "settings_compensation.operation_type.deduction",
 };
 
 const OPERATION_TAG_STYLES: Record<OperationType, string> = {
@@ -65,6 +66,7 @@ export default function CompensationDirectoryTab({
   emptyText,
   createRequestId = 0,
 }: CompensationDirectoryTabProps) {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -145,7 +147,7 @@ export default function CompensationDirectoryTab({
     const title = itemTitle.trim();
 
     if (!title) {
-      toast.error("Название обязательно.");
+      toast.error(t("settings_compensation.form.title_required"));
       return;
     }
 
@@ -163,16 +165,16 @@ export default function CompensationDirectoryTab({
             ...payload,
           },
         });
-        toast.success("Запись успешно обновлена.");
+        toast.success(t("settings_compensation.toast.update_success"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Запись успешно создана.");
+        toast.success(t("settings_compensation.toast.create_success"));
       }
 
       closeUpsertModal();
     } catch (error) {
       console.error(`Failed to save settings directory item (${slug}):`, error);
-      toast.error("Не удалось сохранить запись. Попробуйте еще раз.");
+      toast.error(t("settings_compensation.toast.save_error"));
     }
   };
 
@@ -192,11 +194,11 @@ export default function CompensationDirectoryTab({
 
     try {
       await deleteMutation.mutateAsync(itemToDelete.guid);
-      toast.success("Запись удалена.");
+      toast.success(t("settings_compensation.toast.delete_success"));
       closeDeleteModal();
     } catch (error) {
       console.error(`Failed to delete settings directory item (${slug}):`, error);
-      toast.error("Не удалось удалить запись.");
+      toast.error(t("settings_compensation.toast.delete_error"));
     }
   };
 
@@ -220,7 +222,7 @@ export default function CompensationDirectoryTab({
                 type="text"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("settings_compensation.search_placeholder")}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
               />
             </label>
@@ -231,15 +233,15 @@ export default function CompensationDirectoryTab({
               <TableHeader className="border-b border-gray-100">
                 <TableRow>
                   <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                    Название
+                    {t("settings_compensation.column.title")}
                   </TableCell>
                   {isCompensationTypes ? (
                     <TableCell isHeader className="px-4 py-3 text-left text-theme-xs font-medium text-gray-500">
-                      Тип операции
+                      {t("settings_compensation.column.operation_type")}
                     </TableCell>
                   ) : null}
                   <TableCell isHeader className="px-4 py-3 text-right text-theme-xs font-medium text-gray-500">
-                    Действия
+                    {t("settings_compensation.column.actions")}
                   </TableCell>
                 </TableRow>
               </TableHeader>
@@ -271,26 +273,26 @@ export default function CompensationDirectoryTab({
                   items.map((item) => (
                     <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                       <TableCell className="px-4 py-3 text-sm text-gray-800">
-                        {String(item.title || "Без названия")}
+                        {String(item.title || t("settings_compensation.untitled"))}
                       </TableCell>
                       {isCompensationTypes ? (
                         <TableCell className="px-4 py-3 text-sm text-gray-800">
                           <span
                             className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${OPERATION_TAG_STYLES[resolveOperationType(item.operation_type)]}`}
                           >
-                            {OPERATION_LABELS[resolveOperationType(item.operation_type)]}
+                            {t(OPERATION_LABEL_KEYS[resolveOperationType(item.operation_type)])}
                           </span>
                         </TableCell>
                       ) : null}
                       <TableCell className="px-4 py-3">
                         {isCompensationTypes && item.slug === "attendance_penalty" ? (
-                          <span className="block text-right text-xs text-gray-500">Автоматически</span>
+                          <span className="block text-right text-xs text-gray-500">{t("settings_compensation.automatic")}</span>
                         ) : <div className="relative flex items-center justify-end">
                           <button
                             type="button"
                             onClick={() => toggleActionsMenu(item.guid)}
                             className="dropdown-toggle rounded-md p-1.5 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Открыть действия"
+                            aria-label={t("settings_compensation.open_actions")}
                             ref={(el) => {
                               actionButtonRefs.current[item.guid] = el;
                             }}
@@ -309,13 +311,13 @@ export default function CompensationDirectoryTab({
                               onClick={() => openEditModal(item)}
                               className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500"
                             >
-                              Изменить
+                              {t("settings_compensation.action.edit")}
                             </DropdownItem>
                             <DropdownItem
                               onClick={() => openDeleteModal(item)}
                               className="rounded-lg px-3 py-2 text-sm text-error-600 hover:bg-error-50 hover:text-error-700"
                             >
-                              Удалить
+                              {t("settings_compensation.action.delete")}
                             </DropdownItem>
                           </Dropdown>
                         </div>}
@@ -345,13 +347,13 @@ export default function CompensationDirectoryTab({
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingItem ? "Изменить запись" : "Новая запись"}
+            {editingItem ? t("settings_compensation.modal.edit_title") : t("settings_compensation.modal.create_title")}
           </h3>
           <button
             type="button"
             onClick={closeUpsertModal}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("settings_compensation.close")}
           >
             <X size={18} />
           </button>
@@ -359,13 +361,13 @@ export default function CompensationDirectoryTab({
 
         <div className="space-y-3 px-4 py-4">
           <label htmlFor={`${slug}-title`} className="block text-sm font-medium text-gray-700">
-            Название
+            {t("settings_compensation.form.title_label")}
           </label>
           <input
             id={`${slug}-title`}
             value={itemTitle}
             onChange={(event) => setItemTitle(event.target.value)}
-            placeholder="Введите название"
+            placeholder={t("settings_compensation.form.title_placeholder")}
             autoFocus
             className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
@@ -373,7 +375,7 @@ export default function CompensationDirectoryTab({
           {isCompensationTypes ? (
             <div className="pt-1">
               <label className="mb-2 block text-sm font-medium text-gray-700">
-                Тип операции
+                {t("settings_compensation.form.operation_type_label")}
               </label>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
@@ -396,7 +398,7 @@ export default function CompensationDirectoryTab({
                   </span>
                   <span>
                     <span className="block text-[13px] font-semibold text-slate-900">
-                      Начисление
+                      {t("settings_compensation.operation_type.income")}
                     </span>
                     <span className="mt-0.5 block text-[12px] text-slate-500">
                       income
@@ -424,7 +426,7 @@ export default function CompensationDirectoryTab({
                   </span>
                   <span>
                     <span className="block text-[13px] font-semibold text-slate-900">
-                      Удержание
+                      {t("settings_compensation.operation_type.deduction")}
                     </span>
                     <span className="mt-0.5 block text-[12px] text-slate-500">
                       deduction
@@ -442,10 +444,10 @@ export default function CompensationDirectoryTab({
             onClick={closeUpsertModal}
             className="min-w-[96px] px-3 py-2 text-sm"
           >
-            Отмена
+            {t("settings_compensation.action.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="min-w-[110px] px-3 py-2 text-sm">
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("settings_compensation.action.saving") : t("settings_compensation.action.save")}
           </Button>
         </div>
       </Modal>
@@ -458,12 +460,12 @@ export default function CompensationDirectoryTab({
       >
         <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">Удалить запись</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("settings_compensation.modal.delete_title")}</h3>
             <button
               type="button"
               onClick={closeDeleteModal}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Закрыть"
+              aria-label={t("settings_compensation.close")}
             >
               <X size={16} />
             </button>
@@ -472,12 +474,12 @@ export default function CompensationDirectoryTab({
 
         <div className="space-y-3 px-4 py-4 text-center">
           <p className="text-sm text-gray-500">
-            Это действие нельзя отменить.
+            {t("settings_compensation.modal.delete_irreversible")}
           </p>
           <p className="text-sm text-gray-700">
             {itemToDelete
-              ? `Вы уверены, что хотите удалить "${String(itemToDelete.title)}"?`
-              : "Вы уверены, что хотите удалить эту запись?"}
+              ? t("settings_compensation.modal.delete_confirm_named", { title: String(itemToDelete.title) })
+              : t("settings_compensation.modal.delete_confirm_generic")}
           </p>
 
           <div className="flex gap-2">
@@ -486,14 +488,14 @@ export default function CompensationDirectoryTab({
               onClick={closeDeleteModal}
               className="w-full justify-center px-3 py-2 text-sm"
             >
-              Отмена
+              {t("settings_compensation.action.cancel")}
             </Button>
             <Button
               onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("settings_compensation.action.deleting") : t("settings_compensation.action.delete")}
             </Button>
           </div>
         </div>

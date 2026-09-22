@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { UserRound } from "lucide-react";
+import { Check, ChevronRight, Languages, UserRound } from "lucide-react";
 import { observer } from "mobx-react-lite";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import authStore from "../../store/auth.store";
+import { LOCALES, LOCALE_NAMES, useTranslation } from "../../i18n";
 
 function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  const { locale, setLocale, t } = useTranslation();
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -107,7 +110,7 @@ function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Edit profile
+              {t("header.user_menu.edit_profile")}
             </DropdownItem>
           </li>
           <li>
@@ -132,7 +135,7 @@ function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Account settings
+              {t("header.user_menu.account_settings")}
             </DropdownItem>
           </li>
           <li>
@@ -157,10 +160,53 @@ function UserDropdown() {
                   fill=""
                 />
               </svg>
-              Support
+              {t("header.user_menu.support")}
             </DropdownItem>
           </li>
         </ul>
+
+        <div className="relative pt-3 pb-3 border-b border-gray-200 dark:border-gray-800">
+          <button
+            type="button"
+            onClick={() => setIsLangOpen((prev) => !prev)}
+            className="dropdown-toggle flex w-full items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg text-theme-sm hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+          >
+            <Languages size={20} className="text-gray-500 dark:text-gray-400" />
+            <span className="flex-1 text-left">{t("common.language")}</span>
+            <span className="text-theme-xs text-gray-500 dark:text-gray-400">
+              {LOCALE_NAMES[locale]}
+            </span>
+            <ChevronRight
+              size={16}
+              className={`transition-transform ${isLangOpen ? "rotate-90" : ""}`}
+            />
+          </button>
+
+          <Dropdown
+            isOpen={isLangOpen}
+            onClose={() => setIsLangOpen(false)}
+            className="w-full flex-col p-1.5"
+          >
+            {LOCALES.map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => {
+                  setLocale(code);
+                  setIsLangOpen(false);
+                }}
+                className={`flex w-full items-center gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm hover:bg-gray-100 dark:hover:bg-white/5 ${locale === code
+                  ? "text-gray-900 dark:text-gray-200"
+                  : "text-gray-700 dark:text-gray-400"
+                  }`}
+              >
+                <span className="flex-1 text-left">{LOCALE_NAMES[code]}</span>
+                {locale === code ? <Check size={16} /> : null}
+              </button>
+            ))}
+          </Dropdown>
+        </div>
+
         <div
           onClick={() => authStore.logout()}
           className="flex items-center gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg cursor-pointer group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
@@ -180,7 +226,7 @@ function UserDropdown() {
               fill=""
             />
           </svg>
-          Sign out
+          {t("header.user_menu.sign_out")}
         </div>
       </Dropdown>
     </div>

@@ -41,8 +41,7 @@ const employeeName = (employee: Employee): string => {
  * имени. Постранично и с поиском на сервере — весь штат тянуть в выпадашку
  * незачем.
  */
-export default function AddRowLine({
-  usedEmployeeIds,
+export default function AddRowLine({ usedEmployeeIds,
   onPickEmployee,
   onCreateVacancy,
 }: AddRowLineProps) {

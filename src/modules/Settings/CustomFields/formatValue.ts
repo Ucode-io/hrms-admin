@@ -1,3 +1,4 @@
+import { translate } from "../../../i18n";
 import type { CustomField } from "./types";
 
 /**
@@ -48,7 +49,11 @@ export const formatDynamicValue = (
 
   switch (field.type) {
     case "boolean":
-      return { text: raw ? "Да" : "Нет" };
+      return {
+        text: raw
+          ? translate("settings_custom_fields.format.boolean_yes")
+          : translate("settings_custom_fields.format.boolean_no"),
+      };
 
     case "select":
     case "radio":

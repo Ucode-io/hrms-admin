@@ -12,6 +12,8 @@ import { Modal } from "../../../../components/ui/modal";
 import Button from "../../../../components/ui/button/Button";
 import DateInput from "../../../../components/form/DateInput";
 import { FieldControl } from "./FieldControl";
+import { useTranslation } from "../../../../i18n";
+import type { MessageKey } from "../../../../i18n/messages";
 import {
   DIRECTORY_SLUGS,
   FIELD_TYPES,
@@ -40,9 +42,9 @@ type FieldEditorModalProps = {
 
 type EditorTab = "main" | "rules";
 
-const TABS: { value: EditorTab; label: string }[] = [
-  { value: "main", label: "Основное" },
-  { value: "rules", label: "Правила" },
+const TABS: { value: EditorTab; labelKey: MessageKey }[] = [
+  { value: "main", labelKey: "settings_custom_fields.editor.tab_main" },
+  { value: "rules", labelKey: "settings_custom_fields.editor.tab_rules" },
 ];
 
 const toNullableNumber = (value: string): number | null => {
@@ -58,6 +60,7 @@ export default function FieldEditorModal({
   onClose,
   onSave,
 }: FieldEditorModalProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<CustomField | null>(field);
   const [activeTab, setActiveTab] = useState<EditorTab>("main");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -159,16 +162,15 @@ export default function FieldEditorModal({
     const nextErrors: Record<string, string> = {};
 
     if (!draft.label.trim()) {
-      nextErrors.label = "Укажите название поля";
+      nextErrors.label = t("settings_custom_fields.editor.error.label_required");
     }
 
     if (!draft.key.trim()) {
-      nextErrors.key = "Укажите системный ключ";
+      nextErrors.key = t("settings_custom_fields.editor.error.key_required");
     } else if (!isValidKey(draft.key)) {
-      nextErrors.key =
-        "Только латиница в нижнем регистре, цифры и «_», начиная с буквы";
+      nextErrors.key = t("settings_custom_fields.editor.error.key_invalid");
     } else if (usedKeys.includes(draft.key)) {
-      nextErrors.key = "Такой ключ уже используется в этой таблице";
+      nextErrors.key = t("settings_custom_fields.editor.error.key_duplicate");
     }
 
     const normalizedOptions = draft.options.map((option, index) => ({
@@ -178,12 +180,12 @@ export default function FieldEditorModal({
 
     if (typeSupportsOptions(draft.type)) {
       if (normalizedOptions.filter((option) => option.label.trim()).length < 1) {
-        nextErrors.options = "Добавьте хотя бы один вариант";
+        nextErrors.options = t("settings_custom_fields.editor.error.options_required");
       }
     }
 
     if (draft.type === "directory" && !draft.directorySlug) {
-      nextErrors.directorySlug = "Выберите справочник";
+      nextErrors.directorySlug = t("settings_custom_fields.editor.error.directory_required");
     }
 
     setErrors(nextErrors);
@@ -219,7 +221,7 @@ export default function FieldEditorModal({
               type="button"
               onClick={() => setTypePicker({ open: false, canGoBack: true })}
               className="mt-0.5 rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Назад к настройкам"
+              aria-label={t("settings_custom_fields.editor.back_to_settings")}
             >
               <ArrowLeft size={18} />
             </button>
@@ -228,20 +230,20 @@ export default function FieldEditorModal({
             <h2 className="text-lg font-semibold text-gray-900">
               {typePicker.open
                 ? isNewFieldRef.current
-                  ? "Какое поле добавить?"
-                  : "Изменить тип поля"
+                  ? t("settings_custom_fields.editor.title.pick_type")
+                  : t("settings_custom_fields.editor.title.change_type")
                 : field?.label
-                  ? "Изменение поля"
-                  : "Новое поле"}
+                  ? t("settings_custom_fields.editor.title.edit_field")
+                  : t("settings_custom_fields.editor.title.new_field")}
             </h2>
             <p className="mt-0.5 text-sm text-gray-500">
               {typePicker.open
                 ? isNewFieldRef.current
-                  ? "Шаг 1 из 2 — выберите тип: от него зависят правила и вид поля"
-                  : "Выберите новый тип — введённые настройки сохранятся"
+                  ? t("settings_custom_fields.editor.subtitle.pick_type_step")
+                  : t("settings_custom_fields.editor.subtitle.change_type")
                 : isNewFieldRef.current
-                  ? "Шаг 2 из 2 — название, ключ и правила"
-                  : "Название, ключ и правила"}
+                  ? t("settings_custom_fields.editor.subtitle.settings_step")
+                  : t("settings_custom_fields.editor.subtitle.settings")}
             </p>
           </div>
         </div>
@@ -249,7 +251,7 @@ export default function FieldEditorModal({
           type="button"
           onClick={onClose}
           className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-          aria-label="Закрыть"
+          aria-label={t("settings_custom_fields.editor.close")}
         >
           <X size={18} />
         </button>
@@ -269,7 +271,7 @@ export default function FieldEditorModal({
                     : "border-transparent text-gray-500 hover:text-gray-700"
                 }`}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>
@@ -283,7 +285,7 @@ export default function FieldEditorModal({
             {groupedTypes.map(({ group, items }) => (
               <div key={group}>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  {group}
+                  {t(group.labelKey)}
                 </p>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                   {items.map((meta) => {
@@ -310,10 +312,10 @@ export default function FieldEditorModal({
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-medium text-gray-800">
-                            {meta.title}
+                            {t(meta.titleKey)}
                           </span>
                           <span className="block truncate text-xs text-gray-500">
-                            {meta.description}
+                            {t(meta.descriptionKey)}
                           </span>
                         </span>
                       </button>
@@ -328,20 +330,20 @@ export default function FieldEditorModal({
         {activeTab === "main" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormRow label="Название" required error={errors.label}>
+              <FormRow label={t("settings_custom_fields.editor.field.label")} required error={errors.label}>
                 <input
                   className={inputClass}
                   value={draft.label}
                   onChange={(event) => handleLabelChange(event.target.value)}
-                  placeholder="Например: Серия и номер паспорта"
+                  placeholder={t("settings_custom_fields.editor.field.label_placeholder")}
                 />
               </FormRow>
 
               <FormRow
-                label="Системный ключ"
+                label={t("settings_custom_fields.editor.field.key")}
                 required
                 error={errors.key}
-                hint={draft.system ? "Статичное поле — ключ изменить нельзя" : "Имя колонки в таблице"}
+                hint={draft.system ? t("settings_custom_fields.editor.field.key_hint_system") : t("settings_custom_fields.editor.field.key_hint")}
               >
                 <div className="relative">
                   <input
@@ -372,10 +374,10 @@ export default function FieldEditorModal({
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-gray-900">
-                      {typeMeta.title}
+                      {t(typeMeta.titleKey)}
                     </p>
                     <p className="truncate text-xs text-gray-500">
-                      {typeMeta.description}
+                      {t(typeMeta.descriptionKey)}
                     </p>
                   </div>
                 </div>
@@ -384,22 +386,22 @@ export default function FieldEditorModal({
                   onClick={() => setTypePicker({ open: true, canGoBack: true })}
                   className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-600"
                 >
-                  Изменить тип
+                  {t("settings_custom_fields.editor.change_type")}
                 </button>
               </div>
             )}
 
             {draft.type === "directory" && (
-              <FormRow label="Справочник" required error={errors.directorySlug}>
+              <FormRow label={t("settings_custom_fields.editor.directory")} required error={errors.directorySlug}>
                 <select
                   className={inputClass}
                   value={draft.directorySlug}
                   onChange={(event) => patch({ directorySlug: event.target.value })}
                 >
-                  <option value="">Выберите справочник</option>
+                  <option value="">{t("settings_custom_fields.editor.directory_select")}</option>
                   {DIRECTORY_SLUGS.map((directory) => (
                     <option key={directory.value} value={directory.value}>
-                      {directory.label}
+                      {t(directory.labelKey)}
                     </option>
                   ))}
                   {draft.directorySlug &&
@@ -412,8 +414,8 @@ export default function FieldEditorModal({
 
             {typeSupportsOptions(draft.type) && (
               <EditorSection
-                title="Варианты"
-                description="Значение подставится автоматически из названия, если оставить пустым"
+                title={t("settings_custom_fields.editor.options.title")}
+                description={t("settings_custom_fields.editor.options.description")}
               >
                 <div className="space-y-2">
                   {draft.options.map((option, index) => (
@@ -428,7 +430,7 @@ export default function FieldEditorModal({
                         onChange={(event) =>
                           patchOption(option.id, { label: event.target.value })
                         }
-                        placeholder={`Вариант ${index + 1}`}
+                        placeholder={t("settings_custom_fields.editor.options.option_placeholder", { index: index + 1 })}
                       />
                       <input
                         className={`${compactInputClass} w-36 shrink-0 font-mono text-xs`}
@@ -450,7 +452,7 @@ export default function FieldEditorModal({
                                 ? "ring-2 ring-gray-900 ring-offset-1"
                                 : "opacity-60 hover:opacity-100"
                             }`}
-                            aria-label={`Цвет ${color}`}
+                            aria-label={t("settings_custom_fields.editor.options.color_label", { color })}
                           />
                         ))}
                       </div>
@@ -458,7 +460,7 @@ export default function FieldEditorModal({
                         type="button"
                         onClick={() => removeOption(option.id)}
                         className="rounded-lg p-2 text-gray-400 transition hover:bg-error-50 hover:text-error-500"
-                        aria-label="Удалить вариант"
+                        aria-label={t("settings_custom_fields.editor.options.remove")}
                       >
                         <Trash2 size={15} />
                       </button>
@@ -475,39 +477,39 @@ export default function FieldEditorModal({
                   onClick={addOption}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-600"
                 >
-                  <Plus size={15} /> Добавить вариант
+                  <Plus size={15} /> {t("settings_custom_fields.editor.options.add")}
                 </button>
               </EditorSection>
             )}
 
-            <EditorSection title="Подсказки для сотрудника">
+            <EditorSection title={t("settings_custom_fields.editor.hints.title")}>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormRow label="Плейсхолдер">
+                <FormRow label={t("settings_custom_fields.editor.hints.placeholder_label")}>
                   <input
                     className={inputClass}
                     value={draft.placeholder}
                     onChange={(event) => patch({ placeholder: event.target.value })}
-                    placeholder="Текст внутри поля"
+                    placeholder={t("settings_custom_fields.editor.hints.placeholder_placeholder")}
                   />
                 </FormRow>
 
-                <FormRow label="Значение по умолчанию">
+                <FormRow label={t("settings_custom_fields.editor.hints.default_value_label")}>
                   <input
                     className={inputClass}
                     value={draft.defaultValue}
                     onChange={(event) => patch({ defaultValue: event.target.value })}
-                    placeholder="Подставляется при создании"
+                    placeholder={t("settings_custom_fields.editor.hints.default_value_placeholder")}
                   />
                 </FormRow>
               </div>
 
-              <FormRow label="Подсказка под полем">
+              <FormRow label={t("settings_custom_fields.editor.hints.hint_label")}>
                 <textarea
                   className={textareaClass}
                   rows={2}
                   value={draft.hint}
                   onChange={(event) => patch({ hint: event.target.value })}
-                  placeholder="Короткое пояснение для сотрудника"
+                  placeholder={t("settings_custom_fields.editor.hints.hint_placeholder")}
                 />
               </FormRow>
             </EditorSection>
@@ -516,30 +518,30 @@ export default function FieldEditorModal({
 
         {activeTab === "rules" && (
           <div className="space-y-6">
-            <EditorSection title="Общие правила">
+            <EditorSection title={t("settings_custom_fields.editor.rules.general_title")}>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <ToggleRow
-                  title="Обязательное"
-                  description="Нельзя сохранить форму без значения"
+                  title={t("settings_custom_fields.editor.rules.required")}
+                  description={t("settings_custom_fields.editor.rules.required_description")}
                   checked={draft.rules.required}
                   onChange={(required) => patchRules({ required })}
                 />
                 <ToggleRow
-                  title="Уникальное"
-                  description="Значение не должно повторяться"
+                  title={t("settings_custom_fields.editor.rules.unique")}
+                  description={t("settings_custom_fields.editor.rules.unique_description")}
                   checked={draft.rules.unique}
                   onChange={(unique) => patchRules({ unique })}
                 />
                 <ToggleRow
-                  title="Только чтение"
-                  description="Заполняется системой или интеграцией"
+                  title={t("settings_custom_fields.editor.rules.read_only")}
+                  description={t("settings_custom_fields.editor.rules.read_only_description")}
                   checked={draft.rules.readOnly}
                   onChange={(readOnly) => patchRules({ readOnly })}
                 />
                 {(draft.type === "employee" || draft.type === "directory" || draft.type === "file") && (
                   <ToggleRow
-                    title="Несколько значений"
-                    description="Разрешить выбрать больше одного"
+                    title={t("settings_custom_fields.editor.rules.multiple")}
+                    description={t("settings_custom_fields.editor.rules.multiple_description")}
                     checked={draft.rules.multiple}
                     onChange={(multiple) => patchRules({ multiple })}
                   />
@@ -548,9 +550,9 @@ export default function FieldEditorModal({
             </EditorSection>
 
             {typeMeta?.hasTextRules && (
-              <EditorSection title="Текст">
+              <EditorSection title={t("settings_custom_fields.editor.rules.text_title")}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormRow label="Минимальная длина">
+                  <FormRow label={t("settings_custom_fields.editor.rules.min_length")}>
                     <input
                       type="number"
                       className={inputClass}
@@ -558,10 +560,10 @@ export default function FieldEditorModal({
                       onChange={(event) =>
                         patchRules({ minLength: toNullableNumber(event.target.value) })
                       }
-                      placeholder="Без ограничения"
+                      placeholder={t("settings_custom_fields.editor.rules.no_limit")}
                     />
                   </FormRow>
-                  <FormRow label="Максимальная длина">
+                  <FormRow label={t("settings_custom_fields.editor.rules.max_length")}>
                     <input
                       type="number"
                       className={inputClass}
@@ -569,15 +571,15 @@ export default function FieldEditorModal({
                       onChange={(event) =>
                         patchRules({ maxLength: toNullableNumber(event.target.value) })
                       }
-                      placeholder="Без ограничения"
+                      placeholder={t("settings_custom_fields.editor.rules.no_limit")}
                     />
                   </FormRow>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormRow
-                    label="Регулярное выражение"
-                    hint="Например: ^[A-Z]{2}\d{7}$"
+                    label={t("settings_custom_fields.editor.rules.pattern")}
+                    hint={t("settings_custom_fields.editor.rules.pattern_hint")}
                   >
                     <input
                       className={`${inputClass} font-mono text-xs`}
@@ -586,14 +588,14 @@ export default function FieldEditorModal({
                       placeholder="^[A-Z]{2}\d{7}$"
                     />
                   </FormRow>
-                  <FormRow label="Сообщение об ошибке">
+                  <FormRow label={t("settings_custom_fields.editor.rules.pattern_message")}>
                     <input
                       className={inputClass}
                       value={draft.rules.patternMessage}
                       onChange={(event) =>
                         patchRules({ patternMessage: event.target.value })
                       }
-                      placeholder="Неверный формат"
+                      placeholder={t("settings_custom_fields.editor.rules.pattern_message_placeholder")}
                     />
                   </FormRow>
                 </div>
@@ -601,9 +603,9 @@ export default function FieldEditorModal({
             )}
 
             {typeMeta?.hasNumberRules && (
-              <EditorSection title="Число">
+              <EditorSection title={t("settings_custom_fields.editor.rules.number_title")}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormRow label="Минимум">
+                  <FormRow label={t("settings_custom_fields.editor.rules.min")}>
                     <input
                       type="number"
                       className={inputClass}
@@ -611,10 +613,10 @@ export default function FieldEditorModal({
                       onChange={(event) =>
                         patchRules({ min: toNullableNumber(event.target.value) })
                       }
-                      placeholder="Без ограничения"
+                      placeholder={t("settings_custom_fields.editor.rules.no_limit")}
                     />
                   </FormRow>
-                  <FormRow label="Максимум">
+                  <FormRow label={t("settings_custom_fields.editor.rules.max")}>
                     <input
                       type="number"
                       className={inputClass}
@@ -622,7 +624,7 @@ export default function FieldEditorModal({
                       onChange={(event) =>
                         patchRules({ max: toNullableNumber(event.target.value) })
                       }
-                      placeholder="Без ограничения"
+                      placeholder={t("settings_custom_fields.editor.rules.no_limit")}
                     />
                   </FormRow>
                 </div>
@@ -630,9 +632,9 @@ export default function FieldEditorModal({
             )}
 
             {typeMeta?.hasDateRules && (
-              <EditorSection title="Дата">
+              <EditorSection title={t("settings_custom_fields.editor.date.title")}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormRow label="Не раньше">
+                  <FormRow label={t("settings_custom_fields.editor.date.min_label")}>
                     <DateInput
                       className={inputClass}
                       value={draft.rules.minDate}
@@ -640,7 +642,7 @@ export default function FieldEditorModal({
                       onChange={(next) => patchRules({ minDate: next })}
                     />
                   </FormRow>
-                  <FormRow label="Не позже">
+                  <FormRow label={t("settings_custom_fields.editor.date.max_label")}>
                     <DateInput
                       className={inputClass}
                       value={draft.rules.maxDate}
@@ -653,11 +655,11 @@ export default function FieldEditorModal({
             )}
 
             {typeMeta?.hasFileRules && (
-              <EditorSection title="Файл">
+              <EditorSection title={t("settings_custom_fields.editor.file.title")}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormRow
-                    label="Разрешённые расширения"
-                    hint="Через запятую: pdf, jpg, png"
+                    label={t("settings_custom_fields.editor.file.extensions_label")}
+                    hint={t("settings_custom_fields.editor.file.extensions_hint")}
                   >
                     <input
                       className={inputClass}
@@ -673,7 +675,7 @@ export default function FieldEditorModal({
                       placeholder="pdf, jpg, png"
                     />
                   </FormRow>
-                  <FormRow label="Максимальный размер, МБ">
+                  <FormRow label={t("settings_custom_fields.editor.file.max_size_label")}>
                     <input
                       type="number"
                       className={inputClass}
@@ -698,14 +700,14 @@ export default function FieldEditorModal({
       {!typePicker.open && (
         <div className="border-t border-gray-100 bg-gray-50/70 px-6 py-4">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Так поле увидит сотрудник
+            {t("settings_custom_fields.editor.preview.title")}
           </p>
           <div
             key={`${draft.type}:${draft.defaultValue}:${draft.rules.readOnly}:${draft.options.map((o) => o.id + o.label + o.color).join(",")}`}
             className="max-w-[480px]"
           >
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              {draft.label.trim() || "Название поля"}
+              {draft.label.trim() || t("settings_custom_fields.editor.preview.field_name_placeholder")}
               {draft.rules.required && <span className="ml-0.5 text-error-500">*</span>}
             </label>
             <FieldControl field={draft} />
@@ -716,11 +718,11 @@ export default function FieldEditorModal({
 
       <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
         <Button variant="outline" className="h-11" onClick={onClose}>
-          Отмена
+          {t("settings_custom_fields.editor.button.cancel")}
         </Button>
         {!typePicker.open && (
           <Button className="h-11" onClick={handleSubmit}>
-            Сохранить
+            {t("settings_custom_fields.editor.button.save")}
           </Button>
         )}
       </div>

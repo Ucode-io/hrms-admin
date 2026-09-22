@@ -8,6 +8,7 @@ import {
   useEmployeeCertificatesQuery,
   useUpdateEmployeeCertificate,
 } from "../../../../api/services/employeeCertificate.service";
+import { useTranslation, translate } from "../../../../i18n";
 
 type LicenseCertificatesSectionProps = {
   employeeGuid: string;
@@ -48,7 +49,7 @@ function formatMonthYear(dateStr: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return "";
-  const months = ["Янв.", "Февр.", "Март", "Апр.", "Май", "Июн.", "Июл.", "Авг.", "Сент.", "Окт.", "Нояб.", "Дек."];
+  const months = Array.from({ length: 12 }, (_, i) => translate(`employees.detail.month_${i}` as never));
   return `${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
@@ -59,8 +60,8 @@ function formatValidity(
 ): string {
   const issueLabel = formatMonthYear(issueDate);
   const expLabel = formatMonthYear(expirationDate);
-  if (!issueLabel) return "Дата не указана";
-  if (noExpiration) return `${issueLabel} — бессрочно`;
+  if (!issueLabel) return translate("employees.licenses.date_not_specified");
+  if (noExpiration) return translate("employees.licenses.no_expiration_suffix", { issueLabel });
   if (!expLabel) return `${issueLabel} —`;
   return `${issueLabel} — ${expLabel}`;
 }
@@ -69,6 +70,7 @@ function LicenseCertificatesSection({
   employeeGuid,
   brandColor,
 }: LicenseCertificatesSectionProps) {
+  const { t } = useTranslation();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGuid, setEditingGuid] = useState<string | null>(null);
   const [draft, setDraft] = useState<LicenseDraft>(EMPTY_DRAFT);
@@ -147,19 +149,19 @@ function LicenseCertificatesSection({
     const description = draft.description.trim();
 
     if (!title) {
-      setError("Укажите название лицензии или сертификата.");
+      setError(t("employees.licenses.title_required"));
       return;
     }
     if (!issuer) {
-      setError("Укажите организацию-эмитента.");
+      setError(t("employees.licenses.issuer_required"));
       return;
     }
     if (!issueDate) {
-      setError("Укажите дату выдачи.");
+      setError(t("employees.licenses.issue_date_required"));
       return;
     }
     if (!draft.no_expiration && expirationDate && expirationDate < issueDate) {
-      setError("Дата окончания не может быть раньше даты выдачи.");
+      setError(t("employees.licenses.expiration_before_issue"));
       return;
     }
 
@@ -187,7 +189,7 @@ function LicenseCertificatesSection({
       closeForm();
     } catch (saveError) {
       console.error("Certificate save error:", saveError);
-      setError("Не удалось сохранить запись. Попробуйте ещё раз.");
+      setError(t("employees.licenses.save_failed"));
     }
   };
 
@@ -198,7 +200,7 @@ function LicenseCertificatesSection({
       setToDelete(null);
     } catch (deleteError) {
       console.error("Certificate delete error:", deleteError);
-      setError("Не удалось удалить запись. Попробуйте ещё раз.");
+      setError(t("employees.licenses.delete_failed"));
     }
   };
 
@@ -211,7 +213,7 @@ function LicenseCertificatesSection({
               <Award className="w-4 h-4" />
             </span>
             <h3 className="text-[15px] font-bold text-slate-900 m-0">
-              Лицензии и сертификаты
+              {t("employees.licenses.title")}
             </h3>
             <span className="text-[12px] font-medium text-slate-400">
               {records.length}
@@ -224,7 +226,7 @@ function LicenseCertificatesSection({
             style={{ color: brandColor }}
           >
             <Plus className="w-3.5 h-3.5" />
-            Добавить
+            {t("common.add")}
           </button>
         </div>
 
@@ -244,7 +246,7 @@ function LicenseCertificatesSection({
               >
                 <Award className="w-5 h-5" style={{ color: brandColor }} />
               </div>
-              <p className="text-[13px] text-slate-500 mb-3">Записей пока нет</p>
+              <p className="text-[13px] text-slate-500 mb-3">{t("employees.licenses.empty")}</p>
               <button
                 type="button"
                 onClick={openCreate}
@@ -252,7 +254,7 @@ function LicenseCertificatesSection({
                 style={{ color: brandColor }}
               >
                 <Plus className="w-3.5 h-3.5" />
-                Добавить первую запись
+                {t("employees.licenses.add_first")}
               </button>
             </div>
           ) : (
@@ -289,7 +291,7 @@ function LicenseCertificatesSection({
                             style={{ color: brandColor }}
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
-                            Проверить
+                            {t("employees.licenses.verify")}
                           </a>
                         )}
                       </div>
@@ -300,7 +302,7 @@ function LicenseCertificatesSection({
                         type="button"
                         onClick={() => openEdit(record)}
                         className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 cursor-pointer transition-colors hover:bg-slate-100 hover:text-slate-700"
-                        title="Редактировать"
+                        title={t("common.edit")}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -308,7 +310,7 @@ function LicenseCertificatesSection({
                         type="button"
                         onClick={() => setToDelete(record)}
                         className="flex items-center justify-center w-8 h-8 rounded-lg border border-red-100 bg-white text-red-500 cursor-pointer transition-colors hover:bg-red-50"
-                        title="Удалить"
+                        title={t("common.delete")}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -329,16 +331,16 @@ function LicenseCertificatesSection({
       <Modal isOpen={isFormOpen} onClose={closeForm} className="max-w-2xl w-full p-6">
         <div>
           <h3 className="text-[18px] font-bold text-slate-900 m-0 mb-1">
-            {editingGuid ? "Редактировать запись" : "Добавить запись"}
+            {editingGuid ? t("employees.licenses.edit_record") : t("employees.licenses.add_record")}
           </h3>
           <p className="text-[13px] text-slate-500 m-0 mb-5">
-            Укажите данные лицензии или сертификата.
+            {t("employees.licenses.form_description")}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Название *
+                {t("employees.licenses.field_title")}
               </label>
               <input
                 type="text"
@@ -346,14 +348,14 @@ function LicenseCertificatesSection({
                 onChange={(event) =>
                   setDraft((prev) => ({ ...prev, title: event.target.value }))
                 }
-                placeholder="Например: PMP Certification"
+                placeholder={t("employees.licenses.field_title_placeholder")}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
               />
             </div>
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Организация *
+                {t("employees.licenses.field_issuer")}
               </label>
               <input
                 type="text"
@@ -361,14 +363,14 @@ function LicenseCertificatesSection({
                 onChange={(event) =>
                   setDraft((prev) => ({ ...prev, issuer: event.target.value }))
                 }
-                placeholder="Кем выдано"
+                placeholder={t("employees.licenses.field_issuer_placeholder")}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400"
               />
             </div>
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Номер / ID
+                {t("employees.licenses.field_credential_id")}
               </label>
               <input
                 type="text"
@@ -383,7 +385,7 @@ function LicenseCertificatesSection({
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Дата выдачи *
+                {t("employees.licenses.field_issue_date")}
               </label>
               <DateInput
                 value={draft.issue_date}
@@ -394,7 +396,7 @@ function LicenseCertificatesSection({
 
             <div>
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Срок действия до
+                {t("employees.licenses.field_expiration_date")}
               </label>
               <DateInput
                 value={draft.expiration_date}
@@ -407,7 +409,7 @@ function LicenseCertificatesSection({
 
             <div className="sm:col-span-2">
               <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-                Ссылка на подтверждение
+                {t("employees.licenses.field_credential_url")}
               </label>
               <input
                 type="url"
@@ -434,12 +436,12 @@ function LicenseCertificatesSection({
               }
               className="h-4 w-4 rounded border-slate-300 text-slate-700"
             />
-            Бессрочно
+            {t("employees.licenses.no_expiration_checkbox")}
           </label>
 
           <div className="mt-3">
             <label className="block text-[13px] font-medium text-slate-600 mb-1.5">
-              Описание
+              {t("employees.licenses.field_description")}
             </label>
             <textarea
               value={draft.description}
@@ -447,7 +449,7 @@ function LicenseCertificatesSection({
                 setDraft((prev) => ({ ...prev, description: event.target.value }))
               }
               rows={3}
-              placeholder="Дополнительная информация"
+              placeholder={t("employees.licenses.description_placeholder")}
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[14px] text-slate-800 outline-none transition-colors focus:border-slate-400 resize-none"
             />
           </div>
@@ -465,7 +467,7 @@ function LicenseCertificatesSection({
               disabled={isSaving}
               className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-[13px] font-medium cursor-pointer transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -474,7 +476,7 @@ function LicenseCertificatesSection({
               className="px-4 py-2.5 rounded-xl border-none text-white text-[13px] font-semibold cursor-pointer transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               style={{ backgroundColor: brandColor }}
             >
-              {isSaving ? "Сохранение..." : editingGuid ? "Сохранить" : "Добавить"}
+              {isSaving ? t("common.saving") : editingGuid ? t("common.save") : t("common.add")}
             </button>
           </div>
         </div>
@@ -491,12 +493,12 @@ function LicenseCertificatesSection({
             <Trash2 className="h-6 w-6 text-red-600" />
           </div>
           <h3 className="text-[18px] font-bold text-slate-900 m-0 mb-2">
-            Удалить запись?
+            {t("employees.licenses.delete_modal_title")}
           </h3>
           <p className="text-[13px] text-slate-500 m-0 mb-6">
             {toDelete?.title
-              ? `Запись «${toDelete.title}» будет удалена без возможности восстановления.`
-              : "Запись будет удалена без возможности восстановления."}
+              ? t("employees.licenses.delete_with_title", { title: toDelete.title })
+              : t("employees.licenses.delete_generic")}
           </p>
           <div className="flex gap-2.5">
             <button
@@ -505,7 +507,7 @@ function LicenseCertificatesSection({
               disabled={isSaving}
               className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -513,7 +515,7 @@ function LicenseCertificatesSection({
               disabled={isSaving}
               className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-medium text-white hover:bg-red-700 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? "Удаление..." : "Удалить"}
+              {isSaving ? t("employees.sport_attendance.deleting") : t("common.delete")}
             </button>
           </div>
         </div>

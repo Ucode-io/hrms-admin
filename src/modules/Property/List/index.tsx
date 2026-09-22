@@ -28,6 +28,7 @@ import {
   type PropertyItem,
   type PropertyStatus,
 } from "../types";
+import { useTranslation } from "../../../i18n";
 
 type ViewMode = "table" | "grid";
 type PaginationItem = number | string;
@@ -61,8 +62,6 @@ const getFilterSelectStyles = (): StylesConfig<FilterSelectOption, false> => ({
 });
 
 const PAGE_SIZE = 10;
-const PROPERTY_BREADCRUMBS = [{ label: "Имущество", to: "/property" }];
-
 const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
   const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
@@ -79,7 +78,10 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
 };
 
 function PropertyList() {
-  useHeaderBreadcrumbItems(PROPERTY_BREADCRUMBS);
+  const { t } = useTranslation();
+  useHeaderBreadcrumbItems(
+    useMemo(() => [{ label: t("property.breadcrumb"), to: "/property" }], [t])
+  );
   const navigate = useNavigate();
   const brandColor = companyStore.mainColor || "#2563eb";
 
@@ -136,11 +138,11 @@ function PropertyList() {
   );
 
   const visibleRangeLabel = useMemo(() => {
-    if (totalCount === 0) return isLoading ? "Загрузка..." : "Нет записей";
+    if (totalCount === 0) return isLoading ? t("reports.common.loading") : t("employees.attendance.empty_state");
     const start = (safePage - 1) * PAGE_SIZE + 1;
     const end = Math.min(safePage * PAGE_SIZE, totalCount);
-    return `Отображение ${start}–${end} из ${totalCount}`;
-  }, [safePage, totalCount, isLoading]);
+    return t("property.list.showing_range", { from: start, to: end, total: totalCount });
+  }, [safePage, totalCount, isLoading, t]);
 
   const categoryOptions = useMemo(
     () => (categoriesData?.response ?? []).map((c) => ({
@@ -156,8 +158,8 @@ function PropertyList() {
   const filterSelectStyles = useMemo(() => getFilterSelectStyles(), []);
   const menuPortalTarget = typeof document !== "undefined" ? document.body : null;
   const statusFilterOptions = useMemo<FilterSelectOption[]>(
-    () => PROPERTY_STATUS_ORDER.map((s) => ({ value: s, label: PROPERTY_STATUS_CONFIG[s].label })),
-    []
+    () => PROPERTY_STATUS_ORDER.map((s) => ({ value: s, label: t(PROPERTY_STATUS_CONFIG[s].labelKey) })),
+    [t]
   );
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -174,15 +176,15 @@ function PropertyList() {
       await deleteMutation.mutateAsync(deletingItem.id);
       if (detailItem?.id === deletingItem.id) setDetailItem(null);
       setDeletingItem(null);
-      toast.success("Удалено");
+      toast.success(t("property.list.deleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось удалить");
+      toast.error(err instanceof Error ? err.message : t("property.list.delete_failed"));
     }
   };
 
   return (
     <>
-      <PageMeta title="Имущество | HRMS" description="Учёт имущества компании" />
+      <PageMeta title={t("property.list.page_title")} description={t("property.list.page_description")} />
 
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
@@ -200,8 +202,8 @@ function PropertyList() {
             value={viewMode}
             onChange={setViewMode}
             items={[
-              { key: "table", label: "Таблица", icon: <List size={16} /> },
-              { key: "grid", label: "Сетка", icon: <LayoutGrid size={16} /> },
+              { key: "table", label: t("tasks.views.table"), icon: <List size={16} /> },
+              { key: "grid", label: t("employees.list.view_grid"), icon: <LayoutGrid size={16} /> },
             ]}
           />
 
@@ -211,14 +213,14 @@ function PropertyList() {
               value={searchQuery}
               onChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
               inputId="property-search"
-              placeholder="Поиск по названию, серийному номеру..."
+              placeholder={t("property.list.search_placeholder")}
               expandedWidth={360}
               collapsedSize={40}
               brandColor={brandColor}
             />
             <button type="button" onClick={() => setIsFiltersOpen((o) => !o)}
-              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
-              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              aria-label={activeFiltersCount > 0 ? t("employees.list.filter_with_count", { count: activeFiltersCount }) : t("employees.list.filter")}
+              title={activeFiltersCount > 0 ? t("employees.list.filter_with_count", { count: activeFiltersCount }) : t("employees.list.filter")}
               className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFiltersOpen || activeFiltersCount > 0
                   ? "border-brand-200 bg-brand-50 text-brand-600"
@@ -232,7 +234,7 @@ function PropertyList() {
               ) : null}
             </button>
             <Button startIcon={<Plus size={16} />} onClick={openCreate} className="h-10 rounded-xl px-4">
-              Добавить
+              {t("property.list.add")}
             </Button>
           </div>
         </div>
@@ -254,12 +256,12 @@ function PropertyList() {
                   setCurrentPage(1);
                 }}
                 options={categoryOptions}
-                placeholder="Все категории"
+                placeholder={t("property.list.all_categories")}
                 isClearable
                 styles={filterSelectStyles}
                 menuPortalTarget={menuPortalTarget}
                 menuPosition="fixed"
-                noOptionsMessage={() => "Ничего не найдено"}
+                noOptionsMessage={() => t("common.no_options_found")}
               />
             </div>
             <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
@@ -271,19 +273,19 @@ function PropertyList() {
                   setCurrentPage(1);
                 }}
                 options={statusFilterOptions}
-                placeholder="Все статусы"
+                placeholder={t("property.list.all_statuses")}
                 isSearchable={false}
                 isClearable
                 styles={filterSelectStyles}
                 menuPortalTarget={menuPortalTarget}
                 menuPosition="fixed"
-                noOptionsMessage={() => "Ничего не найдено"}
+                noOptionsMessage={() => t("common.no_options_found")}
               />
             </div>
             {hasActiveFilters && (
               <button type="button" onClick={resetFilters}
                 className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700">
-                Сбросить
+                {t("reports.common.reset_button")}
               </button>
             )}
           </div>
@@ -299,14 +301,14 @@ function PropertyList() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center gap-2 px-5 py-16 text-center">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-            <p className="text-sm text-gray-400">Загрузка...</p>
+            <p className="text-sm text-gray-400">{t("reports.common.loading")}</p>
           </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 px-5 py-16 text-center">
             <Boxes size={36} className="text-gray-300" />
-            <p className="text-sm font-medium text-gray-500">Имущество не найдено</p>
+            <p className="text-sm font-medium text-gray-500">{t("property.list.empty")}</p>
             <p className="text-xs text-gray-400">
-              {hasActiveFilters ? "Попробуйте изменить фильтры или сбросить их" : "Добавьте первую единицу имущества"}
+              {hasActiveFilters ? t("property.list.empty_hint_filtered") : t("property.list.empty_hint")}
             </p>
           </div>
         ) : viewMode === "table" ? (
@@ -367,17 +369,16 @@ function PropertyList() {
       <Modal isOpen={Boolean(deletingItem)} onClose={() => setDeletingItem(null)}
         showCloseButton={false} className="m-4 max-w-[420px]">
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900">Удалить имущество?</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t("property.list.delete_title")}</h3>
           <p className="mt-2 text-sm text-gray-500">
-            Запись <span className="font-medium text-gray-700">«{deletingItem?.name}»</span> будет
-            удалена вместе с историей. Это действие нельзя отменить.
+            {t("property.list.delete_text", { name: deletingItem?.name ?? "" })}
           </p>
           <div className="mt-6 flex items-center justify-end gap-3">
-            <Button variant="outline" onClick={() => setDeletingItem(null)} className="px-5">Отменить</Button>
+            <Button variant="outline" onClick={() => setDeletingItem(null)} className="px-5">{t("recruiting.common.cancel")}</Button>
             <button type="button" onClick={confirmDelete}
               disabled={deleteMutation.isLoading}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 px-5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60">
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("property.list.deleting") : t("common.delete")}
             </button>
           </div>
         </div>

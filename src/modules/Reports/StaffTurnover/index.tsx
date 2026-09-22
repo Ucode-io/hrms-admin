@@ -13,6 +13,7 @@ import {
   useStaffTurnoverReportQuery,
   useStaffTurnoverTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const TABLE_PAGE_LIMIT = 20;
 const PIE_COLORS = ["#74A8C9", "#6B8FE3", "#666DCF", "#A78BFA", "#F59E0B", "#22C55E"];
@@ -28,7 +29,7 @@ const FALLBACK_CARDS: StaffTurnoverCardMetrics = {
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
 const formatPercent = (value: number | null | undefined): string => {
@@ -40,24 +41,26 @@ const formatPeople = (value: number | null | undefined): string => {
   const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
 
   if (Number.isInteger(safe)) {
-    return `${safe} человек`;
+    return translate("reports.staff_turnover.people_count", { count: safe });
   }
 
-  return `${safe.toFixed(1).replace(".", ",")} чел.`;
+  return translate("reports.staff_turnover.people_count_decimal", {
+    count: safe.toFixed(1).replace(".", ","),
+  });
 };
 
 const formatMonths = (value: number | null | undefined): string => {
   const safe = typeof value === "number" && Number.isFinite(value) ? value : 0;
   const formatted = safe.toFixed(1).replace(".", ",");
-  return `${formatted} месяцев`;
+  return translate("reports.staff_turnover.months_count", { count: formatted });
 };
 
-const formatDate = (value: string | null | undefined): string => {
+const formatDate = (value: string | null | undefined, locale: string): string => {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -124,6 +127,7 @@ function TenureCard({ title, months }: { title: string; months: number }) {
 }
 
 function StaffTurnoverPage() {
+  const { t, locale } = useTranslation();
   const [tablePage, setTablePage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -260,7 +264,7 @@ function StaffTurnoverPage() {
       {
         min: 0,
         title: {
-          text: "Текучесть сотрудников, %",
+          text: t("reports.staff_turnover.turnover_percent_axis"),
           style: { fontSize: "12px", color: "#64748b" },
         },
         labels: {
@@ -274,7 +278,7 @@ function StaffTurnoverPage() {
       {
         opposite: true,
         title: {
-          text: "Общая численность",
+          text: t("reports.staff_turnover.total_headcount_axis"),
           style: { fontSize: "12px", color: "#64748b" },
         },
         labels: {
@@ -311,7 +315,9 @@ function StaffTurnoverPage() {
           if (seriesIndex === 0) {
             return `${value.toFixed(1).replace(".", ",")}%`;
           }
-          return `${Math.round(value)} сотруд.`;
+          return t("reports.staff_turnover.employees_count_short", {
+            count: Math.round(value),
+          });
         },
       },
     },
@@ -319,12 +325,12 @@ function StaffTurnoverPage() {
 
   const monthlySeries: ApexAxisChartSeries = [
     {
-      name: "Текучесть сотрудников",
+      name: t("reports.staff_turnover.turnover_series"),
       type: "column",
       data: monthly.map((item) => item.turnover_percent),
     },
     {
-      name: "Численность",
+      name: t("reports.staff_turnover.headcount_series"),
       type: "line",
       data: monthly.map((item) => item.total_employees),
     },
@@ -365,7 +371,8 @@ function StaffTurnoverPage() {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value} сотруд.`,
+        formatter: (value: number) =>
+          t("reports.staff_turnover.employees_count_short", { count: value }),
       },
     },
   });
@@ -414,7 +421,10 @@ function StaffTurnoverPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Текучесть сотрудников | HRMS" description="Отчет о текучести сотрудников" />
+        <PageMeta
+          title={t("reports.staff_turnover.page_title")}
+          description={t("reports.staff_turnover.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -425,7 +435,10 @@ function StaffTurnoverPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Текучесть сотрудников | HRMS" description="Отчет о текучести сотрудников" />
+        <PageMeta
+          title={t("reports.staff_turnover.page_title")}
+          description={t("reports.staff_turnover.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -435,7 +448,7 @@ function StaffTurnoverPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -444,7 +457,10 @@ function StaffTurnoverPage() {
 
   return (
     <>
-      <PageMeta title="Текучесть сотрудников | HRMS" description="Отчет о текучести сотрудников" />
+      <PageMeta
+        title={t("reports.staff_turnover.page_title")}
+        description={t("reports.staff_turnover.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
@@ -452,11 +468,13 @@ function StaffTurnoverPage() {
             <section className="grid gap-4 xl:grid-cols-12">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4 xl:col-span-9">
                 <div className="mb-3">
-                  <h3 className="text-lg font-semibold text-gray-900">Текучесть по месяцам</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {t("reports.staff_turnover.monthly_chart_title")}
+                  </h3>
                 </div>
                 {monthly.length === 0 ? (
                   <div className="flex h-[320px] items-center justify-center text-sm text-gray-500">
-                    Нет данных для графика
+                    {t("reports.common.no_chart_data")}
                   </div>
                 ) : (
                   <Chart options={monthlyOptions} series={monthlySeries} type="line" height={350} />
@@ -465,17 +483,17 @@ function StaffTurnoverPage() {
 
               <div className="space-y-4 xl:col-span-3">
                 <MetricCard
-                  title="Общая текучесть сотрудников"
+                  title={t("reports.staff_turnover.total_turnover_title")}
                   percent={cards.total_turnover_percent}
                   people={cards.total_turnover_people}
                 />
                 <MetricCard
-                  title="Текучесть сотрудников (средняя за месяц)"
+                  title={t("reports.staff_turnover.average_turnover_title")}
                   percent={cards.average_turnover_percent}
                   people={cards.average_turnover_people}
                 />
                 <TenureCard
-                  title="Средний срок работы"
+                  title={t("reports.staff_turnover.average_tenure_title")}
                   months={cards.average_tenure_months}
                 />
               </div>
@@ -483,11 +501,13 @@ function StaffTurnoverPage() {
 
             <section className="grid gap-4 xl:grid-cols-2">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                <h3 className="text-lg font-semibold text-gray-900">Причины</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {t("reports.staff_turnover.reasons_title")}
+                </h3>
                 <div className="mt-2">
                   {byReasons.length === 0 || reasonsPieSeries.every((value) => value === 0) ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-                      Нет данных для графика
+                      {t("reports.common.no_chart_data")}
                     </div>
                   ) : (
                     <div className="flex justify-center">
@@ -498,11 +518,13 @@ function StaffTurnoverPage() {
               </article>
 
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                <h3 className="text-lg font-semibold text-gray-900">Типы</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {t("reports.staff_turnover.types_title")}
+                </h3>
                 <div className="mt-2">
                   {byTypes.length === 0 || typesPieSeries.every((value) => value === 0) ? (
                     <div className="flex h-[280px] items-center justify-center text-sm text-gray-500">
-                      Нет данных для графика
+                      {t("reports.common.no_chart_data")}
                     </div>
                   ) : (
                     <div className="flex justify-center">
@@ -518,20 +540,28 @@ function StaffTurnoverPage() {
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           {selectedReasonId || selectedTypeId || selectedEventMonth ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <span className="text-xs font-medium text-gray-500">Фильтр по графику:</span>
+              <span className="text-xs font-medium text-gray-500">
+                {t("reports.staff_turnover.chart_filter_label")}
+              </span>
               {selectedEventMonth ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Месяц: {selectedEventMonthLabel || selectedEventMonth}
+                  {t("reports.staff_turnover.month_filter_tag", {
+                    value: selectedEventMonthLabel || selectedEventMonth || "",
+                  })}
                 </span>
               ) : null}
               {selectedReasonId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Причина: {selectedReasonLabel || "Не указано"}
+                  {t("reports.staff_turnover.reason_filter_tag", {
+                    value: selectedReasonLabel || t("reports.common.not_specified"),
+                  })}
                 </span>
               ) : null}
               {selectedTypeId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Тип: {selectedTypeLabel || "Не указано"}
+                  {t("reports.staff_turnover.type_filter_tag", {
+                    value: selectedTypeLabel || t("reports.common.not_specified"),
+                  })}
                 </span>
               ) : null}
               <button
@@ -544,7 +574,7 @@ function StaffTurnoverPage() {
                 }}
                 className="inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
               >
-                Сбросить
+                {t("reports.common.reset_button")}
               </button>
             </div>
           ) : null}
@@ -559,7 +589,7 @@ function StaffTurnoverPage() {
                 type="text"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("reports.common.search_placeholder")}
                 className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
               />
             </label>
@@ -568,8 +598,12 @@ function StaffTurnoverPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -618,13 +652,13 @@ function StaffTurnoverPage() {
               <thead>
                 <tr className="bg-gray-50">
                   {[
-                    "Полное имя",
-                    "Последний день в офисе",
-                    "Последний рабочий день",
-                    "Срок работы",
-                    "Срок работы (в днях)",
-                    "Причины увольнения",
-                    "Тип увольнения",
+                    t("reports.staff_turnover.column_full_name"),
+                    t("reports.staff_turnover.column_last_day_in_office"),
+                    t("reports.staff_turnover.column_last_working_day"),
+                    t("reports.staff_turnover.column_tenure"),
+                    t("reports.staff_turnover.column_tenure_days"),
+                    t("reports.staff_turnover.column_dismissal_reason"),
+                    t("reports.staff_turnover.column_dismissal_type"),
                   ].map((column) => (
                     <th
                       key={column}
@@ -660,14 +694,14 @@ function StaffTurnoverPage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                      {t("reports.staff_turnover.no_employees_for_filters")}
                     </td>
                   </tr>
                 ) : (
@@ -679,10 +713,10 @@ function StaffTurnoverPage() {
                         </Link>
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {formatDate(item.last_day_in_office)}
+                        {formatDate(item.last_day_in_office, locale)}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {formatDate(item.last_working_day)}
+                        {formatDate(item.last_working_day, locale)}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
                         {item.tenure}
@@ -706,16 +740,22 @@ function StaffTurnoverPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="w-5 h-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
         {isTableFetching && !isTableLoading ? (
-          <p className="text-right text-xs text-gray-400">Обновление таблицы...</p>
+          <p className="text-right text-xs text-gray-400">
+            {t("reports.staff_turnover.updating_table")}
+          </p>
         ) : null}
       </div>
     </>

@@ -2,10 +2,12 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { Plus, Search, Filter } from "lucide-react";
 import PageMeta from "../../../components/common/PageMeta";
+import { useTranslation } from "../../../i18n";
 import DataTable, { Column } from "../../../components/DataTable";
 import { useAgreementsQuery, Agreement } from "../../../api/services/agreement.service";
 
 export default function AgreementsList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
@@ -45,24 +47,24 @@ export default function AgreementsList() {
     },
     {
       key: "company_name",
-      header: "Компания",
+      header: t("agreements.company"),
       render: (agr) => (
         <span className="font-medium text-gray-800">{agr.company_name || "—"}</span>
       ),
     },
     {
       key: "contract_number",
-      header: "Номер договора",
+      header: t("agreements.number"),
       render: (agr) => agr.contract_number || "—",
     },
     {
       key: "contract_amount",
-      header: "Сумма договора",
+      header: t("agreements.amount"),
       render: (agr) => agr.contract_amount ? Number(agr.contract_amount).toLocaleString('ru-RU') : "—",
     },
     {
       key: "file",
-      header: "Файл",
+      header: t("agreements.file"),
       render: (agr) => agr.file ? (
         <a
           href={agr.file}
@@ -71,29 +73,29 @@ export default function AgreementsList() {
           className="text-blue-600 hover:underline"
           onClick={(e) => e.stopPropagation()}
         >
-          Скачать
+          {t("agreements.download")}
         </a>
       ) : "—",
     },
     {
       key: "status",
-      header: "Статус",
+      header: t("agreements.status"),
       render: (agr) => (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${agr.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-          {agr.status ? "Активный" : "Неактивный"}
+          {agr.status ? t("agreements.active") : t("agreements.inactive")}
         </span>
       ),
     },
     {
       key: "created_at",
-      header: "Дата создания",
+      header: t("agreements.created_at"),
       render: (agr) => formatDateTime(agr.created_at),
     },
   ];
 
   return (
     <>
-      <PageMeta title="Договора | NSTEX" description="Список договоров" />
+      <PageMeta title={t("agreements.list_title")} description={t("agreements.list_description")} />
 
       {/* Top Bar */}
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -105,7 +107,7 @@ export default function AgreementsList() {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Назад
+          {t("agreements.back")}
         </button>
 
         <div className="flex flex-1 items-center justify-end gap-3">
@@ -119,7 +121,7 @@ export default function AgreementsList() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Поиск"
+              placeholder={t("agreements.search")}
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B38D80]/30 focus:border-[#B38D80] transition-colors"
             />
           </div>
@@ -138,7 +140,7 @@ export default function AgreementsList() {
             onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D2939")}
           >
             <Plus className="w-4 h-4" />
-            Добавить договор
+            {t("agreements.add")}
           </button>
         </div>
       </div>
@@ -155,7 +157,7 @@ export default function AgreementsList() {
         onPageChange={setCurrentPage}
         onRowClick={(agr) => navigate(`/organization/agreements/${agr.guid}`)}
         getRowKey={(agr) => agr.guid}
-        emptyMessage="Договора не найдены"
+        emptyMessage={t("agreements.empty")}
       />
     </>
   );

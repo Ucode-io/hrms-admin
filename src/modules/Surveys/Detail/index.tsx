@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "../../../components/ui/table";
 import { parseSurveyBody, useSurveyQuery } from "../../../api/services/survey.service";
+import { useTranslation } from "../../../i18n";
 import {
   type SurveyResultResponse,
   useSurveyResultsQuery,
@@ -115,6 +116,7 @@ const formatDateTime = (value: string | null): string => {
 const CHOICE_TYPES = new Set(["radiogroup", "dropdown", "checkbox", "tagbox", "boolean", "rating"]);
 
 export default function SurveyDetailPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const surveyGuid = id || "";

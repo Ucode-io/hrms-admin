@@ -63,8 +63,7 @@ const positionRows = (employees: ShiftEmployee[]) => {
     .sort((a, b) => a.label.localeCompare(b.label));
 };
 
-export default function GridView({
-  dates,
+export default function GridView({ dates,
   groups,
   shiftByCell,
   isMonthScale,

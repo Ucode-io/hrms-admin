@@ -45,6 +45,7 @@ import companyStore from "../../store/company.store";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import LocationViewLink from "../../components/map/LocationViewLink";
 import { type Office, useOffices } from "../../components/map/useOffices";
+import { useTranslation } from "../../i18n";
 
 const PAGE_SIZE = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -698,6 +699,7 @@ const buildTimelineCells = ({
 };
 
 export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = {}) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [employeesPage, setEmployeesPage] = useState(1);
   const [employees, setEmployees] = useState<Employee[]>([]);

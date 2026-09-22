@@ -33,14 +33,9 @@ import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirecto
 import { useRolesQuery } from "../../../api/services/role.service";
 import type { EmployeeFormValues, SelectOption } from "./types";
 import { employeeFormDefaults } from "./types";
+import { useTranslation } from "../../../i18n";
 
 const EMPLOYEE_WORK_REASON_SLUG = "employee_work_reason";
-
-/* ── Constants ── */
-const GENDER_OPTIONS: SelectOption[] = [
-  { value: "male_slug", label: "Мужчина" },
-  { value: "female_slug", label: "Женщина" },
-];
 
 /**
  * Значения динамических полей лежат в контейнере `custom_data`. Поле в u-code
@@ -111,6 +106,11 @@ const inputStyle: React.CSSProperties = {
  *  Main component
  * ───────────────────────────────────────────── */
 function EmployeeForm() {
+  const { t } = useTranslation();
+  const GENDER_OPTIONS: SelectOption[] = [
+    { value: "male_slug", label: t("employees.form.gender_male") },
+    { value: "female_slug", label: t("employees.form.gender_female") },
+  ];
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEdit = !!id;
@@ -186,7 +186,7 @@ function EmployeeForm() {
   const locationOptions: SelectOption[] = locations.map((l) => ({ value: l.guid, label: l.title }));
   const employeeWorkReasonOptions: SelectOption[] = employeeWorkReasons.map((item) => ({
     value: item.guid,
-    label: String(item.title || "Без названия"),
+    label: String(item.title || t("employees.detail.no_title")),
   }));
 
   /* ── Динамические поля user_base и раскладка формы ── */
@@ -238,7 +238,7 @@ function EmployeeForm() {
       toast.error(
         error instanceof Error && error.message
           ? error.message
-          : "Не удалось сохранить раскладку формы."
+          : t("employees.form.layout_save_failed")
       );
     }
   };
@@ -320,7 +320,7 @@ function EmployeeForm() {
       setValue("photo", cdnUrl);
     } catch (err) {
       console.error("Photo upload error:", err);
-      alert("Ошибка при загрузке фото. Попробуйте ещё раз.");
+      alert(t("employees.form.photo_upload_failed"));
     } finally {
       setUploadingPhoto(false);
     }
@@ -527,7 +527,7 @@ function EmployeeForm() {
           }}
         >
           <Pencil style={{ width: "14px", height: "14px" }} />
-          Изменить фото
+          {t("employees.form.change_photo")}
         </button>
         {photo && (
           <button
@@ -568,8 +568,8 @@ function EmployeeForm() {
       locations: locationOptions,
     },
     experienceLevelPlaceholder: selectedPositionGroupId
-      ? "Выберите уровень"
-      : "Сначала выберите должность",
+      ? t("employees.form.select_level")
+      : t("employees.form.select_position_first"),
     renderPhoto,
   };
 
@@ -594,8 +594,8 @@ function EmployeeForm() {
   return (
     <>
       <PageMeta
-        title={isEdit ? "Редактировать сотрудника | HRMS" : "Добавить сотрудника | HRMS"}
-        description={isEdit ? "Редактирование сотрудника" : "Добавление нового сотрудника"}
+        title={isEdit ? t("employees.form.page_title_edit") : t("employees.form.page_title_new")}
+        description={isEdit ? t("employees.form.page_description_edit") : t("employees.form.page_description_new")}
       />
 
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -611,12 +611,12 @@ function EmployeeForm() {
         >
           <div>
             <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#0f172a" }}>
-              {builderMode ? "Настройка формы" : isEdit ? "Редактирование сотрудника" : "Новый сотрудник"}
+              {builderMode ? t("employees.form.builder_mode_title") : isEdit ? t("employees.form.page_description_edit") : t("employees.form.new_employee_title")}
             </p>
             <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#94a3b8" }}>
               {builderMode
-                ? "Поля переносятся перетаскиванием, ширина — за правый край плитки. Изменения сохранятся по кнопке «Готово»."
-                : "Расположение полей настраивается кнопкой «Настроить форму»."}
+                ? t("employees.form.builder_mode_hint")
+                : t("employees.form.layout_hint")}
             </p>
           </div>
 
@@ -633,7 +633,7 @@ function EmployeeForm() {
                 }}
               >
                 <RotateCcw style={{ width: "14px", height: "14px" }} />
-                Сбросить раскладку
+                {t("employees.form.reset_layout")}
               </button>
             )}
             <button
@@ -652,7 +652,7 @@ function EmployeeForm() {
               }}
             >
               <LayoutGrid style={{ width: "14px", height: "14px" }} />
-              {builderMode ? (layoutApi.isSaving ? "Сохраняем..." : "Готово") : "Настроить форму"}
+              {builderMode ? (layoutApi.isSaving ? t("employees.form.saving_layout") : t("employees.form.done")) : t("employees.form.configure_form")}
             </button>
           </div>
         </div>
@@ -692,7 +692,7 @@ function EmployeeForm() {
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#fee2e2")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fef2f2")}
             >
-              Удалить
+              {t("employees.form.delete_button")}
             </button>
           )}
 
@@ -708,7 +708,7 @@ function EmployeeForm() {
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f8fafc")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="submit"
@@ -723,7 +723,7 @@ function EmployeeForm() {
             onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.opacity = "0.9")}
             onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.opacity = "1")}
           >
-            {isSubmitting ? "Сохранение..." : "Сохранить"}
+            {isSubmitting ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </form>
@@ -734,16 +734,16 @@ function EmployeeForm() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 mb-6">
             <Trash2 className="h-8 w-8 text-red-600" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Удалить сотрудника?</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-2">{t("employees.form.delete_modal_title")}</h3>
           <p className="text-sm text-gray-500 mb-8">
-            Это действие нельзя отменить. Все данные сотрудника будут удалены из системы навсегда.
+            {t("employees.form.delete_modal_description")}
           </p>
           <div className="flex justify-end gap-3 mt-4">
             <button
               onClick={() => setIsDeleteModalOpen(false)}
               className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               onClick={handleDelete}
@@ -753,7 +753,7 @@ function EmployeeForm() {
               {deleteMutation.isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
-                "Удалить"
+                t("employees.form.delete_button")
               )}
             </button>
           </div>

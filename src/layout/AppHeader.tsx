@@ -7,52 +7,54 @@ import companyStore from "../store/company.store";
 import { observer } from "mobx-react-lite";
 import { ArrowLeft, Bell, Menu, X } from "lucide-react";
 import { CopilotToggle } from "../features/copilot";
+import { useTranslation } from "../i18n";
+import type { MessageKey } from "../i18n/messages";
 
-const SEGMENT_LABELS: Record<string, string> = {
-  dashboard: "Главная страница",
-  documents: "Документы",
-  "knowledge-base": "База знаний",
-  articles: "Статья",
-  employees: "Сотрудники",
-  organization: "Организация",
-  reports: "Отчеты",
-  kpi: "KPI",
-  tasks: "Задачи",
-  budgeting: "Бюджетирование",
-  "age-distribution": "Возрастное распределение",
-  "gender-distribution": "Гендерное распределение",
-  "staff-count": "Численность сотрудников",
-  "staff-turnover": "Текучесть кадров",
-  tenure: "Стаж",
-  "absence-balance": "Баланс отсутствий",
-  attendance: "Посещаемость",
-  "sport-attendance": "Посещение спорта",
-  payroll: "ФОТ",
-  "bonus-deductions": "Бонусы и удержания",
-  settings: "Настройки",
-  "attendance-penalties": "Штрафы",
-  "grade-salaries": "Зарплаты по грейдам",
-  "experience-levels": "Уровни опыта",
-  positions: "Должности",
-  integrations: "Интеграции",
-  hickvision: "Hickvision",
-  timedoctor: "Time Doctor",
-  finance: "Финансы",
-  salary: "Зарплата",
-  time: "Время",
-  timesheet: "Табель времени",
-  shifts: "График работы",
-  "time-tracking": "Учёт времени работы",
-  surveys: "Опросники",
-  trainings: "Тренинги",
-  calendar: "Календарь",
-  clients: "Клиенты",
-  contracts: "Договоры",
-  products: "Продукты",
-  merchants: "Партнеры",
-  notifications: "Уведомления",
-  news: "Новости",
-  generate: "Генерация",
+const SEGMENT_KEYS: Record<string, MessageKey> = {
+  dashboard: "breadcrumb.dashboard",
+  documents: "breadcrumb.documents",
+  "knowledge-base": "breadcrumb.knowledge_base",
+  articles: "breadcrumb.articles",
+  employees: "breadcrumb.employees",
+  organization: "breadcrumb.organization",
+  reports: "breadcrumb.reports",
+  kpi: "breadcrumb.kpi",
+  tasks: "breadcrumb.tasks",
+  budgeting: "breadcrumb.budgeting",
+  "age-distribution": "breadcrumb.age_distribution",
+  "gender-distribution": "breadcrumb.gender_distribution",
+  "staff-count": "breadcrumb.staff_count",
+  "staff-turnover": "breadcrumb.staff_turnover",
+  tenure: "breadcrumb.tenure",
+  "absence-balance": "breadcrumb.absence_balance",
+  attendance: "breadcrumb.attendance",
+  "sport-attendance": "breadcrumb.sport_attendance",
+  payroll: "breadcrumb.payroll",
+  "bonus-deductions": "breadcrumb.bonus_deductions",
+  settings: "breadcrumb.settings",
+  "attendance-penalties": "breadcrumb.attendance_penalties",
+  "grade-salaries": "breadcrumb.grade_salaries",
+  "experience-levels": "breadcrumb.experience_levels",
+  positions: "breadcrumb.positions",
+  integrations: "breadcrumb.integrations",
+  hickvision: "breadcrumb.hickvision",
+  timedoctor: "breadcrumb.timedoctor",
+  finance: "breadcrumb.finance",
+  salary: "breadcrumb.salary",
+  time: "breadcrumb.time",
+  timesheet: "breadcrumb.timesheet",
+  shifts: "breadcrumb.shifts",
+  "time-tracking": "breadcrumb.time_tracking",
+  surveys: "breadcrumb.surveys",
+  trainings: "breadcrumb.trainings",
+  calendar: "breadcrumb.calendar",
+  clients: "breadcrumb.clients",
+  contracts: "breadcrumb.contracts",
+  products: "breadcrumb.products",
+  merchants: "breadcrumb.merchants",
+  notifications: "breadcrumb.notifications",
+  news: "breadcrumb.news",
+  generate: "breadcrumb.generate",
 };
 
 const formatSegment = (segment: string) =>
@@ -62,17 +64,19 @@ const formatSegment = (segment: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
-const normalizeSegmentLabel = (segment: string) => {
-  if (segment === "new") return "Создание";
-  if (segment === "edit") return "Редактирование";
-  if (/^[0-9a-f-]{6,}$/i.test(segment)) return "Детали";
-  return SEGMENT_LABELS[segment] || formatSegment(segment);
+const normalizeSegmentLabel = (segment: string, t: (key: MessageKey) => string) => {
+  if (segment === "new") return t("breadcrumb.new");
+  if (segment === "edit") return t("breadcrumb.edit");
+  if (/^[0-9a-f-]{6,}$/i.test(segment)) return t("breadcrumb.details");
+  const key = SEGMENT_KEYS[segment];
+  return (key && t(key)) || formatSegment(segment);
 };
 
 const buildHeaderBreadcrumbs = (
   pathname: string,
   getOverrideLabel: (path: string) => string | undefined,
-  getOverrideItems: (path: string) => HeaderBreadcrumbItem[] | undefined
+  getOverrideItems: (path: string) => HeaderBreadcrumbItem[] | undefined,
+  t: (key: MessageKey) => string
 ): HeaderBreadcrumbItem[] => {
   const overrideItems = getOverrideItems(pathname);
   if (overrideItems && overrideItems.length > 0) {
@@ -81,21 +85,21 @@ const buildHeaderBreadcrumbs = (
 
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length === 0) {
-    return [{ label: "Главная страница", to: "/dashboard" }];
+    return [{ label: t("breadcrumb.dashboard"), to: "/dashboard" }];
   }
 
   if (segments[0] === "employees") {
     const tail = segments.slice(1).map((segment, index) => {
       const to = `/${["employees", ...segments.slice(1, index + 2)].join("/")}`;
       return {
-        label: getOverrideLabel(to) || normalizeSegmentLabel(segment),
+        label: getOverrideLabel(to) || normalizeSegmentLabel(segment, t),
         to,
       };
     });
 
     return [
-      { label: "Люди", to: "/employees" },
-      { label: "Сотрудники", to: "/employees" },
+      { label: t("sidebar.section.people"), to: "/employees" },
+      { label: t("breadcrumb.employees"), to: "/employees" },
       ...tail,
     ];
   }
@@ -103,7 +107,7 @@ const buildHeaderBreadcrumbs = (
   return segments.map((segment, index) => {
     const to = `/${segments.slice(0, index + 1).join("/")}`;
     return {
-      label: getOverrideLabel(to) || normalizeSegmentLabel(segment),
+      label: getOverrideLabel(to) || normalizeSegmentLabel(segment, t),
       to,
     };
   });
@@ -114,6 +118,7 @@ const AppHeader: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { getBreadcrumbLabel, getBreadcrumbItems } = useHeaderBreadcrumb();
+  const { t } = useTranslation();
 
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
@@ -124,8 +129,8 @@ const AppHeader: React.FC = () => {
   };
 
   const breadcrumbs = useMemo(() => {
-    return buildHeaderBreadcrumbs(location.pathname, getBreadcrumbLabel, getBreadcrumbItems);
-  }, [getBreadcrumbItems, getBreadcrumbLabel, location.pathname]);
+    return buildHeaderBreadcrumbs(location.pathname, getBreadcrumbLabel, getBreadcrumbItems, t);
+  }, [getBreadcrumbItems, getBreadcrumbLabel, location.pathname, t]);
   const isDocumentsFolderView =
     location.pathname === "/documents" && new URLSearchParams(location.search).has("folder");
   // Detail and form (create/edit) pages: back button lives here in the header.
@@ -158,7 +163,7 @@ const AppHeader: React.FC = () => {
         <button
           className="flex items-center justify-center w-10 h-10 text-gray-500 rounded-lg hover:bg-gray-100 lg:hidden transition-colors"
           onClick={handleToggle}
-          aria-label="Toggle Sidebar"
+          aria-label={t("header.toggle_sidebar")}
         >
           {isMobileOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
@@ -179,8 +184,8 @@ const AppHeader: React.FC = () => {
                   type="button"
                   onClick={handleBack}
                   className="-ml-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-gray-800"
-                  aria-label="Назад"
-                  title="Назад"
+                  aria-label={t("header.back")}
+                  title={t("header.back")}
                 >
                   <ArrowLeft size={16} />
                 </button>
@@ -212,7 +217,8 @@ const AppHeader: React.FC = () => {
         <button
           type="button"
           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 shadow-sm"
-          aria-label="Уведомления"
+          aria-label={t("header.notifications")}
+          title={t("header.notifications")}
         >
           <Bell size={18} />
         </button>

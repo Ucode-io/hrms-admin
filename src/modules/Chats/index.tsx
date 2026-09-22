@@ -19,11 +19,12 @@ import {
   type CopilotConversationRow,
 } from "../../api/services/copilotChat.service";
 import { lastSaid, projectThread, type ChatMessage } from "./projectThread";
+import { useTranslation } from "../../i18n";
 
 interface Dialog {
   id: string;
   startedAt: string;
-  source: "Telegram" | "Веб";
+  source: "telegram" | "web";
   messages: ChatMessage[];
 }
 
@@ -88,7 +89,7 @@ const buildPeople = (
       .map((row) => ({
         id: row.guid,
         startedAt: row.created_at,
-        source: row.telegram_chat_id ? ("Telegram" as const) : ("Веб" as const),
+        source: row.telegram_chat_id ? ("telegram" as const) : ("web" as const),
         messages: projectThread(row.thread, `${row.guid}-`),
       }))
       // Пустые треды не показываем — сервис в своём списке истории делает так же:
@@ -119,6 +120,7 @@ const buildPeople = (
 };
 
 export default function ChatsPage() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
@@ -153,8 +155,8 @@ export default function ChatsPage() {
   return (
     <>
       <PageMeta
-        title="Чаты | HRMS"
-        description="Переписки сотрудников с AI чатом"
+        title={t("chats.page_title")}
+        description={t("chats.page_description")}
       />
 
       {/* Высота под главный layout: шапка h-16 плюс padding обёртки
@@ -172,7 +174,7 @@ export default function ChatsPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Поиск по сотруднику"
+                placeholder={t("chats.search_placeholder")}
                 className="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-400"
               />
             </div>
@@ -184,7 +186,7 @@ export default function ChatsPage() {
                 <Loader2 size={20} className="animate-spin" />
               </div>
             ) : visible.length === 0 ? (
-              <p className="p-4 text-sm text-gray-400">Переписок пока нет</p>
+              <p className="p-4 text-sm text-gray-400">{t("chats.empty")}</p>
             ) : (
               visible.map((person) => (
                 <button
@@ -231,7 +233,7 @@ export default function ChatsPage() {
               disabled={isFetchingNextPage}
               className="border-t border-gray-200 py-2.5 text-sm text-brand-500 hover:bg-gray-50 disabled:text-gray-400"
             >
-              {isFetchingNextPage ? "Загрузка…" : "Показать ещё"}
+              {isFetchingNextPage ? t("chats.loading") : t("chats.show_more")}
             </button>
           ) : null}
         </aside>
@@ -241,14 +243,14 @@ export default function ChatsPage() {
           {!selected ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-400">
               <MessageSquare size={28} />
-              <p className="text-sm">Выберите сотрудника слева</p>
+              <p className="text-sm">{t("chats.select_employee")}</p>
             </div>
           ) : (
             <>
               <header className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
                 <h2 className="text-sm font-semibold text-gray-800">{selected.name}</h2>
                 <span className="text-xs text-gray-400">
-                  {selected.dialogs.length} диалог(ов)
+                  {t("chats.dialogs_count", { count: selected.dialogs.length })}
                 </span>
               </header>
 
@@ -258,7 +260,8 @@ export default function ChatsPage() {
                     <div className="flex items-center gap-3 py-1">
                       <span className="h-px flex-1 bg-gray-200" />
                       <span className="text-[11px] uppercase tracking-wide text-gray-400">
-                        новый диалог · {dateLabel(dialog.startedAt)} · {dialog.source}
+                        {t("chats.new_dialog")} · {dateLabel(dialog.startedAt)} ·{" "}
+                        {dialog.source === "telegram" ? "Telegram" : t("chats.source_web")}
                       </span>
                       <span className="h-px flex-1 bg-gray-200" />
                     </div>

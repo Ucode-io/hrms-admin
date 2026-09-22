@@ -16,6 +16,8 @@ import {
   useAgeDistributionReportQuery,
   useAgeDistributionTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 type MetricCardProps = {
   title: string;
@@ -61,10 +63,10 @@ const formatAverageAge = (value: number | null | undefined): string => {
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.common.load_error");
 };
 
-const formatBirthDate = (value: string | null | undefined): string => {
+const formatBirthDate = (value: string | null | undefined, locale: string): string => {
   if (!value) {
     return "—";
   }
@@ -74,7 +76,7 @@ const formatBirthDate = (value: string | null | undefined): string => {
     return value;
   }
 
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -105,20 +107,33 @@ const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7
 
 const getEmployeeAgeText = (employee: EmployeeAgeInfo | null | undefined): string => {
   if (typeof employee?.age !== "number" || !Number.isFinite(employee.age)) {
-    return "Возраст не указан";
+    return translate("reports.age_distribution.age_not_specified");
   }
-  return `${employee.age} лет`;
+  return `${employee.age} ${translate("reports.age_distribution.years_short")}`;
+};
+
+// The backend ships Russian bucket labels; the keys are stable, so translate by
+// key and fall back to the server label for buckets we don't know yet.
+const AGE_GROUP_LABEL_KEYS: Record<string, MessageKey> = {
+  under_25: "reports.age_distribution.group_under_25",
+  from_26_to_30: "reports.age_distribution.group_26_30",
+  from_31_to_40: "reports.age_distribution.group_31_40",
+  from_41_to_54: "reports.age_distribution.group_41_54",
+  from_55_plus: "reports.age_distribution.group_55_plus",
 };
 
 const normalizeAgeGroups = (
   source: AgeGroupDistributionItem[] | undefined
 ): AgeGroupDistributionItem[] => {
   if (!Array.isArray(source)) return [];
-  return source.map((item) => ({
-    key: item.key,
-    label: item.label,
-    count: item.count ?? 0,
-  }));
+  return source.map((item) => {
+    const labelKey = AGE_GROUP_LABEL_KEYS[item.key];
+    return {
+      key: item.key,
+      label: labelKey ? translate(labelKey) : item.label,
+      count: item.count ?? 0,
+    };
+  });
 };
 
 const normalizeBirthdaysByMonth = (
@@ -140,7 +155,7 @@ const normalizeAverageAgeBreakdown = (
   if (!Array.isArray(source)) return [];
   return source.map((item) => ({
     id: item.id,
-    label: item.label || "Не указано",
+    label: item.label || translate("reports.common.not_specified"),
     average_age:
       typeof item.average_age === "number" && Number.isFinite(item.average_age)
         ? Number(item.average_age.toFixed(1))
@@ -197,6 +212,7 @@ function ChartBlock({ title, subtitle, options, series, height = 310 }: ChartBlo
 }
 
 function ReportsPage() {
+  const { t, locale } = useTranslation();
   const brandColor = companyStore.mainColor || "#2980B9";
   const [tablePage, setTablePage] = useState(1);
   const [selectedAgeGroupKey, setSelectedAgeGroupKey] = useState<string | null>(null);
@@ -355,7 +371,7 @@ function ReportsPage() {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value} сотруд.`,
+        formatter: (value: number) => `${value} ${t("reports.age_distribution.employees_short")}`,
       },
     },
   };
@@ -411,7 +427,7 @@ function ReportsPage() {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value} сотруд.`,
+        formatter: (value: number) => `${value} ${t("reports.age_distribution.employees_short")}`,
       },
     },
   };
@@ -464,35 +480,36 @@ function ReportsPage() {
     },
     tooltip: {
       y: {
-        formatter: (value: number) => `${value.toFixed(1)} лет`,
+        formatter: (value: number) =>
+          `${value.toFixed(1)} ${t("reports.age_distribution.years_short")}`,
       },
     },
   });
 
   const ageGroupsSeries: ApexAxisChartSeries = [
     {
-      name: "Сотрудники",
+      name: t("reports.age_distribution.employees_series"),
       data: ageGroups.map((item) => item.count),
     },
   ];
 
   const birthdaysSeries: ApexAxisChartSeries = [
     {
-      name: "Сотрудники",
+      name: t("reports.age_distribution.employees_series"),
       data: birthdaysByMonth.map((item) => item.employees_count),
     },
   ];
 
   const departmentsSeries: ApexAxisChartSeries = [
     {
-      name: "Средний возраст",
+      name: t("reports.age_distribution.average_age_series"),
       data: averageAgeByDepartments.map((item) => item.average_age ?? 0),
     },
   ];
 
   const locationsSeries: ApexAxisChartSeries = [
     {
-      name: "Средний возраст",
+      name: t("reports.age_distribution.average_age_series"),
       data: averageAgeByLocations.map((item) => item.average_age ?? 0),
     },
   ];
@@ -500,7 +517,10 @@ function ReportsPage() {
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Отчеты | HRMS" description="Возрастное распределение сотрудников" />
+        <PageMeta
+          title={t("reports.age_distribution.page_title")}
+          description={t("reports.age_distribution.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -511,7 +531,10 @@ function ReportsPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Отчеты | HRMS" description="Возрастное распределение сотрудников" />
+        <PageMeta
+          title={t("reports.age_distribution.page_title")}
+          description={t("reports.age_distribution.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">
             {getErrorMessage(error)}
@@ -523,7 +546,7 @@ function ReportsPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -532,14 +555,17 @@ function ReportsPage() {
 
   return (
     <>
-      <PageMeta title="Отчеты | HRMS" description="Возрастное распределение сотрудников" />
+      <PageMeta
+        title={t("reports.age_distribution.page_title")}
+        description={t("reports.age_distribution.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="grid gap-4 xl:grid-cols-12">
           <div className="xl:col-span-9">
             <ChartBlock
-              title="Как распределены сотрудники по возрастным группам?"
-              subtitle="Количество сотрудников"
+              title={t("reports.age_distribution.chart_age_groups_title")}
+              subtitle={t("reports.age_distribution.chart_employees_count_subtitle")}
               options={ageGroupChartOptions}
               series={ageGroupsSeries}
               height={320}
@@ -548,18 +574,24 @@ function ReportsPage() {
 
           <div className="space-y-4 xl:col-span-3">
             <MetricCard
-              title="Средний возраст"
+              title={t("reports.age_distribution.card_average_age")}
               value={formatAverageAge(result.cards?.average_age)}
-              subtitle="лет"
+              subtitle={t("reports.age_distribution.years_short")}
             />
-            <EmployeeCard title="Самый младший сотрудник" employee={result.cards?.youngest_employee} />
-            <EmployeeCard title="Самый старший сотрудник" employee={result.cards?.oldest_employee} />
+            <EmployeeCard
+              title={t("reports.age_distribution.card_youngest")}
+              employee={result.cards?.youngest_employee}
+            />
+            <EmployeeCard
+              title={t("reports.age_distribution.card_oldest")}
+              employee={result.cards?.oldest_employee}
+            />
           </div>
         </section>
 
         <ChartBlock
-          title="Когда дни рождения сотрудников?"
-          subtitle="Количество сотрудников по месяцам"
+          title={t("reports.age_distribution.chart_birthdays_title")}
+          subtitle={t("reports.age_distribution.chart_birthdays_subtitle")}
           options={birthdaysChartOptions}
           series={birthdaysSeries}
           height={320}
@@ -567,8 +599,8 @@ function ReportsPage() {
 
         <section className="grid gap-4 xl:grid-cols-2">
           <ChartBlock
-            title="Средний возраст по департаментам"
-            subtitle="В годах"
+            title={t("reports.age_distribution.chart_by_department_title")}
+            subtitle={t("reports.age_distribution.in_years_subtitle")}
             options={horizontalBarOptions(
               averageAgeByDepartments.map((item) => item.label),
               handleDepartmentSelect
@@ -578,8 +610,8 @@ function ReportsPage() {
           />
 
           <ChartBlock
-            title="Средний возраст по филиалам"
-            subtitle="В годах"
+            title={t("reports.age_distribution.chart_by_location_title")}
+            subtitle={t("reports.age_distribution.in_years_subtitle")}
             options={horizontalBarOptions(
               averageAgeByLocations.map((item) => item.label),
               handleLocationSelect
@@ -592,25 +624,31 @@ function ReportsPage() {
         <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           {selectedAgeGroupKey || selectedBirthMonth || selectedDepartmentId || selectedLocationId ? (
             <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <span className="text-xs font-medium text-gray-500">Фильтр по графику:</span>
+              <span className="text-xs font-medium text-gray-500">
+                {t("reports.common.chart_filter_label")}
+              </span>
               {selectedAgeGroupKey ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Возраст: {selectedAgeGroupLabel || selectedAgeGroupKey}
+                  {t("reports.age_distribution.filter_age_prefix")}{" "}
+                  {selectedAgeGroupLabel || selectedAgeGroupKey}
                 </span>
               ) : null}
               {selectedBirthMonth ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Месяц рождения: {selectedBirthMonthLabel || selectedBirthMonth}
+                  {t("reports.age_distribution.filter_birth_month_prefix")}{" "}
+                  {selectedBirthMonthLabel || selectedBirthMonth}
                 </span>
               ) : null}
               {selectedDepartmentId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Департамент: {selectedDepartmentLabel || "Не указано"}
+                  {t("reports.common.filter_department_prefix")}{" "}
+                  {selectedDepartmentLabel || t("reports.common.not_specified")}
                 </span>
               ) : null}
               {selectedLocationId ? (
                 <span className="inline-flex items-center rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600">
-                  Филиал: {selectedLocationLabel || "Не указано"}
+                  {t("reports.common.filter_location_prefix")}{" "}
+                  {selectedLocationLabel || t("reports.common.not_specified")}
                 </span>
               ) : null}
               <button
@@ -618,7 +656,7 @@ function ReportsPage() {
                 onClick={resetChartFilters}
                 className="inline-flex h-7 items-center rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
               >
-                Сбросить
+                {t("reports.common.reset_button")}
               </button>
             </div>
           ) : null}
@@ -626,8 +664,12 @@ function ReportsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -679,13 +721,13 @@ function ReportsPage() {
               <thead>
                 <tr className="bg-gray-50">
                   {[
-                    "Полное имя",
-                    "Дата рождения",
-                    "Возраст",
-                    "Уровень",
-                    "Должность",
-                    "Департамент",
-                    "Регион",
+                    t("reports.age_distribution.col_full_name"),
+                    t("reports.age_distribution.col_birth_date"),
+                    t("reports.age_distribution.col_age"),
+                    t("reports.age_distribution.col_level"),
+                    t("reports.age_distribution.col_position"),
+                    t("reports.age_distribution.col_department"),
+                    t("reports.age_distribution.col_region"),
                   ].map((column) => (
                     <th
                       key={column}
@@ -719,14 +761,14 @@ function ReportsPage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Нет сотрудников по выбранным параметрам
+                      {t("reports.common.no_employees_filtered")}
                     </td>
                   </tr>
                 ) : (
@@ -738,7 +780,7 @@ function ReportsPage() {
                         </Link>
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                        {formatBirthDate(item.birth_date)}
+                        {formatBirthDate(item.birth_date, locale)}
                       </td>
                       <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
                         {item.age}
@@ -765,7 +807,9 @@ function ReportsPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="w-5 h-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -773,10 +817,10 @@ function ReportsPage() {
         </section>
 
         {isFetching ? (
-          <p className="text-right text-xs text-gray-400">Обновление данных...</p>
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
         ) : null}
         {isTableFetching && !isTableLoading ? (
-          <p className="text-right text-xs text-gray-400">Обновление таблицы...</p>
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating_table")}</p>
         ) : null}
       </div>
     </>

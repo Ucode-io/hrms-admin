@@ -7,12 +7,14 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../components/ui/table";
+import { useTranslation } from "../../../../i18n";
 
 interface DebtsTabProps {
   clientId: string;
 }
 
 export default function DebtsTab({ clientId }: DebtsTabProps) {
+  const { t } = useTranslation();
   const { data, isLoading } = useDebtsQuery({
     params: { clients_id: clientId },
   });

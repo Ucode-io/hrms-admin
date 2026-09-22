@@ -11,17 +11,19 @@ import DataTable, { Column } from "../../../components/DataTable";
 import authStore from "../../../store/auth.store";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 import { Search, X, ChevronDown } from "lucide-react";
+import { useTranslation } from "../../../i18n";
 
 // Status options for filter
 const STATUS_OPTIONS = [
-  { value: "", label: "Все статусы" },
-  { value: "new", label: "Новый" },
-  { value: "accepted", label: "Принят" },
-  { value: "cancelled", label: "Отклонён" },
-  { value: "refunded", label: "Возврат" },
+  { value: "", labelKey: "contracts.list.status_all" },
+  { value: "new", labelKey: "contracts.list.status_new" },
+  { value: "accepted", labelKey: "contracts.list.status_accepted" },
+  { value: "cancelled", labelKey: "contracts.list.status_cancelled" },
+  { value: "refunded", labelKey: "contracts.list.status_refunded" },
 ];
 
 export default function ContractsList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 10;
@@ -177,13 +179,13 @@ export default function ContractsList() {
     const statusValue = status?.[0]?.toLowerCase();
     switch (statusValue) {
       case "new":
-        return "Новый";
+        return t("contracts.list.status_new");
       case "accepted":
-        return "Принят";
+        return t("contracts.list.status_accepted");
       case "cancelled":
-        return "Отклонён";
+        return t("contracts.list.status_cancelled");
       case "refunded":
-        return "Возврат";
+        return t("contracts.list.status_refunded");
       default:
         return statusValue || "-";
     }
@@ -201,14 +203,14 @@ export default function ContractsList() {
     },
     {
       key: "code",
-      header: "Код",
+      header: t("contracts.list.column_code"),
       render: (contract) => (
         <span className="text-brand-500">{contract.code}</span>
       ),
     },
     {
       key: "client",
-      header: "Клиент",
+      header: t("contracts.list.column_client"),
       render: (contract) =>
         contract.clients_id_data
           ? `${contract.clients_id_data.first_name} ${contract.clients_id_data.second_name}`
@@ -216,37 +218,37 @@ export default function ContractsList() {
     },
     {
       key: "application_amount",
-      header: "Сумма заявки",
-      render: (contract) => `${formatAmount(contract.application_amount)} сум`,
+      header: t("contracts.list.column_application_amount"),
+      render: (contract) => t("contracts.list.amount_suffix", { amount: formatAmount(contract.application_amount) }),
     },
     {
       key: "initial_payment_amount",
-      header: "Первоначальный платёж",
-      render: (contract) => `${formatAmount(contract.initial_payment_amount)} сум`,
+      header: t("contracts.list.column_initial_payment"),
+      render: (contract) => t("contracts.list.amount_suffix", { amount: formatAmount(contract.initial_payment_amount) }),
     },
     {
       key: "installment_amount",
-      header: "Сумма рассрочки",
-      render: (contract) => `${formatAmount(contract.installment_amount)} сум`,
+      header: t("contracts.list.column_installment_amount"),
+      render: (contract) => t("contracts.list.amount_suffix", { amount: formatAmount(contract.installment_amount) }),
     },
     {
       key: "merchant",
-      header: "Партнёр",
+      header: t("contracts.list.column_merchant"),
       render: (contract) => contract.merchants_id_data?.name || "-",
     },
     {
       key: "month_count",
-      header: "Срок (мес)",
+      header: t("contracts.list.column_month_count"),
       render: (contract) => contract.month_count || "-",
     },
     {
       key: "monthly_payment",
-      header: "Ежемесячный платёж",
-      render: (contract) => `${formatAmount(contract.monthly_payment)} сум`,
+      header: t("contracts.list.column_monthly_payment"),
+      render: (contract) => t("contracts.list.amount_suffix", { amount: formatAmount(contract.monthly_payment) }),
     },
     {
       key: "status",
-      header: "Статус",
+      header: t("contracts.list.column_status"),
       render: (contract) => (
         <span
           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(contract.status)}`}
@@ -257,7 +259,7 @@ export default function ContractsList() {
     },
     {
       key: "actions",
-      header: "Действия",
+      header: t("contracts.list.column_actions"),
       headerClassName: "text-end",
       className: "text-end",
       render: (contract) => (
@@ -276,8 +278,8 @@ export default function ContractsList() {
   return (
     <>
       <PageMeta
-        title="Контракты | HRMS"
-        description="Список контрактов"
+        title={t("contracts.list.page_title")}
+        description={t("contracts.list.page_description")}
       />
       <div className="space-y-6">
         <div className="flex items-start justify-between mb-4">
@@ -309,12 +311,12 @@ export default function ContractsList() {
                   </Link>
                 </li>
                 <li className="text-sm text-gray-800 dark:text-white/90">
-                  Контракты
+                  {t("contracts.list.breadcrumb_contracts")}
                 </li>
               </ol>
             </nav>
             <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-              Контракты
+              {t("contracts.list.breadcrumb_contracts")}
             </h3>
           </div>
         </div>
@@ -328,7 +330,7 @@ export default function ContractsList() {
               type="text"
               value={searchQuery}
               onChange={handleSearchChange}
-              placeholder="Поиск по клиенту, коду, телефону..."
+              placeholder={t("contracts.list.search_placeholder")}
               className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
           </div>
@@ -340,7 +342,10 @@ export default function ContractsList() {
               className="flex items-center gap-2 px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <span>
-                {STATUS_OPTIONS.find(opt => opt.value === statusFilter)?.label || "Все статусы"}
+                {(() => {
+                  const option = STATUS_OPTIONS.find((opt) => opt.value === statusFilter);
+                  return option ? t(option.labelKey) : t("contracts.list.status_all");
+                })()}
               </span>
               <ChevronDown className={`w-4 h-4 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -379,8 +384,8 @@ export default function ContractsList() {
                 {clientFilter
                   ? clients.find((c: any) => c.guid === clientFilter)
                     ? `${clients.find((c: any) => c.guid === clientFilter)?.first_name} ${clients.find((c: any) => c.guid === clientFilter)?.second_name} ${clients.find((c: any) => c.guid === clientFilter)?.phone_number}`
-                    : "Клиент"
-                  : "Все клиенты"}
+                    : t("contracts.list.client_singular")
+                  : t("contracts.list.all_clients")}
               </span>
               <ChevronDown className={`w-4 h-4 transition-transform ${isClientDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -403,7 +408,7 @@ export default function ContractsList() {
                         type="text"
                         value={clientSearchQuery}
                         onChange={(e) => setClientSearchQuery(e.target.value)}
-                        placeholder="Поиск клиента..."
+                        placeholder={t("contracts.list.search_client_placeholder")}
                         className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -421,7 +426,7 @@ export default function ContractsList() {
                         : 'text-gray-700 dark:text-gray-300'
                         }`}
                     >
-                      Все клиенты
+                      {t("contracts.list.all_clients")}
                     </button>
                     {filteredClients.map((client: any) => (
                       <button
@@ -440,7 +445,7 @@ export default function ContractsList() {
                     ))}
                     {filteredClients.length === 0 && (
                       <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                        Клиенты не найдены
+                        {t("contracts.list.clients_not_found")}
                       </div>
                     )}
                   </div>
@@ -457,8 +462,8 @@ export default function ContractsList() {
             >
               <span>
                 {merchantFilter
-                  ? merchants.find((m: any) => m.guid === merchantFilter)?.name || "Партнёр"
-                  : "Все партнёры"}
+                  ? merchants.find((m: any) => m.guid === merchantFilter)?.name || t("contracts.list.merchant_singular")
+                  : t("contracts.list.all_merchants")}
               </span>
               <ChevronDown className={`w-4 h-4 transition-transform ${isMerchantDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -481,7 +486,7 @@ export default function ContractsList() {
                         type="text"
                         value={merchantSearchQuery}
                         onChange={(e) => setMerchantSearchQuery(e.target.value)}
-                        placeholder="Поиск партнёра..."
+                        placeholder={t("contracts.list.search_merchant_placeholder")}
                         className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -499,7 +504,7 @@ export default function ContractsList() {
                         : 'text-gray-700 dark:text-gray-300'
                         }`}
                     >
-                      Все партнёры
+                      {t("contracts.list.all_merchants")}
                     </button>
                     {filteredMerchants.map((merchant: any) => (
                       <button
@@ -518,7 +523,7 @@ export default function ContractsList() {
                     ))}
                     {filteredMerchants.length === 0 && (
                       <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                        Партнёры не найдены
+                        {t("contracts.list.merchants_not_found")}
                       </div>
                     )}
                   </div>
@@ -534,7 +539,7 @@ export default function ContractsList() {
               className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               <X className="w-4 h-4" />
-              <span>Сбросить</span>
+              <span>{t("contracts.list.reset")}</span>
             </button>
           )}
         </div>
@@ -559,10 +564,10 @@ export default function ContractsList() {
             <TrashBinIcon className="w-8 h-8" />
           </div>
           <h3 className="mb-2 text-xl font-semibold text-gray-800 dark:text-white">
-            Удалить контракт?
+            {t("contracts.list.delete_title")}
           </h3>
           <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-            Вы уверены, что хотите удалить этот контракт? Это действие нельзя будет отменить.
+            {t("contracts.list.delete_confirmation")}
           </p>
           <div className="flex gap-3 w-full">
             <Button
@@ -570,14 +575,14 @@ export default function ContractsList() {
               onClick={closeDeleteModal}
               className="w-full justify-center"
             >
-              Отмена
+              {t("contracts.list.cancel")}
             </Button>
             <Button
               variant="primary"
               className="w-full justify-center bg-error-600 hover:bg-error-700 border-error-600"
               onClick={confirmDelete}
             >
-              Удалить
+              {t("contracts.list.delete")}
             </Button>
           </div>
         </div>

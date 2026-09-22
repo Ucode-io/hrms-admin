@@ -9,6 +9,7 @@ import {
   useDeleteEmployeeSkill,
   useEmployeeSkillsQuery,
 } from "../../../../api/services/employeeSkill.service";
+import { useTranslation } from "../../../../i18n";
 
 type SkillsSectionProps = {
   employeeGuid: string;
@@ -22,6 +23,7 @@ type SelectedSkill = {
 };
 
 function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
+  const { t } = useTranslation();
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
@@ -66,7 +68,7 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
       unique.set(skillId, {
         skillId,
         relationGuid: row.guid,
-        title: fromRelation || String(fromCatalog?.title || "Без названия"),
+        title: fromRelation || String(fromCatalog?.title || t("employees.detail.no_title")),
       });
     }
 
@@ -99,7 +101,7 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
       setIsPickerOpen(false);
     } catch (createError) {
       console.error("Employee skill create error:", createError);
-      setError("Не удалось добавить навык. Попробуйте ещё раз.");
+      setError(t("employees.skills.add_failed"));
     }
   };
 
@@ -114,7 +116,7 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
       await deleteMutation.mutateAsync(row.relationGuid);
     } catch (deleteError) {
       console.error("Employee skill delete error:", deleteError);
-      setError("Не удалось удалить навык. Попробуйте ещё раз.");
+      setError(t("employees.skills.remove_failed"));
     }
   };
 
@@ -125,7 +127,7 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
           <span style={{ color: brandColor }}>
             <Award className="w-4 h-4" />
           </span>
-          <h3 className="text-[15px] font-bold text-slate-900 m-0">Навыки</h3>
+          <h3 className="text-[15px] font-bold text-slate-900 m-0">{t("employees.skills.title")}</h3>
           <span className="text-[12px] font-medium text-slate-400">{selectedSkills.length}</span>
         </div>
         <button
@@ -136,7 +138,7 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
           style={{ color: brandColor }}
         >
           <Plus className="w-3.5 h-3.5" />
-          Добавить
+          {t("common.add")}
         </button>
       </div>
 
@@ -158,17 +160,17 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Поиск навыка..."
+                placeholder={t("employees.skills.search_placeholder")}
                 className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-[13px] text-slate-700 outline-none transition-colors focus:border-slate-400"
               />
             </label>
 
             <div className="mt-2 max-h-44 overflow-auto rounded-lg border border-slate-100">
               {isSkillsCatalogLoading ? (
-                <div className="px-3 py-2 text-[12px] text-slate-400">Загрузка...</div>
+                <div className="px-3 py-2 text-[12px] text-slate-400">{t("employees.detail.loading")}</div>
               ) : availableSkills.length === 0 ? (
                 <div className="px-3 py-2 text-[12px] text-slate-400">
-                  Подходящие навыки не найдены
+                  {t("employees.skills.not_found")}
                 </div>
               ) : (
                 availableSkills.map((skill) => (
@@ -178,7 +180,7 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
                     onClick={() => void addSkill(skill.guid)}
                     className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50 cursor-pointer"
                   >
-                    <span>{String(skill.title || "Без названия")}</span>
+                    <span>{String(skill.title || t("employees.detail.no_title"))}</span>
                     <Check className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 ))
@@ -188,9 +190,9 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
         )}
 
         {isEmployeeSkillsLoading ? (
-          <div className="py-3 text-[13px] text-slate-400">Загрузка...</div>
+          <div className="py-3 text-[13px] text-slate-400">{t("employees.detail.loading")}</div>
         ) : selectedSkills.length === 0 ? (
-          <div className="py-1 text-[13px] text-slate-400">Навыки не добавлены</div>
+          <div className="py-1 text-[13px] text-slate-400">{t("employees.skills.none_added")}</div>
         ) : (
           <div className="flex flex-wrap gap-2">
             {selectedSkills.map((skill) => (
@@ -206,7 +208,7 @@ function SkillsSection({ employeeGuid, brandColor }: SkillsSectionProps) {
                   type="button"
                   onClick={() => void removeSkill(skill.skillId)}
                   className="inline-flex items-center justify-center w-6 h-6 rounded-md border border-slate-200 bg-white text-slate-500 hover:text-rose-500 hover:bg-slate-100 transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
-                  title="Удалить"
+                  title={t("common.delete")}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>

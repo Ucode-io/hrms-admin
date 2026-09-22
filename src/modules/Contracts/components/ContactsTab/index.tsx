@@ -6,12 +6,14 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../components/ui/table";
+import { useTranslation } from "../../../../i18n";
 
 interface ContactsTabProps {
   contractId: string;
 }
 
 export default function ContactsTab({ contractId }: ContactsTabProps) {
+  const { t } = useTranslation();
   const { data, isLoading } = useContactsQuery({
     data: { contracts_id: contractId },
   });
@@ -44,19 +46,19 @@ export default function ContactsTab({ contractId }: ContactsTabProps) {
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Ф.И.О
+                {t("contracts.contacts_tab.column_name")}
               </TableCell>
               <TableCell
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Номер телефона
+                {t("contracts.contacts_tab.column_phone")}
               </TableCell>
               <TableCell
                 isHeader
                 className="px-3 py-2 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
               >
-                Родственная связь
+                {t("contracts.contacts_tab.column_relation")}
               </TableCell>
             </TableRow>
           </TableHeader>
@@ -85,7 +87,7 @@ export default function ContactsTab({ contractId }: ContactsTabProps) {
                   colSpan={4}
                   className="px-3 py-2.5 text-center text-gray-500 dark:text-gray-400"
                 >
-                  Нет контактов
+                  {t("contracts.contacts_tab.empty")}
                 </TableCell>
               </TableRow>
             ) : (

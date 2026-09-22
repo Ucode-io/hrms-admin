@@ -13,12 +13,13 @@ import {
   useLatenessReportQuery,
   useLatenessTableQuery,
 } from "../../../api/services/reports.service";
+import { translate, useTranslation } from "../../../i18n";
 
 const TABLE_PAGE_LIMIT = 20;
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Не удалось загрузить отчет. Попробуйте снова.";
+  return translate("reports.lateness.load_error");
 };
 
 // Minutes → "2 ч 15 мин" / "45 мин".
@@ -27,9 +28,9 @@ const formatMinutes = (minutes: number): string => {
   const hours = Math.floor(safe / 60);
   const mins = safe % 60;
   if (hours > 0) {
-    return `${hours} ч ${mins} мин`;
+    return translate("reports.lateness.duration_hours_minutes", { hours, mins });
   }
-  return `${mins} мин`;
+  return translate("reports.lateness.duration_minutes_only", { mins });
 };
 
 const getVisiblePages = (currentPage: number, totalPages: number, maxButtons = 7): number[] => {
@@ -64,6 +65,7 @@ function MetricCard({ title, value }: { title: string; value: string }) {
 }
 
 function LatenessPage() {
+  const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -123,7 +125,7 @@ function LatenessPage() {
 
   const lateSeries: ApexAxisChartSeries = [
     {
-      name: "Минуты опозданий",
+      name: t("reports.lateness.chart_series_name"),
       data: topLate.map((item) => item.total_late_time),
     },
   ];
@@ -154,7 +156,7 @@ function LatenessPage() {
     },
     yaxis: {
       title: {
-        text: "Минуты",
+        text: t("reports.lateness.chart_yaxis_title"),
         style: { fontSize: "12px", color: "#64748b" },
       },
       labels: {
@@ -189,17 +191,20 @@ function LatenessPage() {
   const visiblePages = getVisiblePages(tableCurrentPage, tableTotalPages);
 
   const tableColumns = [
-    "Сотрудник",
-    "Пришёл вовремя",
-    "Опозданий (раз)",
-    "Всего опозданий",
-    "В среднем за раз",
+    t("reports.lateness.col_employee"),
+    t("reports.lateness.col_on_time"),
+    t("reports.lateness.col_late_count"),
+    t("reports.lateness.col_total_late"),
+    t("reports.lateness.col_avg_late"),
   ];
 
   if (isLoading) {
     return (
       <>
-        <PageMeta title="Опоздания | HRMS" description="Отчет по опозданиям" />
+        <PageMeta
+          title={t("reports.lateness.page_title")}
+          description={t("reports.lateness.page_description")}
+        />
         <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Spinner />
         </div>
@@ -210,7 +215,10 @@ function LatenessPage() {
   if (isError) {
     return (
       <>
-        <PageMeta title="Опоздания | HRMS" description="Отчет по опозданиям" />
+        <PageMeta
+          title={t("reports.lateness.page_title")}
+          description={t("reports.lateness.page_description")}
+        />
         <div className="rounded-2xl border border-error-200 bg-error-50 p-6">
           <p className="text-sm font-medium text-error-700">{getErrorMessage(error)}</p>
           <button
@@ -220,7 +228,7 @@ function LatenessPage() {
             }}
             className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-error-600 px-4 text-sm font-semibold text-white transition hover:bg-error-700"
           >
-            Повторить
+            {t("reports.common.retry_button")}
           </button>
         </div>
       </>
@@ -229,7 +237,10 @@ function LatenessPage() {
 
   return (
     <>
-      <PageMeta title="Опоздания | HRMS" description="Отчет по опозданиям" />
+      <PageMeta
+        title={t("reports.lateness.page_title")}
+        description={t("reports.lateness.page_description")}
+      />
 
       <div className="space-y-4">
         <section className="rounded-2xl border border-gray-200 bg-white">
@@ -247,11 +258,11 @@ function LatenessPage() {
             <section className="grid gap-4 xl:grid-cols-12">
               <article className="rounded-2xl border border-gray-200 bg-white px-4 py-4 xl:col-span-8">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Топ сотрудников по времени опозданий
+                  {t("reports.lateness.chart_title")}
                 </h3>
                 {topLate.length === 0 ? (
                   <div className="mt-2 flex h-[280px] items-center justify-center text-sm text-gray-500">
-                    Нет данных для графика
+                    {t("reports.lateness.no_chart_data")}
                   </div>
                 ) : (
                   <div className="mt-2">
@@ -262,15 +273,15 @@ function LatenessPage() {
 
               <div className="space-y-4 xl:col-span-4">
                 <MetricCard
-                  title="Опоздавших сотрудников"
+                  title={t("reports.lateness.card_late_employees")}
                   value={String(Number(cards.employees_late_count || 0))}
                 />
                 <MetricCard
-                  title="Всего опозданий (раз)"
+                  title={t("reports.lateness.card_late_count")}
                   value={String(Number(cards.late_arrivals_count || 0))}
                 />
                 <MetricCard
-                  title="Суммарное время"
+                  title={t("reports.lateness.card_total_time")}
                   value={formatMinutes(Number(cards.total_late_time || 0))}
                 />
               </div>
@@ -289,7 +300,7 @@ function LatenessPage() {
                 type="text"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Поиск..."
+                placeholder={t("reports.lateness.search_placeholder")}
                 className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-700 outline-none transition focus:border-brand-300"
               />
             </label>
@@ -298,8 +309,12 @@ function LatenessPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-500">
               {tableTotalCount > 0
-                ? `Отображение ${tableFrom} - ${tableTo} из ${tableTotalCount}`
-                : "Нет данных"}
+                ? t("reports.common.showing_range", {
+                    from: tableFrom,
+                    to: tableTo,
+                    total: tableTotalCount,
+                  })
+                : t("reports.common.no_data")}
             </p>
 
             <div className="flex items-center gap-1">
@@ -382,14 +397,14 @@ function LatenessPage() {
                         }}
                         className="ml-2 inline-flex h-8 items-center rounded-lg bg-error-600 px-3 text-xs font-semibold text-white transition hover:bg-error-700"
                       >
-                        Повторить
+                        {t("reports.common.retry_button")}
                       </button>
                     </td>
                   </tr>
                 ) : tableItems.length === 0 ? (
                   <tr>
                     <td colSpan={tableColumns.length} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Опозданий за выбранный период не найдено
+                      {t("reports.lateness.no_data_found")}
                     </td>
                   </tr>
                 ) : (
@@ -402,7 +417,7 @@ function LatenessPage() {
                           </Link>
                           {item.is_remote ? (
                             <span className="inline-flex items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-600">
-                              Удалённо
+                              {t("reports.lateness.remote_badge")}
                             </span>
                           ) : null}
                         </span>
@@ -429,14 +444,18 @@ function LatenessPage() {
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                   <Spinner size="sm" className="h-5 w-5" />
-                  <span className="text-sm font-medium text-gray-600">Загрузка...</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {t("reports.common.loading")}
+                  </span>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        {isFetching ? <p className="text-right text-xs text-gray-400">Обновление данных...</p> : null}
+        {isFetching ? (
+          <p className="text-right text-xs text-gray-400">{t("reports.common.updating")}</p>
+        ) : null}
       </div>
     </>
   );
