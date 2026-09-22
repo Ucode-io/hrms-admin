@@ -39,7 +39,7 @@ import {
   useHolidayPoliciesQuery,
 } from "../../../api/services/holidayPolicy.service";
 import { useLanguagesQuery } from "../../../api/services/companySettings.service";
-import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from "../../../utils/timezones";
+import { DEFAULT_TIMEZONE, getTimezoneOptions } from "../../../utils/timezones";
 
 const PAGE_SIZE = 20;
 
@@ -48,11 +48,12 @@ type Option = {
   label: string;
 };
 
-const getSearchSelectStyles = (): StylesConfig<Option, false> => ({
+const getSearchSelectStyles = <M extends boolean = false>(): StylesConfig<Option, M> => ({
   control: (base, state) => ({
     ...base,
+    // Высота свободная, а не фиксированные 36px: мультиселект языков растёт
+    // чипами, а одиночные селекты в одну строку выглядят ровно как раньше.
     minHeight: "36px",
-    height: "36px",
     borderColor: state.isFocused ? "var(--color-brand-500)" : "#d1d5db",
     borderRadius: "0.5rem",
     boxShadow: state.isFocused
@@ -64,7 +65,7 @@ const getSearchSelectStyles = (): StylesConfig<Option, false> => ({
   }),
   valueContainer: (base) => ({ ...base, padding: "0 10px", fontSize: "14px" }),
   input: (base) => ({ ...base, margin: 0, padding: 0, fontSize: "14px" }),
-  indicatorsContainer: (base) => ({ ...base, height: "34px" }),
+  indicatorsContainer: (base) => ({ ...base, minHeight: "34px" }),
   option: (base, state) => ({
     ...base,
     fontSize: "14px",
@@ -118,6 +119,8 @@ export default function RegionsSettingsPage() {
   const [regionTitle, setRegionTitle] = useState("");
   const [timezone, setTimezone] = useState("");
   const [languageId, setLanguageId] = useState("");
+  // Коды языков (`languages.slug`), а не guid'ы — см. `Region.languages`.
+  const [languageCodes, setLanguageCodes] = useState<string[]>([]);
   const [holidayPolicyId, setHolidayPolicyId] = useState("");
 
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
@@ -178,16 +181,18 @@ export default function RegionsSettingsPage() {
     }
   }, [currentPage, totalPages]);
 
+  const timezoneOptions = useMemo<Option[]>(() => getTimezoneOptions(), []);
+
   const selectedTimezoneOption = useMemo<Option | null>(() => {
     if (!timezone) return null;
 
     return (
-      TIMEZONE_OPTIONS.find((option) => option.value === timezone) || {
+      timezoneOptions.find((option) => option.value === timezone) || {
         value: timezone,
         label: timezone,
       }
     );
-  }, [timezone]);
+  }, [timezone, timezoneOptions]);
 
   const languageOptions = useMemo<Option[]>(
     () => languages.map((item) => ({ value: item.guid, label: String(item.title || item.slug) })),
@@ -205,6 +210,27 @@ export default function RegionsSettingsPage() {
       label: String(languagesById.get(languageId)?.title || languageId),
     };
   }, [languageId, languageOptions, languagesById]);
+
+  const languageCodeOptions = useMemo<Option[]>(
+    () =>
+      languages.map((item) => ({
+        value: String(item.slug),
+        label: String(item.title || item.slug),
+      })),
+    [languages]
+  );
+
+  const selectedLanguageCodeOptions = useMemo<Option[]>(
+    () =>
+      languageCodes.map(
+        (code) =>
+          languageCodeOptions.find((option) => option.value === code) || {
+            value: code,
+            label: code,
+          }
+      ),
+    [languageCodes, languageCodeOptions]
+  );
 
   const holidayPolicyOptions = useMemo<Option[]>(
     () => holidayPolicies.map((item) => ({ value: item.guid, label: String(item.title || "—") })),
@@ -228,6 +254,7 @@ export default function RegionsSettingsPage() {
     setRegionTitle("");
     setTimezone(DEFAULT_TIMEZONE);
     setLanguageId("");
+    setLanguageCodes([]);
     setHolidayPolicyId("");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
@@ -238,6 +265,7 @@ export default function RegionsSettingsPage() {
     setRegionTitle(String(region.title || ""));
     setTimezone(String(region.timezone || DEFAULT_TIMEZONE));
     setLanguageId(region.languages_id || "");
+    setLanguageCodes(Array.isArray(region.languages) ? region.languages.map(String) : []);
     setHolidayPolicyId(region.holiday_policies_id || "");
     setIsUpsertModalOpen(true);
     setOpenActionsFor(null);
@@ -249,6 +277,7 @@ export default function RegionsSettingsPage() {
     setRegionTitle("");
     setTimezone("");
     setLanguageId("");
+    setLanguageCodes([]);
     setHolidayPolicyId("");
   };
 
@@ -261,7 +290,7 @@ export default function RegionsSettingsPage() {
     }
 
     // Часовой пояс — единственное, ради чего регион вообще заводится: по нему
-    // штампуются отметки всех его филиалов (ADR-0005).
+    // идут часы всех его филиалов (ADR-0005).
     if (!timezone) {
       toast.error("Выберите часовой пояс.");
       return;
@@ -271,6 +300,7 @@ export default function RegionsSettingsPage() {
       title,
       timezone,
       languages_id: languageId || null,
+      languages: languageCodes,
       holiday_policies_id: holidayPolicyId || null,
     };
 
@@ -527,7 +557,7 @@ export default function RegionsSettingsPage() {
               Часовой пояс
             </label>
             <Select
-              options={TIMEZONE_OPTIONS}
+              options={timezoneOptions}
               value={selectedTimezoneOption}
               onChange={(option) => setTimezone(option?.value || "")}
               placeholder="Выберите часовой пояс"
@@ -539,7 +569,8 @@ export default function RegionsSettingsPage() {
               noOptionsMessage={() => "Ничего не найдено"}
             />
             <p className="mt-1 text-xs text-gray-500">
-              По нему штампуются отметки всех филиалов региона.
+              Часы, по которым живут все филиалы региона: график, опоздания и
+              праздники считаются по ним.
             </p>
           </div>
 
@@ -562,6 +593,32 @@ export default function RegionsSettingsPage() {
             />
             <p className="mt-1 text-xs text-gray-500">
               Предположение на случай, когда язык сотрудника неизвестен.
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Языки приложения
+            </label>
+            <Select
+              isMulti
+              options={languageCodeOptions}
+              value={selectedLanguageCodeOptions}
+              onChange={(options) =>
+                setLanguageCodes((options || []).map((option) => option.value))
+              }
+              placeholder="Все языки"
+              isSearchable
+              isClearable
+              styles={getSearchSelectStyles<true>()}
+              menuPortalTarget={menuPortalTarget || undefined}
+              menuPosition="fixed"
+              classNamePrefix="region-languages-select"
+              noOptionsMessage={() => "Ничего не найдено"}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Из них сотрудники региона выбирают язык в приложении. Пусто —
+              значит доступны все.
             </p>
           </div>
 

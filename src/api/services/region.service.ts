@@ -19,6 +19,16 @@ export interface Region {
   timezone: string | null;
   languages_id: string | null;
   languages_id_data?: { guid?: string; title?: string; slug?: string } | null;
+  /**
+   * Языки, из которых сотрудник этого региона выбирает интерфейс mini app —
+   * кодами (`languages.slug`), а не guid'ами: их читает webapp, и guid ему
+   * пришлось бы разворачивать вторым запросом.
+   *
+   * Пустой список — не «никаких языков», а «ограничения нет»: ровно так же
+   * ведёт себя сотрудник, у которого региона нет вовсе. Иначе появление поля
+   * схлопнуло бы язык у всех существующих регионов разом.
+   */
+  languages?: string[] | null;
   holiday_policies_id: string | null;
   holiday_policies_id_data?: { guid?: string; title?: string } | null;
   created_at: string;
@@ -30,6 +40,7 @@ export interface RegionUpsertPayload {
   title: string;
   timezone: string;
   languages_id: string | null;
+  languages: string[];
   holiday_policies_id: string | null;
   companies_id?: string;
 }
