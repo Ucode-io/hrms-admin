@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import Select, { type StylesConfig } from "react-select";
+import CreatableSelect from "react-select/creatable";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
 import {
@@ -36,6 +37,7 @@ import {
 } from "../../../api/services/region.service";
 import {
   type HolidayPolicy,
+  useCreateHolidayPolicy,
   useHolidayPoliciesQuery,
 } from "../../../api/services/holidayPolicy.service";
 import { useLanguagesQuery } from "../../../api/services/companySettings.service";
@@ -107,6 +109,13 @@ const resolveHolidayPolicyTitle = (
   return "—";
 };
 
+/** POST /v2/items отдаёт созданную запись то в корне, то в `response`. */
+const resolveCreatedGuid = (payload: unknown): string => {
+  const data = (payload || {}) as Record<string, unknown>;
+  const response = (data.response || {}) as Record<string, unknown>;
+  return String(data.guid || response.guid || "");
+};
+
 export default function RegionsSettingsPage() {
   const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
@@ -124,6 +133,7 @@ export default function RegionsSettingsPage() {
   // Коды языков (`languages.slug`), а не guid'ы — см. `Region.languages`.
   const [languageCodes, setLanguageCodes] = useState<string[]>([]);
   const [holidayPolicyId, setHolidayPolicyId] = useState("");
+  const [createdPolicyOptions, setCreatedPolicyOptions] = useState<Option[]>([]);
 
   const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
   const actionButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -155,6 +165,7 @@ export default function RegionsSettingsPage() {
   });
 
   const createMutation = useCreateRegion();
+  const createHolidayPolicyMutation = useCreateHolidayPolicy();
   const updateMutation = useUpdateRegion();
   const deleteMutation = useDeleteRegion();
 
@@ -234,10 +245,17 @@ export default function RegionsSettingsPage() {
     [languageCodes, languageCodeOptions]
   );
 
-  const holidayPolicyOptions = useMemo<Option[]>(
-    () => holidayPolicies.map((item) => ({ value: item.guid, label: String(item.title || "—") })),
-    [holidayPolicies]
-  );
+  // Только что созданная политика держится тут, пока список не перезапросился,
+  // иначе селект на секунду показывает guid вместо названия.
+  const holidayPolicyOptions = useMemo<Option[]>(() => {
+    const fromServer = holidayPolicies.map((item) => ({
+      value: item.guid,
+      label: String(item.title || "—"),
+    }));
+    const serverGuids = new Set(fromServer.map((option) => option.value));
+
+    return [...fromServer, ...createdPolicyOptions.filter((o) => !serverGuids.has(o.value))];
+  }, [holidayPolicies, createdPolicyOptions]);
 
   const selectedHolidayPolicyOption = useMemo<Option | null>(() => {
     if (!holidayPolicyId) return null;
@@ -325,6 +343,28 @@ export default function RegionsSettingsPage() {
     } catch (error) {
       console.error("Failed to save region:", error);
       toast.error(t("settings_misc.regions.save_error"));
+    }
+  };
+
+  const handleCreateHolidayPolicy = async (rawTitle: string) => {
+    const title = rawTitle.trim();
+    if (!title) return;
+
+    try {
+      const created = await createHolidayPolicyMutation.mutateAsync({ title });
+      const guid = resolveCreatedGuid(created);
+
+      if (!guid) {
+        toast.error(t("settings_misc.regions.holiday_policy_create_error"));
+        return;
+      }
+
+      setCreatedPolicyOptions((prev) => [...prev, { value: guid, label: title }]);
+      setHolidayPolicyId(guid);
+      toast.success(t("settings_misc.regions.holiday_policy_created"));
+    } catch (error) {
+      console.error("Failed to create holiday policy:", error);
+      toast.error(t("settings_misc.regions.holiday_policy_create_error"));
     }
   };
 
@@ -626,10 +666,15 @@ export default function RegionsSettingsPage() {
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
               {t("settings_misc.regions.holiday_policy_label")}
             </label>
-            <Select
+            <CreatableSelect
               options={holidayPolicyOptions}
               value={selectedHolidayPolicyOption}
               onChange={(option) => setHolidayPolicyId(option?.value || "")}
+              onCreateOption={handleCreateHolidayPolicy}
+              isLoading={createHolidayPolicyMutation.isLoading}
+              formatCreateLabel={(input) =>
+                t("settings_misc.regions.holiday_policy_create", { title: input })
+              }
               placeholder={t("settings_misc.regions.holiday_policy_placeholder")}
               isSearchable
               isClearable
