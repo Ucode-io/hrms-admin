@@ -30,7 +30,7 @@ import TelegramGroupSection from "./TelegramGroupSection";
 // Часовой пояс компании — запасной циферблат для сотрудника без филиала
 // (ADR-0006, known-gaps §3). Список общий с регионами: два списка зон,
 // которые обязаны совпадать, однажды не совпадут.
-import { TIMEZONE_OPTIONS } from "../../../utils/timezones";
+import { getTimezoneOptions } from "../../../utils/timezones";
 
 type CompanyFormState = {
   guid: string;
@@ -310,7 +310,7 @@ export default function SettingsGeneralPage() {
     [languageApiOptions, form?.languages_id]
   );
   const timezoneOptions = useMemo(
-    () => ensureOption(TIMEZONE_OPTIONS, form?.timezone),
+    () => ensureOption(getTimezoneOptions(), form?.timezone),
     [form?.timezone]
   );
   const currencyOptions = useMemo(
@@ -444,18 +444,16 @@ export default function SettingsGeneralPage() {
 
               <div>
                 <Label htmlFor="company_timezone">Часовой пояс по умолчанию</Label>
-                <select
-                  id="company_timezone"
-                  className="h-11 w-full rounded-lg border border-gray-300 px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
-                  value={form.timezone}
-                  onChange={(event) => updateField("timezone", event.target.value)}
-                >
-                  {timezoneOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  inputId="company_timezone"
+                  options={timezoneOptions}
+                  value={timezoneOptions.find((option) => option.value === form.timezone) || null}
+                  onChange={(option) => updateField("timezone", option?.value || "")}
+                  isSearchable
+                  styles={searchSelectStyles}
+                  placeholder="Выберите часовой пояс"
+                  noOptionsMessage={() => "Ничего не найдено"}
+                />
               </div>
 
               <div>

@@ -6,24 +6,47 @@
  * `Invalid time zone specified`, поэтому зоной они были только на вид
  * (ADR-0005, п. 2).
  *
- * Список короткий и покрывает страны, где компания работает. Пояс региона —
- * обычное поле, пришедший извне (заведённый через ucode напрямую) показывается
- * как есть: `ensureOption`/`selected*Option` подставляют неизвестное значение
- * собственной меткой, а не теряют его.
+ * Список берётся у платформы (`Intl.supportedValuesOf`), а не пишется руками:
+ * зоны — справочник tzdata, он приезжает с браузером и сам отыгрывает переносы.
+ * Имена в нём зависят от движка (Node 22 отдаёт `Asia/Calcutta`, свежий Chrome —
+ * `Asia/Kolkata`), поэтому сохранённое значение может в списке не найтись:
+ * `ensureOption`/`selected*Option` показывают его собственной меткой, а не
+ * теряют. Для `Intl` оба имени равнозначны.
  */
 export type TimezoneOption = {
   value: string;
   label: string;
 };
 
-export const TIMEZONE_OPTIONS: TimezoneOption[] = [
-  { value: "UTC", label: "UTC" },
-  { value: "Europe/Moscow", label: "Москва (Europe/Moscow)" },
-  { value: "Asia/Baku", label: "Баку (Asia/Baku)" },
-  { value: "Asia/Dubai", label: "Дубай (Asia/Dubai)" },
-  { value: "Asia/Tashkent", label: "Ташкент (Asia/Tashkent)" },
-  { value: "Asia/Almaty", label: "Алматы (Asia/Almaty)" },
-  { value: "Asia/Shanghai", label: "Шанхай (Asia/Shanghai)" },
-];
-
 export const DEFAULT_TIMEZONE = "Asia/Tashkent";
+
+/** «Asia/Tashkent (UTC+05:00)». Платформа пишет смещение как «GMT+05:00» — это
+ *  ровно тот мёртвый формат, что вычищен из БД, поэтому префикс меняем. */
+const toOption = (timezone: string, now: Date): TimezoneOption => {
+  const offset = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    timeZoneName: "longOffset",
+  })
+    .formatToParts(now)
+    .find((part) => part.type === "timeZoneName")?.value;
+
+  return {
+    value: timezone,
+    label: offset ? `${timezone} (${offset.replace("GMT", "UTC")})` : timezone,
+  };
+};
+
+// ponytail: 418 зон × свой `Intl.DateTimeFormat` — ~70 мс, а кода-сплиттинга в
+// админке нет. Считаем при первом обращении, чтобы платили только настройки.
+let cache: TimezoneOption[] | null = null;
+
+export const getTimezoneOptions = (): TimezoneOption[] => {
+  if (!cache) {
+    const now = new Date();
+    cache = Intl.supportedValuesOf("timeZone").map((timezone) =>
+      toOption(timezone, now)
+    );
+  }
+
+  return cache;
+};

@@ -2,6 +2,7 @@ import { makeAutoObservable, runInAction } from "mobx";
 import { makePersistable } from "mobx-persist-store";
 import axios from "axios";
 import authStore from "./auth.store";
+import { DEFAULT_TIMEZONE } from "../utils/timezones";
 
 interface CompanyData {
   guid: string;
@@ -45,7 +46,7 @@ const STATIC_LOGIN_COMPANY_CONFIG: CompanyData = {
   main_color: "#1D57E3",
   name: "Udevs",
   name_format: ["lf"],
-  timezone: ["GMT+05:00"],
+  timezone: [DEFAULT_TIMEZONE],
   updated_at: "2026-03-03T08:36:24.181411Z",
 };
 
