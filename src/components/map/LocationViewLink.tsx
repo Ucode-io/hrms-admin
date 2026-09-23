@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapPin, TriangleAlert, X } from "lucide-react";
+import { MapPin, MessageSquareText, TriangleAlert, X } from "lucide-react";
 import { Modal } from "../ui/modal";
 import {
   OSM_ATTRIBUTION,
@@ -100,10 +100,10 @@ const distanceTitle = (check: OfficeCheck): string =>
     radius: check.radiusM,
   });
 
-function DistanceChip({ check, prefix }: { check: OfficeCheck; prefix?: string }) {
+function DistanceChip({ check, prefix, reason }: { check: OfficeCheck; prefix?: string; reason?: string }) {
   return (
     <span
-      title={distanceTitle(check)}
+      title={reason ? `${distanceTitle(check)}\n«${reason}»` : distanceTitle(check)}
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${
         check.outside ? "bg-warning-50 text-warning-700" : "bg-success-50 text-success-700"
       }`}
@@ -111,6 +111,8 @@ function DistanceChip({ check, prefix }: { check: OfficeCheck; prefix?: string }
       {check.outside ? <TriangleAlert className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
       {prefix ? `${prefix} ` : ""}
       {humanDistance(check.distanceM)}
+      {/* Причина — в подсказке и в окне карты, чтобы строка таблицы оставалась одной. */}
+      {reason ? <MessageSquareText className="h-3 w-3" /> : null}
     </span>
   );
 }
@@ -138,7 +140,7 @@ export function DistanceBadge({
   if (!reason) return badge;
 
   return (
-    <span className="inline-flex max-w-[220px] flex-col items-start gap-0.5">
+    <span className="inline-flex max-w-[180px] flex-col items-start gap-0.5">
       {badge}
       <MarkReason reason={reason} />
     </span>
@@ -166,9 +168,18 @@ export default function LocationViewLink({
   label,
   office,
   showDistance = true,
+  chipPrefix,
+  reason,
 }: {
   value: string;
   label?: string;
+  /**
+   * Компактный вид для таблиц: вместо ссылки — только бейдж расстояния с этой
+   * подписью («Приход»), и карту открывает он сам.
+   */
+  chipPrefix?: string;
+  /** Причина отметки вне филиала: иконка в бейдже и строка в окне карты. */
+  reason?: string;
   /** false — когда расстояние уже стоит рядом отдельным `DistanceBadge`. */
   showDistance?: boolean;
   /** Офис сотрудника; без него предупреждение не считается. */
@@ -197,22 +208,28 @@ export default function LocationViewLink({
 
   return (
     <>
+      {chipPrefix !== undefined && check ? (
+        <button type="button" onClick={() => setIsOpen(true)} className="hover:opacity-80">
+          <DistanceChip check={check} prefix={chipPrefix} reason={reason} />
+        </button>
+      ) : (
       <span className="inline-flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="inline-flex items-center gap-1 text-brand-500 hover:underline"
+          className="inline-flex items-center gap-1 whitespace-nowrap text-brand-500 hover:underline"
         >
-          {label}
+          {chipPrefix ?? label}
           <MapPin className="h-3.5 w-3.5" />
         </button>
 
-        {check && showDistance ? (
+        {check && showDistance && chipPrefix === undefined ? (
           <button type="button" onClick={() => setIsOpen(true)}>
             <DistanceChip check={check} />
           </button>
         ) : null}
       </span>
+      )}
 
       <Modal
         isOpen={isOpen}
@@ -245,6 +262,12 @@ export default function LocationViewLink({
             </p>
           ) : check ? (
             <p className="text-xs text-success-700">{distanceTitle(check)}</p>
+          ) : null}
+          {reason ? (
+            <p className="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
+              <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {reason}
+            </p>
           ) : null}
 
           <ReadOnlyMap point={point} office={check} />
