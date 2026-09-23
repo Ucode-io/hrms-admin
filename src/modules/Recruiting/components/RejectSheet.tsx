@@ -2,25 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import FormSelect from "./FormSelect";
+import { Link } from "react-router";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
-import {
-  CANDIDATE_REJECTION_REASON_CONFIG,
-  CANDIDATE_REJECTION_REASON_ORDER,
-} from "../types";
 
 export const REJECTION_REASONS_SLUG = "candidate_rejection_reasons";
-
-// Fallback list (used until the directory collection is populated).
-const FALLBACK_OPTIONS = CANDIDATE_REJECTION_REASON_ORDER.map((r) => ({
-  value: CANDIDATE_REJECTION_REASON_CONFIG[r].label,
-  label: CANDIDATE_REJECTION_REASON_CONFIG[r].label,
-}));
 
 interface RejectSheetProps {
   isOpen: boolean;
   candidateName: string;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string | null) => void;
   isSubmitting?: boolean;
 }
 
@@ -34,21 +25,23 @@ export default function RejectSheet({
 }: RejectSheetProps) {
   const [reason, setReason] = useState<string | null>(null);
 
-  const { data } = useSettingsDirectoryQuery({
+  const { data, isLoading } = useSettingsDirectoryQuery({
     slug: REJECTION_REASONS_SLUG,
     params: { limit: 200 },
   });
 
-  const options = useMemo(() => {
-    const items = data?.response ?? [];
-    const fromDirectory = items
-      .map((item) => ({
-        value: item.guid,
-        label: String(item.title || "").trim() || "Без названия",
-      }))
-      .filter((item) => item.value);
-    return fromDirectory.length > 0 ? fromDirectory : FALLBACK_OPTIONS;
-  }, [data]);
+  // Reason is a uuid relation to the directory — only directory rows can be stored.
+  const options = useMemo(
+    () =>
+      (data?.response ?? [])
+        .map((item) => ({
+          value: item.guid,
+          label: String(item.title || "").trim() || "Без названия",
+        }))
+        .filter((item) => item.value),
+    [data]
+  );
+  const reasonRequired = options.length > 0;
 
   useEffect(() => {
     if (isOpen) setReason(null);
@@ -63,13 +56,22 @@ export default function RejectSheet({
           Укажите причину — она попадёт в отчёты по воронке.
         </p>
         <div className="mt-4">
-          <FormSelect
-            options={options}
-            value={reason}
-            onChange={(v) => setReason((v as string) || null)}
-            placeholder="Причина отказа"
-            menuPortal
-          />
+          {reasonRequired || isLoading ? (
+            <FormSelect
+              options={options}
+              value={reason}
+              onChange={(v) => setReason((v as string) || null)}
+              placeholder="Причина отказа"
+              menuPortal
+            />
+          ) : (
+            <p className="text-sm text-gray-500">
+              Справочник причин пуст — отказ сохранится без причины.{" "}
+              <Link to="/settings/rejection-reasons" className="text-brand-500 hover:underline">
+                Добавить причины
+              </Link>
+            </p>
+          )}
         </div>
         <div className="mt-6 flex items-center justify-end gap-3">
           <Button variant="outline" onClick={onClose} className="px-5">
@@ -77,8 +79,8 @@ export default function RejectSheet({
           </Button>
           <button
             type="button"
-            disabled={!reason || isSubmitting}
-            onClick={() => reason && onConfirm(reason)}
+            disabled={(reasonRequired && !reason) || isLoading || isSubmitting}
+            onClick={() => onConfirm(reason)}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 px-5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-50"
           >
             {isSubmitting ? "Сохранение..." : "Отказать"}
