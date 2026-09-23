@@ -371,7 +371,7 @@ function BonusDeductionsPage() {
         description={t("reports.bonus_deductions.page_description")}
       />
 
-      <div className="-mx-4 -mt-4 -mb-4 flex h-[calc(100dvh-64px)] min-h-0 flex-col md:-mx-6 md:-mt-6 md:-mb-6 md:h-[calc(100dvh-64px)]">
+      <div className="-mx-4 -mt-4 -mb-4 flex h-[calc(100dvh-64px-var(--billing-banner-h,0px))] min-h-0 flex-col md:-mx-6 md:-mt-6 md:-mb-6 md:h-[calc(100dvh-64px-var(--billing-banner-h,0px))]">
         <section className="flex h-full min-h-0 flex-col bg-white">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="border-b border-gray-100 px-4 py-3 md:px-6">

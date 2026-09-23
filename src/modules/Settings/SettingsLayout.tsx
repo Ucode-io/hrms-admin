@@ -4,6 +4,7 @@ import { Search, Settings as SettingsIcon } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import { settingsSections, type SettingsItem } from "./index";
 import { useTranslation } from "../../i18n";
+import { useBillingMenuVisible } from "../../api/services/billing.service";
 
 const SettingsLayout: React.FC = () => {
   const { t } = useTranslation();
@@ -12,15 +13,18 @@ const SettingsLayout: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
+  const showBilling = useBillingMenuVisible();
+
   // Flatten each section's columns into a single ordered list of items.
   const sections = useMemo(
     () =>
       settingsSections.map((section) => ({
         id: section.id,
         titleKey: section.titleKey,
-        items: section.columns.flat(),
+        // Биллинг скрыт у компаний вне биллинга — никаких его следов (ADR-0009).
+        items: section.columns.flat().filter((item) => item.id !== "billing" || showBilling),
       })),
-    []
+    [showBilling]
   );
 
   const visibleSections = useMemo(() => {
@@ -51,7 +55,7 @@ const SettingsLayout: React.FC = () => {
           (h-16 = 64px), скролл живёт внутри колонок. Иначе sticky-сайдбар с
           h-[100dvh] начинался на 64px ниже верха окна, и низ его внутреннего
           скролла оказывался за краем экрана — последние пункты не долистать. */}
-      <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4 -mb-3 md:-mb-4 flex h-[calc(100dvh-64px)]">
+      <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4 -mb-3 md:-mb-4 flex h-[calc(100dvh-64px-var(--billing-banner-h,0px))]">
         {/* Settings sidebar */}
         <aside className="flex h-full w-[300px] shrink-0 flex-col border-r border-gray-200 bg-white">
           {/* <div className="border-b border-gray-100 px-4 py-3.5">

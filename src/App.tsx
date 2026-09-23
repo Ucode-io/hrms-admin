@@ -45,6 +45,8 @@ import TrainingEditorPage from "./modules/Trainings/Editor";
 import TrainingDetailPage from "./modules/Trainings/Detail";
 import EmploymentTypesSettingsPage from "./modules/Settings/EmploymentTypes";
 import RegionsSettingsPage from "./modules/Settings/Regions";
+import BillingSettingsPage from "./modules/Settings/Billing";
+import InvoicePrintPage from "./modules/Settings/Billing/InvoicePrintPage";
 import SkillsSettingsPage from "./modules/Settings/Skills";
 import DepartmentsSettingsPage from "./modules/Settings/Departments";
 import BranchesSettingsPage from "./modules/Settings/Branches";
@@ -195,7 +197,10 @@ function App() {
           <Routes>
           {/* Dashboard Layout */}
           {
-            canEnterApp ? <Route path="/" element={<AppLayout />}>
+            canEnterApp ? <>
+            {/* Печать счёта — без общего layout, открывается в новой вкладке. */}
+            <Route path="/billing/invoices/:invoiceId/print" element={<InvoicePrintPage />} />
+            <Route path="/" element={<AppLayout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
 
               <Route path="/dashboard" element={<DashboardPage />} />
@@ -245,6 +250,7 @@ function App() {
                 <Route path="branches" element={<BranchesSettingsPage />} />
                 <Route path="employment-types" element={<EmploymentTypesSettingsPage />} />
                 <Route path="regions" element={<RegionsSettingsPage />} />
+                <Route path="billing" element={<BillingSettingsPage />} />
                 <Route path="skills" element={<SkillsSettingsPage />} />
                 <Route path="roles" element={<RolesSettingsPage />} />
                 <Route path="departments" element={<DepartmentsSettingsPage />} />
@@ -362,7 +368,8 @@ function App() {
 
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
-            </Route> : <>
+            </Route>
+            </> : <>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<SignIn />} />
               <Route path="*" element={<Navigate to="/" replace />} />
