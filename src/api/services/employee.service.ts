@@ -185,6 +185,7 @@ export const useEmployeesQuery = (
     status?: EmployeeStatus;
     positions_id?: string[];
     departments_id?: string[];
+    locations_id?: string[];
     enabled?: boolean;
   } = {}
 ) => {
@@ -212,6 +213,10 @@ export const useEmployeesQuery = (
 
     if (params.departments_id && params.departments_id.length > 0) {
       dataObj.departments_id = params.departments_id;
+    }
+
+    if (params.locations_id && params.locations_id.length > 0) {
+      dataObj.locations_id = params.locations_id;
     }
 
     const res = await instance.get(`/v2/items/${SLUG}`, {

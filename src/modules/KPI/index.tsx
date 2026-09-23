@@ -10,7 +10,6 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 import {
   DndContext,
   MeasuringStrategy,
@@ -57,6 +56,7 @@ import PageMeta from "../../components/common/PageMeta";
 import ViewSwitcher from "../../components/common/ViewSwitcher";
 import ExpandableSearchInput from "../../components/form/ExpandableSearchInput";
 import { Modal } from "../../components/ui/modal";
+import HoverTooltip from "../../components/ui/tooltip/HoverTooltip";
 import { Dropdown } from "../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../components/ui/dropdown/DropdownItem";
 import companyStore from "../../store/company.store";
@@ -608,59 +608,6 @@ const getQuarterStart = (value: Date): Date => {
 };
 
 const roundToTwo = (value: number): number => Math.round(value * 100) / 100;
-
-// Кастомный тултип: показывается сразу при наведении и не обрезается
-// контейнером с overflow (рендерится в body через портал).
-const HoverTooltip = ({
-  text,
-  children,
-}: {
-  text: string;
-  children: ReactNode;
-}) => {
-  const anchorRef = useRef<HTMLSpanElement>(null);
-  const [coords, setCoords] = useState<{ left: number; top: number } | null>(null);
-
-  const show = useCallback(() => {
-    const el = anchorRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setCoords({ left: rect.left + rect.width / 2, top: rect.bottom + 8 });
-  }, []);
-
-  const hide = useCallback(() => setCoords(null), []);
-
-  return (
-    <span
-      ref={anchorRef}
-      className="inline-flex"
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      onFocus={show}
-      onBlur={hide}
-    >
-      {children}
-      {coords
-        ? createPortal(
-            <span
-              role="tooltip"
-              style={{
-                position: "fixed",
-                left: coords.left,
-                top: coords.top,
-                transform: "translateX(-50%)",
-                zIndex: 70,
-              }}
-              className="pointer-events-none max-w-xs whitespace-normal rounded-lg bg-slate-800 px-2.5 py-1.5 text-[12px] font-medium leading-snug text-white shadow-lg"
-            >
-              {text}
-            </span>,
-            document.body
-          )
-        : null}
-    </span>
-  );
-};
 
 const formatMetricValue = (value: number): string => {
   if (!Number.isFinite(value)) return "0";

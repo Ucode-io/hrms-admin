@@ -9,19 +9,25 @@ import {
   ChevronDown,
   Info,
   LogOut,
+  Pause,
+  Play,
   Plus,
   Save,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import Select, { type StylesConfig } from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
-import authStore from "../../../store/auth.store";
+import Badge from "../../../components/ui/badge/Badge";
+import Button from "../../../components/ui/button/Button";
+import { Modal } from "../../../components/ui/modal";
+import HoverTooltip from "../../../components/ui/tooltip/HoverTooltip";
+import { Tabs, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import EmployeesInfiniteMultiSelect from "../../../components/autocomplete/EmployeesInfiniteMultiSelect";
-import DepartmentsInfiniteMultiSelect, { type DepartmentOption } from "../../../components/autocomplete/DepartmentsInfiniteMultiSelect";
 import LocationsInfiniteMultiSelect from "../../../components/autocomplete/LocationsInfiniteMultiSelect";
 import { useCompanySettingsQuery, useCurrenciesQuery } from "../../../api/services/companySettings.service";
-import reportsService from "../../../api/services/reports.service";
+import reportsService, { type PenaltyAssignment, type PenaltyPolicy } from "../../../api/services/reports.service";
 import { useTranslation } from "../../../i18n";
 
 type TimedPenaltyType = "late" | "early_leave";
@@ -43,13 +49,7 @@ type FixedPenaltyConfig = {
   amount: number;
 };
 
-export type AttendancePenaltySettings = {
-  version: 2;
-  enabled: boolean;
-  applyTo: "all" | "departments" | "employees" | "locations";
-  employeeIds: string[];
-  departmentOptions: Array<{ value: string; label: string }>;
-  locationOptions: Array<{ value: string; label: string }>;
+type PenaltyRules = {
   late: TimedPenaltyConfig;
   early_leave: TimedPenaltyConfig;
   missing_checkout: FixedPenaltyConfig;
@@ -63,13 +63,7 @@ const createId = () =>
     ? crypto.randomUUID()
     : `rule-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const defaultSettings = (): AttendancePenaltySettings => ({
-  version: 2,
-  enabled: true,
-  applyTo: "all",
-  employeeIds: [],
-  departmentOptions: [],
-  locationOptions: [],
+const defaultRules = (): PenaltyRules => ({
   late: {
     enabled: true,
     rules: [
@@ -108,24 +102,22 @@ const parseAmount = (value: string) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const getStorageKey = () =>
-  `hrms:attendance-penalties:${authStore.companyId || authStore.user_data?.companies_id || "local"}`;
-
 type SelectOption = { value: string; label: string };
 const createCompactSelectStyles = <IsMulti extends boolean>(): StylesConfig<SelectOption, IsMulti> => ({
   control: (base, state) => ({
     ...base,
-    minHeight: 36,
+    minHeight: 40,
+    alignItems: "flex-start",
     borderColor: state.isFocused ? "var(--color-brand-500, #465fff)" : "#e5e7eb",
     borderRadius: 8,
     boxShadow: state.isFocused ? "0 0 0 2px rgba(70,95,255,.09)" : "none",
     "&:hover": { borderColor: state.isFocused ? "var(--color-brand-500, #465fff)" : "#cbd5e1" },
   }),
-  valueContainer: base => ({ ...base, padding: "0 9px", fontSize: 13, gap: 3 }),
+  valueContainer: base => ({ ...base, minHeight: 38, padding: "2px 9px", fontSize: 13, gap: 3 }),
   singleValue: base => ({ ...base, fontSize: 13, color: "#344054" }),
   placeholder: base => ({ ...base, fontSize: 13, color: "#9ca3af" }),
   input: base => ({ ...base, fontSize: 13, margin: 0, padding: 0 }),
-  indicatorsContainer: base => ({ ...base, height: 34 }),
+  indicatorsContainer: base => ({ ...base, height: 38 }),
   indicatorSeparator: base => ({ ...base, display: "none" }),
   dropdownIndicator: base => ({ ...base, padding: 7, color: "#667085", "&:hover": { color: "#344054" } }),
   clearIndicator: base => ({ ...base, padding: 6 }),
@@ -140,13 +132,7 @@ const createCompactSelectStyles = <IsMulti extends boolean>(): StylesConfig<Sele
   menuPortal: base => ({ ...base, zIndex: 100000 }),
 });
 const compactSelectStyles = createCompactSelectStyles<true>();
-const scopeSelectStyles = createCompactSelectStyles<false>();
-const SCOPE_OPTIONS = [
-  { value: "all", labelKey: "settings_misc.attendance_penalties.scope_all" },
-  { value: "employees", labelKey: "settings_misc.attendance_penalties.scope_employees" },
-  { value: "departments", labelKey: "settings_misc.attendance_penalties.scope_departments" },
-  { value: "locations", labelKey: "settings_misc.attendance_penalties.scope_locations" },
-] as const;
+const singleSelectStyles = createCompactSelectStyles<false>();
 
 const Toggle = ({
   checked,
@@ -157,7 +143,10 @@ const Toggle = ({
   onChange: (checked: boolean) => void;
   label: string;
 }) => (
-  <label className="inline-flex cursor-pointer items-center gap-2">
+  // relative обязателен: sr-only — это position:absolute, и без якоря чекбокс
+  // привязывается к окну, а не к прокручиваемой панели настроек, и растягивает
+  // высоту всего документа (лишний скролл под страницей).
+  <label className="relative inline-flex cursor-pointer items-center gap-2">
     <input
       type="checkbox"
       checked={checked}
@@ -165,7 +154,7 @@ const Toggle = ({
       className="peer sr-only"
       aria-label={label}
     />
-    <span className="relative h-6 w-11 rounded-full bg-gray-200 transition peer-checked:bg-brand-500 peer-focus-visible:ring-3 peer-focus-visible:ring-brand-500/20 after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition peer-checked:after:translate-x-5" />
+    <span className="relative h-6 w-11 shrink-0 rounded-full bg-gray-200 transition peer-checked:bg-brand-500 peer-focus-visible:ring-3 peer-focus-visible:ring-brand-500/20 after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition peer-checked:after:translate-x-5" />
   </label>
 );
 
@@ -309,175 +298,531 @@ const TimedRules = ({
   );
 };
 
+
+const withRuleIds = (rules: PenaltyRules): PenaltyRules => ({
+  ...rules,
+  late: { ...rules.late, rules: rules.late.rules.map((rule) => ({ ...rule, id: rule.id || createId() })) },
+  early_leave: { ...rules.early_leave, rules: rules.early_leave.rules.map((rule) => ({ ...rule, id: rule.id || createId() })) },
+});
+
+const rulesError = (rules: PenaltyRules, t: TranslateFn) => {
+  const allRules = [...rules.late.rules, ...rules.early_leave.rules];
+  if (allRules.some((rule) => rule.thresholdMinutes <= 0)) return t("settings_misc.attendance_penalties.error_threshold_positive");
+  if (allRules.some((rule) => rule.amount < 0)) return t("settings_misc.attendance_penalties.error_amount_negative");
+  if ([rules.late, rules.early_leave].some((config) => config.enabled && !config.rules.length)) return t("settings_misc.attendance_penalties.error_threshold_required");
+  if ([rules.late, rules.early_leave].some((config) => new Set(config.rules.map((rule) => rule.thresholdMinutes)).size !== config.rules.length)) return t("settings_misc.attendance_penalties.error_duplicate_threshold");
+  return "";
+};
+
+// Бэк отвечает 201 и кладёт причину в server_error — показываем её, а не только
+// «не удалось»: иначе конфликт филиалов неотличим от сбоя.
+const errorText = (error: unknown) => (error instanceof Error ? error.message : undefined);
+
+type PolicyDraft = { guid?: string; title: string; rules: PenaltyRules };
+
+// Подпись над полем строки назначения: одна высота у всех столбцов, включая бейдж паузы.
+const FIELD_LABEL = "mb-1.5 flex h-6 items-center text-xs font-medium text-gray-500";
+
+const BCP47 = { ru: "ru-RU", en: "en-GB", uz: "uz-UZ", kz: "kk-KZ", zh: "zh-CN" } as const;
+// YYYY-MM-DD с бэка — в дату локали; T00:00 без зоны, чтобы день не съехал.
+const formatDay = (day: string, locale: keyof typeof BCP47) =>
+  new Date(`${day}T00:00:00`).toLocaleDateString(BCP47[locale], { day: "numeric", month: "long", year: "numeric" });
+
+type ConfirmRequest = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void | Promise<void>;
+};
+
+// Подтверждение на Modal + Button, как удаление в «Регионах»: одно на страницу,
+// строки назначений получают его через проп.
+const ConfirmModal = ({ request, onClose }: { request: ConfirmRequest | null; onClose: () => void }) => {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const confirm = async () => {
+    if (!request) return;
+    setBusy(true);
+    try {
+      await request.onConfirm();
+    } finally {
+      setBusy(false);
+      onClose();
+    }
+  };
+  return (
+    <Modal isOpen={!!request} onClose={onClose} showCloseButton={false} className="mx-4 w-full max-w-[380px] overflow-hidden rounded-2xl border border-gray-200 p-0 shadow-xl">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+        <h3 className="text-base font-semibold text-gray-900">{request?.title}</h3>
+        <button type="button" onClick={onClose} className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600" aria-label={t("settings_misc.attendance_penalties.cancel")}>
+          <X size={16} />
+        </button>
+      </div>
+      <div className="space-y-4 px-4 py-4">
+        <p className="text-sm text-gray-600">{request?.message}</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose} disabled={busy} className="w-full justify-center px-3 py-2 text-sm">
+            {t("settings_misc.attendance_penalties.cancel")}
+          </Button>
+          <Button onClick={confirm} disabled={busy} className="w-full justify-center bg-error-600 px-3 py-2 text-sm hover:bg-error-700">
+            {request?.confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+type AssignmentDraft = {
+  guid?: string;
+  scope: PenaltyAssignment["scope"];
+  policy_id: string;
+  branches: SelectOption[];
+  excluded: string[];
+  paused: boolean;
+};
+
+const toDraft = (assignment: PenaltyAssignment): AssignmentDraft => ({
+  guid: assignment.guid,
+  scope: assignment.scope,
+  policy_id: assignment.policy_id,
+  branches: assignment.branches,
+  excluded: assignment.excluded.map((item) => item.value),
+  paused: assignment.paused,
+});
+
+const AssignmentRow = ({
+  assignment,
+  initial,
+  policies,
+  takenBranches,
+  onSaved,
+  onRemoved,
+  onConfirm,
+}: {
+  assignment?: PenaltyAssignment;
+  initial: AssignmentDraft;
+  policies: SelectOption[];
+  takenBranches: Map<string, string>;
+  onSaved: () => void;
+  onRemoved: () => void;
+  onConfirm: (request: ConfirmRequest) => void;
+}) => {
+  const { t, locale } = useTranslation();
+  const [draft, setDraft] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const dirty = !draft.guid || JSON.stringify(draft) !== JSON.stringify(initial);
+  // Бэк всё равно откажет; здесь только подсветка, чтобы не гадать почему.
+  const conflicts = draft.branches.filter((branch) => takenBranches.has(branch.value));
+  const saveLabel = busy ? t("settings_misc.attendance_penalties.saving") : dirty ? t("settings_misc.attendance_penalties.save") : t("settings_misc.attendance_penalties.saved");
+  const scopeHint = draft.scope === "all_branches" ? t("settings_misc.attendance_penalties.all_branches_hint") : draft.scope === "no_branch" ? t("settings_misc.attendance_penalties.no_branch_hint") : "";
+
+  const save = async () => {
+    if (!draft.policy_id) return toast.error(t("settings_misc.attendance_penalties.error_select_policy"));
+    if (draft.scope === "branches" && !draft.branches.length) return toast.error(t("settings_misc.attendance_penalties.error_select_locations"));
+    setBusy(true);
+    try {
+      await reportsService.savePenaltyAssignment({
+        guid: draft.guid,
+        policy_id: draft.policy_id,
+        scope: draft.scope,
+        location_ids: draft.branches.map((branch) => branch.value),
+        excluded_ids: draft.excluded,
+        paused: draft.paused,
+      });
+      toast.success(t("settings_misc.attendance_penalties.save_success_toast"));
+      onSaved();
+    } catch (error) {
+      toast.error(t("settings_misc.attendance_penalties.save_error_toast"), { description: errorText(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = () => {
+    const guid = draft.guid;
+    if (!guid) return onRemoved();
+    onConfirm({
+      title: t("settings_misc.attendance_penalties.delete_assignment_title"),
+      message: t("settings_misc.attendance_penalties.delete_assignment_confirm"),
+      confirmLabel: t("settings_misc.attendance_penalties.delete"),
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          await reportsService.deletePenaltyAssignment(guid);
+          onRemoved();
+        } catch (error) {
+          toast.error(t("settings_misc.attendance_penalties.delete_error_toast"), { description: errorText(error) });
+          setBusy(false);
+        }
+      },
+    });
+  };
+
+  return (
+    // Сетка строки: у каждого столбца подпись высотой h-6, под ней контрол h-10, всё
+    // прижато к верху — растущий мультиселект уходит вниз, не сдвигая соседей.
+    <div className="grid items-start gap-x-3 gap-y-2 border-t border-gray-100 px-5 py-4 first:border-t-0 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto]">
+      <div className="min-w-0">
+        <p className={FIELD_LABEL}>{t(`settings_misc.attendance_penalties.scope_${draft.scope}` as const)}</p>
+        {draft.scope === "branches"
+          ? <LocationsInfiniteMultiSelect value={draft.branches} onChange={(branches) => setDraft({ ...draft, branches })} placeholder={t("settings_misc.attendance_penalties.scope_select_placeholder")} styles={compactSelectStyles} menuPortalTarget={document.body} />
+          : <p className="flex h-10 items-center text-[13px] text-gray-700">{scopeHint}</p>}
+        {conflicts.length > 0 && <p className="mt-1 text-xs text-error-500">{t("settings_misc.attendance_penalties.branch_conflict", { branches: conflicts.map((branch) => branch.label).join(", ") })}</p>}
+      </div>
+      <div className="min-w-0">
+        <p className={FIELD_LABEL}>{t("settings_misc.attendance_penalties.policy_label")}</p>
+        <Select<SelectOption, false>
+          options={policies}
+          value={policies.find((option) => option.value === draft.policy_id) || null}
+          onChange={(option) => option && setDraft({ ...draft, policy_id: option.value })}
+          placeholder={t("settings_misc.attendance_penalties.policy_select_placeholder")}
+          isSearchable={false}
+          styles={singleSelectStyles}
+          menuPortalTarget={document.body}
+          menuPosition="fixed"
+        />
+      </div>
+      <div className="min-w-0">
+        <p className={FIELD_LABEL}>{t("settings_misc.attendance_penalties.exceptions_label")}</p>
+        <EmployeesInfiniteMultiSelect
+          value={draft.excluded}
+          onChange={(excluded) => setDraft({ ...draft, excluded })}
+          fallbackOptions={(assignment?.excluded || []).map((item) => ({ value: item.value, label: item.label || item.value }))}
+          // Исключать есть смысл только людей своих филиалов; до выбора филиалов — некого.
+          locationsId={draft.scope === "branches" ? draft.branches.map((branch) => branch.value) : undefined}
+          isDisabled={draft.scope === "branches" && !draft.branches.length}
+          placeholder={t("settings_misc.attendance_penalties.exceptions_placeholder")}
+          styles={compactSelectStyles}
+          menuPortalTarget={document.body}
+        />
+      </div>
+      <div className="flex flex-col items-end">
+        <div className={FIELD_LABEL}>
+          <HoverTooltip align="end" text={draft.paused ? t("settings_misc.attendance_penalties.resume_hint") : t("settings_misc.attendance_penalties.pause_hint")}>
+            <button
+              type="button"
+              onClick={() => setDraft({ ...draft, paused: !draft.paused })}
+              aria-pressed={!draft.paused}
+              className="cursor-pointer rounded-full transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-500/20"
+            >
+              <Badge size="sm" color={draft.paused ? "warning" : "success"} startIcon={draft.paused ? <Pause size={11} /> : <Play size={11} />}>
+                {draft.paused ? t("settings_misc.attendance_penalties.paused_label") : t("settings_misc.attendance_penalties.active_label")}
+              </Badge>
+            </button>
+          </HoverTooltip>
+        </div>
+        <div className="flex h-10 items-center gap-1">
+          <HoverTooltip text={saveLabel}>
+            <button type="button" onClick={save} disabled={!dirty || busy || conflicts.length > 0} aria-label={saveLabel} className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg transition disabled:pointer-events-none ${dirty ? "bg-brand-500 text-white hover:bg-brand-600 disabled:bg-gray-300" : "text-success-500"}`}>
+              {dirty ? <Save size={16} /> : <Check size={16} />}
+            </button>
+          </HoverTooltip>
+          <HoverTooltip align="end" text={t("settings_misc.attendance_penalties.delete")}>
+            <button type="button" onClick={remove} disabled={busy} aria-label={t("settings_misc.attendance_penalties.delete")} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-gray-400 transition hover:bg-error-50 hover:text-error-500 disabled:pointer-events-none">
+              <Trash2 size={16} />
+            </button>
+          </HoverTooltip>
+        </div>
+      </div>
+      {assignment && <p className="text-xs text-gray-400 lg:col-span-4">{t("settings_misc.attendance_penalties.effective_from", { date: formatDay(assignment.effective_from, locale) })}</p>}
+    </div>
+  );
+};
+
 export default function AttendancePenaltiesSettingsPage() {
   const { t } = useTranslation();
-  const scopeOptions: SelectOption[] = SCOPE_OPTIONS.map((option) => ({
-    value: option.value,
-    label: t(option.labelKey),
-  }));
   const { data: companySettings } = useCompanySettingsQuery();
   const { data: currencies } = useCurrenciesQuery();
   const currency = currencies?.find((item) => item.guid === companySettings?.currencies_id)?.title || "";
-  const [settings, setSettings] = useState<AttendancePenaltySettings>(() => defaultSettings());
-  const [savedSnapshot, setSavedSnapshot] = useState("");
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [policies, setPolicies] = useState<PenaltyPolicy[]>([]);
+  const [assignments, setAssignments] = useState<PenaltyAssignment[]>([]);
+  const [newAssignments, setNewAssignments] = useState<Array<{ key: string; draft: AssignmentDraft }>>([]);
+  const [policy, setPolicy] = useState<PolicyDraft | null>(null);
+  const [policySnapshot, setPolicySnapshot] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [tab, setTab] = useState<"assignments" | "policies">("assignments");
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    const storageKey = getStorageKey();
-    const load = async () => {
-      let serverSettings: AttendancePenaltySettings | null = null;
-      try {
-        const response = await reportsService.getAttendancePenaltySettings();
-        serverSettings = response.settings as AttendancePenaltySettings | null;
-      } catch {
-        toast.error(t("settings_misc.attendance_penalties.load_error_toast"));
+  const toPolicyDraft = (item: PenaltyPolicy): PolicyDraft =>
+    ({ guid: item.guid, title: item.title, rules: withRuleIds({ ...defaultRules(), ...(item.rules as PenaltyRules) }) });
+  const openPolicy = (next: PolicyDraft) => {
+    setPolicy(next);
+    setPolicySnapshot(JSON.stringify(next));
+  };
+  const closePolicy = () => {
+    setPolicy(null);
+    setPolicySnapshot("");
+  };
+
+  // open: guid — раскрыть эту политику свежей; null — свернуть всё; не передан —
+  // не трогать открытую: сохранение назначения не должно сбрасывать правку политики.
+  const load = async (open?: string | null) => {
+    try {
+      const response = await reportsService.getAttendancePenalties();
+      setPolicies(response.policies);
+      setAssignments(response.assignments);
+      if (open !== undefined) {
+        const selected = open ? response.policies.find((item) => item.guid === open) : undefined;
+        if (selected) openPolicy(toPolicyDraft(selected));
+        else closePolicy();
       }
-      if (!active) return;
-      let localSettings: AttendancePenaltySettings | null = null;
-      try {
-        const stored = window.localStorage.getItem(storageKey);
-        localSettings = stored ? JSON.parse(stored) as AttendancePenaltySettings : null;
-      } catch { /* Invalid local cache is ignored. */ }
-      const source = serverSettings || localSettings;
-      const next = source ? { ...defaultSettings(), ...source, version: 2 as const } : defaultSettings();
-      next.late.rules = next.late.rules.map((rule) => ({ ...rule, id: rule.id || createId() }));
-      next.early_leave.rules = next.early_leave.rules.map((rule) => ({ ...rule, id: rule.id || createId() }));
-      setSettings(next);
-      // Cached local rules require an explicit save before payroll uses them.
-      setSavedSnapshot(serverSettings ? JSON.stringify(next) : "");
-      setIsLoadingSettings(false);
-    };
-    void load();
-    return () => { active = false; };
-  }, []);
-
-  const currentSnapshot = JSON.stringify(settings);
-  const hasChanges = currentSnapshot !== savedSnapshot;
-
-  const updateTimed = (type: TimedPenaltyType, patch: Partial<TimedPenaltyConfig>) =>
-    setSettings((previous) => ({ ...previous, [type]: { ...previous[type], ...patch } }));
-
-  const updateFixed = (type: FixedPenaltyType, patch: Partial<FixedPenaltyConfig>) =>
-    setSettings((previous) => ({ ...previous, [type]: { ...previous[type], ...patch } }));
-
-  const handleSave = async () => {
-    const allRules = [...settings.late.rules, ...settings.early_leave.rules];
-    if (allRules.some((rule) => rule.thresholdMinutes <= 0)) {
-      toast.error(t("settings_misc.attendance_penalties.error_threshold_positive"));
-      return;
+      return response;
+    } catch (error) {
+      toast.error(t("settings_misc.attendance_penalties.load_error_toast"), { description: errorText(error) });
+      return null;
+    } finally {
+      setIsLoading(false);
     }
-    if (allRules.some((rule) => rule.amount < 0)) {
-      toast.error(t("settings_misc.attendance_penalties.error_amount_negative"));
-      return;
-    }
-    if ([settings.late, settings.early_leave].some(config => settings.enabled && config.enabled && !config.rules.length)) return toast.error(t("settings_misc.attendance_penalties.error_threshold_required"));
-    if ([settings.late, settings.early_leave].some(config => new Set(config.rules.map(rule => rule.thresholdMinutes)).size !== config.rules.length)) return toast.error(t("settings_misc.attendance_penalties.error_duplicate_threshold"));
-    if (settings.enabled && settings.applyTo === "employees" && !settings.employeeIds.length) return toast.error(t("settings_misc.attendance_penalties.error_select_employees"));
-    if (settings.enabled && settings.applyTo === "departments" && !settings.departmentOptions.length) return toast.error(t("settings_misc.attendance_penalties.error_select_departments"));
-    if (settings.enabled && settings.applyTo === "locations" && !settings.locationOptions.length) return toast.error(t("settings_misc.attendance_penalties.error_select_locations"));
+  };
 
+  // Без политик назначать нечего — сразу ведём туда, где их создают.
+  useEffect(() => { void load(null).then((response) => { if (response && !response.policies.length) setTab("policies"); }); }, []);
+
+  const policyOptions: SelectOption[] = policies.map((item) => ({ value: item.guid, label: item.title }));
+  const usedPolicies = new Set(assignments.map((item) => item.policy_id));
+  const policyDirty = !!policy && JSON.stringify(policy) !== policySnapshot;
+  const policyInUse = !!policy?.guid && usedPolicies.has(policy.guid);
+  // Уход с открытой политики: с несохранёнными правками — только через подтверждение.
+  const leavePolicy = (next: () => void) => {
+    if (!policyDirty) return next();
+    setConfirmRequest({
+      title: t("settings_misc.attendance_penalties.discard_changes_title"),
+      message: t("settings_misc.attendance_penalties.discard_changes_confirm"),
+      confirmLabel: t("settings_misc.attendance_penalties.discard_changes_button"),
+      onConfirm: next,
+    });
+  };
+  const togglePolicy = (item: PenaltyPolicy) =>
+    leavePolicy(() => (policy?.guid === item.guid ? closePolicy() : openPolicy(toPolicyDraft(item))));
+  const startNewPolicy = () => {
+    if (policy && !policy.guid) return;
+    leavePolicy(() => openPolicy({ title: t("settings_misc.attendance_penalties.new_policy_title"), rules: defaultRules() }));
+  };
+
+  // Сводка для свёрнутой строки: что включено и с какого порога / на какую сумму.
+  const summarize = (rules: PenaltyRules) => {
+    const money = (amount: number) => `${formatMoney(amount)}${currency ? ` ${currency}` : ""}`;
+    const from = (title: string, config: TimedPenaltyConfig) => config.rules.length
+      ? t("settings_misc.attendance_penalties.summary_from", { title, duration: formatDuration(Math.min(...config.rules.map((rule) => rule.thresholdMinutes)), t) })
+      : title;
+    return [
+      rules.late.enabled && from(t("settings_misc.attendance_penalties.late_title"), rules.late),
+      rules.early_leave.enabled && from(t("settings_misc.attendance_penalties.early_leave_title"), rules.early_leave),
+      rules.missing_checkout.enabled && `${t("settings_misc.attendance_penalties.missing_checkout_title")}: ${money(rules.missing_checkout.amount)}`,
+      rules.absence.enabled && `${t("settings_misc.attendance_penalties.absence_title")}: ${money(rules.absence.amount)}`,
+    ].filter((item): item is string => !!item);
+  };
+
+  // Какие филиалы уже заняты чужими сохранёнными назначениями.
+  const takenBranchesFor = (guid?: string) => new Map(
+    assignments.filter((item) => item.guid !== guid).flatMap((item) => item.branches.map((branch) => [branch.value, branch.label] as const)),
+  );
+
+  const addAssignment = (scope: PenaltyAssignment["scope"]) =>
+    setNewAssignments((previous) => [...previous, {
+      key: createId(),
+      draft: { scope, policy_id: policies.length === 1 ? policies[0].guid : "", branches: [], excluded: [], paused: false },
+    }]);
+  const hasScope = (scope: PenaltyAssignment["scope"]) =>
+    [...assignments, ...newAssignments.map((item) => item.draft)].some((item) => item.scope === scope);
+
+  const updateRules = (patch: Partial<PenaltyRules>) =>
+    setPolicy((previous) => previous && { ...previous, rules: { ...previous.rules, ...patch } });
+
+  const savePolicy = async () => {
+    if (!policy) return;
+    if (!policy.title.trim()) return toast.error(t("settings_misc.attendance_penalties.policy_title_required"));
+    const error = rulesError(policy.rules, t);
+    if (error) return toast.error(error);
     setIsSaving(true);
     try {
-      await reportsService.saveAttendancePenaltySettings(settings);
-      window.localStorage.setItem(getStorageKey(), currentSnapshot);
-      setSavedSnapshot(currentSnapshot);
+      const saved = await reportsService.savePenaltyPolicy({ guid: policy.guid, title: policy.title.trim(), rules: policy.rules });
       toast.success(t("settings_misc.attendance_penalties.save_success_toast"));
-    } catch {
-      toast.error(t("settings_misc.attendance_penalties.save_error_toast"));
+      await load(saved.guid);
+    } catch (error) {
+      toast.error(t("settings_misc.attendance_penalties.save_error_toast"), { description: errorText(error) });
     } finally {
       setIsSaving(false);
     }
   };
 
+  const deletePolicy = () => {
+    const guid = policy?.guid;
+    if (!guid) return closePolicy();
+    setConfirmRequest({
+      title: t("settings_misc.attendance_penalties.delete_policy_title"),
+      message: t("settings_misc.attendance_penalties.delete_policy_confirm", { title: policy.title }),
+      confirmLabel: t("settings_misc.attendance_penalties.delete"),
+      onConfirm: async () => {
+        try {
+          await reportsService.deletePenaltyPolicy(guid);
+          await load(null);
+        } catch (error) {
+          toast.error(t("settings_misc.attendance_penalties.delete_error_toast"), { description: errorText(error) });
+        }
+      },
+    });
+  };
+
   return (
     <>
       <PageMeta title={t("settings_misc.attendance_penalties.page_meta_title")} description={t("settings_misc.attendance_penalties.page_meta_description")} />
-      <div className="mx-auto max-w-[1000px] pb-10">
-        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <nav className="mb-2 flex items-center gap-1.5 text-sm text-gray-500">
-              <Link to="/settings" className="hover:text-gray-700">{t("settings_misc.attendance_penalties.breadcrumb_settings")}</Link>
-              <span>/</span>
-              <span className="text-gray-800">{t("settings_misc.attendance_penalties.breadcrumb_current")}</span>
-            </nav>
-            <h1 className="m-0 text-xl font-semibold text-gray-900">{t("settings_misc.attendance_penalties.page_title")}</h1>
-            <p className="mt-1 text-sm text-gray-500">{t("settings_misc.attendance_penalties.page_description")}</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!hasChanges || isLoadingSettings || isSaving}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            {hasChanges ? <Save size={16} /> : <Check size={16} />}
-            {isLoadingSettings
-              ? t("settings_misc.attendance_penalties.loading")
-              : isSaving
-                ? t("settings_misc.attendance_penalties.saving")
-                : hasChanges
-                  ? t("settings_misc.attendance_penalties.save_changes")
-                  : t("settings_misc.attendance_penalties.saved")}
-          </button>
+      <div className="mx-auto max-w-[1100px] pb-10">
+        <div className="mb-5">
+          <nav className="mb-2 flex items-center gap-1.5 text-sm text-gray-500">
+            <Link to="/settings" className="hover:text-gray-700">{t("settings_misc.attendance_penalties.breadcrumb_settings")}</Link>
+            <span>/</span>
+            <span className="text-gray-800">{t("settings_misc.attendance_penalties.breadcrumb_current")}</span>
+          </nav>
+          <h1 className="m-0 text-xl font-semibold text-gray-900">{t("settings_misc.attendance_penalties.page_title")}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t("settings_misc.attendance_penalties.page_description")}</p>
         </div>
 
-        <section className="mb-4 rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 px-5 py-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><Clock3 size={20} /></span>
-            <div className="min-w-0 flex-1">
-              <h2 className="m-0 text-[15px] font-semibold text-gray-900">{t("settings_misc.attendance_penalties.auto_penalties_title")}</h2>
-              <p className="mt-0.5 text-xs text-gray-500">{t("settings_misc.attendance_penalties.auto_penalties_description")}</p>
+        <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+          <TabsList className="mb-4">
+            <TabsTrigger value="assignments">{t("settings_misc.attendance_penalties.tab_assignments")}</TabsTrigger>
+            <TabsTrigger value="policies">{t("settings_misc.attendance_penalties.tab_policies")}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Обе вкладки смонтированы: несохранённые правки строк не теряются при переключении. */}
+        <div className={tab === "assignments" ? "" : "hidden"}>
+        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
+            <div className="flex flex-wrap gap-2">
+              {(["branches", "all_branches", "no_branch"] as const).filter((scope) => scope === "branches" || !hasScope(scope)).map((scope) => (
+                <HoverTooltip key={scope} text={policies.length ? "" : t("settings_misc.attendance_penalties.add_needs_policy")}>
+                  <button type="button" disabled={!policies.length} onClick={() => addAssignment(scope)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 text-sm font-medium text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 disabled:pointer-events-none disabled:opacity-50">
+                    <Plus size={15} /> {t(`settings_misc.attendance_penalties.scope_${scope}` as const)}
+                  </button>
+                </HoverTooltip>
+              ))}
             </div>
-            <Toggle checked={settings.enabled} onChange={(enabled) => setSettings((previous) => ({ ...previous, enabled }))} label={t("settings_misc.attendance_penalties.auto_penalties_toggle_label")} />
-          </div>
-          <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-gray-100 px-5 py-3 ${settings.enabled ? "" : "pointer-events-none opacity-45"}`}>
-            <span className="shrink-0 text-[13px] font-medium text-gray-600">{t("settings_misc.attendance_penalties.apply_to_label")}</span>
-            <div className="w-[215px] max-w-full shrink-0">
-              <Select<SelectOption, false>
-                inputId="penalty-scope"
-                aria-label={t("settings_misc.attendance_penalties.apply_to_aria")}
-                options={scopeOptions}
-                value={scopeOptions.find((option) => option.value === settings.applyTo)}
-                onChange={option => option && setSettings(previous => ({ ...previous, applyTo: option.value as AttendancePenaltySettings["applyTo"] }))}
-                isSearchable={false}
-                styles={scopeSelectStyles}
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-              />
-            </div>
-            {settings.applyTo !== "all" && <div className="min-w-[220px] max-w-[420px] flex-1" aria-label={t("settings_misc.attendance_penalties.scope_select_aria")}>
-              {settings.applyTo === "employees" && <EmployeesInfiniteMultiSelect value={settings.employeeIds} onChange={employeeIds => setSettings(previous => ({ ...previous, employeeIds }))} placeholder={t("settings_misc.attendance_penalties.scope_select_placeholder")} styles={compactSelectStyles} menuPortalTarget={document.body} />}
-              {settings.applyTo === "departments" && <DepartmentsInfiniteMultiSelect value={settings.departmentOptions as DepartmentOption[]} onChange={departmentOptions => setSettings(previous => ({ ...previous, departmentOptions }))} placeholder={t("settings_misc.attendance_penalties.scope_select_placeholder")} styles={compactSelectStyles} menuPortalTarget={document.body} />}
-              {settings.applyTo === "locations" && <LocationsInfiniteMultiSelect value={settings.locationOptions} onChange={locationOptions => setSettings(previous => ({ ...previous, locationOptions }))} placeholder={t("settings_misc.attendance_penalties.scope_select_placeholder")} styles={compactSelectStyles} menuPortalTarget={document.body} />}
-            </div>}
-          </div>
+            <HoverTooltip align="end" text={t("settings_misc.attendance_penalties.assignments_description")}>
+              <button type="button" aria-label={t("settings_misc.attendance_penalties.assignments_description")} className="inline-flex h-8 w-8 cursor-help items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-500/20">
+                <Info size={17} />
+              </button>
+            </HoverTooltip>
+          </header>
+          {isLoading
+            ? <p className="px-5 py-4 text-sm text-gray-500">{t("settings_misc.attendance_penalties.loading")}</p>
+            : !assignments.length && !newAssignments.length
+              ? <p className="px-5 py-4 text-sm text-gray-500">
+                {policies.length
+                  ? t("settings_misc.attendance_penalties.no_assignments_hint")
+                  // {tab} в переводе режем на части и подставляем ссылку на вкладку — порядок слов остаётся за переводом.
+                  : t("settings_misc.attendance_penalties.no_policies_hint").split("{tab}").map((part, index) => (
+                    <span key={index}>
+                      {index > 0 && <button type="button" onClick={() => setTab("policies")} className="cursor-pointer font-medium text-brand-500 underline-offset-2 hover:underline">{t("settings_misc.attendance_penalties.tab_policies")}</button>}
+                      {part}
+                    </span>
+                  ))}
+              </p>
+              : <>
+                {assignments.map((item) => (
+                  <AssignmentRow key={`${item.guid}:${item.effective_from}`} assignment={item} initial={toDraft(item)} policies={policyOptions} takenBranches={takenBranchesFor(item.guid)} onSaved={() => void load()} onRemoved={() => void load()} onConfirm={setConfirmRequest} />
+                ))}
+                {newAssignments.map((item) => {
+                  const drop = () => setNewAssignments((previous) => previous.filter((row) => row.key !== item.key));
+                  return <AssignmentRow key={item.key} initial={item.draft} policies={policyOptions} takenBranches={takenBranchesFor()} onSaved={() => { drop(); void load(); }} onRemoved={drop} onConfirm={setConfirmRequest} />;
+                })}
+              </>}
+          <p className="flex items-start gap-2 border-t border-gray-100 px-5 py-3 text-xs leading-5 text-gray-500">
+            <Info size={14} className="mt-0.5 shrink-0" /> {t("settings_misc.attendance_penalties.changes_from_today")}
+          </p>
         </section>
-        <div className={`space-y-4 ${settings.enabled ? "" : "pointer-events-none opacity-60"}`}>
-            <PenaltyCard title={t("settings_misc.attendance_penalties.late_title")} description={t("settings_misc.attendance_penalties.late_description")} icon={<ArrowDownRight size={19} />} enabled={settings.late.enabled} onToggle={(enabled) => updateTimed("late", { enabled })}>
-              <TimedRules rules={settings.late.rules} onChange={(rules) => updateTimed("late", { rules })} currency={currency} />
-            </PenaltyCard>
 
-            <PenaltyCard title={t("settings_misc.attendance_penalties.early_leave_title")} description={t("settings_misc.attendance_penalties.early_leave_description")} icon={<ArrowUpRight size={19} />} enabled={settings.early_leave.enabled} onToggle={(enabled) => updateTimed("early_leave", { enabled })}>
-              <TimedRules rules={settings.early_leave.rules} onChange={(rules) => updateTimed("early_leave", { rules })} currency={currency} />
-            </PenaltyCard>
+        </div>
 
-            <PenaltyCard title={t("settings_misc.attendance_penalties.missing_checkout_title")} description={t("settings_misc.attendance_penalties.missing_checkout_description")} icon={<LogOut size={19} />} enabled={settings.missing_checkout.enabled} onToggle={(enabled) => updateFixed("missing_checkout", { enabled })}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm text-gray-600">{t("settings_misc.attendance_penalties.missing_checkout_amount_label")}</span>
-                <div className="w-full sm:w-[190px]"><MoneyInput value={settings.missing_checkout.amount} onChange={(amount) => updateFixed("missing_checkout", { amount })} currency={currency} /></div>
-              </div>
-            </PenaltyCard>
-
-            <PenaltyCard title={t("settings_misc.attendance_penalties.absence_title")} description={t("settings_misc.attendance_penalties.absence_description")} icon={<CalendarX2 size={19} />} enabled={settings.absence.enabled} onToggle={(enabled) => updateFixed("absence", { enabled })}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm text-gray-600">{t("settings_misc.attendance_penalties.absence_amount_label")}</span>
-                <div className="w-full sm:w-[190px]"><MoneyInput value={settings.absence.amount} onChange={(amount) => updateFixed("absence", { amount })} currency={currency} /></div>
-              </div>
-            </PenaltyCard>
-
+        <div className={tab === "policies" ? "" : "hidden"}>
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+            <p className="m-0 min-w-0 max-w-[560px] text-[13px] leading-5 text-gray-600">{t("settings_misc.attendance_penalties.policies_description")}</p>
+            <button type="button" onClick={startNewPolicy} disabled={!!policy && !policy.guid} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand-500 px-3 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-300">
+              <Plus size={15} /> {t("settings_misc.attendance_penalties.new_policy")}
+            </button>
           </div>
+
+          {isLoading
+            ? <p className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-500">{t("settings_misc.attendance_penalties.loading")}</p>
+            : !policies.length && !policy
+              ? <p className="rounded-2xl border border-dashed border-gray-300 bg-white px-5 py-6 text-center text-sm text-gray-500">{t("settings_misc.attendance_penalties.policies_empty")}</p>
+              : <div className="space-y-3">
+                {[...(policy && !policy.guid ? [null] : []), ...policies].map((item) => {
+                  const open = item ? policy?.guid === item.guid : true;
+                  const shown = open && policy ? policy : item && toPolicyDraft(item);
+                  if (!shown) return null;
+                  const usage = item ? assignments.filter((assignment) => assignment.policy_id === item.guid).length : 0;
+                  const chips = summarize(shown.rules);
+                  const unsaved = !item || (open && policyDirty);
+                  return (
+                    <div key={item?.guid ?? "new"} className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${open ? "border-brand-200" : "border-gray-200"}`}>
+                      <button type="button" aria-expanded={open} onClick={() => (item ? togglePolicy(item) : leavePolicy(closePolicy))} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-gray-50">
+                        <ChevronDown size={18} className={`shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-[15px] font-semibold text-gray-900">{shown.title || t("settings_misc.attendance_penalties.new_policy_title")}</span>
+                            {unsaved && <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">{t("settings_misc.attendance_penalties.unsaved")}</span>}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {chips.length
+                              ? chips.map((chip) => <span key={chip} className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{chip}</span>)
+                              : <span className="text-xs text-gray-400">{t("settings_misc.attendance_penalties.summary_none")}</span>}
+                          </div>
+                        </div>
+                        {item && <span className={`hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline ${usage ? "bg-brand-50 text-brand-600" : "bg-gray-100 text-gray-500"}`}>
+                          {usage ? t("settings_misc.attendance_penalties.used_in", { count: usage }) : t("settings_misc.attendance_penalties.not_used")}
+                        </span>}
+                      </button>
+                      {open && policy && <div className="space-y-4 border-t border-gray-100 bg-gray-50/60 px-5 py-4">
+                        <label className="block text-xs font-medium text-gray-500">
+                          {t("settings_misc.attendance_penalties.policy_title_label")}
+                          <input value={policy.title} maxLength={200} onChange={(event) => setPolicy({ ...policy, title: event.target.value })} className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-3 focus:ring-brand-500/10" />
+                        </label>
+                      <PenaltyCard title={t("settings_misc.attendance_penalties.late_title")} description={t("settings_misc.attendance_penalties.late_description")} icon={<ArrowDownRight size={19} />} enabled={policy.rules.late.enabled} onToggle={(enabled) => updateRules({ late: { ...policy.rules.late, enabled } })}>
+                        <TimedRules rules={policy.rules.late.rules} onChange={(rules) => updateRules({ late: { ...policy.rules.late, rules } })} currency={currency} />
+                      </PenaltyCard>
+
+                      <PenaltyCard title={t("settings_misc.attendance_penalties.early_leave_title")} description={t("settings_misc.attendance_penalties.early_leave_description")} icon={<ArrowUpRight size={19} />} enabled={policy.rules.early_leave.enabled} onToggle={(enabled) => updateRules({ early_leave: { ...policy.rules.early_leave, enabled } })}>
+                        <TimedRules rules={policy.rules.early_leave.rules} onChange={(rules) => updateRules({ early_leave: { ...policy.rules.early_leave, rules } })} currency={currency} />
+                      </PenaltyCard>
+
+                      <PenaltyCard title={t("settings_misc.attendance_penalties.missing_checkout_title")} description={t("settings_misc.attendance_penalties.missing_checkout_description")} icon={<LogOut size={19} />} enabled={policy.rules.missing_checkout.enabled} onToggle={(enabled) => updateRules({ missing_checkout: { ...policy.rules.missing_checkout, enabled } })}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-sm text-gray-600">{t("settings_misc.attendance_penalties.missing_checkout_amount_label")}</span>
+                          <div className="w-full sm:w-[190px]"><MoneyInput value={policy.rules.missing_checkout.amount} onChange={(amount) => updateRules({ missing_checkout: { ...policy.rules.missing_checkout, amount } })} currency={currency} /></div>
+                        </div>
+                      </PenaltyCard>
+
+                      <PenaltyCard title={t("settings_misc.attendance_penalties.absence_title")} description={t("settings_misc.attendance_penalties.absence_description")} icon={<CalendarX2 size={19} />} enabled={policy.rules.absence.enabled} onToggle={(enabled) => updateRules({ absence: { ...policy.rules.absence, enabled } })}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-sm text-gray-600">{t("settings_misc.attendance_penalties.absence_amount_label")}</span>
+                          <div className="w-full sm:w-[190px]"><MoneyInput value={policy.rules.absence.amount} onChange={(amount) => updateRules({ absence: { ...policy.rules.absence, amount } })} currency={currency} /></div>
+                        </div>
+                      </PenaltyCard>
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+                          {/* Причина блокировки — сразу при наведении. disabled-кнопка не отдаёт событий мыши,
+                              поэтому у неё pointer-events-none, а наведение ловит обёртка тултипа. */}
+                          <HoverTooltip text={policyInUse ? t("settings_misc.attendance_penalties.policy_in_use") : ""}>
+                            <button type="button" onClick={deletePolicy} disabled={policyInUse} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-600 transition hover:border-error-300 hover:text-error-500 disabled:pointer-events-none disabled:opacity-50 sm:w-auto">
+                              <Trash2 size={16} /> {policy.guid ? t("settings_misc.attendance_penalties.delete") : t("settings_misc.attendance_penalties.cancel")}
+                            </button>
+                          </HoverTooltip>
+                          <button type="button" onClick={savePolicy} disabled={(!policyDirty && !!policy.guid) || isSaving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-300">
+                            {policyDirty || !policy.guid ? <Save size={16} /> : <Check size={16} />}
+                            {isSaving ? t("settings_misc.attendance_penalties.saving") : policyDirty || !policy.guid ? t("settings_misc.attendance_penalties.save_changes") : t("settings_misc.attendance_penalties.saved")}
+                          </button>
+                        </div>
+                      </div>}
+                    </div>
+                  );
+                })}
+              </div>}
+        </div>
       </div>
+      <ConfirmModal request={confirmRequest} onClose={() => setConfirmRequest(null)} />
     </>
   );
 }

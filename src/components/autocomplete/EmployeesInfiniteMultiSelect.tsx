@@ -21,6 +21,8 @@ interface EmployeesInfiniteMultiSelectProps {
   classNamePrefix?: string;
   /** Limit options to employees holding this position (guid). */
   positionsId?: string;
+  /** Limit options to employees of these branches (guids). */
+  locationsId?: string[];
   isDisabled?: boolean;
   /**
    * Full cards of the employees loaded so far. The select itself only deals in
@@ -68,6 +70,7 @@ export default function EmployeesInfiniteMultiSelect({
   menuPortalTarget,
   classNamePrefix = "employees-infinite-multi-select",
   positionsId,
+  locationsId,
   isDisabled = false,
   onLoaded,
 }: EmployeesInfiniteMultiSelectProps) {
@@ -94,11 +97,14 @@ export default function EmployeesInfiniteMultiSelect({
     };
   }, [inputValue]);
 
+  // Ключ, а не сам массив: новый массив на каждом рендере родителя сбрасывал бы список по кругу.
+  const locationsKey = (locationsId || []).join(",");
+
   useEffect(() => {
     setOffset(0);
     setOptions([]);
     setTotalCount(0);
-  }, [debouncedSearch, positionsId]);
+  }, [debouncedSearch, positionsId, locationsKey]);
 
   const queryParams = useMemo(
     () => ({
@@ -107,9 +113,10 @@ export default function EmployeesInfiniteMultiSelect({
       status: "active" as const,
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(positionsId ? { positions_id: [positionsId] } : {}),
+      ...(locationsKey ? { locations_id: locationsKey.split(",") } : {}),
       enabled: !isDisabled,
     }),
-    [debouncedSearch, offset, positionsId, isDisabled]
+    [debouncedSearch, offset, positionsId, locationsKey, isDisabled]
   );
 
   const { data, isLoading, isFetching } = useEmployeesQuery(queryParams);

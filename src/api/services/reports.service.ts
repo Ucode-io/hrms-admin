@@ -30,7 +30,10 @@ const GET_SPORT_ATTENDANCE_TABLE_METHOD = "get_sport_attendance_table";
 const GET_PAYROLL_METHOD = "get_payroll";
 const GET_PAYROLL_TABLE_METHOD = "get_payroll_table";
 const ATTENDANCE_PENALTIES_GET_METHOD = "attendance_penalties_get";
-const ATTENDANCE_PENALTIES_SAVE_METHOD = "attendance_penalties_save";
+const PENALTY_POLICY_SAVE_METHOD = "penalty_policy_save";
+const PENALTY_POLICY_DELETE_METHOD = "penalty_policy_delete";
+const PENALTY_ASSIGNMENT_SAVE_METHOD = "penalty_assignment_save";
+const PENALTY_ASSIGNMENT_DELETE_METHOD = "penalty_assignment_delete";
 const ATTENDANCE_PENALTIES_SYNC_METHOD = "attendance_penalties_sync";
 const GET_BONUS_DEDUCTIONS_METHOD = "get_bonus_deductions";
 const GET_BONUS_DEDUCTIONS_TABLE_METHOD = "get_bonus_deductions_table";
@@ -3348,22 +3351,57 @@ export interface SaveWorkScheduleInput {
   days: SaveWorkScheduleDayInput[];
 }
 
+export type PenaltyPolicy = { guid: string; title: string; rules: unknown };
+export type PenaltyAssignment = {
+  guid: string;
+  policy_id: string;
+  scope: "branches" | "all_branches" | "no_branch";
+  paused: boolean;
+  effective_from: string;
+  branches: Array<{ value: string; label: string }>;
+  excluded: Array<{ value: string; label: string | null }>;
+};
+
 const reportsService = {
-  getAttendancePenaltySettings: async (): Promise<{ settings: unknown; effective_from: string | null }> => {
+  getAttendancePenalties: async (): Promise<{ policies: PenaltyPolicy[]; assignments: PenaltyAssignment[] }> => {
     const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
       data: { method: ATTENDANCE_PENALTIES_GET_METHOD, data: {} },
     });
-    return normalizeGatewayResponse<{ method: string; result: { settings: unknown; effective_from: string | null } }>(
+    const result = normalizeGatewayResponse<{ method: string; result: { policies: PenaltyPolicy[]; assignments: PenaltyAssignment[] } }>(
       response.data, ATTENDANCE_PENALTIES_GET_METHOD
     ).result;
+    // Старый reports отвечает { settings } — не пускаем его в стейт страницы.
+    if (!Array.isArray(result.policies) || !Array.isArray(result.assignments)) {
+      throw new Error("reports service returned the pre-ADR-0008 penalty settings shape");
+    }
+    return result;
   },
-  saveAttendancePenaltySettings: async (settings: unknown): Promise<void> => {
+  savePenaltyPolicy: async (policy: { guid?: string; title: string; rules: unknown }): Promise<{ guid: string }> => {
     const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
-      data: { method: ATTENDANCE_PENALTIES_SAVE_METHOD, data: { settings } },
+      data: { method: PENALTY_POLICY_SAVE_METHOD, data: policy },
     });
-    normalizeGatewayResponse<{ method: string; result: { saved: boolean } }>(
-      response.data, ATTENDANCE_PENALTIES_SAVE_METHOD
-    );
+    return normalizeGatewayResponse<{ method: string; result: { guid: string } }>(response.data, PENALTY_POLICY_SAVE_METHOD).result;
+  },
+  deletePenaltyPolicy: async (guid: string): Promise<void> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: PENALTY_POLICY_DELETE_METHOD, data: { guid } },
+    });
+    normalizeGatewayResponse<{ method: string; result: { deleted: boolean } }>(response.data, PENALTY_POLICY_DELETE_METHOD);
+  },
+  savePenaltyAssignment: async (assignment: {
+    guid?: string; policy_id: string; scope: PenaltyAssignment["scope"];
+    location_ids: string[]; excluded_ids: string[]; paused: boolean;
+  }): Promise<{ guid: string }> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: PENALTY_ASSIGNMENT_SAVE_METHOD, data: assignment },
+    });
+    return normalizeGatewayResponse<{ method: string; result: { guid: string } }>(response.data, PENALTY_ASSIGNMENT_SAVE_METHOD).result;
+  },
+  deletePenaltyAssignment: async (guid: string): Promise<void> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: PENALTY_ASSIGNMENT_DELETE_METHOD, data: { guid } },
+    });
+    normalizeGatewayResponse<{ method: string; result: { deleted: boolean } }>(response.data, PENALTY_ASSIGNMENT_DELETE_METHOD);
   },
   syncAttendancePenalties: async (month: string): Promise<{ created: number; updated: number; removed: number; days: number }> => {
     const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
