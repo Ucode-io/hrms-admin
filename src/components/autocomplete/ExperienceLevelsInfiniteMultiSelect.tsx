@@ -8,6 +8,7 @@ import {
   type ExperienceLevel,
   useExperienceLevelsQuery,
 } from "../../api/services/experienceLevel.service";
+import { useTranslation, translate } from "../../i18n";
 
 type Option = {
   value: string;
@@ -27,7 +28,7 @@ interface ExperienceLevelsInfiniteMultiSelectProps {
 const PAGE_LIMIT = 20;
 
 const resolveExperienceLevelLabel = (item: ExperienceLevel): string =>
-  String(item.title || "Без названия");
+  String(item.title || translate("common.untitled"));
 
 const mergeUniqueOptions = (base: Option[], incoming: Option[]): Option[] => {
   const seen = new Set<string>();
@@ -44,11 +45,13 @@ export default function ExperienceLevelsInfiniteMultiSelect({
   value,
   onChange,
   fallbackOptions = [],
-  placeholder = "Выберите уровни опыта",
+  placeholder,
   styles,
   menuPortalTarget,
   classNamePrefix = "experience-levels-infinite-multi-select",
 }: ExperienceLevelsInfiniteMultiSelectProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("autocomplete.select_experience_levels");
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -143,8 +146,8 @@ export default function ExperienceLevelsInfiniteMultiSelect({
       menuPortalTarget={menuPortalTarget}
       menuPosition="fixed"
       classNamePrefix={classNamePrefix}
-      noOptionsMessage={() => (isLoading || isFetching ? "Загрузка..." : "Ничего не найдено")}
-      loadingMessage={() => "Загрузка..."}
+      noOptionsMessage={() => (isLoading || isFetching ? t("common.loading") : t("common.no_options_found"))}
+      loadingMessage={() => t("common.loading")}
     />
   );
 }

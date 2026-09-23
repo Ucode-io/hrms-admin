@@ -3,6 +3,7 @@ import { Controller, Control, FieldValues, Path } from "react-hook-form";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import Label from "../form/Label";
+import { useTranslation } from "../../i18n";
 
 interface FormPhoneInputProps<T extends FieldValues> {
   name: Path<T>;
@@ -25,11 +26,12 @@ const FormPhoneInput = <T extends FieldValues>({
   className = "",
   defaultCountry = "UZ",
 }: FormPhoneInputProps<T>) => {
+  const { t } = useTranslation();
   return (
     <Controller
       name={name}
       control={control}
-      rules={{ required: required ? "Это поле обязательно" : false }}
+      rules={{ required: required ? t("common.required_field") : false }}
       render={({ field, fieldState: { error } }) => (
         <div>
           {label && <Label htmlFor={name}>{label}</Label>}

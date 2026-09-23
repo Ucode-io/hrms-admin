@@ -10,6 +10,7 @@ import {
 } from "../constants";
 import type { Task, TaskDirectories, TaskEmployee } from "../types";
 import { AvatarStack, TypeIcon } from "./badges";
+import { useTranslation } from "../../../i18n";
 
 interface SubtasksSectionProps {
   subtasks: Task[];
@@ -34,6 +35,7 @@ export default function SubtasksSection({
   onDetach,
   isCreating,
 }: SubtasksSectionProps) {
+  const { t } = useTranslation();
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [title, setTitle] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,7 +60,7 @@ export default function SubtasksSection({
       <div className="mb-2.5 flex items-center gap-2">
         <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-white/90">
           <GitBranch size={15} className="text-gray-400" />
-          Подзадачи
+          {t("tasks.subtasks.title")}
         </h4>
         {subtasks.length > 0 && (
           <span className="flex items-center gap-2">
@@ -127,8 +129,8 @@ export default function SubtasksSection({
               <button
                 type="button"
                 onClick={() => onDetach(subtask.id)}
-                aria-label="Открепить подзадачу"
-                title="Открепить — задача останется на доске"
+                aria-label={t("tasks.subtasks.detach")}
+                title={t("tasks.subtasks.detach_title")}
                 className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-400 opacity-0 transition hover:bg-error-50 hover:text-error-600 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-error-500/10"
               >
                 <Link2Off size={13} />
@@ -155,7 +157,7 @@ export default function SubtasksSection({
             onBlur={() => {
               if (!title.trim()) setIsInputOpen(false);
             }}
-            placeholder="Название подзадачи. Enter — создать"
+            placeholder={t("tasks.subtasks.input_placeholder")}
             className="h-9 flex-1 rounded-lg border border-brand-300 bg-transparent px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:text-white/90"
           />
           <button
@@ -165,7 +167,7 @@ export default function SubtasksSection({
             disabled={!title.trim() || isCreating}
             className="inline-flex h-9 items-center rounded-lg bg-brand-500 px-3 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-40"
           >
-            Создать
+            {t("tasks.subtasks.create")}
           </button>
         </div>
       ) : (
@@ -175,7 +177,7 @@ export default function SubtasksSection({
           className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-sm text-gray-500 transition hover:bg-gray-50 hover:text-brand-600 dark:text-gray-400 dark:hover:bg-white/5"
         >
           <Plus size={15} />
-          Добавить подзадачу
+          {t("tasks.subtasks.add")}
         </button>
       )}
     </section>

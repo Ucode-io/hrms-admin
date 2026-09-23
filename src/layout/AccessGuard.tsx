@@ -6,6 +6,7 @@ import {
   getModuleLabel,
   getPathModule,
 } from "../modules/Settings/Roles/moduleCatalog";
+import { useTranslation } from "../i18n";
 
 /**
  * Route-level access guard. Same non-breaking policy as the sidebar: a user with
@@ -20,6 +21,7 @@ export default function AccessGuard({
 }: {
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const location = useLocation();
   const { data: access, isLoading } = useCurrentUserAccess();
 
@@ -43,17 +45,16 @@ export default function AccessGuard({
             <Lock size={22} />
           </span>
           <h2 className="text-lg font-semibold text-gray-900">
-            Нет доступа к разделу
+            {t("access.no_section_access")}
           </h2>
           <p className="mt-1.5 text-sm text-gray-500">
-            У вашей роли нет доступа к модулю «{getModuleLabel(owningModule)}».
-            Обратитесь к администратору, если доступ вам необходим.
+            {t("access.role_has_no_module", { module: getModuleLabel(owningModule) })}
           </p>
           <Link
             to={firstAllowedPath(allowedModules)}
             className="mt-5 inline-flex items-center justify-center rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600"
           >
-            Перейти в доступный раздел
+            {t("access.go_to_allowed")}
           </Link>
         </div>
       </div>

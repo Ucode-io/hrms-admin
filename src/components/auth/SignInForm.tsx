@@ -5,8 +5,10 @@ import authStore from "../../store/auth.store";
 import companyStore from "../../store/company.store";
 import { useLogin } from "../../api/services/auth.service";
 import { observer } from "mobx-react-lite";
+import { useTranslation } from "../../i18n";
 
 const SignInForm = observer(function SignInForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +49,7 @@ const SignInForm = observer(function SignInForm() {
         void companyStore.fetchCompany(loginCompanyId);
         navigate("/");
       } else {
-        setError("Ошибка получения токена");
+        setError(t("auth.token_error"));
       }
     } catch (err: unknown) {
       console.error("Login error:", err);
@@ -55,7 +57,7 @@ const SignInForm = observer(function SignInForm() {
       // под код ответа: на неверный пароль там «Invalid argument value passed»,
       // и именно это показывалось вместо «неверный пароль».
       const message = (err as { response?: { data?: { data?: unknown } } })?.response?.data?.data;
-      setError(typeof message === "string" && message.trim() ? message : "Неверный логин или пароль");
+      setError(typeof message === "string" && message.trim() ? message : t("auth.invalid_credentials"));
     }
   };
 
@@ -72,7 +74,7 @@ const SignInForm = observer(function SignInForm() {
             />
           </div>
           <h1 className="text-xl font-semibold text-gray-900">
-            Добро пожаловать в {companyStore.companyName} HRMS
+            {t("auth.welcome", { company: companyStore.companyName })}
           </h1>
         </div>
 
@@ -88,7 +90,7 @@ const SignInForm = observer(function SignInForm() {
             {/* Login Field */}
             <div>
               <label className="mb-2 block text-sm text-gray-500">
-                Эл. почта, номер телефона или логин
+                {t("auth.login_label")}
               </label>
               <input
                 type="text"
@@ -103,7 +105,7 @@ const SignInForm = observer(function SignInForm() {
             {/* Password Field */}
             <div>
               <label className="mb-2 block text-sm text-gray-500">
-                Пароль
+                {t("auth.password")}
               </label>
               <div className="relative">
                 <input
@@ -133,7 +135,7 @@ const SignInForm = observer(function SignInForm() {
                   type="button"
                   className="text-sm text-brand-500 hover:text-brand-600 transition-colors"
                 >
-                  Забыли пароль?
+                  {t("auth.forgot_password")}
                 </button>
               </div>
             </div>
@@ -152,10 +154,10 @@ const SignInForm = observer(function SignInForm() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Вход...
+                    {t("auth.signing_in")}
                   </span>
                 ) : (
-                  "Войти в систему"
+                  t("auth.sign_in")
                 )}
               </button>
             </div>

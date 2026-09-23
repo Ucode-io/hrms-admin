@@ -4,7 +4,7 @@
 // which are still waiting. It can also render read-only approval history for
 // finalized entities. Generic — any module can drive its own process/entity.
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Check, Clock, Lock, MessageSquare, ShieldCheck, UserRound, X } from "lucide-react";
 import { Modal } from "../ui/modal";
 import { type ApprovalProcess } from "../../modules/Settings/Approvals/mockData";
@@ -17,6 +17,7 @@ import {
   nextPendingStageIndex,
 } from "../../modules/Settings/Approvals/approvalRuntime";
 import { useCurrentUserPositionId } from "../../api/services/approval.service";
+import { useTranslation, pluralForm } from "../../i18n";
 
 interface ApprovalProcessModalProps {
   isOpen: boolean;
@@ -37,6 +38,8 @@ interface ApprovalProcessModalProps {
   confirmLabel?: string;
   /** Opens the timeline for audit/history without allowing new actions. */
   readOnly?: boolean;
+  /** Что именно согласуется — показывается над этапами. */
+  details?: ReactNode;
 }
 
 const formatDateTime = (iso: string): string => {
@@ -118,9 +121,12 @@ export default function ApprovalProcessModal({
   isConfirming = false,
   onReject,
   isRejecting = false,
-  confirmLabel = "Подтвердить",
+  confirmLabel,
   readOnly = false,
+  details,
 }: ApprovalProcessModalProps) {
+  const { t, locale } = useTranslation();
+  confirmLabel ??= t("common.confirm");
   const [comment, setComment] = useState("");
   const currentUserPositionId = useCurrentUserPositionId();
 
@@ -168,8 +174,7 @@ export default function ApprovalProcessModal({
             <div>
               <h3 className="text-xl font-semibold text-gray-900">{process.title}</h3>
               <p className="mt-0.5 text-sm text-gray-500">
-                Многоступенчатое одобрение · {totalStages}{" "}
-                {totalStages === 1 ? "этап" : "этапа"}
+                {t(`approvals.multistage_${pluralForm(locale, totalStages)}`, { count: totalStages })}
               </p>
             </div>
           </div>
@@ -177,7 +182,7 @@ export default function ApprovalProcessModal({
             type="button"
             onClick={onClose}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("common.close")}
           >
             <X size={18} />
           </button>
@@ -187,7 +192,7 @@ export default function ApprovalProcessModal({
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-gray-500">
             <span>
-              Одобрено {approvedCount} из {totalStages}
+              {t("approvals.approved_of", { approved: approvedCount, total: totalStages })}
             </span>
             <span>{percent}%</span>
           </div>
@@ -204,6 +209,7 @@ export default function ApprovalProcessModal({
 
       {/* Stages — vertical approval timeline */}
       <div className="max-h-[58vh] overflow-y-auto px-6 py-5">
+        {details ? <div className="mb-5">{details}</div> : null}
         <div className="relative">
           {process.stages.map((stage, index) => {
             const approval = getStageApproval(progress, stage.id);
@@ -242,16 +248,16 @@ export default function ApprovalProcessModal({
                     <h4 className="text-base font-semibold text-gray-900">{stage.title}</h4>
                     {isApproved ? (
                       <span className="mt-0.5 shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        Одобрено
+                        {t("approvals.approved")}
                       </span>
                     ) : isCurrent ? (
                       <span className="mt-0.5 shrink-0 rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">
-                        Текущий этап
+                        {t("approvals.current_stage")}
                       </span>
                     ) : (
                       <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-400">
                         <Clock size={12} />
-                        Ожидает
+                        {t("approvals.pending")}
                       </span>
                     )}
                   </div>
@@ -274,7 +280,7 @@ export default function ApprovalProcessModal({
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs text-gray-500">
-                          Одобрил · {formatDateTime(approval.approvedAt)}
+                          {t("approvals.approved_at", { date: formatDateTime(approval.approvedAt) })}
                         </p>
                         {approval.comment ? (
                           <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-gray-50 px-2.5 py-2 text-xs text-gray-600">
@@ -294,11 +300,11 @@ export default function ApprovalProcessModal({
                               {stage.positionTitle}
                             </span>
                             <span className="text-xs font-medium text-gray-400">
-                              ответственный за этап
+                              {t("approvals.stage_owner")}
                             </span>
                           </div>
                           <p className="mt-0.5 text-xs text-gray-500">
-                            Вы согласуете как{" "}
+                            {t("approvals.you_approve_as")}{" "}
                             <span className="font-medium text-gray-700">{currentUser.name}</span>
                           </p>
                         </div>
@@ -307,7 +313,7 @@ export default function ApprovalProcessModal({
                       {readOnly ? (
                         <div className="mt-3 flex items-start gap-1.5 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 ring-1 ring-gray-100">
                           <Lock size={13} className="mt-0.5 shrink-0 text-gray-400" />
-                          <span>Этап не одобрен.</span>
+                          <span>{t("approvals.stage_not_approved")}</span>
                         </div>
                       ) : currentUserPositionId &&
                         stage.positionId === currentUserPositionId ? (
@@ -316,7 +322,7 @@ export default function ApprovalProcessModal({
                             value={comment}
                             onChange={(event) => setComment(event.target.value)}
                             rows={2}
-                            placeholder="Комментарий к одобрению (необязательно)"
+                            placeholder={t("approvals.comment_placeholder")}
                             className="mt-3 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
                           />
                           <div className="mt-2 flex justify-end gap-2">
@@ -327,7 +333,7 @@ export default function ApprovalProcessModal({
                               className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <X size={15} />
-                              Отклонить
+                              {t("approvals.reject")}
                             </button>
                             <button
                               type="button"
@@ -336,7 +342,7 @@ export default function ApprovalProcessModal({
                               className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <Check size={15} />
-                              {isApprovingStage ? "Одобрение…" : "Одобрить этап"}
+                              {isApprovingStage ? t("approvals.approving") : t("approvals.approve_stage")}
                             </button>
                           </div>
                         </>
@@ -344,8 +350,7 @@ export default function ApprovalProcessModal({
                         <div className="mt-3 flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 ring-1 ring-amber-100">
                           <Lock size={13} className="mt-0.5 shrink-0" />
                           <span>
-                            Одобрить этот этап может только сотрудник на должности «
-                            {stage.positionTitle}».
+                            {t("approvals.only_position_can_approve", { position: stage.positionTitle })}
                           </span>
                         </div>
                       )}
@@ -359,11 +364,11 @@ export default function ApprovalProcessModal({
                             {stage.positionTitle}
                           </span>
                           <span className="text-xs font-medium text-gray-400">
-                            ответственный за этап
+                            {t("approvals.stage_owner")}
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs text-gray-400">
-                          Ожидает завершения предыдущих этапов
+                          {t("approvals.waiting_previous")}
                         </p>
                       </div>
                     </div>
@@ -379,10 +384,10 @@ export default function ApprovalProcessModal({
       <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50/60 px-6 py-4">
         <p className="min-w-0 flex-1 text-xs text-gray-500">
           {readOnly
-            ? "История согласований сохранена для просмотра."
+            ? t("approvals.history_readonly")
             : complete
-            ? "Все этапы одобрены — можно подтвердить."
-            : "Подтверждение станет доступным после прохождения всех этапов."}
+            ? t("approvals.all_approved_can_confirm")
+            : t("approvals.confirm_after_all")}
         </p>
         <div className="flex shrink-0 items-center gap-2">
           <button
@@ -390,7 +395,7 @@ export default function ApprovalProcessModal({
             onClick={onClose}
             className="h-10 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
           >
-            Закрыть
+            {t("common.close")}
           </button>
           {!readOnly ? (
             <button
@@ -402,7 +407,7 @@ export default function ApprovalProcessModal({
               {isConfirming ? (
                 <>
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  Подтверждение…
+                  {t("approvals.confirming")}
                 </>
               ) : (
                 confirmLabel

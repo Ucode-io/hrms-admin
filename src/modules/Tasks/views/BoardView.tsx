@@ -11,6 +11,7 @@ import { useMoveTask } from "../../../api/services/task.service";
 import { dotStyle } from "../constants";
 import type { Task, TaskDirectories, TaskDirectoryItem, TaskEmployee } from "../types";
 import TaskCard from "../components/TaskCard";
+import { useTranslation } from "../../../i18n";
 
 interface BoardViewProps {
   tasks: Task[];
@@ -127,6 +128,7 @@ const BoardColumn = memo(function BoardColumn({
   onOpenTask: (task: Task) => void;
   onAddTask: (statusId: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex min-w-[280px] flex-1 flex-col rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.02]">
       <div className="flex items-center justify-between px-3.5 py-3">
@@ -143,7 +145,7 @@ const BoardColumn = memo(function BoardColumn({
           type="button"
           onClick={() => onAddTask(status.id)}
           className="inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition hover:bg-white hover:text-brand-500 dark:hover:bg-white/10"
-          aria-label={`Добавить в «${status.title}»`}
+          aria-label={t("tasks.board.add_column_aria", { status: status.title })}
         >
           <Plus size={15} />
         </button>
@@ -176,7 +178,7 @@ const BoardColumn = memo(function BoardColumn({
             {provided.placeholder}
             {tasks.length === 0 && !snapshot.isDraggingOver && (
               <div className="rounded-xl border border-dashed border-gray-200 py-6 text-center text-theme-xs text-gray-400 dark:border-gray-700">
-                Нет задач
+                {t("tasks.board.no_tasks")}
               </div>
             )}
           </div>
@@ -195,6 +197,7 @@ export default function BoardView({
   onOpenTask,
   onAddTask,
 }: BoardViewProps) {
+  const { t } = useTranslation();
   const moveMutation = useMoveTask();
   const statuses = directories.statuses;
   // Local column order so the drop lands instantly, without waiting for the
@@ -257,7 +260,7 @@ export default function BoardView({
       moveMutation
         .mutateAsync({ id: draggableId, statusId: to, order: destination.index })
         .catch(() => {
-          toast.error("Не удалось переместить задачу.");
+          toast.error(t("tasks.board.move_error"));
           setColumns(buildColumns(tasks, statuses));
         });
     },

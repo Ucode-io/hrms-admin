@@ -18,6 +18,7 @@ import {
 } from "../../api/services/taskDirectories.service";
 import { Modal } from "../../components/ui/modal";
 import Button from "../../components/ui/button/Button";
+import { useTranslation } from "../../i18n";
 
 export type TaskSheet = {
   id: string;
@@ -30,6 +31,7 @@ export const ALL_SHEETS = "__all__";
 const STORAGE_PREFIX = "tasks-active-sheet::";
 
 export function useTaskSheets(companyId: string) {
+  const { t } = useTranslation();
   const storageKey = `${STORAGE_PREFIX}${companyId || "default"}`;
   const { data: directories } = useTaskDirectoriesQuery();
   const saveMutation = useSaveTaskDirectory();
@@ -68,11 +70,11 @@ export function useTaskSheets(companyId: string) {
   const selectSheet = useCallback((sheetId: string) => setActiveSheetId(sheetId), []);
 
   const addSheet = useCallback(async () => {
-    const name = `Лист ${sheets.length + 1}`;
+    const name = t("tasks.sheets.default_name", { n: sheets.length + 1 });
     const created = await saveMutation.mutateAsync({ kind: "sheet", title: name });
     if (created) setActiveSheetId(created.id);
     return created;
-  }, [saveMutation, sheets.length]);
+  }, [saveMutation, sheets.length, t]);
 
   const renameSheet = useCallback(
     (sheetId: string, name: string) => {
@@ -107,6 +109,7 @@ export type TaskSheetsApi = ReturnType<typeof useTaskSheets>;
 
 /** Компактный выбор листа рядом с переключателем вида. */
 export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
+  const { t } = useTranslation();
   const { sheets, activeSheetId } = api;
   const [open, setOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -117,8 +120,8 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
 
   const activeName =
     activeSheetId === ALL_SHEETS
-      ? "Все задачи"
-      : sheets.find((sheet) => sheet.id === activeSheetId)?.name || "Все задачи";
+      ? t("tasks.sheets.all_sheets")
+      : sheets.find((sheet) => sheet.id === activeSheetId)?.name || t("tasks.sheets.all_sheets");
 
   const closePanel = useCallback(() => {
     setOpen(false);
@@ -162,7 +165,7 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
             }}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
           >
-            <span className="flex-1 truncate">Все задачи</span>
+            <span className="flex-1 truncate">{t("tasks.sheets.all_sheets")}</span>
             {activeSheetId === ALL_SHEETS && <Check size={14} className="text-brand-500" />}
           </button>
 
@@ -197,7 +200,7 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
                     type="button"
                     onClick={() => setMenuFor(menuFor === sheet.id ? null : sheet.id)}
                     className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-gray-100 dark:hover:bg-white/10"
-                    aria-label={`Действия с листом ${sheet.name}`}
+                    aria-label={t("tasks.sheets.actions_aria", { name: sheet.name })}
                   >
                     <MoreHorizontal size={14} />
                   </button>
@@ -216,7 +219,7 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
                   >
                     <Pencil size={13} />
-                    Переименовать
+                    {t("tasks.sheets.rename")}
                   </button>
                   <button
                     type="button"
@@ -228,7 +231,7 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-error-600 transition hover:bg-error-50"
                   >
                     <Trash2 size={13} />
-                    Удалить
+                    {t("tasks.sheets.delete")}
                   </button>
                 </div>
               )}
@@ -244,7 +247,7 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
             className="mt-1 flex w-full items-center gap-2 border-t border-gray-100 px-3 py-2 text-left text-sm text-gray-500 transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/5"
           >
             <Plus size={14} />
-            Новый лист
+            {t("tasks.sheets.new_sheet")}
           </button>
         </div>
       )}
@@ -256,15 +259,14 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
         className="mx-4 w-full max-w-[420px] overflow-hidden rounded-2xl"
       >
         <div className="px-6 pb-2 pt-6">
-          <h3 className="text-lg font-semibold text-gray-900">Удалить лист?</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t("tasks.sheets.delete_confirm_title")}</h3>
           <p className="mt-2 text-sm text-gray-500">
-            Лист «{sheetToDelete?.name}» будет удалён. Задачи останутся — они просто
-            перестанут быть привязаны к листу.
+            {t("tasks.sheets.delete_confirm_body", { name: sheetToDelete?.name ?? "" })}
           </p>
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4">
           <Button variant="outline" className="h-10" onClick={() => setSheetToDelete(null)}>
-            Отмена
+            {t("tasks.sheets.cancel")}
           </Button>
           <Button
             className="h-10 !bg-error-500 hover:!bg-error-600"
@@ -273,16 +275,16 @@ export function TaskSheetSelect({ api }: { api: TaskSheetsApi }) {
               if (!sheetToDelete) return;
               try {
                 await api.deleteSheet(sheetToDelete.id);
-                toast.success("Лист удалён.");
+                toast.success(t("tasks.sheets.delete_success"));
               } catch (error) {
                 toast.error(
-                  error instanceof Error ? error.message : "Не удалось удалить лист."
+                  error instanceof Error ? error.message : t("tasks.sheets.delete_error")
                 );
               }
               setSheetToDelete(null);
             }}
           >
-            Удалить
+            {t("tasks.sheets.delete")}
           </Button>
         </div>
       </Modal>

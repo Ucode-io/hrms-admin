@@ -27,7 +27,8 @@ import {
   useApproveStage,
   useEntityApprovalsQuery,
 } from "../../../api/services/approval.service";
-import { useTranslation } from "../../../i18n";
+import { useTranslation, monthNames } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 const ABSENCES_SLUG = "absences";
 const ABSENCE_ENTITY_TYPE = "absence";
@@ -53,10 +54,10 @@ type PaginationItem = number | string;
 const PAGE_SIZE = 20;
 const DEFAULT_POLICY_ICON = "mdi:airplane";
 
-const STATUS_LABELS: Record<AbsenceRequestStatus, string> = {
-  pending: "Ожидает",
-  approved: "Подтвержден",
-  rejected: "Отклонен",
+const STATUS_LABELS: Record<AbsenceRequestStatus, MessageKey> = {
+  pending: "absence_calendar.status.pending",
+  approved: "absence_calendar.status.approved",
+  rejected: "absence_calendar.status.rejected",
 };
 
 const STATUS_BADGE_CLASSNAME: Record<AbsenceRequestStatus, string> = {
@@ -67,11 +68,7 @@ const STATUS_BADGE_CLASSNAME: Record<AbsenceRequestStatus, string> = {
 
 type SelectOption = { value: string; label: string };
 
-const STATUS_FILTER_OPTIONS: { value: AbsenceRequestStatus; label: string }[] = [
-  { value: "pending", label: "Ожидает" },
-  { value: "approved", label: "Подтвержден" },
-  { value: "rejected", label: "Отклонен" },
-];
+const STATUS_FILTER_VALUES: AbsenceRequestStatus[] = ["pending", "approved", "rejected"];
 
 // Shared select styling — matches the attendance tab's filter selects.
 const getFilterSelectStyles = (): StylesConfig<SelectOption, false> => ({
@@ -99,21 +96,6 @@ const getFilterSelectStyles = (): StylesConfig<SelectOption, false> => ({
   singleValue: (base) => ({ ...base, fontSize: "13px" }),
   placeholder: (base) => ({ ...base, fontSize: "13px", color: "#94a3b8" }),
 });
-
-const MONTH_NAMES_RU = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
-];
 
 const toIsoDate = (date: Date): string => {
   const year = date.getFullYear();
@@ -183,8 +165,12 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
 };
 
 function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const queryClient = useQueryClient();
+  const statusFilterOptions = useMemo(
+    () => STATUS_FILTER_VALUES.map((value) => ({ value, label: t(STATUS_LABELS[value]) })),
+    [t]
+  );
   const brandColor = companyStore.mainColor || "#2563eb";
 
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -261,8 +247,8 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
     const rows = (policiesData?.response || []) as Array<{ guid?: string; title?: string }>;
     return rows
       .filter((row) => row?.guid)
-      .map((row) => ({ value: String(row.guid), label: String(row.title || "Без названия") }));
-  }, [policiesData]);
+      .map((row) => ({ value: String(row.guid), label: String(row.title || t("common.untitled")) }));
+  }, [policiesData, t]);
 
   const rows = useMemo(() => {
     const list = (data?.response || []) as AbsenceRow[];
@@ -309,14 +295,14 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   );
 
   const visibleRangeLabel = useMemo(() => {
-    if (totalCount === 0) return "Нет записей";
+    if (totalCount === 0) return t("absence_requests.no_records");
     const start = (currentPage - 1) * PAGE_SIZE + 1;
     const end = Math.min(currentPage * PAGE_SIZE, totalCount);
-    return `${start}–${end} из ${totalCount}`;
-  }, [currentPage, totalCount]);
+    return t("absence_requests.range", { start, end, total: totalCount });
+  }, [currentPage, totalCount, t]);
 
   const activeFiltersCount = (statusFilter ? 1 : 0) + (policyFilter ? 1 : 0);
-  const monthLabel = `${MONTH_NAMES_RU[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`;
+  const monthLabel = `${monthNames(locale)[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`;
 
   const goToPreviousMonth = () =>
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -359,10 +345,10 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
         });
       }
       invalidateAbsenceRows();
-      toast.success(status === "approved" ? "Запрос подтвержден." : "Запрос отклонен.");
+      toast.success(status === "approved" ? t("absence_calendar.request_approved") : t("absence_calendar.request_rejected"));
     } catch (error) {
       console.error("Failed to review absence request:", error);
-      toast.error("Не удалось изменить статус запроса.");
+      toast.error(t("absence_calendar.status_change_error"));
     } finally {
       setReviewingRequestId(null);
     }
@@ -384,7 +370,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
       });
     } catch (error) {
       console.error("Failed to approve absence stage:", error);
-      toast.error("Не удалось одобрить этап.");
+      toast.error(t("attendance.approve_stage_error"));
     }
   };
 
@@ -394,11 +380,11 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
       setReviewingRequestId(approvalRequest.guid);
       await approveRequestMutation.mutateAsync({ guid: approvalRequest.guid });
       invalidateAbsenceRows();
-      toast.success("Запрос подтвержден.");
+      toast.success(t("absence_calendar.request_approved"));
       setApprovalRequest(null);
     } catch (error) {
       console.error("Failed to approve absence request:", error);
-      toast.error("Не удалось подтвердить запрос.");
+      toast.error(t("absence_requests.confirm_error"));
     } finally {
       setReviewingRequestId(null);
     }
@@ -417,11 +403,11 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
         },
       });
       invalidateAbsenceRows();
-      toast.success("Запрос отклонен.");
+      toast.success(t("absence_calendar.request_rejected"));
       setApprovalRequest(null);
     } catch (error) {
       console.error("Failed to reject absence request:", error);
-      toast.error("Не удалось отклонить запрос.");
+      toast.error(t("absence_requests.reject_error"));
     } finally {
       setReviewingRequestId(null);
     }
@@ -448,8 +434,8 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
           <button
             type="button"
             onClick={() => setIsFiltersOpen((prev) => !prev)}
-            aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
-            title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+            aria-label={activeFiltersCount > 0 ? t("tasks.filters.filter_button_with_count", { count: activeFiltersCount }) : t("tasks.filters.filter_button")}
+            title={activeFiltersCount > 0 ? t("tasks.filters.filter_button_with_count", { count: activeFiltersCount }) : t("tasks.filters.filter_button")}
             className={`relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-xl border transition ${
               isFiltersOpen || activeFiltersCount > 0
                 ? "border-brand-200 bg-brand-50 text-brand-600"
@@ -484,19 +470,19 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
             <div style={{ minWidth: "180px", maxWidth: "280px", flex: "0 1 280px" }}>
               <Select<SelectOption, false>
                 inputId="absence-filter-status"
-                value={STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter) || null}
+                value={statusFilterOptions.find((option) => option.value === statusFilter) || null}
                 onChange={(option: SingleValue<SelectOption>) => {
                   setStatusFilter((option?.value || "") as AbsenceRequestStatus | "");
                   setCurrentPage(1);
                 }}
-                options={STATUS_FILTER_OPTIONS}
-                placeholder="Статус"
+                options={statusFilterOptions}
+                placeholder={t("tasks.table.header_status")}
                 isSearchable={false}
                 isClearable
                 styles={filterSelectStyles}
                 menuPortalTarget={menuPortalTarget}
                 menuPosition="fixed"
-                noOptionsMessage={() => "Ничего не найдено"}
+                noOptionsMessage={() => t("common.no_options_found")}
               />
             </div>
 
@@ -509,12 +495,12 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                   setCurrentPage(1);
                 }}
                 options={policyOptions}
-                placeholder="Тип отсутствия"
+                placeholder={t("absence_request.type")}
                 isClearable
                 styles={filterSelectStyles}
                 menuPortalTarget={menuPortalTarget}
                 menuPosition="fixed"
-                noOptionsMessage={() => "Ничего не найдено"}
+                noOptionsMessage={() => t("common.no_options_found")}
               />
             </div>
 
@@ -525,7 +511,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                 className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-gray-500 hover:text-gray-700"
               >
                 <X size={15} />
-                Сбросить
+                {t("common.reset")}
               </button>
             )}
           </div>
@@ -538,17 +524,17 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
         <span className="inline-flex items-center gap-2">
           <CalendarDays size={16} className="text-gray-400" />
           {totalCount > 0
-            ? `Отображено ${rows.length} из ${totalCount}`
+            ? t("absence_requests.shown_of", { shown: rows.length, total: totalCount })
             : isLoading
-              ? "Загрузка..."
-              : "Запросов нет"}
+              ? t("common.loading")
+              : t("absence_requests.none")}
         </span>
         <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1">
           <button
             type="button"
             onClick={goToPreviousMonth}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
-            aria-label="Предыдущий месяц"
+            aria-label={t("common.prev_month")}
           >
             <ChevronLeft size={16} />
           </button>
@@ -559,7 +545,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
             type="button"
             onClick={goToNextMonth}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
-            aria-label="Следующий месяц"
+            aria-label={t("common.next_month")}
           >
             <ChevronRight size={16} />
           </button>
@@ -568,22 +554,22 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
 
       {/* Table */}
       {isLoading ? (
-        <div className="px-5 py-10 text-center text-sm text-gray-400">Загрузка…</div>
+        <div className="px-5 py-10 text-center text-sm text-gray-400">{t("common.loading")}</div>
       ) : rows.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm text-gray-400">
-          За {monthLabel.toLowerCase()} запросов нет
+          {t("absence_requests.none_for_month", { month: monthLabel.toLowerCase() })}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm" style={{ opacity: isFetching ? 0.6 : 1 }}>
             <thead>
               <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
-                <th className="px-5 py-3 font-medium">Сотрудник</th>
-                <th className="px-5 py-3 font-medium">Тип отсутствия</th>
-                <th className="px-5 py-3 font-medium">Период</th>
-                <th className="px-5 py-3 font-medium">Дней</th>
-                <th className="px-5 py-3 font-medium">Статус</th>
-                <th className="px-5 py-3 text-right font-medium">Действия</th>
+                <th className="px-5 py-3 font-medium">{t("absence_request.employee")}</th>
+                <th className="px-5 py-3 font-medium">{t("absence_request.type")}</th>
+                <th className="px-5 py-3 font-medium">{t("absence_requests.period")}</th>
+                <th className="px-5 py-3 font-medium">{t("absence_requests.days")}</th>
+                <th className="px-5 py-3 font-medium">{t("tasks.table.header_status")}</th>
+                <th className="px-5 py-3 text-right font-medium">{t("attendance.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -593,10 +579,10 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                 const employeeName =
                   [employee?.second_name, employee?.first_name].filter(Boolean).join(" ").trim() ||
                   employee?.name ||
-                  "Сотрудник";
+                  t("absence_calendar.employee_fallback");
                 const employeePhoto = employee?.photo || "";
                 const policyTitle =
-                  row.absence_policy_title || row.absence_policies_id_data?.title || "Отсутствие";
+                  row.absence_policy_title || row.absence_policies_id_data?.title || t("dashboard.fallback.absence");
                 const policyIcon =
                   row.absence_policy_icon ||
                   (row.absence_policies_id_data?.icon as string | undefined) ||
@@ -655,13 +641,13 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                       {formatDateRange(row.date_from, row.date_to)}
                     </td>
                     <td className="px-5 py-3 text-gray-600">
-                      {row.requested_days != null ? `${row.requested_days} дн.` : "—"}
+                      {row.requested_days != null ? t("absence_calendar.days_count", { count: row.requested_days }) : "—"}
                     </td>
                     <td className="px-5 py-3">
                       <span
                         className={`inline-flex rounded-md px-2.5 py-1 text-xs font-medium ${STATUS_BADGE_CLASSNAME[status]}`}
                       >
-                        {STATUS_LABELS[status]}
+                        {t(STATUS_LABELS[status])}
                       </span>
                       {showApprovalProgress && rowProcess ? (
                         <div className="mt-1.5">
@@ -693,7 +679,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                                 className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 <Check className="h-3.5 w-3.5" />
-                                Подтвердить
+                                {t("common.confirm")}
                               </button>
                             )}
                             <button
@@ -702,7 +688,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
                               disabled={isReviewing}
                               className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-[12px] font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              Отклонить
+                              {t("approvals.reject")}
                             </button>
                           </>
                         ) : null}
@@ -741,7 +727,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
           void handleApproveStage(stageId, comment)
         }
         isApprovingStage={approveStageMutation.isLoading}
-        confirmLabel="Подтвердить отсутствие"
+        confirmLabel={t("absence_requests.confirm_absence")}
         onConfirm={() => void finalizeApproval()}
         isConfirming={
           Boolean(approvalRequest) &&

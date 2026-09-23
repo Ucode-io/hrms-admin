@@ -4,6 +4,7 @@ import type { TaskSheet } from "../../sheets";
 import Popover from "../ui/Popover";
 import OptionPicker, { type PickerOption } from "../ui/OptionPicker";
 import { ControlButton, type ControlVariant } from "../ui/controls";
+import { useTranslation } from "../../../../i18n";
 
 interface SheetFieldProps {
   /** null — задача не привязана к листу. */
@@ -15,6 +16,7 @@ interface SheetFieldProps {
 
 /** Переносит задачу между листами — теми же, что показывает селектор в тулбаре. */
 export default function SheetField({ value, sheets, onChange, variant }: SheetFieldProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const options = useMemo<PickerOption[]>(
@@ -35,7 +37,7 @@ export default function SheetField({ value, sheets, onChange, variant }: SheetFi
           selected={value}
           onSelect={onChange}
           close={close}
-          emptyText="Листов пока нет"
+          emptyText={t("tasks.sheet.empty_text")}
           footer={
             value
               ? ({ close: closePanel }) => (
@@ -47,7 +49,7 @@ export default function SheetField({ value, sheets, onChange, variant }: SheetFi
                     }}
                     className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-gray-500 transition hover:bg-gray-50 dark:hover:bg-white/5"
                   >
-                    Убрать из листа
+                    {t("tasks.sheet.remove_from_sheet")}
                   </button>
                 )
               : undefined
@@ -66,7 +68,7 @@ export default function SheetField({ value, sheets, onChange, variant }: SheetFi
         >
           <Layers size={14} className="shrink-0 text-gray-400" />
           <span className="min-w-0 flex-1 truncate text-left">
-            {active?.name ?? "Без листа"}
+            {active?.name ?? t("tasks.sheet.no_sheet")}
           </span>
           <ChevronDown size={14} className="shrink-0 text-gray-400" />
         </ControlButton>

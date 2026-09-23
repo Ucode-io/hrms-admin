@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
+import { useTranslation } from "../../../../i18n";
 import AutoTextarea from "./AutoTextarea";
 
 interface AutoSaveTextProps {
@@ -29,6 +30,7 @@ export default function AutoSaveText({
   className = "",
   minHeight,
 }: AutoSaveTextProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(value);
   const [isFocused, setIsFocused] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -87,7 +89,7 @@ export default function AutoSaveText({
       {justSaved && (
         <span className="pointer-events-none absolute -top-5 right-0 inline-flex items-center gap-1 text-theme-xs text-success-600">
           <Check size={12} />
-          Сохранено
+          {t("tasks.ui.autosave_saved")}
         </span>
       )}
     </div>

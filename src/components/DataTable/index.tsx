@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "../ui/table";
 import Pagination from "../pagination";
+import { useTranslation } from "../../i18n";
 
 export interface Column<T> {
   key: string;
@@ -42,9 +43,11 @@ export default function DataTable<T>({
   onPageChange,
   onRowClick,
   getRowKey,
-  emptyMessage = "Нет данных",
+  emptyMessage,
   skeletonRows = 8,
 }: DataTableProps<T>) {
+  const { t } = useTranslation();
+  emptyMessage ??= t("common.no_data");
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
       <div className="max-w-full overflow-x-auto">

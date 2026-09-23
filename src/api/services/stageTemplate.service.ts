@@ -16,6 +16,7 @@ import {
   type StageTemplate,
   type StageTemplateDraft,
 } from "../../modules/Recruiting/types";
+import { translate } from "../../i18n";
 
 const TEMPLATES_SLUG = "recruiting_stage_templates";
 
@@ -62,7 +63,7 @@ export const mapStageDefs = (
   return sortStages(
     rows.map((r, i) => ({
       id: String(r.id ?? `stage-${i}`),
-      name: String(r.name ?? `Этап ${i + 1}`),
+      name: String(r.name ?? translate("recruiting.fallback.stage", { n: i + 1 })),
       color: stageColorOf(r.color),
       order: Number.isFinite(r.order) ? Number(r.order) : i,
     }))
@@ -77,7 +78,7 @@ const stageDefsToStoragePayload = (stages: StageDef[]): string =>
 
 export const mapStageTemplateRow = (row: StageTemplateApiRow): StageTemplate => ({
   id: row.guid,
-  name: row.name || "Без названия",
+  name: row.name || translate("common.untitled"),
   description: row.description || "",
   stages: mapStageDefs(row.stages),
   isDefault: Boolean(row.is_default),

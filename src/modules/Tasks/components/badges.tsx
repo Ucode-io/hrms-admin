@@ -12,6 +12,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslation } from "../../../i18n";
 import { chipStyle, dotStyle, getInitials } from "../constants";
 import type { TaskDirectoryItem, TaskEmployee } from "../types";
 
@@ -172,12 +173,13 @@ export const EmployeeAvatar = ({
   employee: TaskEmployee | null | undefined;
   size?: number;
 }) => {
+  const { t } = useTranslation();
   if (!employee) {
     return (
       <span
         className="inline-flex items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400 dark:border-gray-600"
         style={{ width: size, height: size, fontSize: size * 0.42 }}
-        title="Без исполнителя"
+        title={t("tasks.badges.no_assignee")}
       >
         —
       </span>

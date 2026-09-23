@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
+import { useTranslation } from "../../../i18n";
 
 export interface SelectOption {
   value: string;
@@ -18,9 +19,11 @@ export default function SearchableSelect({
   options,
   value,
   onChange,
-  placeholder = "Выберите...",
+  placeholder,
   brandColor,
 }: SearchableSelectProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("common.select_placeholder");
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +70,7 @@ export default function SearchableSelect({
           value={isOpen ? search : selectedLabel}
           onChange={(e) => setSearch(e.target.value)}
           onFocus={handleOpen}
-          placeholder={isOpen ? "Поиск..." : placeholder}
+          placeholder={isOpen ? t("common.search_placeholder") : placeholder}
           readOnly={!isOpen}
           style={{
             width: "100%",
@@ -116,7 +119,7 @@ export default function SearchableSelect({
         >
           {filtered.length === 0 ? (
             <div style={{ padding: "16px", textAlign: "center", fontSize: "13px", color: "#94a3b8" }}>
-              Ничего не найдено
+              {t("common.no_options_found")}
             </div>
           ) : (
             filtered.map((opt) => (

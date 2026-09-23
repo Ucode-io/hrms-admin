@@ -31,6 +31,7 @@ import {
   type StageEvaluation,
   type StageHistoryEntry,
 } from "../../modules/Recruiting/types";
+import { translate } from "../../i18n";
 
 const CANDIDATES_SLUG = "candidates";
 const DOCUMENTS_SLUG = "candidate_documents";
@@ -186,7 +187,7 @@ const mapComments = (rows: StageCommentApiRow[] | null | undefined): StageCommen
       id: r.id || `cm-${i}`,
       text: r.text || "",
       authorId: r.author_id ?? null,
-      authorName: r.author_name || "Рекрутер",
+      authorName: r.author_name || translate("recruiting.fallback.recruiter"),
       createdAt: r.created_at || "",
     }))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -220,7 +221,7 @@ const mapHistory = (rows: StageHistoryApiRow[] | null | undefined): StageHistory
           : null,
         at: r.at || "",
         byId: r.by_id ?? null,
-        byName: r.by_name || "Рекрутер",
+        byName: r.by_name || translate("recruiting.fallback.recruiter"),
       };
     })
     .sort((a, b) => a.at.localeCompare(b.at));
@@ -232,12 +233,12 @@ const mapDocuments = (rows: CandidateDocumentApiRow[] | null | undefined): Candi
     .filter((r) => r.url)
     .map((r, i) => ({
       id: r.id || `doc-${i}`,
-      name: r.name || "Документ",
+      name: r.name || translate("recruiting.fallback.document"),
       type: pickEnum(r.type, DOCUMENT_TYPE_ORDER, "other"),
       url: String(r.url),
       size: toNum(r.size),
       uploadedAt: r.uploaded_at || "",
-      uploadedByName: r.uploaded_by_name || "Рекрутер",
+      uploadedByName: r.uploaded_by_name || translate("recruiting.fallback.recruiter"),
     }))
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
 };
@@ -245,7 +246,7 @@ const mapDocuments = (rows: CandidateDocumentApiRow[] | null | undefined): Candi
 export const mapCandidateRow = (row: CandidateApiRow): Candidate => {
   const firstName = (row.first_name || "").trim();
   const lastName = (row.last_name || "").trim();
-  const fullName = [lastName, firstName].filter(Boolean).join(" ") || "Без имени";
+  const fullName = [lastName, firstName].filter(Boolean).join(" ") || translate("common.no_name");
   const evaluations = mapEvaluations(row.stage_evaluations);
   return {
     id: row.guid,
@@ -333,7 +334,7 @@ const draftToPayload = (
 const currentActor = (): MockActor => {
   const user = authStore.user_data;
   const name = [user?.first_name, user?.second_name].filter(Boolean).join(" ").trim();
-  return { id: null, name: name || "Рекрутер" };
+  return { id: null, name: name || translate("recruiting.fallback.recruiter") };
 };
 
 /** Current user's user_base guid — author of comments / docs / pipeline moves. */

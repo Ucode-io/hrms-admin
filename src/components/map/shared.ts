@@ -91,3 +91,49 @@ export const OSM_TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 export const OSM_ATTRIBUTION = "&copy; OpenStreetMap";
 // Ташкент — центр карты, пока точка не выбрана.
 export const DEFAULT_CENTER: L.LatLngTuple = [41.311081, 69.240562];
+
+/** Направление отметки из `attendance_records.action`: webapp шлёт ["IN"]/["OUT"], терминалы — свои слова. */
+export function markDirection(actionValue: unknown): "in" | "out" | "event" {
+  const raw = Array.isArray(actionValue) ? actionValue[0] : actionValue;
+  const action = typeof raw === "string" ? raw.trim().toLocaleLowerCase() : "";
+  if (/(^|\b)(in|entry|enter|check.?in)(\b|$)|вход/.test(action)) return "in";
+  if (/(^|\b)(out|exit|leave|check.?out)(\b|$)|выход/.test(action)) return "out";
+  return "event";
+}
+
+export type DayMarkGeo = {
+  in: string;
+  out: string;
+  /** Причина отметки вне филиала (`attendance_records.reason`) — у той же записи, что и точка. */
+  inReason: string;
+  outReason: string;
+};
+
+/**
+ * Точки прихода и ухода по ключу «user_base_id|YYYY-MM-DD» из `attendance_records`.
+ * Строки приходят от новых к старым: приход перезаписываем до самого раннего,
+ * уход берём первый встреченный, то есть последний за день.
+ */
+export function markGeoByDay(rows: Record<string, unknown>[]): Map<string, DayMarkGeo> {
+  const byDay = new Map<string, DayMarkGeo>();
+  for (const row of rows) {
+    const userId = typeof row.user_base_id === "string" ? row.user_base_id : "";
+    const date = typeof row.date === "string" ? row.date.slice(0, 10) : "";
+    const geo = typeof row.map === "string" ? row.map.trim() : "";
+    const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+    const direction = markDirection(row.action);
+    if (!userId || !date || !geo || direction === "event") continue;
+
+    const key = `${userId}|${date}`;
+    const day = byDay.get(key) ?? { in: "", out: "", inReason: "", outReason: "" };
+    if (direction === "in") {
+      day.in = geo;
+      day.inReason = reason;
+    } else if (!day.out) {
+      day.out = geo;
+      day.outReason = reason;
+    }
+    byDay.set(key, day);
+  }
+  return byDay;
+}

@@ -21,6 +21,7 @@ import {
   isProcessComplete,
 } from "../../../Settings/Approvals/approvalRuntime";
 import {
+  attendanceApprovalType,
   findApprovalProcessFor,
   useApprovalProcessesQuery,
   useApproveStage,
@@ -67,6 +68,8 @@ type AttendanceRecord = {
   requestStatus: AttendanceWorkflowStatus;
   actionStatus: AttendanceActionStatus;
   createdAt: string;
+  /** `integration` | `manual` | … — от него зависит цепочка согласования. */
+  sourceType: string;
 };
 
 type AttendanceDraft = {
@@ -307,15 +310,14 @@ export default function AttendanceSection({
 
   // Approval process covering this employee's department (if configured).
   const { data: approvalProcesses } = useApprovalProcessesQuery();
-  const attendanceApprovalProcess = useMemo(
-    () =>
-      findApprovalProcessFor(
-        approvalProcesses ?? [],
-        "attendance_change_approval",
-        departmentId
-      ),
-    [approvalProcesses, departmentId]
-  );
+  // Цепочка зависит от строки: отметка вне филиала и ручная заявка
+  // согласуются разными процессами.
+  const processFor = (record: AttendanceRecord) =>
+    findApprovalProcessFor(
+      approvalProcesses ?? [],
+      attendanceApprovalType(record.sourceType),
+      departmentId
+    );
   const approveStageMutation = useApproveStage();
 
   const { data, isLoading, isError } = useSettingsDirectoryQuery({
@@ -356,6 +358,9 @@ export default function AttendanceSection({
       requestStatus: normalizeAttendanceWorkflowStatus(item.status),
       actionStatus: normalizeAttendanceActionStatus(item.action_status),
       createdAt: typeof item.created_at === "string" ? item.created_at : "",
+      sourceType: String(
+        (Array.isArray(item.source_type) ? item.source_type[0] : item.source_type) || ""
+      ).toLowerCase(),
     }));
 
     return rows.sort((left, right) => toSortTimestamp(right) - toSortTimestamp(left));
@@ -365,10 +370,10 @@ export default function AttendanceSection({
   // show the clickable audit badge.
   const approvalEntityIds = useMemo(
     () =>
-      attendanceApprovalProcess
-        ? records.map((record) => record.guid)
-        : [],
-    [attendanceApprovalProcess, records]
+      records.filter((record) => processFor(record)).map((record) => record.guid),
+    // processFor читает только approvalProcesses и departmentId.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [approvalProcesses, departmentId, records]
   );
 
   const { data: approvalProgressMap } = useEntityApprovalsQuery(
@@ -501,9 +506,10 @@ export default function AttendanceSection({
   // Row "Подтвердить" click. With a configured approval process the change must
   // pass every stage first → open the approval modal instead of confirming.
   const requestConfirm = async (record: AttendanceRecord) => {
-    if (attendanceApprovalProcess) {
+    const process = processFor(record);
+    if (process) {
       const progress = approvalProgressMap?.[record.guid] ?? null;
-      if (!isProcessComplete(attendanceApprovalProcess, progress)) {
+      if (!isProcessComplete(process, progress)) {
         setApprovalRecord(record);
         return;
       }
@@ -517,12 +523,13 @@ export default function AttendanceSection({
   };
 
   const handleApproveStage = async (stageId: string, comment: string) => {
-    if (!approvalRecord || !attendanceApprovalProcess) return;
+    const process = approvalRecord ? processFor(approvalRecord) : undefined;
+    if (!approvalRecord || !process) return;
     try {
       await approveStageMutation.mutateAsync({
         entityType: ATTENDANCE_ENTITY_TYPE,
         entityId: approvalRecord.guid,
-        processId: attendanceApprovalProcess.id,
+        processId: process.id,
         stageId,
         comment,
       });
@@ -619,14 +626,15 @@ export default function AttendanceSection({
                     const actionTag = getActionStatusTag(record.actionStatus, record.delayTime);
                     const requestTag = getWorkflowStatusTag(record.requestStatus);
 
+                    const rowProcess = processFor(record);
                     const recordProgress = approvalProgressMap?.[record.guid] ?? null;
                     const hasApprovalHistory =
                       (recordProgress?.approvals?.length ?? 0) > 0;
                     const showApprovalProgress =
-                      Boolean(attendanceApprovalProcess) &&
+                      Boolean(rowProcess) &&
                       (record.requestStatus === "requested" || hasApprovalHistory);
-                    const approvedStages = attendanceApprovalProcess
-                      ? countApprovedStages(attendanceApprovalProcess, recordProgress)
+                    const approvedStages = rowProcess
+                      ? countApprovedStages(rowProcess, recordProgress)
                       : 0;
 
                     return (
@@ -653,12 +661,12 @@ export default function AttendanceSection({
                           >
                             {requestTag.label}
                           </span>
-                          {showApprovalProgress && attendanceApprovalProcess ? (
+                          {showApprovalProgress && rowProcess ? (
                             <div className="mt-1.5">
                               <ApprovalProgressBadge
-                                title={attendanceApprovalProcess.title}
+                                title={rowProcess.title}
                                 approvedStages={approvedStages}
-                                totalStages={attendanceApprovalProcess.stages.length}
+                                totalStages={rowProcess.stages.length}
                                 onClick={() => setApprovalRecord(record)}
                               />
                             </div>
@@ -667,10 +675,10 @@ export default function AttendanceSection({
                         <td className="py-3">
                           <div className="flex justify-end gap-2">
                             {record.requestStatus === "requested" ? (
-                              showApprovalProgress && attendanceApprovalProcess ? (
+                              showApprovalProgress && rowProcess ? (
                                 <ApprovalProgressButton
                                   approvedStages={approvedStages}
-                                  totalStages={attendanceApprovalProcess.stages.length}
+                                  totalStages={rowProcess.stages.length}
                                   onClick={() => setApprovalRecord(record)}
                                   disabled={isSaving}
                                 />
@@ -849,7 +857,7 @@ export default function AttendanceSection({
       <ApprovalProcessModal
         isOpen={Boolean(approvalRecord)}
         onClose={() => setApprovalRecord(null)}
-        process={attendanceApprovalProcess ?? null}
+        process={approvalRecord ? processFor(approvalRecord) ?? null : null}
         progress={
           approvalRecord ? approvalProgressMap?.[approvalRecord.guid] ?? null : null
         }

@@ -22,6 +22,7 @@
 // построчной.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "../../i18n";
 
 // Иконка встроена, а не взята из `../../icons`: тот бочонок тянет за собой
 // все svg проекта через `?react`, и вместе с ними — vite-плагин, из-за
@@ -82,8 +83,10 @@ export default function TimeInput({
   onChange,
   disabled = false,
   className,
-  placeholder = "ЧЧ:ММ",
+  placeholder,
 }: TimeInputProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("common.time_placeholder");
   const [text, setText] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
   const [box, setBox] = useState<{ top: number; left: number; width: number } | null>(null);

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HexColorPicker } from "react-colorful";
+import { useTranslation } from "../../i18n";
 
 export const DEFAULT_COLOR_SWATCHES = [
   "#EF4444",
@@ -44,6 +45,7 @@ export default function ColorPicker({
   swatches = DEFAULT_COLOR_SWATCHES,
   buttonClassName = "",
 }: ColorPickerProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -139,7 +141,7 @@ export default function ColorPicker({
                   }`}
                   style={{ backgroundColor: swatch }}
                   onClick={() => onChange(swatch)}
-                  aria-label={`Выбрать цвет ${swatch}`}
+                  aria-label={t("common.pick_color", { color: swatch })}
                 />
               ))}
             </div>

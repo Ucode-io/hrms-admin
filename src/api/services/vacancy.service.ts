@@ -27,6 +27,7 @@ import {
   type VacancyStatus,
   type WorkMode,
 } from "../../modules/Recruiting/types";
+import { translate } from "../../i18n";
 
 const VACANCIES_SLUG = "vacancies";
 const CANDIDATES_SLUG = "candidates";
@@ -118,7 +119,7 @@ const vacancyStagesToPayload = (stages: StageDef[]): string =>
 
 export const mapVacancyRow = (row: VacancyApiRow, counts?: VacancyCounts): Vacancy => ({
   id: row.guid,
-  title: row.title || "Без названия",
+  title: row.title || translate("common.untitled"),
   departmentId: row.departments_id ?? null,
   departmentTitle: row.departments_id_data?.title || "—",
   positionId: row.positions_id ?? null,
@@ -127,7 +128,7 @@ export const mapVacancyRow = (row: VacancyApiRow, counts?: VacancyCounts): Vacan
   locationId: row.locations_id ?? null,
   location: row.locations_id_data?.title || "",
   workMode: pickEnum(row.work_mode, VALID_WORK_MODES, "office"),
-  employmentType: row.employment_type || "Полная занятость",
+  employmentType: row.employment_type || translate("recruiting.fallback.full_time"),
   experienceLevel: row.experience_level || "",
   salaryMin: toNum(row.salary_min),
   salaryMax: toNum(row.salary_max),

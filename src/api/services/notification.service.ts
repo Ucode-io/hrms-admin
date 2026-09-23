@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import httpRequest from "../httpRequest";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
+import { translate } from "../../i18n";
 
 const NOTIFICATIONS_COLLECTION = "news";
 const COMPANY_ID = "0de6b2b6-0777-4184-a620-aca70c294111";
@@ -55,7 +56,7 @@ const normalizeNotification = (item: unknown): NotificationItem => {
   const guidCandidate = source.guid ?? source.id;
   const guid = isNonEmptyString(guidCandidate) ? guidCandidate : "";
 
-  const title = toStringValue(source.title).trim() || "Без заголовка";
+  const title = toStringValue(source.title).trim() || translate("notifications.fallback.no_title");
   const text =
     toStringValue(source.text).trim() ||
     toStringValue(source.description).trim() ||

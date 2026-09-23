@@ -4,6 +4,7 @@
 // одноразовый пропуск с выбранной компанией и снимается текущая привязка.
 
 import { invokeTasksMethod } from "./taskDirectories.service";
+import { translate } from "../../i18n";
 
 export type TelegramGroupPass = {
   /** Открывает выбор группы в Telegram. Работает, только если бота в группе ещё нет. */
@@ -29,7 +30,7 @@ export const telegramGroupService = {
     });
 
     if (!result?.created) {
-      throw new Error(str(result?.reason) || "Не удалось получить код");
+      throw new Error(str(result?.reason) || translate("telegram_group.code_error"));
     }
 
     return {
@@ -45,7 +46,7 @@ export const telegramGroupService = {
     });
 
     if (!result?.unlinked) {
-      throw new Error(str(result?.reason) || "Не удалось отключить группу");
+      throw new Error(str(result?.reason) || translate("telegram_group.disconnect_error"));
     }
   },
 };

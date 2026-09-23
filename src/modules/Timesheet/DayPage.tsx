@@ -37,11 +37,13 @@ import {
   TimelineSkeleton,
 } from "./components/DaySkeletons";
 import TimeInput from "../../components/form/TimeInput";
+import { useTranslation } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
-const STATUS_META: Record<ManualTimeStatus, { label: string; className: string }> = {
-  pending: { label: "Ожидает", className: "bg-amber-100 text-amber-700" },
-  approved: { label: "Подтверждено", className: "bg-emerald-100 text-emerald-700" },
-  rejected: { label: "Отклонено", className: "bg-rose-100 text-rose-700" },
+const STATUS_META: Record<ManualTimeStatus, { labelKey: MessageKey; className: string }> = {
+  pending: { labelKey: "timesheet.status.pending", className: "bg-amber-100 text-amber-700" },
+  approved: { labelKey: "timesheet.status.approved", className: "bg-emerald-100 text-emerald-700" },
+  rejected: { labelKey: "timesheet.status.rejected", className: "bg-rose-100 text-rose-700" },
 };
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -64,6 +66,7 @@ type ManualDraft = {
 };
 
 export default function TimesheetDayPage() {
+  const { t } = useTranslation();
   const { employeeId = "", date = "" } = useParams();
   const navigate = useNavigate();
   const brandColor = companyStore.mainColor || "#2563eb";
@@ -159,11 +162,11 @@ export default function TimesheetDayPage() {
   const submitDraft = async () => {
     if (!draft) return;
     if (draftSeconds <= 0) {
-      setDraftError("Окончание должно быть позже начала");
+      setDraftError(t("timesheet.validation.end_after_start"));
       return;
     }
     if (!draft.reason.trim()) {
-      setDraftError("Укажите причину");
+      setDraftError(t("timesheet.validation.reason_required"));
       return;
     }
 
@@ -184,10 +187,10 @@ export default function TimesheetDayPage() {
         reason: draft.reason.trim(),
       });
       setDraft(null);
-      toast.success("Время добавлено и отправлено на согласование.");
+      toast.success(t("timesheet.toast.time_added"));
     } catch (saveError) {
       setDraftError(
-        saveError instanceof Error ? saveError.message : "Не удалось сохранить запись."
+        saveError instanceof Error ? saveError.message : t("timesheet.toast.save_failed")
       );
     }
   };
@@ -198,10 +201,10 @@ export default function TimesheetDayPage() {
     try {
       await deleteManual.mutateAsync(entryToDelete.id);
       setEntryToDelete(null);
-      toast.success("Запись удалена.");
+      toast.success(t("timesheet.toast.deleted"));
     } catch (deleteError) {
       toast.error(
-        deleteError instanceof Error ? deleteError.message : "Не удалось удалить запись."
+        deleteError instanceof Error ? deleteError.message : t("timesheet.toast.delete_failed")
       );
     }
   };
@@ -209,13 +212,13 @@ export default function TimesheetDayPage() {
   useHeaderBreadcrumbItems(
     useMemo(
       () => [
-        { label: "Табель времени", to: "/timesheet" },
+        { label: t("timesheet.page_title"), to: "/timesheet" },
         {
           label: employee ? `${employee.name} — ${formatDateRu(date)}` : formatDateRu(date),
           to: `/timesheet/${employeeId}/${date}`,
         },
       ],
-      [employee, employeeId, date]
+      [employee, employeeId, date, t]
     )
   );
 
@@ -227,18 +230,18 @@ export default function TimesheetDayPage() {
 
     return [
       {
-        label: "Отработано",
+        label: t("timesheet.day_page.employee_header"),
         value: formatDuration(day.workedSeconds),
-        hint: `${day.entryCount} записей`,
+        hint: t("timesheet.day_page.employee_hint", { count: day.entryCount }),
         color: brandColor,
       },
       {
-        label: "План",
-        value: day.planSeconds > 0 ? formatDuration(day.planSeconds) : "Выходной",
-        hint: day.planSeconds > 0 ? `Выполнено ${percent}%` : undefined,
+        label: t("timesheet.day_page.plan_label"),
+        value: day.planSeconds > 0 ? formatDuration(day.planSeconds) : t("timesheet.day_page.plan_off_label"),
+        hint: day.planSeconds > 0 ? t("timesheet.day_page.plan_percent", { percent }) : undefined,
       },
       {
-        label: "Начало – Окончание",
+        label: t("timesheet.day_page.time_range_label"),
         // Рабочий день Time Doctor может заканчиваться уже за полночь. Без
         // пометки «+1» такое окончание читается как «закончил до начала».
         value:
@@ -248,13 +251,13 @@ export default function TimesheetDayPage() {
               }`
             : "—",
       },
-      { label: "Перерывы", value: formatDuration(day.breakSeconds) },
+      { label: t("timesheet.day_page.breaks_label"), value: formatDuration(day.breakSeconds) },
       {
-        label: "Статус дня",
-        value: day.absence || day.holiday || (day.isDayOff ? "Выходной" : "Рабочий день"),
+        label: t("timesheet.day_page.day_status_label"),
+        value: day.absence || day.holiday || (day.isDayOff ? t("timesheet.day_page.day_off_label") : t("timesheet.day_page.working_day_label")),
       },
     ];
-  }, [dayData, brandColor]);
+  }, [dayData, brandColor, t]);
 
   /**
    * Строка ввода встаёт на своё место по времени начала — как в Time Doctor,
@@ -302,7 +305,7 @@ export default function TimesheetDayPage() {
           }
           className={cellInput}
         >
-          <option value="">Без проекта</option>
+          <option value="">{t("timesheet.form.no_project")}</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
@@ -318,7 +321,7 @@ export default function TimesheetDayPage() {
           }
           className={cellInput}
         >
-          <option value="">Без задачи</option>
+          <option value="">{t("timesheet.form.no_task")}</option>
           {visibleTasks.map((task) => (
             <option key={task.id} value={task.id}>
               {task.name}
@@ -336,7 +339,7 @@ export default function TimesheetDayPage() {
           onChange={(event) =>
             setDraft((prev) => (prev ? { ...prev, reason: event.target.value } : prev))
           }
-          placeholder="Причина"
+          placeholder={t("timesheet.form.reason")}
           autoFocus
           onKeyDown={(event) => {
             if (event.key === "Enter") void submitDraft();
@@ -355,7 +358,7 @@ export default function TimesheetDayPage() {
               setDraftError("");
             }}
             disabled={saveManual.isLoading}
-            title="Отмена"
+            title={t("timesheet.button.cancel")}
             className="rounded-lg border border-gray-200 p-1.5 text-gray-400 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700"
           >
             <X size={15} />
@@ -364,7 +367,7 @@ export default function TimesheetDayPage() {
             type="button"
             onClick={() => void submitDraft()}
             disabled={saveManual.isLoading}
-            title="Сохранить и отправить на согласование"
+            title={t("timesheet.button.save_inline")}
             className="rounded-lg bg-emerald-600 p-1.5 text-white transition hover:bg-emerald-700 disabled:opacity-60"
           >
             <Check size={15} />
@@ -377,7 +380,7 @@ export default function TimesheetDayPage() {
   if (isError && !data) {
     return (
       <div className="rounded-2xl border border-error-200 bg-error-50 px-5 py-8 text-center text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10">
-        {error instanceof Error ? error.message : "Не удалось загрузить день табеля."}
+        {error instanceof Error ? error.message : t("timesheet.toast.load_failed")}
       </div>
     );
   }
@@ -385,8 +388,8 @@ export default function TimesheetDayPage() {
   return (
     <>
       <PageMeta
-        title={`${employee ? `${employee.name} — ` : ""}${formatDateRu(date)} | Табель времени`}
-        description="Детализация отработанного времени за день"
+        title={`${employee ? `${employee.name} — ` : ""}${formatDateRu(date)} | ${t("timesheet.page_title")}`}
+        description={t("timesheet.day_page.meta_description")}
       />
 
       {/* ── Шапка сотрудника ────────────────────────────────────────────── */}
@@ -437,7 +440,7 @@ export default function TimesheetDayPage() {
               type="button"
               onClick={() => navigate(`/timesheet/${employeeId}/${shiftDays(date, -1)}`)}
               className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white"
-              aria-label="Предыдущий день"
+              aria-label={t("timesheet.button.previous_day")}
             >
               <ChevronLeft size={16} />
             </button>
@@ -448,7 +451,7 @@ export default function TimesheetDayPage() {
               type="button"
               onClick={() => navigate(`/timesheet/${employeeId}/${shiftDays(date, 1)}`)}
               className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:border-slate-200 hover:bg-white"
-              aria-label="Следующий день"
+              aria-label={t("timesheet.button.next_day")}
             >
               <ChevronRight size={16} />
             </button>
@@ -482,7 +485,7 @@ export default function TimesheetDayPage() {
       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-5 py-3 dark:border-gray-800">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-            Записи времени за {formatDateRu(date)}
+            {t("timesheet.table.entries", { date: formatDateRu(date) })}
           </h2>
           {/* Дубль клика по таймлайну: когда день пустой или свободного окна на
               дорожке не видно, кнопка остаётся очевидным входом в ту же форму. */}
@@ -492,7 +495,7 @@ export default function TimesheetDayPage() {
             className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
           >
             <Plus size={14} />
-            Добавить время
+            {t("timesheet.button.add_time")}
           </button>
         </div>
 
@@ -502,14 +505,14 @@ export default function TimesheetDayPage() {
           <div className="py-14 text-center">
             <Clock size={26} className="mx-auto mb-3 text-gray-300" />
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {day.absence || (day.isDayOff ? "Выходной день" : "Записей за этот день нет")}
+              {day.absence || (day.isDayOff ? t("timesheet.day_page.day_off_full") : t("timesheet.table.no_entries"))}
             </p>
             <button
               type="button"
               onClick={() => openDraft({ startTime: "09:00", endTime: "18:00" })}
               className="mt-3 text-sm font-semibold text-brand-500 hover:underline"
             >
-              Добавить время вручную
+              {t("timesheet.button.add_time_manual")}
             </button>
           </div>
         ) : (
@@ -518,13 +521,13 @@ export default function TimesheetDayPage() {
               <TableHeader className="border-b border-gray-100 dark:border-gray-800">
                 <TableRow>
                   {[
-                    "Начало",
-                    "Окончание",
-                    "Длительность",
-                    "Проект",
-                    "Задача",
-                    "Источник",
-                    "Причина",
+                    t("timesheet.table.start"),
+                    t("timesheet.table.end"),
+                    t("timesheet.table.duration"),
+                    t("timesheet.table.project"),
+                    t("timesheet.table.task"),
+                    t("timesheet.table.source"),
+                    t("timesheet.table.reason"),
                     "",
                   ].map(
                     (header) => (
@@ -579,14 +582,14 @@ export default function TimesheetDayPage() {
                             }`}
                             title={entry.reviewComment || undefined}
                           >
-                            {STATUS_META[entry.status ?? "pending"].label}
+                            {t(STATUS_META[entry.status ?? "pending"].labelKey)}
                           </span>
                         )}
                         {entry.isEdited && (
                           <PencilLine
                             size={13}
                             className="text-amber-500"
-                            aria-label="Запись правили в Time Doctor"
+                            aria-label={t("timesheet.badge.edited")}
                           />
                         )}
                       </span>
@@ -607,7 +610,7 @@ export default function TimesheetDayPage() {
                                 totalStages={approval.stagesOf(entry).total || 1}
                                 onClick={() => void approval.confirm(entry)}
                                 disabled={approval.isReviewing}
-                                label="Подтвердить"
+                                label={t("timesheet.button.confirm")}
                               />
                               <button
                                 type="button"
@@ -615,7 +618,7 @@ export default function TimesheetDayPage() {
                                 disabled={approval.isReviewing}
                                 className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[12px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
                               >
-                                Отклонить
+                                {t("timesheet.button.reject")}
                               </button>
                             </>
                           ) : (
@@ -627,7 +630,7 @@ export default function TimesheetDayPage() {
                                 onClick={() => approval.openApproval(entry)}
                                 className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
                               >
-                                Согласование
+                                {t("timesheet.button.approval")}
                               </button>
                             )
                           )}
@@ -635,7 +638,7 @@ export default function TimesheetDayPage() {
                             type="button"
                             onClick={() => setEntryToDelete(entry)}
                             disabled={deleteManual.isLoading}
-                            title="Удалить запись"
+                            title={t("buttons.delete_record")}
                             className="rounded-lg border border-gray-200 p-1.5 text-gray-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-60 dark:border-gray-700"
                           >
                             <X size={14} />

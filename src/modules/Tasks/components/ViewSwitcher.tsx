@@ -2,6 +2,7 @@ import { CalendarDays, ChartGantt, LayoutGrid, Table2 } from "lucide-react";
 import SharedViewSwitcher from "../../../components/common/ViewSwitcher";
 import { VIEW_META, VIEW_ORDER } from "../constants";
 import type { TasksViewKey } from "../types";
+import { useTranslation } from "../../../i18n";
 
 const VIEW_ICONS: Record<TasksViewKey, React.ReactNode> = {
   board: <LayoutGrid size={16} />,
@@ -16,13 +17,14 @@ interface ViewSwitcherProps {
 }
 
 export default function ViewSwitcher({ value, onChange }: ViewSwitcherProps) {
+  const { t } = useTranslation();
   return (
     <SharedViewSwitcher
       value={value}
       onChange={onChange}
       items={VIEW_ORDER.map((view) => ({
         key: view,
-        label: VIEW_META[view].label,
+        label: t(VIEW_META[view].labelKey),
         icon: VIEW_ICONS[view],
       }))}
     />

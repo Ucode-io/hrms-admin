@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, Plus, Search } from "lucide-react";
+import { useTranslation } from "../../../../i18n";
 
 export interface PickerOption {
   value: string;
@@ -43,14 +44,18 @@ export default function OptionPicker({
   selected,
   onSelect,
   searchable = false,
-  searchPlaceholder = "Поиск...",
-  emptyText = "Ничего не найдено",
+  searchPlaceholder,
+  emptyText,
   onCreate,
-  createLabel = (query) => `Создать «${query}»`,
+  createLabel,
   footer,
   close,
   closeOnSelect = true,
 }: OptionPickerProps) {
+  const { t } = useTranslation();
+  searchPlaceholder ??= t("tasks.ui.picker_search_placeholder");
+  emptyText ??= t("tasks.ui.picker_empty");
+  createLabel ??= (query) => t("tasks.ui.picker_create", { query });
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);

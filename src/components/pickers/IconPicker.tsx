@@ -1,53 +1,55 @@
 import { Icon } from "@iconify/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "../../i18n";
 
 export type IconOption = {
   value: string;
   label: string;
 };
 
+// Подписи по-английски: они идут в поиск и aria-label, а удалённый поиск Iconify тоже английский.
 export const DEFAULT_ICON_OPTIONS: IconOption[] = [
-  { value: "mdi:calendar-month-outline", label: "Календарь" },
-  { value: "mdi:umbrella-outline", label: "Отпуск" },
-  { value: "mdi:heart-pulse", label: "Больничный" },
-  { value: "mdi:account-cancel-outline", label: "Отсутствие" },
-  { value: "mdi:account-check-outline", label: "Присутствие" },
-  { value: "mdi:home-outline", label: "Дом" },
-  { value: "mdi:briefcase-outline", label: "Работа" },
-  { value: "mdi:map-marker-outline", label: "Локация" },
-  { value: "mdi:clock-outline", label: "Время" },
-  { value: "mdi:star-outline", label: "Избранное" },
-  { value: "mdi:heart-outline", label: "Забота" },
-  { value: "mdi:white-balance-sunny", label: "День" },
-  { value: "mdi:moon-waning-crescent", label: "Ночь" },
-  { value: "mdi:coffee-outline", label: "Перерыв" },
-  { value: "mdi:earth", label: "Командировка" },
-  { value: "mdi:airplane", label: "Путешествие" },
-  { value: "mdi:monitor", label: "Удаленно" },
-  { value: "mdi:book-open-variant-outline", label: "Обучение" },
-  { value: "mdi:file-document-outline", label: "Документ" },
-  { value: "mdi:shield-check-outline", label: "Безопасность" },
-  { value: "mdi:tag-outline", label: "Тег" },
-  { value: "mdi:trophy-outline", label: "Награда" },
-  { value: "mdi:chart-pie-outline", label: "Статистика" },
-  { value: "mdi:account-group-outline", label: "Команда" },
-  { value: "mdi:flash-outline", label: "Срочно" },
-  { value: "tabler:vacuum-cleaner", label: "Служба" },
-  { value: "tabler:sun", label: "Солнце" },
-  { value: "tabler:moon-stars", label: "Ночь+" },
-  { value: "tabler:building-community", label: "Офис" },
-  { value: "tabler:plane-inflight", label: "Полет" },
-  { value: "tabler:stethoscope", label: "Медицина" },
-  { value: "tabler:device-laptop", label: "Ноутбук" },
-  { value: "tabler:clock-hour-8", label: "Смена" },
-  { value: "solar:shield-check-linear", label: "Защита" },
-  { value: "solar:flag-2-linear", label: "Флаг" },
-  { value: "solar:archive-linear", label: "Архив" },
-  { value: "solar:users-group-two-rounded-linear", label: "Люди" },
-  { value: "solar:calendar-mark-linear", label: "План" },
-  { value: "solar:map-point-linear", label: "Точка" },
-  { value: "solar:documents-minimalistic-linear", label: "Документы+" },
+  { value: "mdi:calendar-month-outline", label: "Calendar" },
+  { value: "mdi:umbrella-outline", label: "Vacation" },
+  { value: "mdi:heart-pulse", label: "Sick leave" },
+  { value: "mdi:account-cancel-outline", label: "Absence" },
+  { value: "mdi:account-check-outline", label: "Presence" },
+  { value: "mdi:home-outline", label: "Home" },
+  { value: "mdi:briefcase-outline", label: "Work" },
+  { value: "mdi:map-marker-outline", label: "Location" },
+  { value: "mdi:clock-outline", label: "Time" },
+  { value: "mdi:star-outline", label: "Favorite" },
+  { value: "mdi:heart-outline", label: "Care" },
+  { value: "mdi:white-balance-sunny", label: "Day" },
+  { value: "mdi:moon-waning-crescent", label: "Night" },
+  { value: "mdi:coffee-outline", label: "Break" },
+  { value: "mdi:earth", label: "Business trip" },
+  { value: "mdi:airplane", label: "Travel" },
+  { value: "mdi:monitor", label: "Remote" },
+  { value: "mdi:book-open-variant-outline", label: "Training" },
+  { value: "mdi:file-document-outline", label: "Document" },
+  { value: "mdi:shield-check-outline", label: "Security" },
+  { value: "mdi:tag-outline", label: "Tag" },
+  { value: "mdi:trophy-outline", label: "Award" },
+  { value: "mdi:chart-pie-outline", label: "Statistics" },
+  { value: "mdi:account-group-outline", label: "Team" },
+  { value: "mdi:flash-outline", label: "Urgent" },
+  { value: "tabler:vacuum-cleaner", label: "Service" },
+  { value: "tabler:sun", label: "Sun" },
+  { value: "tabler:moon-stars", label: "Night sky" },
+  { value: "tabler:building-community", label: "Office" },
+  { value: "tabler:plane-inflight", label: "Flight" },
+  { value: "tabler:stethoscope", label: "Medicine" },
+  { value: "tabler:device-laptop", label: "Laptop" },
+  { value: "tabler:clock-hour-8", label: "Shift" },
+  { value: "solar:shield-check-linear", label: "Protection" },
+  { value: "solar:flag-2-linear", label: "Flag" },
+  { value: "solar:archive-linear", label: "Archive" },
+  { value: "solar:users-group-two-rounded-linear", label: "People" },
+  { value: "solar:calendar-mark-linear", label: "Plan" },
+  { value: "solar:map-point-linear", label: "Point" },
+  { value: "solar:documents-minimalistic-linear", label: "Documents" },
 ];
 
 const LEGACY_ICON_VALUE_MAP: Record<string, string> = {
@@ -158,6 +160,7 @@ export default function IconPicker({
   iconColor = "#1F2937",
   fullWidth = true,
 }: IconPickerProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -290,7 +293,7 @@ export default function IconPicker({
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         ref={buttonRef}
-        aria-label="Выбрать иконку"
+        aria-label={t("icon_picker.choose")}
         className={`flex h-10 ${fullWidth ? "w-full" : "w-16"} items-center justify-between rounded-lg border border-gray-300 px-3 text-sm text-gray-800 shadow-theme-xs transition hover:border-gray-400 ${buttonClassName}`}
       >
         <span className="inline-flex items-center">
@@ -310,12 +313,12 @@ export default function IconPicker({
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Поиск иконки (например airplane, briefcase)..."
+              placeholder={t("icon_picker.search_placeholder")}
               className="mb-2 h-9 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-700 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
             />
 
             {isLoading && (
-              <div className="px-2 pb-2 text-xs text-gray-500">Поиск иконок...</div>
+              <div className="px-2 pb-2 text-xs text-gray-500">{t("icon_picker.searching")}</div>
             )}
 
             <div className="grid max-h-72 grid-cols-8 gap-1 overflow-y-auto pr-1">

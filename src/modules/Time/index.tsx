@@ -7,14 +7,15 @@ import TimeAttendancePage from "./Attendance";
 import AttendanceEventsPage from "./Attendance/AttendanceEventsPage";
 import AbsenceRequestsView from "./components/AbsenceRequestsView";
 import { useTranslation } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
 type TimeView = "calendar" | "attendance" | "events" | "absence";
 
-const VIEW_TABS: { value: TimeView; label: string; icon: typeof CalendarDays }[] = [
-  { value: "calendar", label: "Календарь", icon: CalendarDays },
-  { value: "attendance", label: "Список", icon: List },
-  { value: "events", label: "Посещаемость", icon: CalendarCheck },
-  { value: "absence", label: "Отсутствие", icon: Plane },
+const VIEW_TABS: { value: TimeView; labelKey: MessageKey; icon: typeof CalendarDays }[] = [
+  { value: "calendar", labelKey: "breadcrumb.calendar", icon: CalendarDays },
+  { value: "attendance", labelKey: "time_module.list", icon: List },
+  { value: "events", labelKey: "breadcrumb.attendance", icon: CalendarCheck },
+  { value: "absence", labelKey: "dashboard.fallback.absence", icon: Plane },
 ];
 
 const DEFAULT_VIEW: TimeView = "calendar";
@@ -85,7 +86,7 @@ function TimeModule() {
             }}
           >
             <TabIcon style={{ width: "17px", height: "17px" }} />
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         );
       })}
@@ -94,7 +95,7 @@ function TimeModule() {
 
   return (
     <>
-      <PageMeta title="Время | HRMS" description="Посещаемость и отсутствие сотрудников" />
+      <PageMeta title={`${t("breadcrumb.time")} | HRMS`} description={t("time_module.meta_description")} />
 
       {/* Active view (mounted conditionally to avoid breadcrumb/meta conflicts).
           The shared view selector is passed as `leftSlot` so it sits on the left

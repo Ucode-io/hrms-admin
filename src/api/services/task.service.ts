@@ -24,6 +24,7 @@ import type {
   TaskDraft,
   TaskEmployee,
 } from "../../modules/Tasks/types";
+import { translate } from "../../i18n";
 
 /** Вложение до того, как сервер присвоил ему id и автора. */
 export type NewAttachment = Omit<TaskAttachment, "id" | "uploadedById" | "uploadedAt">;
@@ -107,7 +108,7 @@ type TasksSnapshot = { tasks: Task[]; employees: TaskEmployee[] };
 const taskFromCache = (queryClient: QueryClient, id: string): Task => {
   const snapshot = queryClient.getQueryData<TasksSnapshot>(TASKS_KEY);
   const task = snapshot?.tasks.find((item) => item.id === id);
-  if (!task) throw new Error("Задача не найдена в кэше — обновите страницу");
+  if (!task) throw new Error(translate("tasks.errors.not_in_cache"));
   return task;
 };
 

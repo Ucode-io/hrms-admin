@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Controller } from "react-hook-form";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.min.css";
+import { useTranslation, monthNames, weekdayNames } from "../../i18n";
 
 interface FormDatePickerProps {
   name: string;
@@ -18,19 +19,23 @@ export default function FormDatePicker({
   name,
   control,
   label,
-  placeholder = "Выберите дату",
+  placeholder,
   required = false,
   disabled = false,
   minDate,
   maxDate,
 }: FormDatePickerProps) {
+  const { t, locale } = useTranslation();
+  placeholder ??= t("common.select_date");
+  const weekdaysLong = weekdayNames(locale, "long");
+  const weekdaysShort = weekdayNames(locale, "short");
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
     <Controller
       name={name}
       control={control}
-      rules={{ required: required ? "Это поле обязательно" : undefined }}
+      rules={{ required: required ? t("common.required_field") : undefined }}
       render={({ field, fieldState: { error } }) => {
         useEffect(() => {
           if (!inputRef.current) return;
@@ -40,46 +45,13 @@ export default function FormDatePicker({
             locale: {
               firstDayOfWeek: 1,
               weekdays: {
-                shorthand: ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"],
-                longhand: [
-                  "Воскресенье",
-                  "Понедельник",
-                  "Вторник",
-                  "Среда",
-                  "Четверг",
-                  "Пятница",
-                  "Суббота",
-                ],
+                // flatpickr ждёт неделю с воскресенья, а weekdayNames — с понедельника.
+                shorthand: [weekdaysShort[6], ...weekdaysShort.slice(0, 6)] as never,
+                longhand: [weekdaysLong[6], ...weekdaysLong.slice(0, 6)] as never,
               },
               months: {
-                shorthand: [
-                  "Янв",
-                  "Фев",
-                  "Мар",
-                  "Апр",
-                  "Май",
-                  "Июн",
-                  "Июл",
-                  "Авг",
-                  "Сен",
-                  "Окт",
-                  "Ноя",
-                  "Дек",
-                ],
-                longhand: [
-                  "Январь",
-                  "Февраль",
-                  "Март",
-                  "Апрель",
-                  "Май",
-                  "Июнь",
-                  "Июль",
-                  "Август",
-                  "Сентябрь",
-                  "Октябрь",
-                  "Ноябрь",
-                  "Декабрь",
-                ],
+                shorthand: monthNames(locale, "short") as never,
+                longhand: monthNames(locale, "long") as never,
               },
             },
             minDate: minDate,
@@ -100,7 +72,7 @@ export default function FormDatePicker({
           return () => {
             fp.destroy();
           };
-        }, [field.value, minDate, maxDate]);
+        }, [field.value, minDate, maxDate, locale]);
 
         return (
           <div className="w-full">

@@ -8,6 +8,7 @@ import {
   type Department,
   useDepartmentsSettingsQuery,
 } from "../../api/services/department.service";
+import { useTranslation } from "../../i18n";
 
 export type DepartmentOption = {
   value: string;
@@ -70,10 +71,12 @@ const mergeUnique = (base: DepartmentOption[], incoming: DepartmentOption[]) => 
 export default function DepartmentsInfiniteMultiSelect({
   value,
   onChange,
-  placeholder = "Выберите департаменты",
+  placeholder,
   menuPortalTarget,
   styles,
 }: DepartmentsInfiniteMultiSelectProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("autocomplete.select_departments");
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -107,11 +110,11 @@ export default function DepartmentsInfiniteMultiSelect({
   useEffect(() => {
     const response = ((data?.response || []) as Department[]).map((item) => ({
       value: item.guid,
-      label: String(item.title || "Без названия"),
+      label: String(item.title || t("common.untitled")),
     }));
     setTotalCount(Number(data?.count || 0));
     setOptions((prev) => (offset === 0 ? response : mergeUnique(prev, response)));
-  }, [data, offset]);
+  }, [data, offset, t]);
 
   const hasMore = options.length < totalCount;
 
@@ -145,8 +148,8 @@ export default function DepartmentsInfiniteMultiSelect({
       menuPortalTarget={menuPortalTarget}
       menuPosition="fixed"
       classNamePrefix="departments-infinite-multi-select"
-      noOptionsMessage={() => (isLoading || isFetching ? "Загрузка..." : "Ничего не найдено")}
-      loadingMessage={() => "Загрузка..."}
+      noOptionsMessage={() => (isLoading || isFetching ? t("common.loading") : t("common.no_options_found"))}
+      loadingMessage={() => t("common.loading")}
     />
   );
 }

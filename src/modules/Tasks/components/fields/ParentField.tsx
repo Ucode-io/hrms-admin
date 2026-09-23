@@ -5,6 +5,7 @@ import type { Task, TaskDirectoryItem } from "../../types";
 import Popover from "../ui/Popover";
 import OptionPicker, { type PickerOption } from "../ui/OptionPicker";
 import { ClearButton, ControlButton, FieldSlot, type ControlVariant } from "../ui/controls";
+import { useTranslation } from "../../../../i18n";
 import { TypeIcon } from "../badges";
 
 interface ParentFieldProps {
@@ -27,8 +28,10 @@ export default function ParentField({
   taskId,
   onChange,
   variant,
-  placeholder = "Родительская задача",
+  placeholder,
 }: ParentFieldProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("tasks.parent.placeholder");
   const [open, setOpen] = useState(false);
 
   // Self and everything below it are out: either would create a cycle.
@@ -58,8 +61,8 @@ export default function ParentField({
             selected={value}
             onSelect={(next) => onChange(next)}
             searchable
-            searchPlaceholder="Найти задачу по названию или коду..."
-            emptyText="Подходящих задач нет"
+            searchPlaceholder={t("tasks.parent.search_placeholder")}
+            emptyText={t("tasks.parent.empty_text")}
             close={close}
             footer={
               value
@@ -72,7 +75,7 @@ export default function ParentField({
                       }}
                       className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-gray-500 transition hover:bg-gray-50 hover:text-error-600 dark:hover:bg-white/5"
                     >
-                      Открепить от родителя
+                      {t("tasks.parent.unlink")}
                     </button>
                   )
                 : undefined
@@ -104,7 +107,7 @@ export default function ParentField({
           </ControlButton>
         )}
       </Popover>
-      {parent && <ClearButton onClick={() => onChange(null)} label="Открепить от родителя" />}
+      {parent && <ClearButton onClick={() => onChange(null)} label={t("tasks.parent.unlink")} />}
     </FieldSlot>
   );
 }

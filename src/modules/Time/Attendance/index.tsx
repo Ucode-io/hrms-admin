@@ -25,6 +25,7 @@ import {
   isProcessComplete,
 } from "../../Settings/Approvals/approvalRuntime";
 import {
+  attendanceApprovalType,
   findApprovalProcessFor,
   useApprovalProcessesQuery,
   useApproveStage,
@@ -32,10 +33,11 @@ import {
 } from "../../../api/services/approval.service";
 import { syncVegapharmCrmAttendance } from "../../../api/services/vegapharmCrm.service";
 import hickvisionService, { type LatenessResult } from "../../../api/services/hickvision.service";
-import LocationViewLink from "../../../components/map/LocationViewLink";
+import LocationViewLink, { DistanceBadge } from "../../../components/map/LocationViewLink";
+import { markGeoByDay } from "../../../components/map/shared";
 import { useOffices } from "../../../components/map/useOffices";
 import TimeInput from "../../../components/form/TimeInput";
-import { useTranslation } from "../../../i18n";
+import { useTranslation, translate } from "../../../i18n";
 
 const ATTENDANCE_ENTITY_TYPE = "attendance";
 const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
@@ -62,17 +64,6 @@ type AttendanceItem = {
   [key: string]: unknown;
 };
 
-// Raw Hikvision/webapp check events. Only mobile-app ("webapp") events carry
-// `map` (a "lat,long" string) — turnstile events have none. `attendance` rows
-// don't store geo themselves, so the location column is resolved by matching
-// on `user_base_id` + `date`.
-type AttendanceRecordItem = {
-  user_base_id?: string | null;
-  map?: string | null;
-  date?: string | null;
-  [key: string]: unknown;
-};
-
 type AttendanceWorkflowStatus = "accepted" | "rejected" | "requested" | "unknown";
 type AttendanceActionStatus = "present" | "late" | "absent" | "unknown";
 type AttendanceSourceType = "manual" | "integration" | "absences" | "unknown";
@@ -92,6 +83,10 @@ type AttendanceRecord = {
   employeeName: string;
   departmentId: string;
   location: string;
+  checkInGeo: string;
+  checkOutGeo: string;
+  checkInReason: string;
+  checkOutReason: string;
 };
 
 type AttendanceDraft = {
@@ -359,21 +354,21 @@ const getActionStatusTag = (
 ): { label: string; className: string } => {
   if (status === "absent") {
     return {
-      label: "Отсутствует",
+      label: translate("absence_calendar.attendance.absent"),
       className: "border-slate-200 bg-slate-100 text-slate-500",
     };
   }
 
   if (status === "late") {
     return {
-      label: "Опоздал",
+      label: translate("attendance.status.late"),
       className: "border-rose-200 bg-rose-50 text-rose-700",
     };
   }
 
   if (status === "present") {
     return {
-      label: "Присутствует",
+      label: translate("absence_calendar.attendance.present"),
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
     };
   }
@@ -389,21 +384,21 @@ const getWorkflowStatusTag = (
 ): { label: string; className: string } => {
   if (status === "accepted") {
     return {
-      label: "Подтверждено",
+      label: translate("attendance.workflow.approved"),
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
     };
   }
 
   if (status === "requested") {
     return {
-      label: "Запрошено",
+      label: translate("attendance.workflow.requested"),
       className: "border-amber-200 bg-amber-50 text-amber-700",
     };
   }
 
   if (status === "rejected") {
     return {
-      label: "Отклонено",
+      label: translate("attendance.workflow.rejected"),
       className: "border-rose-200 bg-rose-50 text-rose-700",
     };
   }
@@ -429,14 +424,14 @@ const getSourceTypeTag = (
     // только тип источника, не устройство. Точный источник — в событиях,
     // Настройки → Интеграции → Записи, там же фото и координаты.
     return {
-      label: "Интеграция",
+      label: translate("absence_calendar.source.integration"),
       className: "border-violet-200 bg-violet-50 text-violet-700",
     };
   }
 
   if (sourceType === "absences") {
     return {
-      label: "Отсутствие",
+      label: translate("dashboard.fallback.absence"),
       className: "border-amber-200 bg-amber-50 text-amber-700",
     };
   }
@@ -537,20 +532,20 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
   const typeFilterOptions = useMemo<SelectOption[]>(
     () => [
-      { value: "present", label: "Присутствует" },
-      { value: "late", label: "Опоздал" },
-      { value: "absent", label: "Отсутствует" },
+      { value: "present", label: t("absence_calendar.attendance.present") },
+      { value: "late", label: t("attendance.status.late") },
+      { value: "absent", label: t("absence_calendar.attendance.absent") },
     ],
-    []
+    [t]
   );
 
   const sourceTypeFilterOptions = useMemo<SelectOption[]>(
     () => [
       { value: "manual", label: "HRMS" },
       { value: "integration", label: "Hikvision / QuadraSoft" },
-      { value: "absences", label: "Отсутствие" },
+      { value: "absences", label: t("dashboard.fallback.absence") },
     ],
-    []
+    [t]
   );
 
   const backendQueryData = useMemo(() => {
@@ -593,19 +588,13 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     params: attendanceRecordsQueryParams,
   });
 
-  // attendance_records comes back newest-first, so the first match per
-  // employee+date is their latest geo-tagged event.
-  const locationByEmployeeAndDate = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const item of (attendanceRecordsData?.response || []) as AttendanceRecordItem[]) {
-      const userId = typeof item.user_base_id === "string" ? item.user_base_id : "";
-      const geo = typeof item.map === "string" ? item.map.trim() : "";
-      if (!userId || !geo) continue;
-      const key = `${userId}|${item.date || ""}`;
-      if (!map.has(key)) map.set(key, geo);
-    }
-    return map;
-  }, [attendanceRecordsData?.response]);
+  // Raw Hikvision/webapp check events. Only mobile-app ("webapp") events carry
+  // `map` (a "lat,long" string) — `attendance` rows don't store geo themselves,
+  // so both points are resolved by matching on `user_base_id` + `date`.
+  const geoByDay = useMemo(
+    () => markGeoByDay((attendanceRecordsData?.response || []) as Record<string, unknown>[]),
+    [attendanceRecordsData?.response]
+  );
 
   const { data, isLoading, isFetching, isError, refetch } = useSettingsDirectoryQuery({
     slug: ATTENDANCE_SLUG,
@@ -657,6 +646,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       const checkOutTime = normalizeTime(item.check_out_time);
       const delayTime = normalizeDelayTime(item.delay_time);
       const employeeInfo = getEmployeeInfo(item);
+      const geo = geoByDay.get(`${employeeInfo.employeeGuid}|${date}`);
 
       return {
         guid: item.guid,
@@ -672,7 +662,11 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         officeId: employeeInfo.officeId,
         employeeName: employeeInfo.employeeName,
         departmentId: employeeInfo.departmentId,
-        location: locationByEmployeeAndDate.get(`${employeeInfo.employeeGuid}|${date}`) || "",
+        location: geo?.out || geo?.in || "",
+        checkInGeo: geo?.in || "",
+        checkOutGeo: geo?.out || "",
+        checkInReason: geo?.inReason || "",
+        checkOutReason: geo?.outReason || "",
       };
     });
 
@@ -692,13 +686,13 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
       return toSortTimestamp(rightItem) - toSortTimestamp(leftItem);
     });
-  }, [data?.response, locationByEmployeeAndDate]);
+  }, [data?.response, geoByDay]);
 
   // Resolve the approval process for a row from that employee's department.
   const resolveRecordProcess = (record: AttendanceRecord) =>
     findApprovalProcessFor(
       approvalProcesses ?? [],
-      "attendance_change_approval",
+      attendanceApprovalType(record.sourceType),
       record.departmentId
     );
 
@@ -711,7 +705,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
           (record) =>
             findApprovalProcessFor(
               approvalProcesses ?? [],
-              "attendance_change_approval",
+              attendanceApprovalType(record.sourceType),
               record.departmentId
             )
         )
@@ -758,8 +752,8 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const visibleTo = totalCount > 0 ? Math.min(page * PAGE_SIZE, totalCount) : 0;
   const visibleRangeLabel =
     totalCount > 0
-      ? `Отображение ${visibleFrom} - ${visibleTo} из ${totalCount}`
-      : "Нет данных";
+      ? t("attendance.showing_range", { from: visibleFrom, to: visibleTo, total: totalCount })
+      : t("common.no_data");
   const paginationItems = useMemo(() => buildPaginationItems(page, totalPages), [page, totalPages]);
   const editingRecord = useMemo(
     () => records.find((item) => item.guid === editingGuid) || null,
@@ -787,12 +781,12 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const handleSave = async () => {
     const employeeGuid = String(draft.employeeGuid || "").trim();
     if (!employeeGuid) {
-      setFormError("Выберите сотрудника.");
+      setFormError(t("absence_calendar.validation.employee"));
       return;
     }
 
     if (!draft.date) {
-      setFormError("Укажите дату.");
+      setFormError(t("attendance.validation.date"));
       return;
     }
 
@@ -800,7 +794,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     const checkOutTime = normalizeTime(draft.checkOutTime);
 
     if (!checkInTime && !checkOutTime) {
-      setFormError("Укажите хотя бы одно время: приход или уход.");
+      setFormError(t("attendance.validation.time"));
       return;
     }
 
@@ -817,7 +811,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       });
     } catch (latenessError) {
       console.error("Attendance lateness error:", latenessError);
-      setFormError("Не удалось получить график сотрудника — опоздание не посчитано.");
+      setFormError(t("attendance.schedule_error"));
       return;
     }
 
@@ -847,7 +841,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       closeModal();
     } catch (saveError) {
       console.error("Attendance save error:", saveError);
-      setFormError("Не удалось сохранить запись. Попробуйте ещё раз.");
+      setFormError(t("attendance.save_error"));
     }
   };
 
@@ -860,7 +854,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       setToDelete(null);
     } catch (deleteError) {
       console.error("Attendance delete error:", deleteError);
-      setActionError("Не удалось удалить запись. Попробуйте ещё раз.");
+      setActionError(t("attendance.delete_error"));
     }
   };
 
@@ -905,7 +899,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       await confirmRecord(record);
     } catch (confirmError) {
       console.error("Attendance confirm error:", confirmError);
-      setActionError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+      setActionError(t("attendance.confirm_error"));
     }
   };
 
@@ -925,7 +919,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       });
     } catch (stageError) {
       console.error("Attendance stage approve error:", stageError);
-      setActionError("Не удалось одобрить этап.");
+      setActionError(t("attendance.approve_stage_error"));
     }
   };
 
@@ -937,7 +931,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       setApprovalRecord(null);
     } catch (confirmError) {
       console.error("Attendance confirm error:", confirmError);
-      setActionError("Не удалось подтвердить запись. Попробуйте ещё раз.");
+      setActionError(t("attendance.confirm_error"));
     }
   };
 
@@ -952,13 +946,13 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       setApprovalRecord(null);
     } catch (rejectError) {
       console.error("Attendance reject error:", rejectError);
-      setActionError("Не удалось отклонить запись.");
+      setActionError(t("attendance.reject_error"));
     }
   };
 
   return (
     <>
-      <PageMeta title="Посещаемость | HRMS" description="Таблица посещаемости сотрудников" />
+      <PageMeta title={`${t("breadcrumb.attendance")} | HRMS`} description={t("attendance.meta_description")} />
 
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
         <div
@@ -979,8 +973,8 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
           <button
             type="button"
             onClick={() => setIsFiltersOpen((open) => !open)}
-            aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
-            title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+            aria-label={activeFiltersCount > 0 ? t("tasks.filters.filter_button_with_count", { count: activeFiltersCount }) : t("tasks.filters.filter_button")}
+            title={activeFiltersCount > 0 ? t("tasks.filters.filter_button_with_count", { count: activeFiltersCount }) : t("tasks.filters.filter_button")}
             className="relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border transition"
             style={{
               color: isFilterButtonActive ? "var(--company-color)" : "#334155",
@@ -1003,7 +997,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             style={{ backgroundColor: brandColor }}
           >
             <Plus className="h-3.5 w-3.5" />
-            Добавить
+            {t("common.add")}
           </button>
         </div>
 
@@ -1036,7 +1030,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   setEmployeeFilter(value);
                   setPage(1);
                 }}
-                placeholder="Сотрудник"
+                placeholder={t("absence_request.employee")}
                 styles={filterSelectStyles}
                 menuPortalTarget={menuPortalTarget}
                 classNamePrefix="attendance-filter-employee-select"
@@ -1059,13 +1053,13 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   setPage(1);
                 }}
                 options={typeFilterOptions}
-                placeholder="Тип"
+                placeholder={t("attendance.type")}
                 isSearchable={false}
                 isClearable
                 styles={filterSelectStyles}
                 menuPortalTarget={menuPortalTarget}
                 menuPosition="fixed"
-                noOptionsMessage={() => "Ничего не найдено"}
+                noOptionsMessage={() => t("common.no_options_found")}
               />
             </div>
 
@@ -1085,13 +1079,13 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   setPage(1);
                 }}
                 options={sourceTypeFilterOptions}
-                placeholder="Источник"
+                placeholder={t("absence_calendar.source.label")}
                 isSearchable={false}
                 isClearable
                 styles={filterSelectStyles}
                 menuPortalTarget={menuPortalTarget}
                 menuPosition="fixed"
-                noOptionsMessage={() => "Ничего не найдено"}
+                noOptionsMessage={() => t("common.no_options_found")}
               />
             </div>
 
@@ -1120,7 +1114,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   marginLeft: "auto",
                 }}
               >
-                Сбросить
+                {t("common.reset")}
               </button>
             ) : null}
           </div>
@@ -1144,7 +1138,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   type="button"
                   onClick={() => shiftDateFilter(-1)}
                   className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                  aria-label="Предыдущий день"
+                  aria-label={t("time_events.prev_day")}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -1155,7 +1149,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   type="button"
                   onClick={() => shiftDateFilter(1)}
                   className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                  aria-label="Следующий день"
+                  aria-label={t("time_events.next_day")}
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -1168,7 +1162,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                 </div>
               ) : isError ? (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-[13px] text-rose-600">
-                  Не удалось загрузить записи по посещаемости.
+                  {t("attendance.load_error")}
                   <button
                     type="button"
                     onClick={() => {
@@ -1176,12 +1170,12 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                     }}
                     className="ml-2 inline-flex h-8 items-center rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white transition hover:bg-rose-700"
                   >
-                    Повторить
+                    {t("common.retry")}
                   </button>
                 </div>
               ) : records.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
-                  <p className="m-0 text-[13px] text-slate-500">Записей по посещаемости пока нет</p>
+                  <p className="m-0 text-[13px] text-slate-500">{t("attendance.empty")}</p>
                 </div>
               ) : (
                 <div className="relative space-y-3">
@@ -1192,7 +1186,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                           className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300"
                           style={{ borderTopColor: brandColor }}
                         />
-                        Загрузка...
+                        {t("common.loading")}
                       </div>
                     </div>
                   ) : null}
@@ -1206,16 +1200,17 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                     <table className="min-w-full text-left">
                       <thead>
                         <tr className="border-b border-slate-200">
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Сотрудник</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Дата</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Приход</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Уход</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Опоздание</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Статус действия</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Статус заявки</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Источник</th>
-                          <th className="py-2 text-[12px] font-semibold text-slate-500">Филиал</th>
-                          <th className="py-2 text-right text-[12px] font-semibold text-slate-500">Действия</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("absence_request.employee")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("attendance.date")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("absence_calendar.check_in")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("absence_calendar.check_out")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("absence_calendar.attendance.late")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("attendance.action_status")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("attendance.request_status")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("absence_calendar.source.label")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("attendance.distance")}</th>
+                          <th className="py-2 text-[12px] font-semibold text-slate-500">{t("tasks.location.placeholder")}</th>
+                          <th className="py-2 text-right text-[12px] font-semibold text-slate-500">{t("attendance.actions")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1293,8 +1288,23 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                 </span>
                               </td>
                               <td className="py-3 text-[13px] text-slate-700">
+                                {record.checkInGeo || record.checkOutGeo ? (
+                                  <div className="flex flex-col items-start gap-1">
+                                    {record.checkInGeo ? (
+                                      <DistanceBadge prefix={t("absence_calendar.check_in")} value={record.checkInGeo} office={offices.get(record.officeId)} reason={record.checkInReason} />
+                                    ) : null}
+                                    {record.checkOutGeo ? (
+                                      <DistanceBadge prefix={t("absence_calendar.check_out")} value={record.checkOutGeo} office={offices.get(record.officeId)} reason={record.checkOutReason} />
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td className="py-3 text-[13px] text-slate-700">
                                 {record.location ? (
                                   <LocationViewLink
+                                    showDistance={false}
                                     value={record.location}
                                     office={offices.get(record.officeId)}
                                   />
@@ -1319,10 +1329,10 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                           void handleConfirmRequested(record);
                                         }}
                                         className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-                                        title="Подтвердить"
+                                        title={t("common.confirm")}
                                       >
                                         <Check className="h-3.5 w-3.5" />
-                                        Подтвердить
+                                        {t("common.confirm")}
                                       </button>
                                     )
                                   ) : null}
@@ -1330,7 +1340,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                     type="button"
                                     onClick={() => setToDelete(record)}
                                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-500 transition-colors hover:bg-rose-50"
-                                    title="Удалить"
+                                    title={t("common.delete")}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
@@ -1369,14 +1379,14 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       >
         <div className="border-b border-slate-200 px-6 py-5">
           <h4 className="m-0 text-[22px] font-bold text-slate-900">
-            {editingGuid ? "Изменить посещаемость" : "Добавить посещаемость"}
+            {editingGuid ? t("attendance.edit_title") : t("attendance.add_title")}
           </h4>
         </div>
 
         <div className="space-y-4 px-6 py-5">
           <div>
             <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              Сотрудник
+              {t("absence_request.employee")}
             </label>
             <EmployeeInfiniteSelect
               value={draft.employeeGuid}
@@ -1387,7 +1397,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                 }))
               }
               fallbackLabel={employeeFallbackLabel}
-              placeholder="Выберите сотрудника"
+              placeholder={t("autocomplete.select_employee")}
               styles={getEmployeeSelectStyles()}
               menuPortalTarget={menuPortalTarget}
               classNamePrefix="attendance-employee-select"
@@ -1397,7 +1407,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
           <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Дата
+                {t("attendance.date")}
               </label>
               <DatePicker
                 selected={draft.date}
@@ -1408,7 +1418,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   }))
                 }
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("common.date_placeholder")}
                 showMonthDropdown
                 showYearDropdown
                 dropdownMode="select"
@@ -1421,7 +1431,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Время прихода
+                {t("attendance.check_in_time")}
               </label>
               <TimeInput
                 value={draft.checkInTime}
@@ -1437,7 +1447,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                Время ухода
+                {t("attendance.check_out_time")}
               </label>
               <TimeInput
                 value={draft.checkOutTime}
@@ -1466,7 +1476,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -1475,7 +1485,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ backgroundColor: brandColor }}
           >
-            {isSaving ? "Сохранение..." : "Сохранить"}
+            {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </Modal>
@@ -1487,10 +1497,10 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         showCloseButton={false}
       >
         <h4 className="m-0 text-[18px] font-bold text-slate-900">
-          Удалить запись посещаемости?
+          {t("attendance.delete_confirm_title")}
         </h4>
         <p className="mb-6 mt-2 text-[13px] text-slate-500">
-          Запись будет удалена без возможности восстановления.
+          {t("attendance.delete_confirm_body")}
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -1499,7 +1509,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             disabled={isSaving}
             className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Отмена
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -1507,7 +1517,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             disabled={isSaving}
             className="h-9 rounded-lg border border-rose-200 bg-rose-50 px-4 text-[13px] font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSaving ? "Удаление..." : "Удалить"}
+            {isSaving ? t("tasks.detail.deleting") : t("common.delete")}
           </button>
         </div>
       </Modal>
@@ -1523,12 +1533,37 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
           void handleApproveStage(stageId, comment)
         }
         isApprovingStage={approveStageMutation.isLoading}
-        confirmLabel="Подтвердить запись"
+        confirmLabel={t("attendance.confirm_record")}
         onConfirm={() => void finalizeApproval()}
         isConfirming={updateMutation.isLoading}
         onReject={(comment) => void rejectFromApproval(comment)}
         isRejecting={updateMutation.isLoading}
         readOnly={approvalRecord?.requestStatus !== "requested"}
+        details={
+          approvalRecord && (approvalRecord.checkInGeo || approvalRecord.checkOutGeo) ? (
+            <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+              {(
+                [
+                  [t("absence_calendar.check_in"), approvalRecord.checkInTime, approvalRecord.checkInGeo, approvalRecord.checkInReason],
+                  [t("absence_calendar.check_out"), approvalRecord.checkOutTime, approvalRecord.checkOutGeo, approvalRecord.checkOutReason],
+                ] as const
+              )
+                .filter(([, , geo]) => geo)
+                .map(([label, time, geo, reason]) => (
+                  <div key={label} className="text-[13px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-gray-800">
+                        {label} {formatTimeLabel(time)}
+                      </span>
+                      <DistanceBadge value={geo} office={offices.get(approvalRecord.officeId)} />
+                      <LocationViewLink showDistance={false} value={geo} office={offices.get(approvalRecord.officeId)} />
+                    </div>
+                    {reason ? <p className="mt-1 text-gray-600">{t("attendance.reason", { reason })}</p> : null}
+                  </div>
+                ))}
+            </div>
+          ) : null
+        }
       />
     </>
   );

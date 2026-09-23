@@ -5,15 +5,18 @@ import type { TaskEmployee } from "../../types";
 import Popover from "../ui/Popover";
 import { ClearButton, ControlButton, FieldSlot, type ControlVariant } from "../ui/controls";
 import { AvatarStack, EmployeeAvatar } from "../badges";
+import { useTranslation } from "../../../../i18n";
+import type { MessageKey } from "../../../../i18n/messages";
 
 const PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
 
-const pluralAssignees = (count: number): string => {
+/** Подпись показывается от двух человек, так что формы «one» здесь не бывает. */
+const assigneesCountKey = (count: number): MessageKey => {
   const mod10 = count % 10;
   const mod100 = count % 100;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "исполнителя";
-  return "исполнителей";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "tasks.assignee.count_few";
+  return "tasks.assignee.count_many";
 };
 
 /** Цвет аватара выводим из id — тот же приём, что в task.service. */
@@ -47,8 +50,10 @@ export default function AssigneeField({
   employees,
   onChange,
   variant,
-  placeholder = "Не назначен",
+  placeholder,
 }: AssigneeFieldProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("tasks.assignee.not_assigned");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -94,7 +99,7 @@ export default function AssigneeField({
           id: employee.guid,
           name:
             [employee.second_name, employee.first_name].filter(Boolean).join(" ").trim() ||
-            "Без имени",
+            t("tasks.assignee.no_name"),
           position:
             (employee.positions_id_data as { title?: string } | null)?.title ?? "",
           color: colorFromId(employee.guid),
@@ -116,7 +121,7 @@ export default function AssigneeField({
         setIsLoading(false);
       }
     },
-    [debouncedQuery]
+    [debouncedQuery, t]
   );
 
   // Открытие поповера и новый запрос начинают список заново.
@@ -152,7 +157,7 @@ export default function AssigneeField({
       : selected.length === 1
         ? selected[0].name
         : variant === "chip"
-          ? `${selected.length} ${pluralAssignees(selected.length)}`
+          ? t(assigneesCountKey(selected.length), { count: selected.length })
           : "";
 
   return (
@@ -169,7 +174,7 @@ export default function AssigneeField({
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Поиск сотрудника..."
+                placeholder={t("tasks.assignee.search_placeholder")}
                 className="w-full bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 dark:text-gray-200"
               />
               {isLoading && <Loader2 size={14} className="shrink-0 animate-spin text-gray-400" />}
@@ -204,12 +209,12 @@ export default function AssigneeField({
 
               {items.length === 0 && !isLoading && (
                 <p className="px-3 py-6 text-center text-sm text-gray-400">
-                  Сотрудники не найдены
+                  {t("tasks.assignee.no_employees_found")}
                 </p>
               )}
 
               {isLoading && items.length > 0 && (
-                <p className="py-2 text-center text-theme-xs text-gray-400">Загружаем...</p>
+                <p className="py-2 text-center text-theme-xs text-gray-400">{t("tasks.assignee.loading")}</p>
               )}
             </div>
 
@@ -220,7 +225,7 @@ export default function AssigneeField({
                   onClick={() => onChange([])}
                   className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-gray-500 transition hover:bg-gray-50 hover:text-error-600 dark:hover:bg-white/5"
                 >
-                  Убрать всех
+                  {t("tasks.assignee.clear_all")}
                 </button>
               </div>
             )}
@@ -248,7 +253,7 @@ export default function AssigneeField({
         )}
       </Popover>
       {selected.length > 0 && (
-        <ClearButton onClick={() => onChange([])} label="Снять исполнителей" />
+        <ClearButton onClick={() => onChange([])} label={t("tasks.assignee.remove_assignees")} />
       )}
     </FieldSlot>
   );

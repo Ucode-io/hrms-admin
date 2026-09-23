@@ -1,12 +1,11 @@
 import { useState } from "react";
-import DatePicker, { registerLocale } from "react-datepicker";
-import { ru } from "date-fns/locale/ru";
+import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { CalendarDays } from "lucide-react";
 import Popover from "../ui/Popover";
 import { ClearButton, ControlButton, FieldSlot, type ControlVariant } from "../ui/controls";
-
-registerLocale("ru", ru);
+import { BCP47, DATE_FNS_LOCALES, useTranslation } from "../../../../i18n";
+import type { Locale, MessageKey } from "../../../../i18n/messages";
 
 const toIso = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
@@ -20,11 +19,11 @@ const fromIso = (value: string | null): Date | null => {
 };
 
 /** "5 авг." for the current year, "5 авг. 2027" otherwise. */
-const formatShort = (value: string): string => {
+const formatShort = (value: string, locale: Locale): string => {
   const date = fromIso(value);
   if (!date) return "—";
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString("ru-RU", {
+  return date.toLocaleDateString(BCP47[locale], {
     day: "numeric",
     month: "short",
     ...(sameYear ? {} : { year: "numeric" }),
@@ -38,10 +37,10 @@ const shiftDays = (days: number): string => {
   return toIso(date);
 };
 
-const PRESETS: { label: string; days: number }[] = [
-  { label: "Сегодня", days: 0 },
-  { label: "Завтра", days: 1 },
-  { label: "Через неделю", days: 7 },
+const PRESETS: { labelKey: MessageKey; days: number }[] = [
+  { labelKey: "tasks.date.preset_today", days: 0 },
+  { labelKey: "tasks.date.preset_tomorrow", days: 1 },
+  { labelKey: "tasks.date.preset_in_a_week", days: 7 },
 ];
 
 interface DateFieldProps {
@@ -60,6 +59,7 @@ export default function DateField({
   placeholder,
   overdue,
 }: DateFieldProps) {
+  const { t, locale } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const set = (next: string | null, close: () => void) => {
@@ -77,12 +77,12 @@ export default function DateField({
             <div className="flex flex-wrap gap-1 border-b border-gray-100 p-2 dark:border-gray-800">
               {PRESETS.map((preset) => (
                 <button
-                  key={preset.label}
+                  key={preset.labelKey}
                   type="button"
                   onClick={() => set(shiftDays(preset.days), close)}
                   className="rounded-lg px-2.5 py-1.5 text-theme-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
                 >
-                  {preset.label}
+                  {t(preset.labelKey)}
                 </button>
               ))}
             </div>
@@ -91,7 +91,7 @@ export default function DateField({
               <DatePicker
                 selected={fromIso(value)}
                 onChange={(date: Date | null) => set(date ? toIso(date) : null, close)}
-                locale="ru"
+                locale={DATE_FNS_LOCALES[locale]}
                 inline
                 calendarStartDay={1}
               />
@@ -103,7 +103,7 @@ export default function DateField({
                 onClick={() => set(null, close)}
                 className="border-t border-gray-100 px-3 py-2.5 text-left text-sm text-gray-500 transition hover:bg-gray-50 hover:text-error-600 dark:border-gray-800 dark:hover:bg-white/5"
               >
-                Очистить дату
+                {t("tasks.date.clear_date")}
               </button>
             )}
           </div>
@@ -125,12 +125,12 @@ export default function DateField({
                 value && overdue ? "font-medium text-error-600" : ""
               }`}
             >
-              {value ? formatShort(value) : placeholder}
+              {value ? formatShort(value, locale) : placeholder}
             </span>
           </ControlButton>
         )}
       </Popover>
-      {value && <ClearButton onClick={() => onChange(null)} label="Очистить дату" />}
+      {value && <ClearButton onClick={() => onChange(null)} label={t("tasks.date.clear_date")} />}
     </FieldSlot>
   );
 }

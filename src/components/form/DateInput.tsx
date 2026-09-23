@@ -21,6 +21,7 @@
 // строки. Поэтому замена по местам вызова была построчной.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation, monthNames, weekdayNames } from "../../i18n";
 
 // Иконка встроена по той же причине, что в `TimeInput`: бочонок
 // `../../icons` тянет все svg проекта через `?react` вместе с vite-плагином,
@@ -32,13 +33,6 @@ const CalendarIcon = () => (
   </svg>
 );
 
-const MONTHS = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-];
-
-// Неделя с понедельника: рабочий календарь, суббота с воскресеньем в конце.
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 /** Семь колонок по 36px плюс поля. Меньше — числа переносятся. */
 const POPUP_WIDTH = 276;
@@ -120,9 +114,11 @@ export default function DateInput({
   max,
   disabled = false,
   className,
-  placeholder = "ДД.ММ.ГГГГ",
+  placeholder,
   id,
 }: DateInputProps) {
+  const { t, locale } = useTranslation();
+  placeholder ??= t("common.date_placeholder");
   const [text, setText] = useState(() => formatDateValue(value));
   const [isOpen, setIsOpen] = useState(false);
   const [box, setBox] = useState<{ top: number; left: number } | null>(null);
@@ -278,28 +274,29 @@ export default function DateInput({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => shiftMonth(-1)}
               className="rounded-lg px-2 py-1 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
-              aria-label="Предыдущий месяц"
+              aria-label={t("common.prev_month")}
             >
               ‹
             </button>
             <span className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
-              {MONTHS[viewMonth - 1]} {viewYear}
+              {monthNames(locale)[viewMonth - 1]} {viewYear}
             </span>
             <button
               type="button"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => shiftMonth(1)}
               className="rounded-lg px-2 py-1 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
-              aria-label="Следующий месяц"
+              aria-label={t("common.next_month")}
             >
               ›
             </button>
           </div>
 
           <div className="grid grid-cols-7 gap-0.5">
-            {WEEKDAYS.map((weekday) => (
+            {/* Неделя с понедельника: рабочий календарь, выходные в конце. */}
+            {weekdayNames(locale).map((weekday, index) => (
               <span
-                key={weekday}
+                key={index}
                 className="py-1 text-center text-[11px] font-medium text-gray-400 dark:text-gray-500"
               >
                 {weekday}
@@ -338,7 +335,7 @@ export default function DateInput({
               onClick={() => pick(today)}
               className="rounded-lg px-2 py-1 text-[12px] font-medium text-brand-600 transition hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
             >
-              Сегодня
+              {t("common.today")}
             </button>
             <button
               type="button"
@@ -350,7 +347,7 @@ export default function DateInput({
               }}
               className="rounded-lg px-2 py-1 text-[12px] text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
             >
-              Очистить
+              {t("common.clear")}
             </button>
           </div>
         </div>

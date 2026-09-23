@@ -27,6 +27,7 @@ import AssigneeField from "./fields/AssigneeField";
 import DateField from "./fields/DateField";
 import ParentField from "./fields/ParentField";
 import TagsField from "./fields/TagsField";
+import { useTranslation } from "../../../i18n";
 
 interface TaskFormModalProps {
   isOpen: boolean;
@@ -105,6 +106,7 @@ export default function TaskFormModal({
   initialDeadline = null,
   onCreateTag,
 }: TaskFormModalProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<TaskDraft>(() =>
     emptyDraft(directories, initialStatusId, initialParentId, initialSheetId, initialDeadline)
   );
@@ -167,7 +169,7 @@ export default function TaskFormModal({
   const addFiles = async (files: File[]) => {
     if (files.length === 0) return;
     const { accepted, rejected } = await readFiles(files);
-    rejected.forEach((reason) => toast.error(`Файл не добавлен: ${reason}`));
+    rejected.forEach((reason) => toast.error(t("tasks.form.file_not_added", { reason })));
     if (accepted.length === 0) return;
     const staged: TaskAttachment[] = accepted.map((file, index) => ({
       ...file,
@@ -232,9 +234,9 @@ export default function TaskFormModal({
         {isDragActive && (
           <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-400 bg-brand-50/90 text-brand-600 dark:bg-brand-500/20">
             <Upload size={26} />
-            <span className="text-sm font-medium">Отпустите файлы</span>
+            <span className="text-sm font-medium">{t("tasks.form.drop_files")}</span>
             <span className="text-theme-xs">
-              Изображения и документы до {formatFileSize(MAX_ATTACHMENT_SIZE)}
+              {t("tasks.form.drop_files_hint", { size: formatFileSize(MAX_ATTACHMENT_SIZE) })}
             </span>
           </div>
         )}
@@ -246,14 +248,18 @@ export default function TaskFormModal({
               </span>
             )}
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              {isEdit ? "Редактирование задачи" : draft.parentId ? "Новая подзадача" : "Новая задача"}
+              {isEdit
+                ? t("tasks.form.title_edit")
+                : draft.parentId
+                  ? t("tasks.form.title_new_subtask")
+                  : t("tasks.form.title_new_task")}
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
-            aria-label="Закрыть"
+            aria-label={t("tasks.form.close")}
           >
             <X size={17} />
           </button>
@@ -272,7 +278,7 @@ export default function TaskFormModal({
             }}
             minHeight={36}
             maxHeight={120}
-            placeholder="Название задачи"
+            placeholder={t("tasks.form.title_placeholder")}
             className={`rounded-lg bg-transparent px-1 py-1 text-lg font-semibold leading-snug text-gray-900 placeholder:text-gray-300 focus:outline-hidden dark:text-white/90 dark:placeholder:text-gray-600 ${
               titleError ? "ring-1 ring-error-400" : ""
             }`}
@@ -280,7 +286,7 @@ export default function TaskFormModal({
           {titleError && (
             <p className="mb-1 flex items-center gap-1.5 px-1 text-theme-xs text-error-500">
               <AlertCircle size={13} />
-              Укажите название задачи
+              {t("tasks.form.title_required")}
             </p>
           )}
 
@@ -289,7 +295,7 @@ export default function TaskFormModal({
               value={draft.description}
               onChange={(description) => patch({ description })}
               minHeight={120}
-              placeholder="Добавьте описание, критерии приёмки, ссылки..."
+              placeholder={t("tasks.form.description_placeholder")}
             />
           </div>
 
@@ -317,7 +323,7 @@ export default function TaskFormModal({
               employees={employees}
               onChange={(assigneeIds) => patch({ assigneeIds })}
               variant="chip"
-              placeholder="Исполнители"
+              placeholder={t("tasks.form.assignees_placeholder")}
             />
             <LocationField
               value={draft.locationId}
@@ -329,13 +335,13 @@ export default function TaskFormModal({
               value={draft.startDate}
               onChange={(startDate) => patch({ startDate })}
               variant="chip"
-              placeholder="Начало"
+              placeholder={t("tasks.form.start_date_placeholder")}
             />
             <DateField
               value={draft.deadline}
               onChange={(deadline) => patch({ deadline })}
               variant="chip"
-              placeholder="Дедлайн"
+              placeholder={t("tasks.form.deadline_placeholder")}
             />
             <ParentField
               value={draft.parentId}
@@ -367,7 +373,7 @@ export default function TaskFormModal({
                 className="inline-flex h-9 items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 text-sm text-gray-400 transition hover:border-gray-400 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-white/5"
               >
                 <Paperclip size={15} />
-                Файлы
+                {t("tasks.form.files")}
               </button>
             )}
           </div>
@@ -376,7 +382,7 @@ export default function TaskFormModal({
             <div className="mt-3">
               <div className="mb-2.5 flex items-center gap-2">
                 <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                  Вложения
+                  {t("tasks.form.attachments")}
                 </h4>
                 <button
                   type="button"
@@ -384,7 +390,7 @@ export default function TaskFormModal({
                   className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-theme-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
                 >
                   <Upload size={13} />
-                  Загрузить
+                  {t("tasks.form.upload")}
                 </button>
               </div>
               <AttachmentsGrid
@@ -400,7 +406,7 @@ export default function TaskFormModal({
           {datesInverted && (
             <p className="mt-2.5 flex items-center gap-1.5 text-theme-xs text-warning-600 dark:text-orange-400">
               <AlertCircle size={13} />
-              Дедлайн раньше даты начала
+              {t("tasks.form.deadline_before_start")}
             </p>
           )}
 
@@ -415,7 +421,7 @@ export default function TaskFormModal({
                 onChange={(event) => setCreateAnother(event.target.checked)}
                 className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-500 focus:ring-brand-500/20"
               />
-              Создать ещё одну
+              {t("tasks.form.create_another")}
             </label>
           )}
 
@@ -425,7 +431,7 @@ export default function TaskFormModal({
               onClick={onClose}
               className="rounded-lg px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
             >
-              Отмена
+              {t("tasks.form.cancel")}
             </button>
             <button
               type="button"
@@ -433,7 +439,11 @@ export default function TaskFormModal({
               disabled={isSubmitting}
               className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? "Сохранение..." : isEdit ? "Сохранить" : "Создать задачу"}
+              {isSubmitting
+                ? t("tasks.form.saving")
+                : isEdit
+                  ? t("tasks.form.save")
+                  : t("tasks.form.create_task")}
               <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-medium sm:inline">
                 ⌘↵
               </kbd>

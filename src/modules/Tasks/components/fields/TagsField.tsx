@@ -5,6 +5,7 @@ import type { TaskDirectoryItem } from "../../types";
 import Popover from "../ui/Popover";
 import OptionPicker, { type PickerOption } from "../ui/OptionPicker";
 import { ControlButton, type ControlVariant } from "../ui/controls";
+import { useTranslation } from "../../../../i18n";
 
 interface TagsFieldProps {
   /** Выбранные теги — id из справочника. */
@@ -23,6 +24,7 @@ export default function TagsField({
   onCreateTag,
   variant,
 }: TagsFieldProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const options = useMemo<PickerOption[]>(
@@ -65,10 +67,10 @@ export default function TagsField({
                 }
               : undefined
           }
-          createLabel={(query) => `Создать тег «${query}»`}
+          createLabel={(query) => t("tasks.tags.create_label", { query })}
           searchable
-          searchPlaceholder="Найти или создать тег..."
-          emptyText="Тегов пока нет"
+          searchPlaceholder={t("tasks.tags.search_placeholder")}
+          emptyText={t("tasks.tags.empty_text")}
           closeOnSelect={false}
           close={close}
         />
@@ -86,7 +88,7 @@ export default function TagsField({
         >
           <Tag size={14} className="shrink-0 text-gray-400" />
           {value.length === 0 ? (
-            <span className="flex-1 truncate text-left">Добавить теги</span>
+            <span className="flex-1 truncate text-left">{t("tasks.tags.add_tags")}</span>
           ) : variant === "row" ? (
             <span className="flex min-w-0 flex-1 flex-wrap gap-1">
               {selected.map((tag, index) => (
@@ -99,7 +101,7 @@ export default function TagsField({
                   <span
                     role="button"
                     tabIndex={-1}
-                    aria-label={`Убрать тег ${tag.title}`}
+                    aria-label={t("tasks.tags.remove_tag", { tag: tag.title })}
                     onClick={(event) => {
                       event.stopPropagation();
                       onChange(value.filter((item) => item !== value[index]));

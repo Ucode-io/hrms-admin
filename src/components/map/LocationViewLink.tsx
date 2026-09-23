@@ -13,6 +13,7 @@ import {
   parseCoords,
 } from "./shared";
 import type { Office } from "./useOffices";
+import { useTranslation, translate } from "../../i18n";
 
 type OfficeCheck = {
   title: string;
@@ -46,7 +47,9 @@ function checkAgainstOffice(point: Coords, office: Office | null | undefined): O
 
 /** «120 м» / «1.4 км» — в подписи нужен порядок, а не точность до метра. */
 const humanDistance = (meters: number): string =>
-  meters < 1000 ? `${Math.round(meters)} м` : `${(meters / 1000).toFixed(1)} км`;
+  meters < 1000
+    ? translate("map.distance_m", { value: Math.round(meters) })
+    : translate("map.distance_km", { value: (meters / 1000).toFixed(1) });
 
 function ReadOnlyMap({ point, office }: { point: Coords; office: OfficeCheck | null }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +93,67 @@ function ReadOnlyMap({ point, office }: { point: Coords; office: OfficeCheck | n
   );
 }
 
+const distanceTitle = (check: OfficeCheck): string =>
+  translate(check.outside ? "map.distance_outside" : "map.distance_inside", {
+    distance: humanDistance(check.distanceM),
+    office: check.title ? ` «${check.title}»` : "",
+    radius: check.radiusM,
+  });
+
+function DistanceChip({ check, prefix }: { check: OfficeCheck; prefix?: string }) {
+  return (
+    <span
+      title={distanceTitle(check)}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+        check.outside ? "bg-warning-50 text-warning-700" : "bg-success-50 text-success-700"
+      }`}
+    >
+      {check.outside ? <TriangleAlert className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
+      {prefix ? `${prefix} ` : ""}
+      {humanDistance(check.distanceM)}
+    </span>
+  );
+}
+
+/**
+ * Расстояние отметки до офиса сотрудника: зелёное в радиусе филиала, жёлтое за
+ * ним. Без точки или без офиса с координатами сверять не с чем — прочерк.
+ */
+export function DistanceBadge({
+  value,
+  office,
+  prefix,
+  reason,
+}: {
+  value: string;
+  office?: Office | null;
+  /** «Приход» / «Уход», когда рядом стоят обе отметки. */
+  prefix?: string;
+  /** Причина, которую сотрудник написал к отметке вне филиала. */
+  reason?: string;
+}) {
+  const point = parseCoords(value);
+  const check = point ? checkAgainstOffice(point, office) : null;
+  const badge = check ? <DistanceChip check={check} prefix={prefix} /> : <span className="text-gray-400">—</span>;
+  if (!reason) return badge;
+
+  return (
+    <span className="inline-flex max-w-[220px] flex-col items-start gap-0.5">
+      {badge}
+      <MarkReason reason={reason} />
+    </span>
+  );
+}
+
+/** Причина отметки одной строкой; полный текст — в подсказке. */
+export function MarkReason({ reason }: { reason: string }) {
+  return (
+    <span title={reason} className="block max-w-full truncate text-[11px] italic text-gray-500">
+      «{reason}»
+    </span>
+  );
+}
+
 /**
  * Показывает точку отметки на карте в попапе.
  *
@@ -99,14 +163,19 @@ function ReadOnlyMap({ point, office }: { point: Coords; office: OfficeCheck | n
  */
 export default function LocationViewLink({
   value,
-  label = "Открыть на карте",
+  label,
   office,
+  showDistance = true,
 }: {
   value: string;
   label?: string;
+  /** false — когда расстояние уже стоит рядом отдельным `DistanceBadge`. */
+  showDistance?: boolean;
   /** Офис сотрудника; без него предупреждение не считается. */
   office?: Office | null;
 }) {
+  const { t } = useTranslation();
+  label ??= t("map.open_on_map");
   const [isOpen, setIsOpen] = useState(false);
   const point = parseCoords(value);
   const check = point ? checkAgainstOffice(point, office) : null;
@@ -124,9 +193,7 @@ export default function LocationViewLink({
     );
   }
 
-  const warning = check?.outside
-    ? `Отметка в ${humanDistance(check.distanceM)} от офиса${check.title ? ` «${check.title}»` : ""} — это дальше разрешённых ${check.radiusM} м`
-    : "";
+  const warning = check?.outside ? distanceTitle(check) : "";
 
   return (
     <>
@@ -140,15 +207,9 @@ export default function LocationViewLink({
           <MapPin className="h-3.5 w-3.5" />
         </button>
 
-        {warning ? (
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
-            title={warning}
-            className="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 text-[11px] font-semibold text-warning-700"
-          >
-            <TriangleAlert className="h-3 w-3" />
-            {humanDistance(check!.distanceM)} от офиса
+        {check && showDistance ? (
+          <button type="button" onClick={() => setIsOpen(true)}>
+            <DistanceChip check={check} />
           </button>
         ) : null}
       </span>
@@ -161,7 +222,7 @@ export default function LocationViewLink({
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3.5">
           <div>
-            <h3 className="text-base font-semibold text-gray-900">Локация</h3>
+            <h3 className="text-base font-semibold text-gray-900">{t("map.location_title")}</h3>
             <p className="text-xs text-gray-500">
               {point.lat}, {point.lon}
             </p>
@@ -170,7 +231,7 @@ export default function LocationViewLink({
             type="button"
             onClick={() => setIsOpen(false)}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Закрыть"
+            aria-label={t("common.close")}
           >
             <X size={18} />
           </button>
@@ -183,10 +244,7 @@ export default function LocationViewLink({
               {warning}
             </p>
           ) : check ? (
-            <p className="text-xs text-gray-500">
-              {humanDistance(check.distanceM)} от офиса
-              {check.title ? ` «${check.title}»` : ""} — в пределах {check.radiusM} м
-            </p>
+            <p className="text-xs text-success-700">{distanceTitle(check)}</p>
           ) : null}
 
           <ReadOnlyMap point={point} office={check} />

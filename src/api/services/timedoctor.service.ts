@@ -4,6 +4,7 @@ import authStore from "../../store/auth.store";
 import companyStore from "../../store/company.store";
 import { getCompaniesId } from "../httpRequest";
 import { retryWithFreshToken } from "../unauthorizedHandler";
+import { translate } from "../../i18n";
 
 // --- Time Doctor (TD2) integration gateway -------------------------------
 // Все обработчики живут в одной cloud-функции u-code. Обработчик выбирается
@@ -76,7 +77,7 @@ const unwrapTd2Response = <T,>(raw: unknown): T => {
         : typeof outer.description === "string"
           ? outer.description
           : "";
-    throw new Error(gatewayError || "Неожиданный формат ответа Time Doctor.");
+    throw new Error(gatewayError || translate("timedoctor.unexpected_format"));
   }
 
   if (envelope.status !== "success") {
@@ -85,7 +86,7 @@ const unwrapTd2Response = <T,>(raw: unknown): T => {
       (typeof payload.message === "string" && payload.message) ||
       (typeof payload.error === "string" && payload.error) ||
       (typeof envelope.server_error === "string" && envelope.server_error) ||
-      "Запрос к Time Doctor не выполнен.";
+      translate("timedoctor.request_failed");
     throw new Error(message);
   }
 

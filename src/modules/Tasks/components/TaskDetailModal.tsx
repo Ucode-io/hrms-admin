@@ -38,6 +38,7 @@ import RichTextField from "./ui/RichTextField";
 import AutoTextarea from "./ui/AutoTextarea";
 import Popover from "./ui/Popover";
 import { SidebarField } from "./ui/controls";
+import { BCP47, useTranslation } from "../../../i18n";
 import StatusField from "./fields/StatusField";
 import PriorityField from "./fields/PriorityField";
 import TypeField from "./fields/TypeField";
@@ -71,8 +72,8 @@ interface TaskDetailModalProps {
   onClose: () => void;
 }
 
-const formatDateTime = (value: string) =>
-  new Date(value).toLocaleString("ru-RU", {
+const formatDateTime = (value: string, bcp: string) =>
+  new Date(value).toLocaleString(bcp, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -80,15 +81,16 @@ const formatDateTime = (value: string) =>
     minute: "2-digit",
   });
 
-const relativeTime = (value: string): string => {
+const relativeTime = (value: string, bcp: string, justNow: string): string => {
   const diff = Date.now() - new Date(value).getTime();
   const minutes = Math.round(diff / 60000);
-  if (minutes < 1) return "только что";
-  if (minutes < 60) return `${minutes} мин назад`;
+  if (minutes < 1) return justNow;
+  const rtf = new Intl.RelativeTimeFormat(bcp, { style: "short" });
+  if (minutes < 60) return rtf.format(-minutes, "minute");
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} ч назад`;
+  if (hours < 24) return rtf.format(-hours, "hour");
   const days = Math.round(hours / 24);
-  if (days < 30) return `${days} дн назад`;
+  if (days < 30) return rtf.format(-days, "day");
   return formatTaskDate(value);
 };
 
@@ -127,6 +129,8 @@ export default function TaskDetailModal({
   onDeleted,
   onClose,
 }: TaskDetailModalProps) {
+  const { t, locale } = useTranslation();
+  const bcp = BCP47[locale];
   const updateMutation = useUpdateTask();
   const deleteMutation = useDeleteTask();
   const addCommentMutation = useAddTaskComment();
@@ -196,7 +200,7 @@ export default function TaskDetailModal({
       { id: task.id, patch: partial },
       {
         onError: () => {
-          toast.error("Не удалось сохранить изменения.");
+          toast.error(t("tasks.detail.save_error"));
         },
       },
     );
@@ -212,7 +216,7 @@ export default function TaskDetailModal({
       { id: task.id, text },
       {
         onError: () => {
-          toast.error("Не удалось добавить комментарий.");
+          toast.error(t("tasks.detail.comment_error"));
         },
       },
     );
@@ -226,7 +230,7 @@ export default function TaskDetailModal({
       { id: task.id, text },
       {
         onError: () => {
-          toast.error("Не удалось добавить пункт.");
+          toast.error(t("tasks.detail.checklist_item_error"));
         },
       },
     );
@@ -235,16 +239,20 @@ export default function TaskDetailModal({
   const uploadFiles = async (files: File[]) => {
     if (files.length === 0) return;
     const { accepted, rejected } = await readFiles(files);
-    rejected.forEach((reason) => toast.error(`Файл не добавлен: ${reason}`));
+    rejected.forEach((reason) => toast.error(t("tasks.form.file_not_added", { reason })));
     if (accepted.length === 0) return;
     addAttachmentsMutation.mutate(
       { id: task.id, files: accepted },
       {
         onSuccess: () => {
-          toast.success(accepted.length === 1 ? "Файл прикреплён." : "Файлы прикреплены.");
+          toast.success(
+            accepted.length === 1
+              ? t("tasks.detail.file_attached_one")
+              : t("tasks.detail.file_attached_many")
+          );
         },
         onError: (error) => {
-          toast.error(error instanceof Error ? error.message : "Не удалось прикрепить файл.");
+          toast.error(error instanceof Error ? error.message : t("tasks.detail.attach_file_error"));
         },
       },
     );
@@ -258,14 +266,14 @@ export default function TaskDetailModal({
       await deleteMutation.mutateAsync(task.id);
       toast.success(
         subtasks.length > 0
-          ? "Задача удалена — её подзадачи стали самостоятельными."
-          : "Задача удалена."
+          ? t("tasks.detail.task_deleted_with_subtasks")
+          : t("tasks.detail.task_deleted")
       );
       onDeleted?.(task);
       setIsDeleteOpen(false);
       onClose();
     } catch {
-      toast.error("Не удалось удалить задачу.");
+      toast.error(t("tasks.detail.delete_task_error"));
     }
   };
 
@@ -274,7 +282,7 @@ export default function TaskDetailModal({
     try {
       await onCreateSubtask(title);
     } catch {
-      toast.error("Не удалось создать подзадачу.");
+      toast.error(t("tasks.detail.create_subtask_error"));
     } finally {
       setIsCreatingSubtask(false);
     }
@@ -301,9 +309,9 @@ export default function TaskDetailModal({
           {isDragActive && (
             <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-400 bg-brand-50/90 text-brand-600 dark:bg-brand-500/20">
               <Upload size={26} />
-              <span className="text-sm font-medium">Отпустите файлы</span>
+              <span className="text-sm font-medium">{t("tasks.form.drop_files")}</span>
               <span className="text-theme-xs">
-                Изображения и документы до {formatFileSize(MAX_ATTACHMENT_SIZE)}
+                {t("tasks.form.drop_files_hint", { size: formatFileSize(MAX_ATTACHMENT_SIZE) })}
               </span>
             </div>
           )}
@@ -332,7 +340,7 @@ export default function TaskDetailModal({
               {overdue && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-error-50 px-2 py-1 text-theme-xs font-medium text-error-600 dark:bg-error-500/15">
                   <Clock size={12} />
-                  Просрочена
+                  {t("tasks.detail.overdue_badge")}
                 </span>
               )}
             </div>
@@ -349,13 +357,13 @@ export default function TaskDetailModal({
                       type="button"
                       onClick={() => {
                         void navigator.clipboard?.writeText(`${task.code} — ${task.title}`);
-                        toast.success("Скопировано в буфер обмена.");
+                        toast.success(t("tasks.detail.copied_toast"));
                         close();
                       }}
                       className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"
                     >
                       <Copy size={15} className="text-gray-400" />
-                      Копировать номер
+                      {t("tasks.detail.copy_number")}
                     </button>
                     <button
                       type="button"
@@ -366,7 +374,7 @@ export default function TaskDetailModal({
                       className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-error-600 transition hover:bg-error-50 dark:hover:bg-error-500/10"
                     >
                       <Trash2 size={15} />
-                      Удалить задачу
+                      {t("tasks.detail.delete_task")}
                     </button>
                   </div>
                 )}
@@ -376,7 +384,7 @@ export default function TaskDetailModal({
                     ref={ref}
                     type="button"
                     {...props}
-                    aria-label="Действия"
+                    aria-label={t("tasks.detail.actions_aria")}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
                   >
                     <MoreHorizontal size={18} />
@@ -388,7 +396,7 @@ export default function TaskDetailModal({
                 type="button"
                 onClick={onClose}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
-                aria-label="Закрыть"
+                aria-label={t("tasks.detail.close_aria")}
               >
                 <X size={18} />
               </button>
@@ -403,18 +411,18 @@ export default function TaskDetailModal({
               <AutoSaveText
                 value={task.title}
                 onSave={(title) => patch({ title })}
-                placeholder="Название задачи"
+                placeholder={t("tasks.form.title_placeholder")}
                 required
                 minHeight={36}
                 className="text-xl font-semibold leading-snug text-gray-900 dark:text-white/90"
               />
 
               <section className="mt-5">
-                <SectionTitle>Описание</SectionTitle>
+                <SectionTitle>{t("tasks.detail.description_title")}</SectionTitle>
                 <RichTextField
                   value={task.description}
                   onSave={(description) => patch({ description })}
-                  placeholder="Добавьте описание задачи..."
+                  placeholder={t("tasks.detail.description_placeholder")}
                 />
               </section>
 
@@ -435,13 +443,13 @@ export default function TaskDetailModal({
                       className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-theme-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
                     >
                       <Upload size={13} />
-                      Загрузить
+                      {t("tasks.detail.upload_button")}
                     </button>
                   }
                 >
                   <span className="flex items-center gap-2">
                     <Paperclip size={15} className="text-gray-400" />
-                    Вложения
+                    {t("tasks.detail.attachments_title")}
                   </span>
                 </SectionTitle>
 
@@ -453,7 +461,7 @@ export default function TaskDetailModal({
                       { id: task.id, attachmentId },
                       {
                         onError: () => {
-                          toast.error("Не удалось удалить файл.");
+                          toast.error(t("tasks.detail.delete_file_error"));
                         },
                       },
                     )
@@ -483,7 +491,7 @@ export default function TaskDetailModal({
                 >
                   <span className="flex items-center gap-2">
                     <ListChecks size={16} className="text-gray-400" />
-                    Чек-лист
+                    {t("tasks.detail.checklist_title")}
                   </span>
                 </SectionTitle>
 
@@ -501,7 +509,7 @@ export default function TaskDetailModal({
                             itemId: item.id,
                           })
                         }
-                        aria-label={item.done ? "Снять отметку" : "Отметить выполненным"}
+                        aria-label={item.done ? t("tasks.detail.uncheck_aria") : t("tasks.detail.check_aria")}
                         className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition ${
                           item.done
                             ? "border-success-500 bg-success-500 text-white"
@@ -528,7 +536,7 @@ export default function TaskDetailModal({
                           })
                         }
                         className="inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 opacity-0 transition hover:bg-error-50 hover:text-error-600 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-error-500/10"
-                        aria-label="Удалить пункт"
+                        aria-label={t("tasks.detail.delete_item_aria")}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -553,7 +561,7 @@ export default function TaskDetailModal({
                       onBlur={() => {
                         if (!checklistText.trim()) setIsChecklistInputOpen(false);
                       }}
-                      placeholder="Что нужно сделать? Enter — добавить"
+                      placeholder={t("tasks.detail.checklist_placeholder")}
                       className="h-9 flex-1 rounded-lg border border-brand-300 bg-transparent px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:text-white/90"
                     />
                     <button
@@ -563,7 +571,7 @@ export default function TaskDetailModal({
                       disabled={!checklistText.trim()}
                       className="inline-flex h-9 items-center rounded-lg bg-brand-500 px-3 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-40"
                     >
-                      Добавить
+                      {t("tasks.detail.add_button")}
                     </button>
                   </div>
                 ) : (
@@ -573,7 +581,7 @@ export default function TaskDetailModal({
                     className="mt-1 inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-sm text-gray-500 transition hover:bg-gray-50 hover:text-brand-600 dark:text-gray-400 dark:hover:bg-white/5"
                   >
                     <Plus size={15} />
-                    Добавить пункт
+                    {t("tasks.detail.add_item_button")}
                   </button>
                 )}
               </section>
@@ -590,10 +598,10 @@ export default function TaskDetailModal({
                     { id: subtaskId, patch: { parentId: null } },
                     {
                       onSuccess: () => {
-                        toast.success("Подзадача откреплена.");
+                        toast.success(t("tasks.detail.detach_subtask_success"));
                       },
                       onError: () => {
-                        toast.error("Не удалось открепить подзадачу.");
+                        toast.error(t("tasks.detail.detach_subtask_error"));
                       },
                     },
                   )
@@ -608,12 +616,12 @@ export default function TaskDetailModal({
                     [
                       {
                         key: "comments",
-                        label: "Комментарии",
+                        label: t("tasks.detail.comments_tab"),
                         count: comments.length,
                       },
                       {
                         key: "history",
-                        label: "История",
+                        label: t("tasks.detail.history_tab"),
                         count: history.length,
                       },
                     ] as const
@@ -660,7 +668,7 @@ export default function TaskDetailModal({
                                 }
                               }}
                               minHeight={72}
-                              placeholder="Напишите комментарий..."
+                              placeholder={t("tasks.detail.comment_placeholder")}
                               className="rounded-xl border border-brand-300 bg-transparent px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:text-white/90"
                             />
                             <div className="mt-2 flex items-center gap-2">
@@ -670,7 +678,7 @@ export default function TaskDetailModal({
                                 disabled={!commentText.trim()}
                                 className="rounded-lg bg-brand-500 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-40"
                               >
-                                Отправить
+                                {t("tasks.detail.send_button")}
                               </button>
                               <button
                                 type="button"
@@ -680,10 +688,10 @@ export default function TaskDetailModal({
                                 }}
                                 className="rounded-lg px-3 py-2 text-sm text-gray-500 transition hover:bg-gray-100 dark:hover:bg-white/5"
                               >
-                                Отмена
+                                {t("tasks.detail.cancel_button")}
                               </button>
                               <span className="ml-auto text-theme-xs text-gray-400">
-                                ⌘+Enter — отправить
+                                {t("tasks.detail.send_shortcut_hint")}
                               </span>
                             </div>
                           </>
@@ -693,7 +701,7 @@ export default function TaskDetailModal({
                             onClick={() => setIsComposerOpen(true)}
                             className="h-10 w-full rounded-xl border border-gray-200 px-3 text-left text-sm text-gray-400 transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-white/5"
                           >
-                            Напишите комментарий...
+                            {t("tasks.detail.comment_placeholder")}
                           </button>
                         )}
                       </div>
@@ -702,12 +710,12 @@ export default function TaskDetailModal({
                     <div className="space-y-4">
                       {isActivityLoading && comments.length === 0 && (
                         <p className="py-6 text-center text-sm text-gray-400">
-                          Загружаем обсуждение...
+                          {t("tasks.detail.loading_discussion")}
                         </p>
                       )}
                       {!isActivityLoading && comments.length === 0 && (
                         <p className="py-2 text-sm text-gray-400">
-                          Комментариев пока нет — начните обсуждение.
+                          {t("tasks.detail.no_comments")}
                         </p>
                       )}
                       {comments.map((comment) => {
@@ -718,10 +726,10 @@ export default function TaskDetailModal({
                             <div className="min-w-0 flex-1 rounded-xl bg-gray-50 px-3 py-2 dark:bg-white/5">
                               <div className="flex items-baseline gap-2">
                                 <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                  {author?.name ?? "Система"}
+                                  {author?.name ?? t("tasks.detail.system_author")}
                                 </span>
                                 <span className="text-theme-xs text-gray-400">
-                                  {relativeTime(comment.createdAt)}
+                                  {relativeTime(comment.createdAt, bcp, t("tasks.detail.time_just_now"))}
                                 </span>
                               </div>
                               <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-400">
@@ -745,13 +753,13 @@ export default function TaskDetailModal({
                           <EmployeeAvatar employee={author} size={22} />
                           <span className="min-w-0 flex-1 text-sm leading-[22px] text-gray-500 dark:text-gray-400">
                             <span className="font-medium text-gray-700 dark:text-gray-200">
-                              {author?.name ?? "Система"}
+                              {author?.name ?? t("tasks.detail.system_author")}
                             </span>
                             <span className="px-1.5 text-gray-300">·</span>
                             {entry.text}
                           </span>
                           <span className="shrink-0 pt-0.5 text-theme-xs text-gray-400">
-                            {relativeTime(entry.at)}
+                            {relativeTime(entry.at, bcp, t("tasks.detail.time_just_now"))}
                           </span>
                         </li>
                       );
@@ -772,10 +780,10 @@ export default function TaskDetailModal({
 
               <div className="mt-5 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                 <p className="mb-1 px-2 text-theme-xs font-semibold uppercase tracking-wide text-gray-400">
-                  Детали
+                  {t("tasks.detail.details_title")}
                 </p>
 
-                <SidebarField label="Тип">
+                <SidebarField label={t("tasks.detail.type_label")}>
                   <TypeField
                     value={task.typeId}
                     types={directories.types}
@@ -784,7 +792,7 @@ export default function TaskDetailModal({
                   />
                 </SidebarField>
 
-                <SidebarField label="Исполнители">
+                <SidebarField label={t("tasks.detail.assignees_label")}>
                   <AssigneeField
                     value={task.assigneeIds}
                     employees={employees}
@@ -793,7 +801,7 @@ export default function TaskDetailModal({
                   />
                 </SidebarField>
 
-                <SidebarField label="Приоритет">
+                <SidebarField label={t("tasks.detail.priority_label")}>
                   <PriorityField
                     value={task.priorityId}
                     priorities={directories.priorities}
@@ -802,36 +810,36 @@ export default function TaskDetailModal({
                   />
                 </SidebarField>
 
-                <SidebarField label="Филиал">
+                <SidebarField label={t("tasks.detail.location_label")}>
                   <LocationField
                     value={task.locationId}
                     locations={locations}
                     onChange={(locationId) => patch({ locationId })}
                     variant="row"
-                    placeholder="Указать филиал"
+                    placeholder={t("tasks.detail.location_placeholder")}
                   />
                 </SidebarField>
 
-                <SidebarField label="Начало">
+                <SidebarField label={t("tasks.detail.start_label")}>
                   <DateField
                     value={task.startDate}
                     onChange={(startDate) => patch({ startDate })}
                     variant="row"
-                    placeholder="Указать дату"
+                    placeholder={t("tasks.detail.date_placeholder")}
                   />
                 </SidebarField>
 
-                <SidebarField label="Дедлайн">
+                <SidebarField label={t("tasks.detail.deadline_label")}>
                   <DateField
                     value={task.deadline}
                     onChange={(deadline) => patch({ deadline })}
                     variant="row"
-                    placeholder="Указать дату"
+                    placeholder={t("tasks.detail.date_placeholder")}
                     overdue={overdue}
                   />
                 </SidebarField>
 
-                <SidebarField label="Родитель">
+                <SidebarField label={t("tasks.detail.parent_label")}>
                   <ParentField
                     value={task.parentId}
                     types={directories.types}
@@ -839,11 +847,11 @@ export default function TaskDetailModal({
                     taskId={task.id}
                     onChange={(parentId) => patch({ parentId })}
                     variant="row"
-                    placeholder="Выбрать задачу"
+                    placeholder={t("tasks.detail.parent_placeholder")}
                   />
                 </SidebarField>
 
-                <SidebarField label="Лист">
+                <SidebarField label={t("tasks.detail.sheet_label")}>
                   <SheetField
                     value={task.sheetId}
                     sheets={sheets}
@@ -852,7 +860,7 @@ export default function TaskDetailModal({
                   />
                 </SidebarField>
 
-                <SidebarField label="Теги">
+                <SidebarField label={t("tasks.detail.tags_label")}>
                   <TagsField
                     value={task.tagIds}
                     tags={directories.tags}
@@ -865,28 +873,28 @@ export default function TaskDetailModal({
 
               <dl className="mt-4 space-y-1.5 px-2 text-theme-xs text-gray-400">
                 <div className="flex justify-between gap-2">
-                  <dt>Создана</dt>
+                  <dt>{t("tasks.detail.created_label")}</dt>
                   <dd className="text-gray-500 dark:text-gray-400">
-                    {formatDateTime(task.createdAt)}
+                    {formatDateTime(task.createdAt, bcp)}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt>Обновлена</dt>
+                  <dt>{t("tasks.detail.updated_label")}</dt>
                   <dd className="text-gray-500 dark:text-gray-400">
-                    {formatDateTime(task.updatedAt)}
+                    {formatDateTime(task.updatedAt, bcp)}
                   </dd>
                 </div>
                 {/* Не редактируются: даты начала и окончания ставит сервер по
                     группе статуса — «В работе» и «Завершено». Показываем только
                     дату: время начала здесь не нужно, а у окончания его нет. */}
                 <div className="flex justify-between gap-2">
-                  <dt>Начата</dt>
+                  <dt>{t("tasks.detail.started_label")}</dt>
                   <dd className="text-gray-500 dark:text-gray-400">
                     {task.beginAt ? formatTaskDate(task.beginAt) : "—"}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt>Завершена</dt>
+                  <dt>{t("tasks.detail.completed_label")}</dt>
                   <dd className="text-gray-500 dark:text-gray-400">
                     {task.endDate ? formatTaskDate(task.endDate) : "—"}
                   </dd>
@@ -911,15 +919,14 @@ export default function TaskDetailModal({
               <Trash2 size={20} />
             </div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
-              Удалить задачу?
+              {t("tasks.detail.delete_confirm_title")}
             </h3>
             <p className="mt-1.5 text-sm text-gray-500">
-              «{task.title}» будет удалена безвозвратно. Это действие нельзя отменить.
+              {t("tasks.detail.delete_confirm_body", { title: task.title })}
               {subtasks.length > 0 && (
                 <>
                   {" "}
-                  Подзадачи ({subtasks.length}) не удаляются — они останутся на доске без
-                  родителя.
+                  {t("tasks.detail.delete_confirm_subtasks", { count: subtasks.length })}
                 </>
               )}
             </p>
@@ -929,7 +936,7 @@ export default function TaskDetailModal({
                 onClick={() => setIsDeleteOpen(false)}
                 className="flex-1 rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-white/5"
               >
-                Отмена
+                {t("tasks.detail.cancel_button")}
               </button>
               <button
                 type="button"
@@ -937,7 +944,7 @@ export default function TaskDetailModal({
                 disabled={deleteMutation.isLoading}
                 className="flex-1 rounded-lg bg-error-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-error-600 disabled:opacity-60"
               >
-                {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+                {deleteMutation.isLoading ? t("tasks.detail.deleting") : t("tasks.detail.delete_button")}
               </button>
             </div>
           </div>

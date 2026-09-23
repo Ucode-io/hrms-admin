@@ -5,6 +5,7 @@
 // единственное место, где решается, что показывать, если справочник ещё не
 // загрузился или элемент удалили.
 
+import type { MessageKey } from "../../i18n/messages";
 import type {
   Task,
   TaskDirectories,
@@ -83,11 +84,11 @@ export const dotStyle = (color: string): React.CSSProperties => ({
 
 export const VIEW_ORDER: TasksViewKey[] = ["board", "table", "timeline", "calendar"];
 
-export const VIEW_META: Record<TasksViewKey, { label: string }> = {
-  board: { label: "Доска" },
-  table: { label: "Таблица" },
-  timeline: { label: "График" },
-  calendar: { label: "Календарь" },
+export const VIEW_META: Record<TasksViewKey, { labelKey: MessageKey }> = {
+  board: { labelKey: "tasks.views.board" },
+  table: { labelKey: "tasks.views.table" },
+  timeline: { labelKey: "tasks.views.timeline" },
+  calendar: { labelKey: "tasks.views.calendar" },
 };
 
 export const formatTaskDate = (value: string | null | undefined): string => {

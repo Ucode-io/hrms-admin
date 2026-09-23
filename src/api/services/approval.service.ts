@@ -140,6 +140,14 @@ export const findApprovalProcessFor = (
   );
 };
 
+/**
+ * Цепочка для строки посещаемости на согласовании. `integration` в статусе
+ * `requested` появляется только от отметки вне радиуса филиала — остальные
+ * отметки сервер сразу засчитывает; `manual` — ручная заявка на правку.
+ */
+export const attendanceApprovalType = (sourceType: string): ApprovalProcessType =>
+  sourceType === "integration" ? "remote_mark_approval" : "attendance_change_approval";
+
 // --- approval_actions ledger ----------------------------------------------
 
 export type EntityApprovalsMap = Record<string, RequestApprovalProgress>;

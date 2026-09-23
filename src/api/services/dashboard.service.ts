@@ -1,5 +1,6 @@
 import { useQuery } from "react-query";
 import httpRequest from "../httpRequest";
+import { translate } from "../../i18n";
 
 type DashboardAgendaParams = {
   userBaseId: string;
@@ -352,7 +353,7 @@ const dashboardService = {
 
       return {
         policyGuid: policy.guid,
-        policyTitle: policy.title || "Отсутствие",
+        policyTitle: policy.title || translate("dashboard.fallback.absence"),
         totalDays,
         usedDays,
         availableDays,

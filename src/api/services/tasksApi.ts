@@ -6,6 +6,7 @@
 // task.service.ts — так видно границу и проще было заменять мок.
 
 import { invokeTasksMethod } from "./taskDirectories.service";
+import { translate } from "../../i18n";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -193,7 +194,7 @@ const toSavePayload = (input: ApiTaskInput): Record<string, unknown> => ({
 
 const requireTask = (raw: unknown): ApiTask => {
   const task = mapApiTask(raw);
-  if (!task) throw new Error("Сервер вернул задачу в неожиданном формате");
+  if (!task) throw new Error(translate("tasks.errors.bad_task_format"));
   return task;
 };
 
@@ -276,7 +277,7 @@ export const tasksApi = {
     });
 
     const raw = result?.comment;
-    if (!isRecord(raw)) throw new Error("Сервер вернул комментарий в неожиданном формате");
+    if (!isRecord(raw)) throw new Error(translate("tasks.errors.bad_comment_format"));
 
     return {
       id: str(raw.id),

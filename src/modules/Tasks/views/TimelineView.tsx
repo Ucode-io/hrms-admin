@@ -9,6 +9,8 @@ import {
 import { findDirectoryItem, formatTaskDate, isTaskOverdue, taskDateSpan } from "../constants";
 import type { Task, TaskDirectories, TaskEmployee } from "../types";
 import { AvatarStack, EmployeeAvatar } from "../components/badges";
+import { BCP47, useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 interface TimelineViewProps {
   tasks: Task[];
@@ -22,16 +24,18 @@ const ROW_HEIGHT = 38;
 const UNASSIGNED = "__unassigned__";
 const EMPTY_GROUP = "__empty__";
 
-const WEEKDAY_FORMAT = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
-const DAY_MONTH_FORMAT = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
-const MONTH_FORMAT = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" });
+const makeFormats = (bcp: string) => ({
+  WEEKDAY_FORMAT: new Intl.DateTimeFormat(bcp, { weekday: "short" }),
+  DAY_MONTH_FORMAT: new Intl.DateTimeFormat(bcp, { day: "numeric", month: "short" }),
+  MONTH_FORMAT: new Intl.DateTimeFormat(bcp, { month: "long", year: "numeric" }),
+});
 
 type ScaleKey = "week" | "month" | "quarter";
 
-const SCALES: Record<ScaleKey, { label: string; pxPerDay: number }> = {
-  week: { label: "Неделя", pxPerDay: 96 },
-  month: { label: "Месяц", pxPerDay: 34 },
-  quarter: { label: "Квартал", pxPerDay: 11 },
+const SCALES: Record<ScaleKey, { labelKey: MessageKey; pxPerDay: number }> = {
+  week: { labelKey: "tasks.timeline.scale_week", pxPerDay: 96 },
+  month: { labelKey: "tasks.timeline.scale_month", pxPerDay: 34 },
+  quarter: { labelKey: "tasks.timeline.scale_quarter", pxPerDay: 11 },
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -113,11 +117,11 @@ interface Group {
  */
 type GroupKey = "none" | "assignee" | "position" | "department";
 
-const GROUPS: Record<GroupKey, string> = {
-  none: "Без группировки",
-  assignee: "По исполнителям",
-  position: "По должностям",
-  department: "По департаментам",
+const GROUPS: Record<GroupKey, MessageKey> = {
+  none: "tasks.timeline.group_none",
+  assignee: "tasks.timeline.group_assignee",
+  position: "tasks.timeline.group_position",
+  department: "tasks.timeline.group_department",
 };
 
 export default function TimelineView({
@@ -126,6 +130,11 @@ export default function TimelineView({
   directories,
   onOpenTask,
 }: TimelineViewProps) {
+  const { t, locale } = useTranslation();
+  const { WEEKDAY_FORMAT, DAY_MONTH_FORMAT, MONTH_FORMAT } = useMemo(
+    () => makeFormats(BCP47[locale]),
+    [locale]
+  );
   const [scale, setScale] = useState<ScaleKey>("month");
   const [cursor, setCursor] = useState(() => startOfDay(new Date()));
   const [groupBy, setGroupBy] = useState<GroupKey>("assignee");
@@ -167,7 +176,7 @@ export default function TimelineView({
         isWeekend: date.getDay() === 0 || date.getDay() === 6,
       };
     });
-  }, [scale, range, totalDays]);
+  }, [scale, range, totalDays, WEEKDAY_FORMAT, DAY_MONTH_FORMAT]);
 
   const today = startOfDay(new Date());
   const todayOffset =
@@ -215,10 +224,10 @@ export default function TimelineView({
             id: UNASSIGNED,
             title:
               groupBy === "assignee"
-                ? "Без исполнителя"
+                ? t("tasks.timeline.no_assignee")
                 : groupBy === "position"
-                  ? "Без должности"
-                  : "Без департамента",
+                  ? t("tasks.timeline.no_position")
+                  : t("tasks.timeline.no_department"),
           },
         ];
       }
@@ -227,14 +236,14 @@ export default function TimelineView({
       assigneeIds.forEach((id) => {
         const employee = employeeById.get(id);
         if (groupBy === "assignee") {
-          keys.set(id, employee?.name ?? "Неизвестный сотрудник");
+          keys.set(id, employee?.name ?? t("tasks.timeline.unknown_employee"));
           return;
         }
         if (groupBy === "position") {
-          keys.set(employee?.positionId || EMPTY_GROUP, employee?.position || "Без должности");
+          keys.set(employee?.positionId || EMPTY_GROUP, employee?.position || t("tasks.timeline.no_position"));
           return;
         }
-        keys.set(employee?.departmentId || EMPTY_GROUP, employee?.department || "Без департамента");
+        keys.set(employee?.departmentId || EMPTY_GROUP, employee?.department || t("tasks.timeline.no_department"));
       });
 
       return [...keys.entries()].map(([id, title]) => ({ id, title }));
@@ -264,7 +273,7 @@ export default function TimelineView({
       if (isTail(a.id) !== isTail(b.id)) return isTail(a.id) ? 1 : -1;
       return a.title.localeCompare(b.title);
     });
-  }, [rows, groupBy, employees]);
+  }, [rows, groupBy, employees, t]);
 
   const undatedCount = useMemo(
     () => tasks.filter((task) => !task.startDate && !task.endDate && !task.deadline).length,
@@ -275,7 +284,10 @@ export default function TimelineView({
   // `capitalize` поднимал регистр у каждого слова и давал «Август 2026 Г.».
   const rawTitle =
     scale === "quarter"
-      ? `${Math.floor(range.start.getMonth() / 3) + 1}-й квартал ${range.start.getFullYear()}`
+      ? t("tasks.timeline.quarter_title", {
+          quarter: Math.floor(range.start.getMonth() / 3) + 1,
+          year: range.start.getFullYear(),
+        })
       : scale === "week"
         ? `${DAY_MONTH_FORMAT.format(range.start)} — ${DAY_MONTH_FORMAT.format(range.end)}`
         : MONTH_FORMAT.format(range.start);
@@ -330,7 +342,9 @@ export default function TimelineView({
             onClick={() => onOpenTask(task)}
             title={`${task.code} · ${task.title}\n${status.title} · ${formatTaskDate(
               task.startDate
-            )} — ${formatTaskDate(task.endDate)}\nДедлайн: ${formatTaskDate(task.deadline)}`}
+            )} — ${formatTaskDate(task.endDate)}\n${t("tasks.card.deadline_title", {
+              date: formatTaskDate(task.deadline),
+            })}`}
             className={`absolute top-1/2 flex h-[22px] -translate-y-1/2 items-center overflow-hidden shadow-theme-xs transition hover:brightness-105 ${
               cutStart ? "rounded-l-none" : "rounded-l-md"
             } ${cutEnd ? "rounded-r-none" : "rounded-r-md"} ${
@@ -365,7 +379,7 @@ export default function TimelineView({
             type="button"
             onClick={() => shift(-1)}
             className={PILL_ICON_BUTTON}
-            aria-label="Назад"
+            aria-label={t("tasks.timeline.back_aria")}
           >
             <ChevronLeft size={16} />
           </button>
@@ -374,7 +388,7 @@ export default function TimelineView({
           <button
             type="button"
             onClick={() => setCursor(startOfDay(new Date()))}
-            title="Вернуться к текущему периоду"
+            title={t("tasks.timeline.back_to_current_period")}
             className={`${PILL_LABEL} h-[30px] rounded-[8px] border border-transparent transition hover:border-slate-200 hover:bg-white dark:hover:border-gray-600 dark:hover:bg-white/10`}
           >
             {title}
@@ -383,7 +397,7 @@ export default function TimelineView({
             type="button"
             onClick={() => shift(1)}
             className={PILL_ICON_BUTTON}
-            aria-label="Вперёд"
+            aria-label={t("tasks.timeline.forward_aria")}
           >
             <ChevronRight size={16} />
           </button>
@@ -398,7 +412,7 @@ export default function TimelineView({
                 onClick={() => setScale(key)}
                 className={pillButton(scale === key)}
               >
-                {SCALES[key].label}
+                {t(SCALES[key].labelKey)}
               </button>
             ))}
           </div>
@@ -410,7 +424,7 @@ export default function TimelineView({
               // Свёрнутые группы принадлежали прежней разбивке.
               setCollapsed([]);
             }}
-            aria-label="Группировка"
+            aria-label={t("tasks.timeline.grouping_aria")}
             className={`h-[38px] cursor-pointer rounded-[12px] border px-2.5 text-[13px] font-semibold transition focus:outline-hidden ${
               groupBy === "none"
                 ? "border-slate-200 bg-slate-50 text-slate-600 hover:bg-white dark:border-gray-700 dark:bg-white/5 dark:text-gray-300"
@@ -419,7 +433,7 @@ export default function TimelineView({
           >
             {(Object.keys(GROUPS) as GroupKey[]).map((key) => (
               <option key={key} value={key}>
-                {GROUPS[key]}
+                {t(GROUPS[key])}
               </option>
             ))}
           </select>
@@ -429,8 +443,8 @@ export default function TimelineView({
       {rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-16">
           <ChartGantt size={36} className="text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">Нет задач в этом периоде</p>
-          <p className="text-xs text-gray-400">Задачи без дат не отображаются на графике</p>
+          <p className="text-sm font-medium text-gray-500">{t("tasks.timeline.no_tasks_period")}</p>
+          <p className="text-xs text-gray-400">{t("tasks.timeline.undated_hint")}</p>
         </div>
       ) : (
         <div className="custom-scrollbar max-w-full overflow-x-auto">
@@ -441,7 +455,7 @@ export default function TimelineView({
                 className="sticky left-0 z-20 shrink-0 border-r border-gray-100 bg-white px-4 py-2 text-theme-xs font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-900"
                 style={{ width: LABEL_WIDTH }}
               >
-                Задача
+                {t("tasks.timeline.task_column")}
               </div>
               {columns.map((column) => {
                 const isToday =
@@ -566,7 +580,7 @@ export default function TimelineView({
         ))}
         {undatedCount > 0 && (
           <span className="ml-auto text-theme-xs text-gray-400">
-            Без дат: {undatedCount} — не показаны на графике
+            {t("tasks.timeline.undated_count", { count: undatedCount })}
           </span>
         )}
       </div>

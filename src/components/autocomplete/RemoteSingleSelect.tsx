@@ -4,6 +4,7 @@ import Select, {
   type SingleValue,
   type StylesConfig,
 } from "react-select";
+import { useTranslation } from "../../i18n";
 
 export type RemoteSelectOption = {
   value: string;
@@ -86,11 +87,13 @@ export default function RemoteSingleSelect({
   onChange,
   loadOptions,
   fallbackOption,
-  placeholder = "Выберите...",
+  placeholder,
   disabled = false,
   classNamePrefix = "remote-single-select",
   menuPortalTarget,
 }: RemoteSingleSelectProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("common.select_placeholder");
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -196,8 +199,8 @@ export default function RemoteSingleSelect({
       isDisabled={disabled}
       isLoading={isLoading}
       placeholder={placeholder}
-      noOptionsMessage={() => (isLoading ? "Загрузка..." : "Ничего не найдено")}
-      loadingMessage={() => "Загрузка..."}
+      noOptionsMessage={() => (isLoading ? t("common.loading") : t("common.no_options_found"))}
+      loadingMessage={() => t("common.loading")}
       filterOption={null}
       styles={selectStyles}
       classNamePrefix={classNamePrefix}

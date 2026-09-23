@@ -10,6 +10,8 @@ import {
 import { findDirectoryItem, formatTaskDate, isTaskOverdue } from "../constants";
 import type { Task, TaskDirectories, TaskEmployee } from "../types";
 import { AvatarStack, PriorityBadge, StatusBadge, TypeBadge } from "../components/badges";
+import { useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 interface TableViewProps {
   tasks: Task[];
@@ -34,18 +36,18 @@ type SortKey =
   | "deadline"
   | "updatedAt";
 
-const HEADERS: { key: SortKey; label: string }[] = [
-  { key: "code", label: "Код" },
-  { key: "title", label: "Название" },
-  { key: "type", label: "Тип" },
-  { key: "status", label: "Статус" },
-  { key: "priority", label: "Приоритет" },
-  { key: "assignee", label: "Исполнители" },
-  { key: "location", label: "Филиал" },
-  { key: "startDate", label: "Начало" },
-  { key: "endDate", label: "Завершена" },
-  { key: "deadline", label: "Дедлайн" },
-  { key: "updatedAt", label: "Обновлена" },
+const HEADERS: { key: SortKey; labelKey: MessageKey }[] = [
+  { key: "code", labelKey: "tasks.table.header_code" },
+  { key: "title", labelKey: "tasks.table.header_title" },
+  { key: "type", labelKey: "tasks.table.header_type" },
+  { key: "status", labelKey: "tasks.table.header_status" },
+  { key: "priority", labelKey: "tasks.table.header_priority" },
+  { key: "assignee", labelKey: "tasks.table.header_assignee" },
+  { key: "location", labelKey: "tasks.table.header_location" },
+  { key: "startDate", labelKey: "tasks.table.header_start_date" },
+  { key: "endDate", labelKey: "tasks.table.header_end_date" },
+  { key: "deadline", labelKey: "tasks.table.header_deadline" },
+  { key: "updatedAt", labelKey: "tasks.table.header_updated_at" },
 ];
 
 const formatDateTime = (value: string): string => {
@@ -67,6 +69,7 @@ export default function TableView({
   locationTitles,
   onOpenTask,
 }: TableViewProps) {
+  const { t } = useTranslation();
   const [sortKey, setSortKey] = useState<SortKey>("code");
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -134,7 +137,7 @@ export default function TableView({
         <Table>
           <TableHeader className="border-b border-gray-100 dark:border-gray-800">
             <TableRow>
-              {HEADERS.map(({ key, label }) => (
+              {HEADERS.map(({ key, labelKey }) => (
                 <TableCell
                   key={key}
                   isHeader
@@ -145,7 +148,7 @@ export default function TableView({
                     onClick={() => toggleSort(key)}
                     className="inline-flex items-center gap-1 transition hover:text-gray-700 dark:hover:text-gray-300"
                   >
-                    {label}
+                    {t(labelKey)}
                     {sortKey === key ? (
                       sortAsc ? (
                         <ArrowUp size={12} />
@@ -162,7 +165,7 @@ export default function TableView({
                 isHeader
                 className="whitespace-nowrap px-4 py-3 text-left text-theme-xs font-medium text-gray-500"
               >
-                Прогресс
+                {t("tasks.table.header_progress")}
               </TableCell>
             </TableRow>
           </TableHeader>
@@ -173,8 +176,8 @@ export default function TableView({
                 <TableCell colSpan={HEADERS.length + 1} className="px-4 py-16 text-center">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <ListTodo size={36} className="text-gray-300" />
-                    <p className="text-sm font-medium text-gray-500">Задачи не найдены</p>
-                    <p className="text-xs text-gray-400">Попробуйте изменить фильтры</p>
+                    <p className="text-sm font-medium text-gray-500">{t("tasks.table.empty_title")}</p>
+                    <p className="text-xs text-gray-400">{t("tasks.table.empty_hint")}</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -202,14 +205,14 @@ export default function TableView({
                           <GitBranch
                             size={13}
                             className="shrink-0 text-gray-300"
-                            aria-label="Подзадача"
+                            aria-label={t("tasks.table.subtask_aria")}
                           />
                         )}
                         <span className="min-w-0">{task.title}</span>
                         {subtaskCount > 0 && (
                           <span
                             className="inline-flex shrink-0 items-center gap-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-theme-xs font-medium text-gray-500 dark:bg-white/10 dark:text-gray-400"
-                            title="Подзадачи"
+                            title={t("tasks.table.subtasks_title")}
                           >
                             <GitBranch size={11} />
                             {subtaskCount}
@@ -230,7 +233,7 @@ export default function TableView({
                       <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                         <AvatarStack employees={assignees} size={26} max={2} />
                         {assignees.length === 0 ? (
-                          <span className="text-gray-400">Не назначен</span>
+                          <span className="text-gray-400">{t("tasks.table.unassigned")}</span>
                         ) : assignees.length === 1 ? (
                           assignees[0].name
                         ) : (

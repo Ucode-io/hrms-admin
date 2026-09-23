@@ -5,6 +5,7 @@
 // деплоить не надо.
 
 import { invokeTasksMethod } from "./taskDirectories.service";
+import { translate } from "../../i18n";
 
 export type NotificationEvent = {
   event_type: string;
@@ -29,7 +30,7 @@ const mapEvent = (raw: unknown): NotificationEvent | null => {
 
   return {
     event_type: str(raw.event_type),
-    section: str(raw.section) || "Прочее",
+    section: str(raw.section) || translate("notifications.fallback.other_section"),
     title: str(raw.title) || str(raw.event_type),
     hint: str(raw.hint) || null,
     employee_applicable: raw.employee_applicable !== false,
@@ -62,8 +63,8 @@ export const notificationSettingsService = {
     if (!isRecord(result) || !result.saved) {
       throw new Error(
         str(isRecord(result) ? result.reason : "") === "forbidden"
-          ? "Нет доступа к настройкам этой компании"
-          : "Не удалось сохранить настройки"
+          ? translate("notifications.settings.forbidden")
+          : translate("notifications.settings.save_error")
       );
     }
   },

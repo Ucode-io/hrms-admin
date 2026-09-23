@@ -47,6 +47,7 @@ import { formatDynamicValue } from "../../Settings/CustomFields/formatValue";
 import { useEmployeeFormLayout } from "../Form/layout/useEmployeeFormLayout";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
 import { useTranslation, translate } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 
 /**
  * Карточки конструктора формы, которым на детальной странице соответствует уже
@@ -74,6 +75,17 @@ const DISMISSIAL_REASONS_SLUG = "dismissial_reasons";
 const UNIQUE_USERS_SLUG = "unique_users";
 
 type Tab = (typeof PRIMARY_TABS)[number] | (typeof MORE_TABS)[number];
+
+// Id вкладок русские — их передают через location.state из других экранов; показываем по ключам.
+const TAB_LABEL_KEYS: Record<Tab, MessageKey> = {
+  Личное: "employees.detail.tabs.personal",
+  Работа: "employees.detail.tabs.work",
+  Компенсация: "employees.detail.tabs.compensation",
+  Отсутствия: "employees.detail.tabs.absences",
+  Документы: "employees.detail.tabs.documents",
+  Посещаемость: "employees.detail.tabs.attendance",
+  "Посещение спорта": "employees.detail.tabs.sport_attendance",
+};
 
 type UniqueHikvisionUserItem = {
   guid: string;
@@ -853,7 +865,7 @@ function EmployeeDetail() {
                 borderBottom: activeTab === tab ? `2px solid ${brandColor}` : "2px solid transparent",
               }}
             >
-              {tab}
+              {t(TAB_LABEL_KEYS[tab])}
             </button>
           ))}
 
@@ -894,7 +906,7 @@ function EmployeeDetail() {
                   }}
                   className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                 >
-                  {tab}
+                  {t(TAB_LABEL_KEYS[tab])}
                 </DropdownItem>
               ))}
             </Dropdown>

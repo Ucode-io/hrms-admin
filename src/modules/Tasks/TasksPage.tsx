@@ -30,8 +30,7 @@ import BoardView from "./views/BoardView";
 import TableView from "./views/TableView";
 import TimelineView from "./views/TimelineView";
 import CalendarView from "./views/CalendarView";
-
-const TASKS_BREADCRUMBS = [{ label: "Задачи", to: "/tasks" }];
+import { useTranslation } from "../../i18n";
 
 const EMPTY_FILTERS: TaskFilters = {
   search: "",
@@ -48,7 +47,9 @@ const isViewKey = (value: string | null): value is TasksViewKey =>
   Boolean(value) && (VIEW_ORDER as string[]).includes(value as string);
 
 export default function TasksPage() {
-  useHeaderBreadcrumbItems(TASKS_BREADCRUMBS);
+  const { t } = useTranslation();
+  const breadcrumbs = useMemo(() => [{ label: t("tasks.page.title"), to: "/tasks" }], [t]);
+  useHeaderBreadcrumbItems(breadcrumbs);
   const brandColor = companyStore.mainColor || "#2563eb";
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -86,9 +87,9 @@ export default function TasksPage() {
     () =>
       ((locationsData?.response ?? []) as { guid: string; title?: string }[]).map((item) => ({
         id: item.guid,
-        title: item.title || "Без названия",
+        title: item.title || t("tasks.location.untitled"),
       })),
-    [locationsData?.response]
+    [locationsData?.response, t]
   );
 
   const locationTitles = useMemo(
@@ -173,14 +174,14 @@ export default function TasksPage() {
     try {
       if (editingTask) {
         await updateMutation.mutateAsync({ id: editingTask.id, patch: draft });
-        toast.success("Задача обновлена.");
+        toast.success(t("tasks.toast.updated"));
       } else {
         await createMutation.mutateAsync(draft);
-        toast.success("Задача создана.");
+        toast.success(t("tasks.toast.created"));
       }
       return true;
     } catch {
-      toast.error("Не удалось сохранить задачу.");
+      toast.error(t("tasks.toast.save_error"));
       return false;
     }
   };
@@ -201,7 +202,7 @@ export default function TasksPage() {
       deadline: parent.deadline,
       parentId: parent.id,
     });
-    toast.success("Подзадача создана.");
+    toast.success(t("tasks.toast.subtask_created"));
   };
 
   /** Лист теперь поле задачи — переносим саму задачу, подзадачи остаются как есть. */
@@ -209,14 +210,21 @@ export default function TasksPage() {
     async (task: Task, sheetId: string | null) => {
       await updateMutation.mutateAsync({ id: task.id, patch: { sheetId } });
       const sheetName = sheets.find((sheet) => sheet.id === sheetId)?.name;
-      toast.success(sheetName ? `Задача перемещена в лист «${sheetName}»` : "Задача убрана из листа");
+      toast.success(
+        sheetName
+          ? t("tasks.toast.moved_to_sheet", { sheetName })
+          : t("tasks.toast.removed_from_sheet")
+      );
     },
-    [updateMutation, sheets]
+    [updateMutation, sheets, t]
   );
 
   return (
     <>
-      <PageMeta title="Задачи | HRMS" description="Задачи сотрудников компании" />
+      <PageMeta
+        title={`${t("tasks.page.title")} | HRMS`}
+        description={t("tasks.page.meta_description")}
+      />
 
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
@@ -245,7 +253,7 @@ export default function TasksPage() {
               onClick={() => openCreateForm()}
               className="h-10 rounded-xl px-4"
             >
-              Новая задача
+              {t("tasks.page.new_task")}
             </Button>
           </div>
         </div>

@@ -1,12 +1,14 @@
 import PageMeta from "../../components/common/PageMeta";
 import { Link } from "react-router";
+import { useTranslation } from "../../i18n";
 
 export default function UnderDevelopment() {
+  const { t } = useTranslation();
   return (
     <>
       <PageMeta
-        title="В разработке | Ayva Finance"
-        description="Этот модуль находится в разработке"
+        title={`${t("under_development.title")} | Ayva Finance`}
+        description={t("under_development.meta_description")}
       />
       <div className="flex items-center justify-center p-0 bg-gray-50 dark:bg-gray-900">
         <div className="w-full max-w-2xl">
@@ -20,10 +22,10 @@ export default function UnderDevelopment() {
               />
             </div>
             <h1 className="mb-8 text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">
-              В разработке
+              {t("under_development.title")}
             </h1>
             <p className="mb-10 text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-md mx-auto">
-              Этот модуль находится на этапе разработки и скоро будет доступен.
+              {t("under_development.text")}
             </p>
             <Link
               to="/"
@@ -42,7 +44,7 @@ export default function UnderDevelopment() {
                   fill=""
                 />
               </svg>
-              Вернуться на главную
+              {t("under_development.back_home")}
             </Link>
           </div>
         </div>

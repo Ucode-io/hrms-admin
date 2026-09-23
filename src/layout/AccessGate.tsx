@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import { useCurrentUserAccess } from "../api/services/role.service";
 import authStore from "../store/auth.store";
 import companyStore from "../store/company.store";
+import { useTranslation } from "../i18n";
 
-const NO_ACCESS_MESSAGE = "У вас нет доступа";
 
 /**
  * Global access gate. A logged-in user must have a role with at least one
@@ -25,6 +25,7 @@ export default function AccessGate({
 }: {
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const { data, isSuccess, isLoading } = useCurrentUserAccess();
 
   const denied =
@@ -32,9 +33,9 @@ export default function AccessGate({
 
   useEffect(() => {
     if (!denied) return;
-    toast.error(NO_ACCESS_MESSAGE);
+    toast.error(t("access.no_access"));
     authStore.logout();
-  }, [denied]);
+  }, [denied, t]);
 
   // First load of the access check — hold the whole app behind a loader so the
   // sidebar/routes don't render with "full access" before the role arrives.
@@ -47,7 +48,7 @@ export default function AccessGate({
             className="h-10 w-10 animate-spin rounded-full border-[3px] border-gray-200"
             style={{ borderTopColor: color }}
           />
-          <span className="text-sm text-gray-400">Загрузка…</span>
+          <span className="text-sm text-gray-400">{t("common.loading")}</span>
         </div>
       </div>
     );

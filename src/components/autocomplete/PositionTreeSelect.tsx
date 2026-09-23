@@ -4,6 +4,7 @@ import {
   type Position,
   usePositionsQuery,
 } from "../../api/services/position.service";
+import { useTranslation } from "../../i18n";
 
 interface PositionTreeSelectProps {
   value: string;
@@ -32,10 +33,13 @@ export default function PositionTreeSelect({
   value,
   valueLabel,
   onChange,
-  placeholder = "Выберите должность",
+  placeholder,
   allowClear = false,
-  clearLabel = "— не задана —",
+  clearLabel,
 }: PositionTreeSelectProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("autocomplete.select_position");
+  clearLabel ??= t("autocomplete.position_not_set");
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -139,7 +143,7 @@ export default function PositionTreeSelect({
           value={isOpen ? search : selectedLabel}
           onChange={(e) => setSearch(e.target.value)}
           onFocus={open}
-          placeholder={isOpen ? "Поиск должности..." : placeholder}
+          placeholder={isOpen ? t("autocomplete.search_position") : placeholder}
           readOnly={!isOpen}
           className={`h-11 w-full cursor-pointer rounded-lg border bg-white px-3 pr-10 text-sm shadow-theme-xs transition focus:outline-none focus:ring-3 focus:ring-brand-500/10 ${
             isOpen ? "border-brand-300" : "border-gray-300"
@@ -157,9 +161,9 @@ export default function PositionTreeSelect({
         <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
           <div className="max-h-64 overflow-y-auto py-1">
             {isLoading ? (
-              <div className="px-3 py-6 text-center text-sm text-gray-400">Загрузка...</div>
+              <div className="px-3 py-6 text-center text-sm text-gray-400">{t("common.loading")}</div>
             ) : rows.length === 0 ? (
-              <div className="px-3 py-6 text-center text-sm text-gray-400">Ничего не найдено</div>
+              <div className="px-3 py-6 text-center text-sm text-gray-400">{t("common.no_options_found")}</div>
             ) : (
               <>
                 {/* Сброс — только в дереве: при поиске он был бы лишней строкой
@@ -197,7 +201,7 @@ export default function PositionTreeSelect({
                           toggleExpand(position.guid);
                         }}
                         className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-                        aria-label={expanded.has(position.guid) ? "Свернуть" : "Развернуть"}
+                        aria-label={expanded.has(position.guid) ? t("common.collapse") : t("common.expand")}
                       >
                         {expanded.has(position.guid) ? (
                           <ChevronDown size={14} />
@@ -213,7 +217,7 @@ export default function PositionTreeSelect({
                       onClick={() => handleSelect(position)}
                       className="flex-1 truncate text-left"
                     >
-                      {String(position.title || "Без названия")}
+                      {String(position.title || t("common.untitled"))}
                     </button>
                   </div>
                 );

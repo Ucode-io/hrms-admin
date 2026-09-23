@@ -3,6 +3,7 @@ import { Download, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Modal } from "../../../../components/ui/modal";
 import { formatFileSize, isImage } from "../../fileUtils";
 import type { TaskAttachment } from "../../types";
+import { useTranslation } from "../../../../i18n";
 
 interface AttachmentsGridProps {
   attachments: TaskAttachment[];
@@ -25,6 +26,7 @@ export default function AttachmentsGrid({
   onPickFiles,
   isUploading,
 }: AttachmentsGridProps) {
+  const { t } = useTranslation();
   const [preview, setPreview] = useState<TaskAttachment | null>(null);
   /** Картинки, которые не декодировались, показываем обычной файловой плиткой. */
   const [broken, setBroken] = useState<string[]>([]);
@@ -78,7 +80,7 @@ export default function AttachmentsGrid({
                       <a
                         href={file.url}
                         download={file.name}
-                        aria-label={`Скачать ${file.name}`}
+                        aria-label={t("tasks.attachments.download_named", { name: file.name })}
                         className="inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/10"
                       >
                         <Download size={13} />
@@ -86,7 +88,7 @@ export default function AttachmentsGrid({
                       <button
                         type="button"
                         onClick={() => onRemove(file.id)}
-                        aria-label={`Удалить ${file.name}`}
+                        aria-label={t("tasks.attachments.delete_named", { name: file.name })}
                         className="inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition hover:bg-error-50 hover:text-error-600 dark:hover:bg-error-500/10"
                       >
                         <Trash2 size={13} />
@@ -103,7 +105,7 @@ export default function AttachmentsGrid({
               className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-gray-300 text-gray-400 transition hover:border-brand-400 hover:bg-gray-50 hover:text-brand-500 dark:border-gray-600 dark:hover:bg-white/5"
             >
               <Plus size={18} />
-              <span className="text-theme-xs">Добавить</span>
+              <span className="text-theme-xs">{t("tasks.attachments.add")}</span>
             </button>
           </div>
         )}
@@ -111,7 +113,7 @@ export default function AttachmentsGrid({
         {isUploading && (
           <div className="mt-2 flex items-center gap-2 text-theme-xs text-gray-400">
             <Loader2 size={13} className="animate-spin" />
-            Загрузка...
+            {t("tasks.attachments.uploading")}
           </div>
         )}
       </div>
@@ -135,7 +137,7 @@ export default function AttachmentsGrid({
                   href={preview.url}
                   download={preview.name}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
-                  aria-label="Скачать"
+                  aria-label={t("tasks.attachments.download")}
                 >
                   <Download size={16} />
                 </a>
@@ -143,7 +145,7 @@ export default function AttachmentsGrid({
                   type="button"
                   onClick={() => setPreview(null)}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
-                  aria-label="Закрыть"
+                  aria-label={t("tasks.attachments.close")}
                 >
                   <X size={17} />
                 </button>

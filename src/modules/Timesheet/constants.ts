@@ -1,21 +1,33 @@
 import type { TimelineScale, TimesheetSource, TimesheetView } from "./types";
+import { translate, getLocale, monthNames, weekdayNames } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
 /** Таймлайн идёт первым и открывается по умолчанию — с него читают день. */
 export const VIEW_ORDER: TimesheetView[] = ["timeline", "table"];
 
 export const DEFAULT_VIEW: TimesheetView = "timeline";
 
+/**
+ * Подписи — геттеры: переводятся в момент чтения, поэтому потребители
+ * по-прежнему пишут `META[key].label` и видят текущий язык.
+ */
+const labelOf = (key: MessageKey) => ({
+  get label() {
+    return translate(key);
+  },
+});
+
 export const VIEW_META: Record<TimesheetView, { label: string }> = {
-  table: { label: "Таблица" },
-  timeline: { label: "Таймлайн" },
+  table: labelOf("tasks.views.table"),
+  timeline: labelOf("timesheet.view.timeline"),
 };
 
 export const SCALE_ORDER: TimelineScale[] = ["day", "week", "month"];
 
 export const SCALE_META: Record<TimelineScale, { label: string }> = {
-  day: { label: "День" },
-  week: { label: "Неделя" },
-  month: { label: "Месяц" },
+  day: labelOf("timesheet.scale.day"),
+  week: labelOf("timesheet.scale.week"),
+  month: labelOf("timesheet.scale.month"),
 };
 
 /**
@@ -31,33 +43,29 @@ export const SCALE_META: Record<TimelineScale, { label: string }> = {
  * масса «отработано», а источник виден вторым планом. Раньше ручное было
  * оранжевым и выглядело как ошибка, хотя ничего аномального в нём нет.
  */
+const sourceMeta = (source: TimesheetSource, color: string, bar: string) => ({
+  get label() {
+    return translate(`timesheet.source.${source}.label`);
+  },
+  get short() {
+    return translate(`timesheet.source.${source}.short`);
+  },
+  color,
+  bar,
+});
+
 export const SOURCE_META: Record<
   TimesheetSource,
   { label: string; short: string; color: string; bar: string }
 > = {
-  tracker: { label: "Time Doctor", short: "Трекер", color: "#2563eb", bar: "#2563eb" },
-  manual: {
-    label: "Вручную (Time Doctor)",
-    short: "Вручную",
-    color: "#4b7bc8",
-    bar: "#9dbcf0",
-  },
-  mobile: {
-    label: "Мобильное приложение",
-    short: "Mobile",
-    color: "#6d5bc7",
-    bar: "#b3a8e8",
-  },
-  break: { label: "Перерыв", short: "Перерыв", color: "#94a3b8", bar: "#cbd5e1" },
+  tracker: sourceMeta("tracker", "#2563eb", "#2563eb"),
+  manual: sourceMeta("manual", "#4b7bc8", "#9dbcf0"),
+  mobile: sourceMeta("mobile", "#6d5bc7", "#b3a8e8"),
+  break: sourceMeta("break", "#94a3b8", "#cbd5e1"),
   // Ручное время HRMS — такое же отработанное, поэтому в полосе тот же синий
   // ряд, но темнее мобильного: по бейджу его отличают от правки в Time Doctor.
-  hrms_manual: {
-    label: "Ручное время (HRMS)",
-    short: "Ручное",
-    color: "#0e7490",
-    bar: "#7dd3e8",
-  },
-  other: { label: "Другое", short: "Другое", color: "#64748b", bar: "#cbd5e1" },
+  hrms_manual: sourceMeta("hrms_manual", "#0e7490", "#7dd3e8"),
+  other: sourceMeta("other", "#64748b", "#cbd5e1"),
 };
 
 export const SOURCE_ORDER: TimesheetSource[] = [
@@ -69,37 +77,14 @@ export const SOURCE_ORDER: TimesheetSource[] = [
   "other",
 ];
 
-export const MONTHS_RU = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
-];
-
-export const MONTHS_SHORT_RU = [
-  "янв",
-  "фев",
-  "мар",
-  "апр",
-  "май",
-  "июн",
-  "июл",
-  "авг",
-  "сен",
-  "окт",
-  "ноя",
-  "дек",
-];
-
-export const WEEKDAYS_SHORT_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+/** Месяц по индексу 0–11 в текущей локали: «Январь». */
+export const monthName = (month: number): string => monthNames(getLocale())[month];
+/** Короткий месяц без точки и в нижнем регистре: «янв». */
+export const monthShort = (month: number): string =>
+  monthNames(getLocale(), "short")[month].replace(/\.$/, "").toLowerCase();
+/** Короткий день недели по `Date.getDay()` (0 — воскресенье): «пн». */
+export const weekdayShort = (day: number): string =>
+  weekdayNames(getLocale())[(day + 6) % 7].replace(/\.$/, "").toLowerCase();
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -168,13 +153,13 @@ export const formatRangeLabel = (scale: TimelineScale, range: { from: string; to
   const from = fromIsoDate(range.from);
   const to = fromIsoDate(range.to);
 
-  if (scale === "month") return `${MONTHS_RU[from.getMonth()]} ${from.getFullYear()}`;
+  if (scale === "month") return `${monthName(from.getMonth())} ${from.getFullYear()}`;
   if (scale === "day") {
-    return `${from.getDate()} ${MONTHS_SHORT_RU[from.getMonth()]} ${from.getFullYear()}`;
+    return `${from.getDate()} ${monthShort(from.getMonth())} ${from.getFullYear()}`;
   }
-  return `${from.getDate()} ${MONTHS_SHORT_RU[from.getMonth()]} – ${to.getDate()} ${
-    MONTHS_SHORT_RU[to.getMonth()]
-  } ${to.getFullYear()}`;
+  return `${from.getDate()} ${monthShort(from.getMonth())} – ${to.getDate()} ${monthShort(
+    to.getMonth()
+  )} ${to.getFullYear()}`;
 };
 
 export const formatDateRu = (iso: string): string => {
@@ -185,9 +170,7 @@ export const formatDateRu = (iso: string): string => {
 
 export const formatDayHeader = (iso: string): string => {
   const date = fromIsoDate(iso);
-  return `${WEEKDAYS_SHORT_RU[date.getDay()]}, ${date.getDate()} ${
-    MONTHS_SHORT_RU[date.getMonth()]
-  }`;
+  return `${weekdayShort(date.getDay())}, ${date.getDate()} ${monthShort(date.getMonth())}`;
 };
 
 export const isWeekend = (iso: string): boolean => {
@@ -208,8 +191,8 @@ export const formatDuration = (seconds: number): string => {
   if (totalMinutes === 0) return "—";
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}м`;
-  return `${hours}ч ${pad(minutes)}м`;
+  if (hours === 0) return translate("timesheet.duration.minutes", { minutes });
+  return translate("timesheet.duration.hours_minutes", { hours, minutes: pad(minutes) });
 };
 
 export const formatHours = (hours: number): string => formatDuration(hours * 3600);

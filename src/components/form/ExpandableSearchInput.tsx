@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
+import { useTranslation } from "../../i18n";
 
 interface ExpandableSearchInputProps {
   value: string;
@@ -14,12 +15,14 @@ interface ExpandableSearchInputProps {
 export default function ExpandableSearchInput({
   value,
   onChange,
-  placeholder = "Поиск",
+  placeholder,
   inputId,
   expandedWidth = 460,
   collapsedSize = 38,
   brandColor = "var(--company-color)",
 }: ExpandableSearchInputProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("common.search");
   const [isExpanded, setIsExpanded] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -108,7 +111,7 @@ export default function ExpandableSearchInput({
             cursor: "pointer",
             transition: "all 0.15s",
           }}
-          aria-label="Открыть поиск"
+          aria-label={t("common.open_search")}
         >
           <Search style={{ width: "18px", height: "18px" }} />
         </button>

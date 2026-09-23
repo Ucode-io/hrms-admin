@@ -11,6 +11,7 @@ import {
   formatCoords,
   parseCoords,
 } from "./shared";
+import { useTranslation } from "../../i18n";
 
 const NOMINATIM = "https://nominatim.openstreetmap.org";
 
@@ -33,6 +34,7 @@ export default function LocationMapPicker({
   value: string;
   onChange: (next: { coordinates: string; address: string }) => void;
 }) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -108,7 +110,7 @@ export default function LocationMapPicker({
 
   const handleLocate = () => {
     if (!navigator.geolocation) {
-      setSearchError("Геолокация недоступна в этом браузере");
+      setSearchError(t("map.geolocation_unavailable"));
       return;
     }
 
@@ -123,7 +125,7 @@ export default function LocationMapPicker({
       },
       () => {
         setIsLocating(false);
-        setSearchError("Не удалось определить местоположение");
+        setSearchError(t("map.geolocation_failed"));
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -143,7 +145,7 @@ export default function LocationMapPicker({
       const [hit] = await res.json();
 
       if (!hit) {
-        setSearchError("Ничего не найдено");
+        setSearchError(t("common.no_options_found"));
         return;
       }
 
@@ -157,7 +159,7 @@ export default function LocationMapPicker({
         address: String(hit.display_name || ""),
       });
     } catch {
-      setSearchError("Не удалось выполнить поиск");
+      setSearchError(t("map.search_failed"));
     } finally {
       setIsSearching(false);
     }
@@ -183,7 +185,7 @@ export default function LocationMapPicker({
                 void handleSearch();
               }
             }}
-            placeholder="Найти место на карте и нажать Enter"
+            placeholder={t("map.search_placeholder")}
             className="h-9 w-full rounded-lg border border-gray-300 pl-9 pr-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10"
           />
         </div>
@@ -192,12 +194,12 @@ export default function LocationMapPicker({
           type="button"
           onClick={handleLocate}
           disabled={isLocating}
-          title="Моё местоположение"
-          aria-label="Моё местоположение"
+          title={t("map.my_location")}
+          aria-label={t("map.my_location")}
           className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 text-sm text-gray-700 shadow-theme-xs transition hover:bg-gray-50 disabled:opacity-60"
         >
           <LocateFixed size={16} className={isLocating ? "animate-pulse" : ""} />
-          Я здесь
+          {t("map.i_am_here")}
         </button>
       </div>
 
@@ -211,9 +213,9 @@ export default function LocationMapPicker({
         {searchError ? (
           <span className="text-error-600">{searchError}</span>
         ) : point ? (
-          `Выбрано: ${point.lat}, ${point.lon}`
+          t("map.selected_point", { lat: point.lat, lon: point.lon })
         ) : (
-          "Кликните по карте, чтобы выбрать точку"
+          t("map.click_to_pick")
         )}
       </p>
     </div>

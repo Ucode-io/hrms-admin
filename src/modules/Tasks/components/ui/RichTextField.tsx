@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
+import { useTranslation } from "../../../../i18n";
 import RichTextEditor from "../../../../components/form/RichTextEditor";
 import { isRichTextEmpty, sanitizeRichText } from "../../../../components/form/richText";
 
@@ -21,6 +22,7 @@ export default function RichTextField({
   placeholder,
   minHeight = 160,
 }: RichTextFieldProps) {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [justSaved, setJustSaved] = useState(false);
@@ -114,7 +116,7 @@ export default function RichTextField({
         {justSaved && (
           <span className="pointer-events-none absolute -top-5 right-0 inline-flex items-center gap-1 text-theme-xs text-success-600">
             <Check size={12} />
-            Сохранено
+            {t("tasks.ui.autosave_saved")}
           </span>
         )}
       </div>
@@ -150,7 +152,7 @@ export default function RichTextField({
         placeholder={placeholder}
       />
       <p className="mt-1.5 px-1 text-theme-xs text-gray-400">
-        Сохраняется автоматически · ⌘+Enter — сохранить · Esc — отмена
+        {t("tasks.ui.rich_text_hint")}
       </p>
     </div>
   );

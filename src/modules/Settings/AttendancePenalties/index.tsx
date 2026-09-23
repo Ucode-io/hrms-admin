@@ -28,7 +28,8 @@ import EmployeesInfiniteMultiSelect from "../../../components/autocomplete/Emplo
 import LocationsInfiniteMultiSelect from "../../../components/autocomplete/LocationsInfiniteMultiSelect";
 import { useCompanySettingsQuery, useCurrenciesQuery } from "../../../api/services/companySettings.service";
 import reportsService, { type PenaltyAssignment, type PenaltyPolicy } from "../../../api/services/reports.service";
-import { useTranslation } from "../../../i18n";
+import { BCP47, useTranslation } from "../../../i18n";
+import type { Locale } from "../../../i18n/messages";
 
 type TimedPenaltyType = "late" | "early_leave";
 type FixedPenaltyType = "missing_checkout" | "absence";
@@ -323,9 +324,8 @@ type PolicyDraft = { guid?: string; title: string; rules: PenaltyRules };
 // Подпись над полем строки назначения: одна высота у всех столбцов, включая бейдж паузы.
 const FIELD_LABEL = "mb-1.5 flex h-6 items-center text-xs font-medium text-gray-500";
 
-const BCP47 = { ru: "ru-RU", en: "en-GB", uz: "uz-UZ", kz: "kk-KZ", zh: "zh-CN" } as const;
 // YYYY-MM-DD с бэка — в дату локали; T00:00 без зоны, чтобы день не съехал.
-const formatDay = (day: string, locale: keyof typeof BCP47) =>
+const formatDay = (day: string, locale: Locale) =>
   new Date(`${day}T00:00:00`).toLocaleDateString(BCP47[locale], { day: "numeric", month: "long", year: "numeric" });
 
 type ConfirmRequest = {

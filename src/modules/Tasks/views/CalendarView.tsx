@@ -4,11 +4,17 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import ruLocale from "@fullcalendar/core/locales/ru";
-import type { DatesSetArg, EventClickArg, EventContentArg, EventInput } from "@fullcalendar/core";
+import enLocale from "@fullcalendar/core/locales/en-gb";
+import uzLocale from "@fullcalendar/core/locales/uz";
+import kkLocale from "@fullcalendar/core/locales/kk";
+import zhLocale from "@fullcalendar/core/locales/zh-cn";
+import type { DatesSetArg, EventClickArg, EventContentArg, EventInput, LocaleInput } from "@fullcalendar/core";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { findDirectoryItem, isTaskOverdue } from "../constants";
 import type { Task, TaskDirectories, TaskEmployee } from "../types";
 import { AvatarStack } from "../components/badges";
+import { BCP47, useTranslation } from "../../../i18n";
+import type { Locale, MessageKey } from "../../../i18n/messages";
 
 interface CalendarViewProps {
   tasks: Task[];
@@ -27,18 +33,36 @@ interface HoveredCalendarCell {
 type FullCalendarViewKey = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
 type CalendarViewKey = FullCalendarViewKey | "year";
 
-const VIEW_TABS: { key: CalendarViewKey; label: string }[] = [
-  { key: "timeGridDay", label: "День" },
-  { key: "timeGridWeek", label: "Неделя" },
-  { key: "dayGridMonth", label: "Месяц" },
-  { key: "year", label: "Год" },
+const VIEW_TABS: { key: CalendarViewKey; labelKey: MessageKey }[] = [
+  { key: "timeGridDay", labelKey: "tasks.calendar.view_day" },
+  { key: "timeGridWeek", labelKey: "tasks.calendar.view_week" },
+  { key: "dayGridMonth", labelKey: "tasks.calendar.view_month" },
+  { key: "year", labelKey: "tasks.calendar.view_year" },
 ];
 
-const MONTHS = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-];
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const FULLCALENDAR_LOCALES: Record<Locale, LocaleInput> = {
+  ru: ruLocale,
+  en: enLocale,
+  uz: uzLocale,
+  kz: kkLocale,
+  zh: zhLocale,
+};
+
+const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
+/** Названия месяцев и дней недели берём у Intl — не держим по 19 ключей на язык. */
+const monthNames = (bcp: string) =>
+  Array.from({ length: 12 }, (_, month) =>
+    capitalize(new Intl.DateTimeFormat(bcp, { month: "long" }).format(new Date(2024, month, 1, 12)))
+  );
+// 1 января 2024 — понедельник, неделя начинается с него.
+const narrowWeekdays = (bcp: string) =>
+  Array.from({ length: 7 }, (_, index) =>
+    new Intl.DateTimeFormat(bcp, { weekday: "narrow" }).format(new Date(2024, 0, 1 + index, 12))
+  );
+
+const fullDate = (date: Date, bcp: string) =>
+  date.toLocaleDateString(bcp, { day: "numeric", month: "long", year: "numeric" });
 
 const sameDay = (left: Date, right: Date) =>
   left.getFullYear() === right.getFullYear() &&
@@ -56,22 +80,24 @@ const monthDays = (year: number, month: number) => {
   });
 };
 
-const titleForView = (view: CalendarViewKey, date: Date) => {
+const titleForView = (view: CalendarViewKey, date: Date, bcp: string) => {
   if (view === "year") return { primary: "", secondary: String(date.getFullYear()) };
   if (view === "timeGridDay") {
-    const dayAndMonth = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(date);
+    const dayAndMonth = new Intl.DateTimeFormat(bcp, { day: "numeric", month: "long" }).format(date);
     return { primary: dayAndMonth, secondary: String(date.getFullYear()) };
   }
-  return { primary: MONTHS[date.getMonth()], secondary: String(date.getFullYear()) };
+  return { primary: monthNames(bcp)[date.getMonth()], secondary: String(date.getFullYear()) };
 };
 
 function MiniMonth({ value, onSelect }: { value: Date; onSelect: (date: Date) => void }) {
+  const { locale } = useTranslation();
+  const bcp = BCP47[locale];
   const today = new Date();
   const days = monthDays(value.getFullYear(), value.getMonth());
   return (
-    <div className="tasks-mini-month" aria-label={`${MONTHS[value.getMonth()]} ${value.getFullYear()}`}>
+    <div className="tasks-mini-month" aria-label={`${monthNames(bcp)[value.getMonth()]} ${value.getFullYear()}`}>
       <div className="tasks-mini-month__weekdays" aria-hidden="true">
-        {WEEKDAYS.map((day) => <span key={day}>{day.slice(0, 1)}</span>)}
+        {narrowWeekdays(bcp).map((day, index) => <span key={index}>{day}</span>)}
       </div>
       <div className="tasks-mini-month__days">
         {days.map((date) => {
@@ -85,7 +111,7 @@ function MiniMonth({ value, onSelect }: { value: Date; onSelect: (date: Date) =>
               className={`${isOutside ? "is-outside" : ""} ${isToday ? "is-today" : ""} ${isSelected && !isToday ? "is-selected" : ""}`}
               onClick={() => onSelect(date)}
               aria-current={isToday ? "date" : undefined}
-              aria-label={date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}
+              aria-label={fullDate(date, bcp)}
             >
               {date.getDate()}
             </button>
@@ -97,17 +123,19 @@ function MiniMonth({ value, onSelect }: { value: Date; onSelect: (date: Date) =>
 }
 
 function YearView({ value, onSelect }: { value: Date; onSelect: (date: Date) => void }) {
+  const { locale } = useTranslation();
+  const bcp = BCP47[locale];
   const today = new Date();
   const year = value.getFullYear();
   return (
     <div className="tasks-year-grid">
-      {MONTHS.map((monthName, month) => (
+      {monthNames(bcp).map((monthName, month) => (
         <section key={monthName} className="tasks-year-month">
           <button type="button" className="tasks-year-month__title" onClick={() => onSelect(new Date(year, month, 1, 12))}>
             {monthName}
           </button>
           <div className="tasks-year-month__weekdays" aria-hidden="true">
-            {WEEKDAYS.map((day) => <span key={day}>{day.slice(0, 1)}</span>)}
+            {narrowWeekdays(bcp).map((day, index) => <span key={index}>{day}</span>)}
           </div>
           <div className="tasks-year-month__days">
             {monthDays(year, month).map((date) => {
@@ -120,7 +148,7 @@ function YearView({ value, onSelect }: { value: Date; onSelect: (date: Date) => 
                   className={`${isOutside ? "is-outside" : ""} ${isToday ? "is-today" : ""}`}
                   onClick={() => onSelect(date)}
                   aria-current={isToday ? "date" : undefined}
-                  aria-label={date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}
+                  aria-label={fullDate(date, bcp)}
                 >
                   {date.getDate()}
                 </button>
@@ -134,6 +162,8 @@ function YearView({ value, onSelect }: { value: Date; onSelect: (date: Date) => 
 }
 
 export default function CalendarView({ tasks, employees, directories, onOpenTask, onCreateTask }: CalendarViewProps) {
+  const { t, locale } = useTranslation();
+  const bcp = BCP47[locale];
   const calendarRef = useRef<FullCalendar>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<CalendarViewKey>("dayGridMonth");
@@ -260,17 +290,17 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
     );
   };
 
-  const title = titleForView(view, visibleDate);
-  const weekday = new Intl.DateTimeFormat("ru-RU", { weekday: "long" }).format(visibleDate);
+  const title = titleForView(view, visibleDate, bcp);
+  const weekday = new Intl.DateTimeFormat(bcp, { weekday: "long" }).format(visibleDate);
   const isTimeGrid = view === "timeGridDay" || view === "timeGridWeek";
 
   return (
     <div className={`tasks-calendar-shell ${view === "dayGridMonth" ? "tasks-calendar-shell--month" : ""} bg-white dark:bg-gray-950`}>
       <div className="tasks-calendar-topbar">
-        <div className="tasks-calendar-view-switcher" role="tablist" aria-label="Вид календаря">
+        <div className="tasks-calendar-view-switcher" role="tablist" aria-label={t("tasks.calendar.view_switcher_aria")}>
           {VIEW_TABS.map((tab) => (
             <button key={tab.key} type="button" role="tab" aria-selected={view === tab.key} onClick={() => switchView(tab.key)} className={view === tab.key ? "is-active" : ""}>
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>
@@ -285,10 +315,10 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
           </h2>
           {view === "timeGridDay" && <p>{weekday}</p>}
         </div>
-        <div className="tasks-calendar-navigation" aria-label="Навигация по календарю">
-          <button type="button" onClick={() => runApi("prev")} aria-label="Предыдущий период"><ChevronLeft size={17} /></button>
-          <button type="button" className="tasks-calendar-navigation__today" onClick={() => runApi("today")}>Сегодня</button>
-          <button type="button" onClick={() => runApi("next")} aria-label="Следующий период"><ChevronRight size={17} /></button>
+        <div className="tasks-calendar-navigation" aria-label={t("tasks.calendar.navigation_aria")}>
+          <button type="button" onClick={() => runApi("prev")} aria-label={t("tasks.calendar.prev_period_aria")}><ChevronLeft size={17} /></button>
+          <button type="button" className="tasks-calendar-navigation__today" onClick={() => runApi("today")}>{t("tasks.calendar.today")}</button>
+          <button type="button" onClick={() => runApi("next")} aria-label={t("tasks.calendar.next_period_aria")}><ChevronRight size={17} /></button>
         </div>
       </div>
 
@@ -308,21 +338,21 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView={view as FullCalendarViewKey}
               initialDate={visibleDate}
-              locale={ruLocale}
+              locale={FULLCALENDAR_LOCALES[locale]}
               headerToolbar={false}
               events={events}
               eventClick={handleEventClick}
               eventContent={renderEvent}
               dayMaxEvents={view === "dayGridMonth" ? 3 : false}
               moreLinkClick="popover"
-              moreLinkContent={(arg) => `Ещё ${arg.num}`}
+              moreLinkContent={(arg) => t("tasks.calendar.more_events", { count: arg.num })}
               firstDay={1}
               height={view === "dayGridMonth" ? "auto" : "100%"}
               expandRows={!isTimeGrid}
               eventDisplay="block"
               displayEventTime={false}
-              allDayText="весь день"
-              noEventsText="Нет задач в этом периоде"
+              allDayText={t("tasks.calendar.all_day")}
+              noEventsText={t("tasks.calendar.no_events_period")}
               slotMinTime="00:00:00"
               slotMaxTime="24:00:00"
               scrollTime="02:30:00"
@@ -334,7 +364,7 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
               dayHeaders={view !== "timeGridDay"}
               dayHeaderContent={(arg) => {
                 if (view !== "timeGridWeek") return arg.text.toUpperCase();
-                const shortWeekday = new Intl.DateTimeFormat("ru-RU", { weekday: "short" })
+                const shortWeekday = new Intl.DateTimeFormat(bcp, { weekday: "short" })
                   .format(arg.date)
                   .replace(".", "");
                 return (
@@ -353,12 +383,10 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
                 type="button"
                 className="tasks-calendar-cell-add"
                 style={{ left: hoveredCell.left, top: hoveredCell.top }}
-                title="Новая задача"
-                aria-label={`Создать задачу на ${new Date(`${hoveredCell.date}T12:00:00`).toLocaleDateString("ru-RU", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}`}
+                title={t("tasks.calendar.new_task")}
+                aria-label={t("tasks.calendar.create_task_on_date_aria", {
+                  date: fullDate(new Date(`${hoveredCell.date}T12:00:00`), bcp),
+                })}
                 data-date={hoveredCell.date}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -378,16 +406,16 @@ export default function CalendarView({ tasks, employees, directories, onOpenTask
                 <div className="tasks-calendar-inspector__task">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedStatus?.color || "#94a3b8" }} />
-                    <span>{selectedStatus?.title || "Без статуса"}</span>
+                    <span>{selectedStatus?.title || t("tasks.calendar.no_status")}</span>
                   </div>
                   <strong>{selectedTask.title}</strong>
                   <span>{selectedTask.code}</span>
-                  <button type="button" onClick={() => onOpenTask(selectedTask)}>Открыть задачу</button>
+                  <button type="button" onClick={() => onOpenTask(selectedTask)}>{t("tasks.calendar.open_task")}</button>
                 </div>
               ) : (
                 <div className="tasks-calendar-inspector__empty">
                   <CalendarDays size={28} strokeWidth={1.5} />
-                  <span>Выберите задачу</span>
+                  <span>{t("tasks.calendar.select_task")}</span>
                 </div>
               )}
             </aside>

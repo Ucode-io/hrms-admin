@@ -1,6 +1,7 @@
 import { CalendarDays, CheckSquare, GitBranch, MessageSquare, Paperclip } from "lucide-react";
 import { findDirectoryItem, formatTaskDate, isTaskOverdue } from "../constants";
 import type { Task, TaskDirectories, TaskEmployee } from "../types";
+import { useTranslation } from "../../../i18n";
 import { AvatarStack, LocationBadge, PriorityBadge, TagBadge, TypeIcon } from "./badges";
 
 interface TaskCardProps {
@@ -26,6 +27,7 @@ export default function TaskCard({
   parentCode = null,
   onClick,
 }: TaskCardProps) {
+  const { t } = useTranslation();
   const overdue = isTaskOverdue(task, directories);
   const doneItems = task.checklist.filter((item) => item.done).length;
   const type = findDirectoryItem(directories.types, task.typeId);
@@ -45,7 +47,7 @@ export default function TaskCard({
           {parentCode && (
             <span
               className="inline-flex shrink-0 items-center gap-0.5 rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-500 dark:bg-white/10 dark:text-gray-400"
-              title={`Подзадача ${parentCode}`}
+              title={t("tasks.card.subtask_of", { parent: parentCode })}
             >
               <GitBranch size={9} />
               {parentCode}
@@ -80,7 +82,7 @@ export default function TaskCard({
             className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-theme-xs ${
               overdue ? "font-medium text-error-600" : "text-gray-500 dark:text-gray-400"
             }`}
-            title={`Дедлайн: ${formatTaskDate(task.deadline)}`}
+            title={t("tasks.card.deadline_title", { date: formatTaskDate(task.deadline) })}
           >
             <CalendarDays size={13} />
             {formatTaskDate(task.deadline)}
@@ -89,7 +91,7 @@ export default function TaskCard({
 
         <div className="flex shrink-0 items-center gap-2 text-theme-xs text-gray-400">
           {subtaskCount > 0 && (
-            <span className="inline-flex items-center gap-1" title="Подзадачи">
+            <span className="inline-flex items-center gap-1" title={t("tasks.card.subtasks_title")}>
               <GitBranch size={13} />
               {subtaskCount}
             </span>

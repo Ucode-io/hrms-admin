@@ -21,6 +21,7 @@ import Editor, {
   useEditorState,
   type EditorState,
 } from "react-simple-wysiwyg";
+import { useTranslation, translate } from "../../i18n";
 
 const btnCls =
   "inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-gray-500 transition hover:border-gray-200 hover:bg-white hover:text-gray-700 data-[active=true]:border-brand-200 data-[active=true]:bg-brand-50 data-[active=true]:text-brand-600";
@@ -34,19 +35,19 @@ export const MAX_INLINE_IMAGE_SIZE = 1.5 * 1024 * 1024;
 const readImage = (file: File): Promise<string | null> =>
   new Promise((resolve) => {
     if (!file.type.startsWith("image/")) {
-      toast.error(`«${file.name}» — не изображение.`);
+      toast.error(translate("rich_text.not_image", { name: file.name }));
       resolve(null);
       return;
     }
     if (file.size > MAX_INLINE_IMAGE_SIZE) {
-      toast.error(`«${file.name}» больше 1.5 МБ — прикрепите файлом.`);
+      toast.error(translate("rich_text.image_too_large", { name: file.name }));
       resolve(null);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => {
-      toast.error(`Не удалось прочитать «${file.name}».`);
+      toast.error(translate("rich_text.read_error", { name: file.name }));
       resolve(null);
     };
     reader.readAsDataURL(file);
@@ -74,41 +75,43 @@ const blockToggle =
     document.execCommand("formatBlock", false, isActive ? "<p>" : `<${tag}>`);
   };
 
-const BtnBold = createButton("Жирный", <Bold size={15} />, "bold");
-const BtnItalic = createButton("Курсив", <Italic size={15} />, "italic");
-const BtnUnderline = createButton("Подчёркнутый", <Underline size={15} />, "underline");
-const BtnStrike = createButton("Зачёркнутый", <Strikethrough size={15} />, "strikeThrough");
-const BtnHeading1 = createButton("Заголовок 1", <Heading1 size={15} />, blockToggle("h2"));
-const BtnHeading2 = createButton("Заголовок 2", <Heading2 size={15} />, blockToggle("h3"));
-const BtnQuote = createButton("Цитата", <Quote size={15} />, blockToggle("blockquote"));
-const BtnCode = createButton("Блок кода", <Code size={15} />, blockToggle("pre"));
+// Подписи здесь — только displayName: title переводится в месте использования.
+const BtnBold = createButton("Bold", <Bold size={15} />, "bold");
+const BtnItalic = createButton("Italic", <Italic size={15} />, "italic");
+const BtnUnderline = createButton("Underline", <Underline size={15} />, "underline");
+const BtnStrike = createButton("Strikethrough", <Strikethrough size={15} />, "strikeThrough");
+const BtnHeading1 = createButton("Heading 1", <Heading1 size={15} />, blockToggle("h2"));
+const BtnHeading2 = createButton("Heading 2", <Heading2 size={15} />, blockToggle("h3"));
+const BtnQuote = createButton("Quote", <Quote size={15} />, blockToggle("blockquote"));
+const BtnCode = createButton("Code block", <Code size={15} />, blockToggle("pre"));
 const BtnClear = createButton(
-  "Убрать форматирование",
+  "Clear formatting",
   <RemoveFormatting size={15} />,
   "removeFormat"
 );
 const BtnOrderedList = createButton(
-  "Нумерованный список",
+  "Numbered list",
   <ListOrdered size={15} />,
   "insertOrderedList"
 );
 const BtnBulletList = createButton(
-  "Маркированный список",
+  "Bulleted list",
   <List size={15} />,
   "insertUnorderedList"
 );
-const BtnLink = createButton("Ссылка", <LinkIcon size={15} />, ({ $selection }) => {
+const BtnLink = createButton("Link", <LinkIcon size={15} />, ({ $selection }) => {
   if ($selection?.nodeName === "A") {
     document.execCommand("unlink");
     return;
   }
-  const url = window.prompt("Введите URL", "https://");
+  const url = window.prompt(translate("rich_text.enter_url"), "https://");
   if (!url) return;
   document.execCommand("createLink", false, url);
 });
 
 /** File-picker button — createButton only wires execCommand-style actions. */
 function BtnImage({ className }: { className?: string }) {
+  const { t } = useTranslation();
   const { $el } = useEditorState();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -116,7 +119,7 @@ function BtnImage({ className }: { className?: string }) {
     <>
       <button
         type="button"
-        title="Изображение"
+        title={t("rich_text.image")}
         tabIndex={-1}
         // Keep the caret where it is — the picker must not steal the selection.
         onMouseDown={(event) => event.preventDefault()}
@@ -158,6 +161,7 @@ export default function RichTextEditor({
   placeholder,
   className = "",
 }: RichTextEditorProps) {
+  const { t } = useTranslation();
   const [isFocused, setIsFocused] = useState(false);
   const [isDropping, setIsDropping] = useState(false);
 
@@ -204,28 +208,28 @@ export default function RichTextEditor({
         style={{ minHeight, padding: "12px 14px", fontSize: "14px", color: "rgb(31 41 55)" }}
       >
         <Toolbar className="flex flex-wrap items-center gap-0.5 border-b border-gray-100 bg-gray-50/70 px-2 py-1.5">
-          <BtnBold className={btnCls} />
-          <BtnItalic className={btnCls} />
-          <BtnUnderline className={btnCls} />
-          <BtnStrike className={btnCls} />
+          <BtnBold className={btnCls} title={t("rich_text.bold")} />
+          <BtnItalic className={btnCls} title={t("rich_text.italic")} />
+          <BtnUnderline className={btnCls} title={t("rich_text.underline")} />
+          <BtnStrike className={btnCls} title={t("rich_text.strike")} />
           <div className="mx-1 h-5 w-px bg-gray-200" />
-          <BtnHeading1 className={btnCls} />
-          <BtnHeading2 className={btnCls} />
-          <BtnBulletList className={btnCls} />
-          <BtnOrderedList className={btnCls} />
+          <BtnHeading1 className={btnCls} title={t("rich_text.heading1")} />
+          <BtnHeading2 className={btnCls} title={t("rich_text.heading2")} />
+          <BtnBulletList className={btnCls} title={t("rich_text.bullet_list")} />
+          <BtnOrderedList className={btnCls} title={t("rich_text.ordered_list")} />
           <div className="mx-1 h-5 w-px bg-gray-200" />
-          <BtnQuote className={btnCls} />
-          <BtnCode className={btnCls} />
-          <BtnLink className={btnCls} />
+          <BtnQuote className={btnCls} title={t("rich_text.quote")} />
+          <BtnCode className={btnCls} title={t("rich_text.code")} />
+          <BtnLink className={btnCls} title={t("rich_text.link")} />
           <BtnImage className={btnCls} />
           <div className="mx-1 h-5 w-px bg-gray-200" />
-          <BtnClear className={btnCls} />
+          <BtnClear className={btnCls} title={t("rich_text.clear_format")} />
         </Toolbar>
       </Editor>
 
       {isDropping && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl border-2 border-dashed border-brand-400 bg-brand-50/80 text-sm font-medium text-brand-600">
-          Отпустите изображение
+          {t("rich_text.drop_image")}
         </div>
       )}
     </div>

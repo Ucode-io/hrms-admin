@@ -11,6 +11,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import httpRequest, { getCompaniesId } from "../httpRequest";
+import { translate } from "../../i18n";
 
 const SLUG = "shift";
 
@@ -164,7 +165,7 @@ const failureReason = (result: PromiseSettledResult<unknown> | undefined): strin
   const status = error?.response?.status;
   // description — поле конверта ucode; при сетевом отказе ответа нет вовсе,
   // и остаётся сообщение axios.
-  const text = error?.response?.data?.description || error?.message || "неизвестная ошибка";
+  const text = error?.response?.data?.description || error?.message || translate("common.unknown_error");
 
   return status ? `${status}, ${text}` : text;
 };

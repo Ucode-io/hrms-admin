@@ -1,3 +1,4 @@
+import { useTranslation } from "../../i18n";
 // Reusable "confirm" button whose fill reflects approval-stage progress.
 // Looks translucent/disabled at 0% and fills with green as stages are
 // approved; becomes a solid button once every stage is approved.
@@ -16,10 +17,12 @@ export default function ApprovalProgressButton({
   approvedStages,
   totalStages,
   onClick,
-  label = "Подтвердить",
+  label,
   disabled = false,
   className = "",
 }: ApprovalProgressButtonProps) {
+  const { t } = useTranslation();
+  label ??= t("common.confirm");
   const percent =
     totalStages > 0 ? Math.min(100, Math.round((approvedStages / totalStages) * 100)) : 0;
   const complete = totalStages > 0 && approvedStages >= totalStages;
@@ -36,8 +39,8 @@ export default function ApprovalProgressButton({
       } ${className}`}
       title={
         complete
-          ? "Все этапы одобрены"
-          : `Одобрено ${approvedStages} из ${totalStages} этапов`
+          ? t("approvals.all_approved")
+          : t("approvals.approved_of", { approved: approvedStages, total: totalStages })
       }
     >
       {!complete ? (

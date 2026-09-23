@@ -3,22 +3,23 @@
 // drop it once uploads go to real object storage.
 
 import type { NewAttachment } from "../../api/services/task.service";
+import { translate } from "../../i18n";
 
 export const MAX_ATTACHMENT_SIZE = 3 * 1024 * 1024;
 
 export const isImage = (mime: string): boolean => mime.startsWith("image/");
 
 export const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} Б`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+  if (bytes < 1024) return translate("tasks.file.size_b", { size: bytes });
+  if (bytes < 1024 * 1024) return translate("tasks.file.size_kb", { size: Math.round(bytes / 1024) });
+  return translate("tasks.file.size_mb", { size: (bytes / (1024 * 1024)).toFixed(1) });
 };
 
 const readAsDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error(`Не удалось прочитать «${file.name}»`));
+    reader.onerror = () => reject(new Error(translate("tasks.file.read_error", { name: file.name })));
     reader.readAsDataURL(file);
   });
 
@@ -34,7 +35,9 @@ export const readFiles = async (files: File[]): Promise<ReadFilesResult> => {
 
   for (const file of files) {
     if (file.size > MAX_ATTACHMENT_SIZE) {
-      rejected.push(`«${file.name}» больше ${formatFileSize(MAX_ATTACHMENT_SIZE)}`);
+      rejected.push(
+        translate("tasks.file.too_large", { name: file.name, size: formatFileSize(MAX_ATTACHMENT_SIZE) })
+      );
       continue;
     }
     try {
@@ -45,7 +48,7 @@ export const readFiles = async (files: File[]): Promise<ReadFilesResult> => {
         url: await readAsDataUrl(file),
       });
     } catch {
-      rejected.push(`«${file.name}» не удалось прочитать`);
+      rejected.push(translate("tasks.file.unreadable", { name: file.name }));
     }
   }
 

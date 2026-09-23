@@ -6,6 +6,7 @@ import Popover from "./ui/Popover";
 import OptionPicker, { type PickerOption } from "./ui/OptionPicker";
 import { ControlButton } from "./ui/controls";
 import { EmployeeAvatar, PriorityIcon, StatusDot, TypeIcon } from "./badges";
+import { useTranslation } from "../../../i18n";
 
 /** Sentinel for the "no filter" row — an empty string can't be a picker value. */
 const ALL = "__all__";
@@ -53,7 +54,6 @@ function FilterSelect({
           selected={value || ALL}
           onSelect={(next) => onChange(next === ALL ? "" : next)}
           searchable={searchable}
-          searchPlaceholder="Поиск..."
           close={close}
         />
       )}
@@ -93,7 +93,12 @@ export function FiltersToolbar({
   onToggle,
   onChange,
 }: FiltersToolbarProps) {
+  const { t } = useTranslation();
   const activeCount = countActiveFilters(filters);
+  const filterLabel =
+    activeCount > 0
+      ? t("tasks.filters.filter_button_with_count", { count: activeCount })
+      : t("tasks.filters.filter_button");
   const isButtonActive = isOpen || activeCount > 0;
 
   return (
@@ -102,7 +107,7 @@ export function FiltersToolbar({
         value={filters.search}
         onChange={(search) => onChange({ ...filters, search })}
         inputId="tasks-search"
-        placeholder="Поиск задач..."
+        placeholder={t("tasks.filters.search_tasks_placeholder")}
         expandedWidth={300}
         collapsedSize={40}
         brandColor={brandColor}
@@ -111,9 +116,9 @@ export function FiltersToolbar({
       <button
         type="button"
         onClick={onToggle}
-        aria-label={`Фильтр${activeCount > 0 ? ` (${activeCount})` : ""}`}
+        aria-label={filterLabel}
         aria-expanded={isOpen}
-        title={`Фильтр${activeCount > 0 ? ` (${activeCount})` : ""}`}
+        title={filterLabel}
         className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
           isButtonActive
             ? "border-brand-200 bg-brand-50 text-brand-500"
@@ -148,6 +153,7 @@ export default function FiltersPanel({
   locations,
   onChange,
 }: FiltersPanelProps) {
+  const { t } = useTranslation();
   const statusOptions = useMemo<PickerOption[]>(
     () =>
       directories.statuses.map((status) => ({
@@ -238,7 +244,7 @@ export default function FiltersPanel({
         value={filters.statusId}
         onChange={(statusId) => onChange({ ...filters, statusId })}
         options={statusOptions}
-        allLabel="Все статусы"
+        allLabel={t("tasks.filters.all_statuses")}
         width={220}
       />
 
@@ -246,7 +252,7 @@ export default function FiltersPanel({
         value={filters.priorityId}
         onChange={(priorityId) => onChange({ ...filters, priorityId })}
         options={priorityOptions}
-        allLabel="Все приоритеты"
+        allLabel={t("tasks.filters.all_priorities")}
         width={200}
       />
 
@@ -254,7 +260,7 @@ export default function FiltersPanel({
         value={filters.typeId}
         onChange={(typeId) => onChange({ ...filters, typeId })}
         options={typeOptions}
-        allLabel="Все типы"
+        allLabel={t("tasks.filters.all_types")}
         width={220}
       />
 
@@ -262,7 +268,7 @@ export default function FiltersPanel({
         value={filters.assigneeId}
         onChange={(assigneeId) => onChange({ ...filters, assigneeId })}
         options={employeeOptions}
-        allLabel="Все исполнители"
+        allLabel={t("tasks.filters.all_assignees")}
         searchable
         width={300}
       />
@@ -272,7 +278,7 @@ export default function FiltersPanel({
           value={filters.departmentId}
           onChange={(departmentId) => onChange({ ...filters, departmentId })}
           options={departmentOptions}
-          allLabel="Все департаменты"
+          allLabel={t("tasks.filters.all_departments")}
           searchable
           width={280}
         />
@@ -283,7 +289,7 @@ export default function FiltersPanel({
           value={filters.tagId}
           onChange={(tagId) => onChange({ ...filters, tagId })}
           options={tagOptions}
-          allLabel="Все теги"
+          allLabel={t("tasks.filters.all_tags")}
           searchable
           width={240}
         />
@@ -294,7 +300,7 @@ export default function FiltersPanel({
           value={filters.locationId}
           onChange={(locationId) => onChange({ ...filters, locationId })}
           options={locationOptions}
-          allLabel="Все филиалы"
+          allLabel={t("tasks.filters.all_locations")}
           searchable
           width={280}
         />
@@ -317,7 +323,7 @@ export default function FiltersPanel({
           }
           className="inline-flex h-9 items-center rounded-lg px-3 text-sm font-medium text-gray-500 transition hover:bg-white hover:text-gray-700"
         >
-          Сбросить
+          {t("tasks.filters.reset")}
         </button>
       )}
     </div>

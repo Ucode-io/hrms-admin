@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Select, { type InputActionMeta, type MultiValue, type StylesConfig } from "react-select";
 import { type Location, useLocationsQuery } from "../../api/services/location.service";
+import { useTranslation } from "../../i18n";
 
 type Option = { value: string; label: string };
 const PAGE_SIZE = 20;
 
-export default function LocationsInfiniteMultiSelect({ value, onChange, menuPortalTarget, styles, placeholder = "Выберите филиалы" }: { value: Option[]; onChange: (value: Option[]) => void; menuPortalTarget?: HTMLElement; styles?: StylesConfig<Option, true>; placeholder?: string }) {
+export default function LocationsInfiniteMultiSelect({ value, onChange, menuPortalTarget, styles, placeholder }: { value: Option[]; onChange: (value: Option[]) => void; menuPortalTarget?: HTMLElement; styles?: StylesConfig<Option, true>; placeholder?: string }) {
+  const { t } = useTranslation();
+  placeholder ??= t("autocomplete.select_locations");
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -16,7 +19,7 @@ export default function LocationsInfiniteMultiSelect({ value, onChange, menuPort
   const params = useMemo(() => ({ limit: PAGE_SIZE, offset, ...(search ? { search } : {}) }), [offset, search]);
   const { data, isLoading, isFetching } = useLocationsQuery({ params });
   useEffect(() => {
-    const next = ((data?.response || []) as Location[]).map(item => ({ value: item.guid, label: item.title || "Без названия" }));
+    const next = ((data?.response || []) as Location[]).map(item => ({ value: item.guid, label: item.title || t("common.untitled") }));
     setCount(Number(data?.count || 0));
     setOptions(previous => offset === 0 ? next : [...new Map([...previous, ...next].map(item => [item.value, item])).values()]);
   }, [data, offset]);
@@ -27,7 +30,7 @@ export default function LocationsInfiniteMultiSelect({ value, onChange, menuPort
     onInputChange={handleInputChange}
     onMenuScrollToBottom={() => { if (!isFetching && options.length < count) setOffset(previous => previous + PAGE_SIZE); }}
     isMulti isSearchable closeMenuOnSelect={false} isLoading={isLoading || isFetching}
-    placeholder={placeholder} noOptionsMessage={() => isFetching ? "Загрузка..." : "Ничего не найдено"}
+    placeholder={placeholder} noOptionsMessage={() => isFetching ? t("common.loading") : t("common.no_options_found")}
     menuPortalTarget={menuPortalTarget} menuPosition="fixed"
     styles={styles || { control: (base, state) => ({ ...base, minHeight: 44, borderRadius: 10, borderColor: state.isFocused ? "#465fff" : "#e5e7eb", boxShadow: state.isFocused ? "0 0 0 3px rgba(70,95,255,.1)" : "none" }), menuPortal: base => ({ ...base, zIndex: 100000 }), menu: base => ({ ...base, zIndex: 100000 }) }}
   />;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Select, { type InputActionMeta, type SingleValue, type StylesConfig } from "react-select";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
+import { useTranslation } from "../../i18n";
 
 type Option = {
   value: string;
@@ -50,11 +51,13 @@ export default function EmployeeInfiniteSelect({
   value,
   onChange,
   fallbackLabel,
-  placeholder = "Выберите сотрудника",
+  placeholder,
   styles,
   menuPortalTarget,
   classNamePrefix = "employee-infinite-select",
 }: EmployeeInfiniteSelectProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("autocomplete.select_employee");
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -145,8 +148,8 @@ export default function EmployeeInfiniteSelect({
       menuPortalTarget={menuPortalTarget}
       menuPosition="fixed"
       classNamePrefix={classNamePrefix}
-      noOptionsMessage={() => (isLoading || isFetching ? "Загрузка..." : "Ничего не найдено")}
-      loadingMessage={() => "Загрузка..."}
+      noOptionsMessage={() => (isLoading || isFetching ? t("common.loading") : t("common.no_options_found"))}
+      loadingMessage={() => t("common.loading")}
     />
   );
 }

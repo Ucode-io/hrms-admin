@@ -5,6 +5,7 @@ import Select, {
   type StylesConfig,
 } from "react-select";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
+import { useTranslation } from "../../i18n";
 
 type Option = {
   value: string;
@@ -65,7 +66,7 @@ export default function EmployeesInfiniteMultiSelect({
   value,
   onChange,
   fallbackOptions = [],
-  placeholder = "Выберите сотрудников",
+  placeholder,
   styles,
   menuPortalTarget,
   classNamePrefix = "employees-infinite-multi-select",
@@ -74,6 +75,8 @@ export default function EmployeesInfiniteMultiSelect({
   isDisabled = false,
   onLoaded,
 }: EmployeesInfiniteMultiSelectProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("autocomplete.select_employees");
   const [inputValue, setInputValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [offset, setOffset] = useState(0);
@@ -195,8 +198,8 @@ export default function EmployeesInfiniteMultiSelect({
       menuPortalTarget={menuPortalTarget}
       menuPosition="fixed"
       classNamePrefix={classNamePrefix}
-      noOptionsMessage={() => (isLoading || isFetching ? "Загрузка..." : "Ничего не найдено")}
-      loadingMessage={() => "Загрузка..."}
+      noOptionsMessage={() => (isLoading || isFetching ? t("common.loading") : t("common.no_options_found"))}
+      loadingMessage={() => t("common.loading")}
     />
   );
 }

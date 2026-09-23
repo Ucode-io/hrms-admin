@@ -3,6 +3,7 @@ import { MapPin } from "lucide-react";
 import Popover from "../ui/Popover";
 import OptionPicker, { type PickerOption } from "../ui/OptionPicker";
 import { ClearButton, ControlButton, FieldSlot, type ControlVariant } from "../ui/controls";
+import { useTranslation } from "../../../../i18n";
 
 /** Филиал — существующий справочник HRMS, поэтому только выбор, без создания. */
 export interface LocationOption {
@@ -23,8 +24,10 @@ export default function LocationField({
   locations,
   onChange,
   variant,
-  placeholder = "Филиал",
+  placeholder,
 }: LocationFieldProps) {
+  const { t } = useTranslation();
+  placeholder ??= t("tasks.location.placeholder");
   const [open, setOpen] = useState(false);
 
   const options = useMemo<PickerOption[]>(
@@ -46,8 +49,8 @@ export default function LocationField({
             selected={value || null}
             onSelect={(next) => onChange(next)}
             searchable
-            searchPlaceholder="Найти филиал..."
-            emptyText="Филиалов нет — заведите их в настройках"
+            searchPlaceholder={t("tasks.location.search_placeholder")}
+            emptyText={t("tasks.location.empty_text")}
             close={close}
             footer={
               value
@@ -60,7 +63,7 @@ export default function LocationField({
                       }}
                       className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-gray-500 transition hover:bg-gray-50 hover:text-error-600 dark:hover:bg-white/5"
                     >
-                      Очистить филиал
+                      {t("tasks.location.clear")}
                     </button>
                   )
                 : undefined
@@ -83,7 +86,7 @@ export default function LocationField({
           </ControlButton>
         )}
       </Popover>
-      {value && <ClearButton onClick={() => onChange(null)} label="Очистить филиал" />}
+      {value && <ClearButton onClick={() => onChange(null)} label={t("tasks.location.clear")} />}
     </FieldSlot>
   );
 }

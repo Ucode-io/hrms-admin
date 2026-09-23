@@ -43,9 +43,11 @@ import { useEmployeeAbsenceSummaryQuery } from "../../api/services/employeeAbsen
 import { useUploadFile } from "../../api/services/file-upload.service";
 import companyStore from "../../store/company.store";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
-import LocationViewLink from "../../components/map/LocationViewLink";
+import LocationViewLink, { DistanceBadge } from "../../components/map/LocationViewLink";
+import { markGeoByDay } from "../../components/map/shared";
 import { type Office, useOffices } from "../../components/map/useOffices";
-import { useTranslation } from "../../i18n";
+import { useTranslation, translate, getLocale, monthNames, weekdayNames } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
 const PAGE_SIZE = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -105,35 +107,9 @@ const filterSelectStyles: StylesConfig<FilterOption, true> = {
   }),
   noOptionsMessage: (base: any) => ({ ...base, color: "#64748b", fontSize: 13 }),
 };
-const WEEKDAY_SHORT_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-const MONTH_NAMES_RU = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
-];
-const MONTH_SHORT_RU = [
-  "янв.",
-  "фев.",
-  "мар.",
-  "апр.",
-  "май",
-  "июн.",
-  "июл.",
-  "авг.",
-  "сен.",
-  "окт.",
-  "ноя.",
-  "дек.",
-];
+/** Короткий день недели по `Date.getDay()` (0 — воскресенье) в текущей локали. */
+const weekdayShort = (day: number): string => weekdayNames(getLocale())[(day + 6) % 7] || "";
+const monthShort = (month: number): string => monthNames(getLocale(), "short")[month].toLowerCase();
 const ABSENCE_POLICIES_SLUG = "absence_policies";
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
@@ -246,7 +222,7 @@ const resolveAbsenceColor = (rawColor: unknown, status: "pending" | "approved" |
 };
 
 const formatMonthLabel = (value: Date): string => {
-  const monthName = MONTH_NAMES_RU[value.getMonth()] || "";
+  const monthName = monthNames(getLocale())[value.getMonth()] || "";
   return `${monthName} ${value.getFullYear()}`;
 };
 
@@ -263,7 +239,7 @@ const buildMonthDays = (monthDate: Date): DayColumn[] => {
     return {
       dateKey: toIsoDate(date),
       dayNumber,
-      weekdayShort: WEEKDAY_SHORT_RU[weekdayIndex] || "",
+      weekdayShort: weekdayShort(weekdayIndex),
       isWeekend: weekdayIndex === 0 || weekdayIndex === 6,
     };
   });
@@ -322,8 +298,8 @@ const getDateBreakdown = (
     list.push({
       iso: toIsoDate(cursor),
       day: String(cursor.getDate()),
-      month: MONTH_SHORT_RU[cursor.getMonth()],
-      weekday: WEEKDAY_SHORT_RU[dayOfWeek] || "",
+      month: monthShort(cursor.getMonth()),
+      weekday: weekdayShort(dayOfWeek),
       isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
       value: 1,
     });
@@ -342,10 +318,10 @@ const formatDateRu = (value: string): string => {
   return `${day}.${month}.${date.getFullYear()}`;
 };
 
-const STATUS_LABELS: Record<AbsenceRequestStatus, string> = {
-  pending: "Ожидает",
-  approved: "Подтвержден",
-  rejected: "Отклонен",
+const STATUS_LABELS: Record<AbsenceRequestStatus, MessageKey> = {
+  pending: "absence_calendar.status.pending",
+  approved: "absence_calendar.status.approved",
+  rejected: "absence_calendar.status.rejected",
 };
 
 const STATUS_BADGE_CLASSNAME: Record<AbsenceRequestStatus, string> = {
@@ -368,7 +344,7 @@ const buildEmployeeName = (employee: Employee): string => {
     .trim();
 
   if (fullName) return fullName;
-  return employee.email || employee.phone || "Сотрудник";
+  return employee.email || employee.phone || translate("absence_calendar.employee_fallback");
 };
 
 const buildInitials = (employee: Employee): string => {
@@ -413,7 +389,7 @@ const normalizeAbsence = (
     guid: item.guid,
     userBaseId,
     absencePolicyId: policyId,
-    title: relationTitle || aggregatedTitle || policy?.title || "Отсутствие",
+    title: relationTitle || aggregatedTitle || policy?.title || translate("dashboard.fallback.absence"),
     color: resolveAbsenceColor(relationColor || aggregatedColor || policy?.color, status),
     icon: relationIcon || aggregatedIcon || policy?.icon || "mdi:airplane",
     status,
@@ -440,10 +416,10 @@ const ATTENDANCE_CELL_BG: Record<AttendanceDotKind, string> = {
   absent: "#FEE2E2",
 };
 
-const ATTENDANCE_DOT_LABEL: Record<AttendanceDotKind, string> = {
-  present: "Присутствует",
-  late: "Опоздание",
-  absent: "Отсутствует",
+const ATTENDANCE_DOT_LABEL: Record<AttendanceDotKind, MessageKey> = {
+  present: "absence_calendar.attendance.present",
+  late: "absence_calendar.attendance.late",
+  absent: "absence_calendar.attendance.absent",
 };
 
 const AttendanceIcon = ({ kind, className }: { kind: AttendanceDotKind; className?: string }) => {
@@ -460,6 +436,10 @@ type AttendanceCellInfo = {
   delayTime: string;
   sourceLabel: string;
   location: string;
+  checkInGeo: string;
+  checkOutGeo: string;
+  checkInReason: string;
+  checkOutReason: string;
   /** `user_base.locations_id` — филиал сотрудника, для сверки отметки. */
   officeId: string;
 };
@@ -511,7 +491,7 @@ const renderEmptyOrAttendanceCell = ({
 
   const pillColor = ATTENDANCE_PILL_COLOR[info.kind];
   const pillBg = ATTENDANCE_CELL_BG[info.kind];
-  const tooltip = ATTENDANCE_DOT_LABEL[info.kind];
+  const tooltip = translate(ATTENDANCE_DOT_LABEL[info.kind]);
 
   return (
     <td
@@ -631,7 +611,7 @@ const buildTimelineCells = ({
     const isRejected = segment.status === "rejected";
     const canReview = segment.status === "pending";
     const segmentLabel = `${segment.title} • ${segment.dateFrom} - ${segment.dateTo}${
-      isPending ? " • ожидает согласования" : ""
+      isPending ? ` • ${translate("absence_calendar.awaiting_approval")}` : ""
     }`;
 
     cells.push(
@@ -658,7 +638,7 @@ const buildTimelineCells = ({
           } ${showIconOnly ? "items-center justify-center px-0" : "items-center gap-1 px-2"} ${
             isPending ? "border border-dashed" : ""
           } ${canReview ? "transition hover:ring-2 hover:ring-brand-500/20" : ""}`}
-          aria-label={`Отсутствие: ${segment.title}`}
+          aria-label={translate("absence_calendar.absence_aria", { title: segment.title })}
           title={segmentLabel}
           style={{
             color: isPending ? "#4B5563" : segmentColor,
@@ -673,7 +653,7 @@ const buildTimelineCells = ({
             className={`shrink-0 ${showIconOnly ? "h-[18px] w-[18px]" : "h-4 w-4"}`}
           />
           {!showIconOnly ? <span className="truncate">{segment.title}</span> : null}
-          {isRejected && !showIconOnly ? <span className="ml-1 text-[10px] font-medium">• отклонен</span> : null}
+          {isRejected && !showIconOnly ? <span className="ml-1 text-[10px] font-medium">• {translate("absence_calendar.rejected_mark")}</span> : null}
         </button>
       </td>
     );
@@ -723,10 +703,10 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
   const [reviewStatusInProgress, setReviewStatusInProgress] = useState<AbsenceRequestStatus | null>(null);
   const breadcrumbItems = useMemo(
     () => [
-      { label: "Время", to: "/time/attendance" },
-      { label: "Отсутствие", to: "/calendar" },
+      { label: t("breadcrumb.time"), to: "/time/attendance" },
+      { label: t("dashboard.fallback.absence"), to: "/calendar" },
     ],
-    []
+    [t]
   );
   useHeaderBreadcrumbItems(breadcrumbItems);
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -760,7 +740,8 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     };
   }, [searchValue]);
 
-  const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
+  // t в зависимостях — подписи дней недели и месяцев берутся из локали.
+  const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth, t]);
   const monthStartIso = monthDays[0]?.dateKey || "";
   const monthEndIso = monthDays[monthDays.length - 1]?.dateKey || "";
 
@@ -908,7 +889,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     return source
       .map((item) => normalizeAbsence(item, policiesById))
       .filter((absence): absence is NormalizedAbsence => Boolean(absence));
-  }, [absencesData?.response, policiesById]);
+  }, [absencesData?.response, policiesById, t]);
 
   const { data: attendanceData } = useCalendarAttendanceQuery({
     params: {
@@ -945,21 +926,10 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     },
   });
 
-  // attendance_records comes back newest-first, so the first match per
-  // employee+date is their latest geo-tagged event.
-  const locationByEmployeeAndDate = useMemo(() => {
-    const map = new Map<string, string>();
-    const rows = (attendanceRecordsData?.response || []) as Record<string, unknown>[];
-    for (const row of rows) {
-      const userId = typeof row.user_base_id === "string" ? row.user_base_id : "";
-      const geo = typeof row.map === "string" ? row.map.trim() : "";
-      const dateKey = typeof row.date === "string" ? row.date.slice(0, 10) : "";
-      if (!userId || !geo || !dateKey) continue;
-      const key = `${userId}|${dateKey}`;
-      if (!map.has(key)) map.set(key, geo);
-    }
-    return map;
-  }, [attendanceRecordsData?.response]);
+  const geoByDay = useMemo(
+    () => markGeoByDay((attendanceRecordsData?.response || []) as Record<string, unknown>[]),
+    [attendanceRecordsData?.response]
+  );
 
   // Филиал берётся из той же развёрнутой связи, что и имя, — отдельного
   // запроса за сотрудниками не нужно.
@@ -1008,9 +978,10 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
         sourceKind === "manual"
           ? "HRMS"
           : sourceKind === "integration"
-            ? "Интеграция"
-            : "Источник не указан";
+            ? t("absence_calendar.source.integration")
+            : t("absence_calendar.source.unknown");
 
+      const geo = geoByDay.get(`${userId}|${dateKey}`);
       const info: AttendanceCellInfo = {
         kind,
         guid: row.guid,
@@ -1019,7 +990,11 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
           typeof row.check_out_time === "string" ? row.check_out_time : "",
         delayTime: typeof row.delay_time === "string" ? row.delay_time : "",
         sourceLabel,
-        location: locationByEmployeeAndDate.get(`${userId}|${dateKey}`) || "",
+        location: geo?.out || geo?.in || "",
+        checkInGeo: geo?.in || "",
+        checkOutGeo: geo?.out || "",
+        checkInReason: geo?.inReason || "",
+        checkOutReason: geo?.outReason || "",
         officeId: officeIdByEmployee.get(userId) || "",
       };
 
@@ -1032,7 +1007,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     }
 
     return map;
-  }, [attendanceData?.response, locationByEmployeeAndDate, officeIdByEmployee]);
+  }, [attendanceData?.response, geoByDay, officeIdByEmployee, t]);
 
   if (typeof employeesData?.count === "number" && Number.isFinite(employeesData.count)) {
     lastKnownTotalCountRef.current = employeesData.count;
@@ -1094,11 +1069,14 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     return map;
   }, [monthEndIso, monthStartIso, normalizedAbsences, visibleEmployeeIds]);
 
-  const monthLabel = useMemo(() => formatMonthLabel(currentMonth), [currentMonth]);
+  const monthLabel = useMemo(() => formatMonthLabel(currentMonth), [currentMonth, t]);
   const isLoading = isInitialLoading;
   const companyMainColor = "var(--color-brand-500)";
   const isReviewing = updateAbsenceMutation.isLoading || approveAbsenceMutation.isLoading;
-  const createBreakdown = useMemo(() => getDateBreakdown(createDateFrom, createDateTo), [createDateFrom, createDateTo]);
+  const createBreakdown = useMemo(
+    () => getDateBreakdown(createDateFrom, createDateTo),
+    [createDateFrom, createDateTo, t]
+  );
   const createRequestedDays = createBreakdown.length;
 
   const createAvailableDays = useMemo(() => {
@@ -1155,14 +1133,14 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
     const remainingSlots = MAX_ATTACHMENTS - createAttachments.length;
     if (remainingSlots <= 0) {
-      toast.error(`Можно добавить максимум ${MAX_ATTACHMENTS} файлов.`);
+      toast.error(t("absence_calendar.max_files", { count: MAX_ATTACHMENTS }));
       return;
     }
 
     const queue = Array.from(files).slice(0, remainingSlots);
     const rejectedBySize = queue.filter((file) => file.size > MAX_FILE_SIZE_BYTES);
     if (rejectedBySize.length > 0) {
-      toast.error("Размер каждого файла должен быть не больше 50MB.");
+      toast.error(t("absence_calendar.file_too_large"));
     }
 
     const accepted = queue.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
@@ -1180,10 +1158,10 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
         });
       }
       setCreateAttachments((prev) => [...prev, ...uploadedItems]);
-      toast.success("Файлы успешно загружены.");
+      toast.success(t("absence_calendar.files_uploaded"));
     } catch (error) {
       console.error("Failed to upload calendar absence attachments:", error);
-      toast.error("Не удалось загрузить вложения.");
+      toast.error(t("absence_calendar.upload_error"));
     } finally {
       setIsUploadingAttachments(false);
     }
@@ -1195,27 +1173,27 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
   const submitCreateRequest = async () => {
     if (!createEmployeeId) {
-      toast.error("Выберите сотрудника.");
+      toast.error(t("absence_calendar.validation.employee"));
       return;
     }
 
     if (!createPolicyId) {
-      toast.error("Выберите тип отсутствия.");
+      toast.error(t("absence_calendar.validation.type"));
       return;
     }
 
     if (!createDateFrom || !createDateTo) {
-      toast.error("Укажите диапазон дат.");
+      toast.error(t("absence_calendar.validation.range"));
       return;
     }
 
     if (createDateFrom > createDateTo) {
-      toast.error("Дата начала не может быть позже даты окончания.");
+      toast.error(t("absence_calendar.validation.start_after_end"));
       return;
     }
 
     if (createRequestedDays <= 0) {
-      toast.error("В запросе должен быть хотя бы один день.");
+      toast.error(t("absence_calendar.validation.one_day"));
       return;
     }
 
@@ -1239,18 +1217,18 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
       await queryClient.invalidateQueries(["calendar-absences"]);
       await queryClient.invalidateQueries(["employee-absence-summary"]);
-      toast.success("Запрос на отсутствие создан.");
+      toast.success(t("absence_calendar.request_created"));
       closeCreateModal();
     } catch (error) {
       console.error("Failed to create absence from calendar:", error);
-      toast.error("Не удалось создать запрос.");
+      toast.error(t("absence_calendar.request_create_error"));
     }
   };
 
   const handleReviewAbsence = async (status: AbsenceRequestStatus) => {
     if (!selectedAbsence) return;
     if (selectedAbsence.status !== "pending") {
-      toast.info("Эта заявка уже обработана.");
+      toast.info(t("absence_calendar.already_processed"));
       return;
     }
 
@@ -1271,11 +1249,11 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
       await queryClient.invalidateQueries(["calendar-absences"]);
       await queryClient.invalidateQueries(["employee-absence-summary"]);
 
-      toast.success(status === "approved" ? "Запрос подтвержден." : "Запрос отклонен.");
+      toast.success(status === "approved" ? t("absence_calendar.request_approved") : t("absence_calendar.request_rejected"));
       closeReviewModal();
     } catch (error) {
       console.error("Failed to review absence from calendar:", error);
-      toast.error("Не удалось изменить статус запроса.");
+      toast.error(t("absence_calendar.status_change_error"));
     } finally {
       setReviewStatusInProgress(null);
     }
@@ -1283,7 +1261,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
   return (
     <>
-      <PageMeta title="Календарь | HRMS" description="Календарь отсутствий сотрудников" />
+      <PageMeta title={`${t("breadcrumb.calendar")} | HRMS`} description={t("absence_calendar.meta_description")} />
 
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4 flex h-[calc(100vh-88px)] min-h-0 flex-col">
         <div
@@ -1305,7 +1283,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
               value={searchValue}
               onChange={setSearchValue}
               inputId="calendar-search"
-              placeholder="Поиск сотрудника..."
+              placeholder={t("tasks.assignee.search_placeholder")}
               expandedWidth={320}
               collapsedSize={40}
               brandColor="var(--color-brand-500)"
@@ -1314,8 +1292,8 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
             <button
               type="button"
               onClick={() => setIsFiltersOpen((open) => !open)}
-              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
-              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              aria-label={activeFiltersCount > 0 ? t("tasks.filters.filter_button_with_count", { count: activeFiltersCount }) : t("tasks.filters.filter_button")}
+              title={activeFiltersCount > 0 ? t("tasks.filters.filter_button_with_count", { count: activeFiltersCount }) : t("tasks.filters.filter_button")}
               className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
                 isFilterButtonActive
                   ? "border-brand-200 bg-brand-50 text-brand-500"
@@ -1335,7 +1313,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
               startIcon={<Plus size={15} />}
               onClick={openCreateModal}
             >
-              Запрос на отсутствие
+              {t("absence_request.title")}
             </Button>
           </div>
         </div>
@@ -1366,8 +1344,8 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                 onChange={(value) =>
                   setSelectedDepartmentIds(value.map((option) => option.value))
                 }
-                placeholder="Департамент"
-                noOptionsMessage={() => "Ничего не найдено"}
+                placeholder={t("absence_calendar.department")}
+                noOptionsMessage={() => t("common.no_options_found")}
                 styles={filterSelectStyles}
                 menuPortalTarget={selectPortalTarget}
                 menuPosition="fixed"
@@ -1385,8 +1363,8 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                 onChange={(value) =>
                   setSelectedPositionIds(value.map((option) => option.value))
                 }
-                placeholder="Должность"
-                noOptionsMessage={() => "Ничего не найдено"}
+                placeholder={t("absence_calendar.position")}
+                noOptionsMessage={() => t("common.no_options_found")}
                 styles={filterSelectStyles}
                 menuPortalTarget={selectPortalTarget}
                 menuPosition="fixed"
@@ -1402,7 +1380,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                 }}
                 className="ml-auto inline-flex h-10 items-center rounded-xl border border-brand-200 bg-brand-50 px-3 text-sm font-medium text-brand-500 transition hover:bg-brand-100"
               >
-                Сбросить
+                {t("common.reset")}
               </button>
             ) : null}
           </div>
@@ -1415,8 +1393,8 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                 {totalCount > 0
                   ? ""
                   : isInitialEmployeesLoading
-                    ? "Загружаем сотрудников..."
-                    : "Сотрудники не найдены"}
+                    ? t("absence_calendar.loading_employees")
+                    : t("tasks.assignee.no_employees_found")}
               </span>
               <div
                 style={{
@@ -1437,7 +1415,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                     )
                   }
                   className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-slate-50 hover:border-slate-200"
-                  aria-label="Предыдущий месяц"
+                  aria-label={t("common.prev_month")}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -1452,7 +1430,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                     )
                   }
                   className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-slate-50 hover:border-slate-200"
-                  aria-label="Следующий месяц"
+                  aria-label={t("common.next_month")}
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -1470,7 +1448,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                 <thead>
                   <tr>
                     <th className="sticky top-0 left-0 z-40 min-w-[320px] border-b border-r border-gray-100 bg-gray-50 px-4 py-2 text-left text-xs font-semibold text-gray-600">
-                      Сотрудник
+                      {t("absence_request.employee")}
                     </th>
                     {monthDays.map((day) => (
                       <th
@@ -1509,7 +1487,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                         colSpan={monthDays.length + 1}
                         className="px-4 py-12 text-center text-sm text-gray-500"
                       >
-                        Нет сотрудников для отображения.
+                        {t("absence_calendar.no_employees_to_show")}
                       </td>
                     </tr>
                   ) : null}
@@ -1590,7 +1568,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
                       >
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Загружаем ещё сотрудников...
+                          {t("absence_calendar.loading_more_employees")}
                         </span>
                       </td>
                     </tr>
@@ -1602,15 +1580,15 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
             <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-sm">
               <span className="text-gray-500">
                 {totalCount > 0 && !hasMoreEmployees
-                  ? "Все сотрудники загружены"
+                  ? t("absence_calendar.all_employees_loaded")
                   : totalCount === 0
-                    ? "Сотрудники не найдены"
+                    ? t("tasks.assignee.no_employees_found")
                     : ""}
               </span>
               {isLoadingMoreEmployees ? (
                 <span className="inline-flex items-center gap-2 text-gray-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Загрузка...
+                  {t("common.loading")}
                 </span>
               ) : null}
             </div>
@@ -1654,7 +1632,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
           value: createEmployeeId,
           onChange: setCreateEmployeeId,
           fallbackLabel: selectedCreateEmployeeName,
-          placeholder: "Выберите сотрудника",
+          placeholder: t("autocomplete.select_employee"),
         }}
       />
 
@@ -1757,6 +1735,7 @@ function AttendanceTooltip({
   onClose: () => void;
   offices: Map<string, Office>;
 }) {
+  const { t } = useTranslation();
   const tooltipRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1801,7 +1780,7 @@ function AttendanceTooltip({
     <div
       ref={tooltipRef}
       role="dialog"
-      aria-label="Детали посещаемости"
+      aria-label={t("absence_calendar.attendance_details")}
       className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl"
       style={{
         left: position.left,
@@ -1821,32 +1800,42 @@ function AttendanceTooltip({
           className="inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
           style={{ backgroundColor: ATTENDANCE_CELL_BG[data.kind], color: statusColor }}
         >
-          {ATTENDANCE_DOT_LABEL[data.kind]}
+          {t(ATTENDANCE_DOT_LABEL[data.kind])}
         </span>
       </div>
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-3 text-sm">
         <div>
-          <dt className="text-[11px] text-gray-500">Приход</dt>
+          <dt className="text-[11px] text-gray-500">{t("absence_calendar.check_in")}</dt>
           <dd className="font-semibold text-gray-900">{data.checkInTime || "—"}</dd>
+          {data.checkInGeo ? (
+            <dd className="mt-1">
+              <DistanceBadge value={data.checkInGeo} office={offices.get(data.officeId)} reason={data.checkInReason} />
+            </dd>
+          ) : null}
         </div>
         <div>
-          <dt className="text-[11px] text-gray-500">Уход</dt>
+          <dt className="text-[11px] text-gray-500">{t("absence_calendar.check_out")}</dt>
           <dd className="font-semibold text-gray-900">{data.checkOutTime || "—"}</dd>
+          {data.checkOutGeo ? (
+            <dd className="mt-1">
+              <DistanceBadge value={data.checkOutGeo} office={offices.get(data.officeId)} reason={data.checkOutReason} />
+            </dd>
+          ) : null}
         </div>
         <div>
-          <dt className="text-[11px] text-gray-500">Опоздание</dt>
+          <dt className="text-[11px] text-gray-500">{t("absence_calendar.attendance.late")}</dt>
           <dd className="font-semibold text-gray-900">{data.delayTime || "—"}</dd>
         </div>
         <div>
-          <dt className="text-[11px] text-gray-500">Источник</dt>
+          <dt className="text-[11px] text-gray-500">{t("absence_calendar.source.label")}</dt>
           <dd className="font-semibold text-gray-900">{data.sourceLabel}</dd>
         </div>
         <div>
-          <dt className="text-[11px] text-gray-500">Филиал</dt>
+          <dt className="text-[11px] text-gray-500">{t("tasks.location.placeholder")}</dt>
           <dd className="font-semibold text-gray-900">
             {data.location ? (
-              <LocationViewLink value={data.location} office={offices.get(data.officeId)} />
+              <LocationViewLink showDistance={false} value={data.location} office={offices.get(data.officeId)} />
             ) : (
               "—"
             )}
@@ -1874,6 +1863,7 @@ function AbsenceTooltip({
   isReviewing: boolean;
   reviewStatusInProgress: AbsenceRequestStatus | null;
 }) {
+  const { t } = useTranslation();
   const tooltipRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1913,7 +1903,7 @@ function AbsenceTooltip({
     <div
       ref={tooltipRef}
       role="dialog"
-      aria-label="Детали отсутствия"
+      aria-label={t("absence_calendar.absence_details")}
       className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl"
       style={{
         left: position.left,
@@ -1926,7 +1916,8 @@ function AbsenceTooltip({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-gray-900">{data.employeeName}</p>
           <p className="text-xs text-gray-500">
-            {formatDateRu(data.dateFrom)} – {formatDateRu(data.dateTo)} • {data.requestedDays} дн.
+            {formatDateRu(data.dateFrom)} – {formatDateRu(data.dateTo)} •{" "}
+            {t("absence_calendar.days_count", { count: data.requestedDays })}
           </p>
         </div>
         <span
@@ -1934,7 +1925,7 @@ function AbsenceTooltip({
             STATUS_BADGE_CLASSNAME[data.status]
           }`}
         >
-          {STATUS_LABELS[data.status]}
+          {t(STATUS_LABELS[data.status])}
         </span>
       </div>
 
@@ -1951,11 +1942,11 @@ function AbsenceTooltip({
 
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5">
-            <p className="text-[11px] text-gray-500">Дата начала</p>
+            <p className="text-[11px] text-gray-500">{t("absence_request.start_date")}</p>
             <p className="text-sm font-semibold text-gray-900">{formatDateRu(data.dateFrom)}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5">
-            <p className="text-[11px] text-gray-500">Дата окончания</p>
+            <p className="text-[11px] text-gray-500">{t("absence_request.end_date")}</p>
             <p className="text-sm font-semibold text-gray-900">{formatDateRu(data.dateTo)}</p>
           </div>
         </div>
@@ -1968,7 +1959,7 @@ function AbsenceTooltip({
           disabled={isReviewing}
           className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Отмена
+          {t("common.cancel")}
         </button>
         {canReview ? (
           <>
@@ -1978,7 +1969,7 @@ function AbsenceTooltip({
               disabled={isReviewing}
               className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {reviewStatusInProgress === "rejected" ? "Отклонение..." : "Отклонить"}
+              {reviewStatusInProgress === "rejected" ? t("absence_calendar.rejecting") : t("approvals.reject")}
             </button>
             <button
               type="button"
@@ -1986,7 +1977,7 @@ function AbsenceTooltip({
               disabled={isReviewing}
               className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {reviewStatusInProgress === "approved" ? "Подтверждение..." : "Подтвердить"}
+              {reviewStatusInProgress === "approved" ? t("approvals.confirming") : t("common.confirm")}
             </button>
           </>
         ) : null}

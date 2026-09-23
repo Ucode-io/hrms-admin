@@ -1,9 +1,9 @@
 // Даты, инициалы и цвет аватара уже решены в табеле — берём оттуда, а не
 // заводим второй набор тех же функций.
 export {
-  MONTHS_RU,
-  MONTHS_SHORT_RU,
-  WEEKDAYS_SHORT_RU,
+  monthName,
+  monthShort,
+  weekdayShort,
   toIsoDate,
   fromIsoDate,
   shiftDays,
@@ -19,8 +19,8 @@ export {
 } from "../Timesheet/constants";
 
 import {
-  MONTHS_RU,
-  MONTHS_SHORT_RU,
+  monthName,
+  monthShort,
   endOfMonth,
   fromIsoDate,
   shiftDays,
@@ -170,10 +170,10 @@ export const formatRangeLabel = (
 ): string => {
   const from = fromIsoDate(range.from);
   const to = fromIsoDate(range.to);
-  if (scale === "month") return `${MONTHS_RU[from.getMonth()]} ${from.getFullYear()}`;
-  return `${from.getDate()} ${MONTHS_SHORT_RU[from.getMonth()]} – ${to.getDate()} ${
-    MONTHS_SHORT_RU[to.getMonth()]
-  } ${to.getFullYear()}`;
+  if (scale === "month") return `${monthName(from.getMonth())} ${from.getFullYear()}`;
+  return `${from.getDate()} ${monthShort(from.getMonth())} – ${to.getDate()} ${monthShort(
+    to.getMonth()
+  )} ${to.getFullYear()}`;
 };
 
 /** Все даты диапазона включительно. */

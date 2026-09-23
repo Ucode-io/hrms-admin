@@ -8,6 +8,7 @@ import type { StylesConfig } from "react-select";
 import Button from "../ui/button/Button";
 import { Modal } from "../ui/modal";
 import EmployeeInfiniteSelect from "../autocomplete/EmployeeInfiniteSelect";
+import { useTranslation } from "../../i18n";
 
 const INPUT_CLASSNAME =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300";
@@ -255,10 +256,13 @@ export default function AbsenceRequestModal({
   isSubmitting,
   submitDisabled,
   onSubmit,
-  submitIdleLabel = "Запрос",
-  submitLoadingLabel = "Отправка...",
+  submitIdleLabel,
+  submitLoadingLabel,
   employeeField,
 }: AbsenceRequestModalProps) {
+  const { t } = useTranslation();
+  submitIdleLabel ??= t("absence_request.submit");
+  submitLoadingLabel ??= t("absence_request.submitting");
   const policyOptions: PolicySelectOption[] = policies.map((policy) => ({
     value: policy.guid,
     label: policy.title,
@@ -275,12 +279,12 @@ export default function AbsenceRequestModal({
       className="mx-4 w-full max-w-[980px] overflow-visible rounded-2xl border border-slate-200 bg-white shadow-xl"
     >
       <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-        <h3 className="m-0 text-[18px] font-semibold text-slate-900">Запрос на отсутствие</h3>
+        <h3 className="m-0 text-[18px] font-semibold text-slate-900">{t("absence_request.title")}</h3>
         <button
           type="button"
           onClick={onClose}
           className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-          aria-label="Закрыть"
+          aria-label={t("common.close")}
         >
           <X className="h-4 w-4" />
         </button>
@@ -290,12 +294,12 @@ export default function AbsenceRequestModal({
         <div className="space-y-4 px-6 py-5">
           {employeeField ? (
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-700">Сотрудник</label>
+              <label className="mb-1 block text-[12px] font-medium text-slate-700">{t("absence_request.employee")}</label>
               <EmployeeInfiniteSelect
                 value={employeeField.value}
                 onChange={employeeField.onChange}
                 fallbackLabel={employeeField.fallbackLabel}
-                placeholder={employeeField.placeholder || "Выберите сотрудника"}
+                placeholder={employeeField.placeholder || t("autocomplete.select_employee")}
                 menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
                 classNamePrefix="absence-request-employee-select"
                 styles={getEmployeeSelectStyles()}
@@ -304,12 +308,12 @@ export default function AbsenceRequestModal({
           ) : null}
 
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-700">Тип отсутствия</label>
+            <label className="mb-1 block text-[12px] font-medium text-slate-700">{t("absence_request.type")}</label>
             <Select<PolicySelectOption, false>
               options={policyOptions}
               value={selectedPolicy}
               onChange={(option) => onPolicyIdChange(option?.value || "")}
-              placeholder="Выберите тип"
+              placeholder={t("absence_request.select_type")}
               isSearchable
               menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
               styles={getPolicySelectStyles()}
@@ -333,12 +337,12 @@ export default function AbsenceRequestModal({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-700">Дата начала</label>
+              <label className="mb-1 block text-[12px] font-medium text-slate-700">{t("absence_request.start_date")}</label>
               <DatePicker
                 selected={parseIsoDate(dateFrom)}
                 onChange={(date) => onDateFromChange(date ? toIsoDate(date) : "")}
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("common.date_placeholder")}
                 showYearDropdown
                 showMonthDropdown
                 dropdownMode="select"
@@ -347,13 +351,13 @@ export default function AbsenceRequestModal({
               />
             </div>
             <div>
-              <label className="mb-1 block text-[12px] font-medium text-slate-700">Дата окончания</label>
+              <label className="mb-1 block text-[12px] font-medium text-slate-700">{t("absence_request.end_date")}</label>
               <DatePicker
                 selected={parseIsoDate(dateTo)}
                 onChange={(date) => onDateToChange(date ? toIsoDate(date) : "")}
                 minDate={parseIsoDate(dateFrom) || undefined}
                 dateFormat="dd.MM.yyyy"
-                placeholderText="дд.мм.гггг"
+                placeholderText={t("common.date_placeholder")}
                 showYearDropdown
                 showMonthDropdown
                 dropdownMode="select"
@@ -364,19 +368,19 @@ export default function AbsenceRequestModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-[12px] font-medium text-slate-700">Заметка</label>
+            <label className="mb-1 block text-[12px] font-medium text-slate-700">{t("absence_request.note")}</label>
             <textarea
               value={note}
               onChange={(event) => onNoteChange(event.target.value)}
-              placeholder="Укажите причину отсутствия"
+              placeholder={t("absence_request.note_placeholder")}
               className="h-24 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
             />
           </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <label className="block text-[12px] font-medium text-slate-700">Вложения</label>
-              <span className="text-[11px] text-slate-400">до {maxAttachments} файлов, до 50MB</span>
+              <label className="block text-[12px] font-medium text-slate-700">{t("absence_request.attachments")}</label>
+              <span className="text-[11px] text-slate-400">{t("absence_request.attachments_limit", { count: maxAttachments })}</span>
             </div>
 
             <label
@@ -387,7 +391,7 @@ export default function AbsenceRequestModal({
                 <Upload className="h-4 w-4" style={{ color: brandColor }} />
               </span>
               <span className="mt-2 text-[12px] font-semibold text-slate-700">
-                {isUploadingAttachments ? "Загрузка..." : "Нажмите для добавления файлов"}
+                {isUploadingAttachments ? t("common.loading") : t("absence_request.click_to_add_files")}
               </span>
             </label>
             <input
@@ -419,7 +423,7 @@ export default function AbsenceRequestModal({
                       type="button"
                       onClick={() => onRemoveAttachment(attachment.url)}
                       className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                      aria-label="Удалить файл"
+                      aria-label={t("absence_request.remove_file")}
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -431,11 +435,11 @@ export default function AbsenceRequestModal({
         </div>
 
         <div className="flex flex-col px-6 py-5">
-          <h4 className="m-0 text-[14px] font-semibold text-slate-900">Разбивка</h4>
+          <h4 className="m-0 text-[14px] font-semibold text-slate-900">{t("absence_request.breakdown")}</h4>
 
           <div className="mt-3 max-h-[320px] overflow-auto rounded-xl border border-slate-200">
             {breakdown.length === 0 ? (
-              <div className="px-4 py-6 text-[12px] text-slate-400">Выберите корректный диапазон дат.</div>
+              <div className="px-4 py-6 text-[12px] text-slate-400">{t("absence_request.invalid_range")}</div>
             ) : (
               <div className="divide-y divide-slate-100">
                 {breakdown.map((item) => (
@@ -461,16 +465,16 @@ export default function AbsenceRequestModal({
 
           <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] text-slate-700">
             <div className="flex items-center justify-between py-0.5">
-              <span>Доступно</span>
-              <strong>{availableDays.toFixed(1)} д.</strong>
+              <span>{t("absence_request.available")}</span>
+              <strong>{t("absence_request.days_short", { days: availableDays.toFixed(1) })}</strong>
             </div>
             <div className="flex items-center justify-between py-0.5">
-              <span>Запрошено</span>
-              <strong>{requestedDays.toFixed(1)} д.</strong>
+              <span>{t("absence_request.requested")}</span>
+              <strong>{t("absence_request.days_short", { days: requestedDays.toFixed(1) })}</strong>
             </div>
             <div className="mt-1 flex items-center justify-between border-t border-slate-200 pt-1.5">
-              <span>Остаток (прогноз)</span>
-              <strong>{forecastDays.toFixed(1)} д.</strong>
+              <span>{t("absence_request.forecast")}</span>
+              <strong>{t("absence_request.days_short", { days: forecastDays.toFixed(1) })}</strong>
             </div>
           </div>
         </div>

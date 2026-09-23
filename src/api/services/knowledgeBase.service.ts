@@ -25,6 +25,7 @@ import type {
   KbArticleSummary,
   KbArticleUpdate,
 } from "../../modules/KnowledgeBase/types";
+import { translate } from "../../i18n";
 
 const ARTICLES_SLUG = "knowledge_base_articles";
 const LIST_METHOD = "get_knowledge_base_articles";
@@ -91,7 +92,7 @@ const rowParentId = (row: ArticleApiRow): string | null =>
 const mapArticleSummary = (row: ArticleApiRow): KbArticleSummary => ({
   id: row.guid,
   parentArticleId: rowParentId(row),
-  title: row.title || "Без названия",
+  title: row.title || translate("common.untitled"),
   icon: row.icon || "📄",
   updatedAt: row.updated_at || row.created_at || "",
 });
