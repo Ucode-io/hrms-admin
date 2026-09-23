@@ -7,6 +7,7 @@ import AppSidebar from "./AppSidebar";
 import AccessGuard from "./AccessGuard";
 import AccessGate from "./AccessGate";
 import { CopilotDock } from "../features/copilot";
+import BillingBanner from "./BillingBanner";
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isMobileOpen } = useSidebar();
@@ -22,6 +23,7 @@ const LayoutContent: React.FC = () => {
           } ${isMobileOpen ? "ml-0" : ""}`}
       >
         <AppHeader />
+        <BillingBanner />
         {/* overflow-x-clip (не hidden): hidden создаёт scroll-контейнер и ломает position: sticky у вложенных тулбаров */}
         <div className="p-3 md:p-4 overflow-x-clip flex-1 w-full">
           <AccessGuard>

@@ -19,6 +19,7 @@ import {
   Link2,
   ListChecks,
   ListOrdered,
+  Receipt,
   Wallet,
   MapPin,
   Search,
@@ -33,6 +34,7 @@ import {
 import PageMeta from "../../components/common/PageMeta";
 import { useTranslation } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
+import { useBillingMenuVisible } from "../../api/services/billing.service";
 
 export type SettingsItem = {
   id: string;
@@ -63,6 +65,15 @@ export const settingsSections: SettingsSection[] = [
           path: "/settings/general",
           subtitleKey: "settings_misc.settings_index.items.general-main.subtitle",
           keywords: ["общие", "основные", "платформа", "настройки"],
+        },
+        {
+          id: "billing",
+
+          titleKey: "settings_misc.settings_index.items.billing.title",
+          icon: Receipt,
+          path: "/settings/billing",
+          subtitleKey: "settings_misc.settings_index.items.billing.subtitle",
+          keywords: ["биллинг", "подписка", "счёт", "счет", "оплата", "тариф", "billing", "invoice"],
         },
       ],
       [
@@ -469,6 +480,7 @@ const SettingsPage: React.FC = () => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedQuery = searchQuery.trim().toLowerCase();
+  const showBilling = useBillingMenuVisible();
 
   const visibleSections = useMemo(() => {
     return settingsSections
@@ -476,7 +488,7 @@ const SettingsPage: React.FC = () => {
         const columns = section.columns
           .map((column) =>
             column.filter((item) => {
-              if (!item.path) {
+              if (!item.path || (item.id === "billing" && !showBilling)) {
                 return false;
               }
 
@@ -498,7 +510,7 @@ const SettingsPage: React.FC = () => {
         };
       })
       .filter((section) => section.columns.length > 0);
-  }, [normalizedQuery, t]);
+  }, [normalizedQuery, showBilling, t]);
 
   return (
     <>

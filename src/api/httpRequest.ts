@@ -1,6 +1,14 @@
 import axios, { InternalAxiosRequestConfig } from "axios";
 import authStore from "../store/auth.store";
 import { retryWithFreshToken } from "./unauthorizedHandler";
+import queryClient from "./queryClient";
+import {
+  BILLING_READ_ONLY_CODE,
+  BILLING_STATUS_KEY,
+  isItemsWrite,
+  notifyBillingReadOnly,
+} from "./billingReadOnly";
+import { translate } from "../i18n";
 
 const API_BASE_URL = "https://api.admin.u-code.io/";
 /**
@@ -73,6 +81,16 @@ export const injectCompaniesIdIntoItemsRequest = (
   const companiesId = getCompaniesId();
   if (!companiesId || !isItemsRequest(config.url)) {
     return config;
+  }
+
+  // Единственная точка, через которую идут все записи в items, — поэтому
+  // блокировка по биллингу здесь, а не в формах (ADR-0009). Нет статуса в кэше —
+  // запись разрешена: биллинг не должен ломать HRMS.
+  const billing = queryClient.getQueryData<{ read_only?: boolean }>([BILLING_STATUS_KEY, companiesId]);
+  if (billing?.read_only && isItemsWrite(config.method, config.url ?? "")) {
+    notifyBillingReadOnly();
+    void queryClient.invalidateQueries(BILLING_STATUS_KEY);
+    throw new Error(`${BILLING_READ_ONLY_CODE}: ${translate("billing.read_only_toast")}`);
   }
 
   const method = (config.method || "get").toLowerCase();
