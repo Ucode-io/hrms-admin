@@ -76,10 +76,14 @@ const locationService = {
       },
     }),
 
-  update: (
-    guid: string,
-    data: Partial<Location>
-  ) => httpRequest.put(`/v2/items/locations/${guid}`, { data }),
+  update: (guid: string, data: Partial<Location>) => {
+    // Группу филиала пишет только бот (ADR-0010). PUT ucode пишет лишь
+    // присланные ключи, а вызывающие шлют строку целиком из кэша списка —
+    // с устаревшим значением правка адреса молча отвязала бы группу.
+    const rest = { ...data };
+    delete rest.telegram_group_chat_id;
+    return httpRequest.put(`/v2/items/locations/${guid}`, { data: rest });
+  },
 
   delete: async (guid: string) => {
     try {

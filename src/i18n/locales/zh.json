@@ -3489,7 +3489,7 @@
   "settings_general.telegram.bot_not_in_group": "机器人尚未加入群组",
   "settings_general.telegram.check_hint": "机器人不会立即得知被添加 — 请在将其加入群组后点击。",
   "settings_general.telegram.connected_label": "群组已连接",
-  "settings_general.telegram.description": "机器人会将迟到记录和每日出勤表发送到该群组。一个群组属于一家公司。",
+  "settings_general.telegram.description": "机器人会发送迟到记录和每日出勤表：公司群组包含全部员工，分支机构群组仅包含该分支机构的员工。一个群组属于一家公司。",
   "settings_general.telegram.error.check_failed": "无法检查",
   "settings_general.telegram.error.pass_failed": "无法获取验证码",
   "settings_general.telegram.error.unlink_failed": "无法断开群组",
@@ -3501,8 +3501,7 @@
   "settings_general.telegram.pass_expiry_note": "该验证码一次性有效，有效期 {minutes} 分钟。请勿转发给他人：它会将群组绑定到这家公司。",
   "settings_general.telegram.poll_reason.ambiguous_company": "无法确定公司：您的 Telegram 关联了多家公司。请使用验证码。",
   "settings_general.telegram.poll_reason.ambiguous_intent": "存在多个指向不同公司的连接。请等待多余的连接过期后重试。",
-  "settings_general.telegram.poll_reason.conflict": "有其他方在读取 Telegram 队列：机器人设置了 webhook，或运行了第二个服务实例。",
-  "settings_general.telegram.poll_reason.default": "绑定未确认。请检查机器人是否已加入群组。",
+  "settings_general.telegram.poll_reason.default": "绑定未确认。请查看机器人在群组中的回复；如果没有回复，请在群组中发送带验证码的消息。",
   "settings_general.telegram.poll_reason.group_taken": "该群组已绑定到另一家公司。",
   "settings_general.telegram.poll_reason.no_updates": "Telegram 未返回任何内容。请将机器人加入群组后再次点击“检查”。",
   "settings_general.telegram.poll_reason.unknown_employee": "您的 Telegram 未关联 HRMS。请打开小程序，然后重新添加机器人。",
@@ -5606,5 +5605,8 @@
   "timesheet.duration.minutes": "{minutes}分",
   "timesheet.duration.hours_minutes": "{hours}小时 {minutes}分",
   "timesheet.day_page.meta_description": "当日工时明细",
-  "timesheet.day_page.day_off_full": "休息日"
+  "timesheet.day_page.day_off_full": "休息日",
+  "settings_general.telegram.scope_company": "整个公司",
+  "settings_general.telegram.not_connected_label": "未连接",
+  "settings_general.telegram.poll_reason.code_required": "公司已有群组，因此无法在没有验证码的情况下绑定新群组。请在对应行点击「连接 Telegram 群组」，并将验证码发送到群组。"
 }

@@ -78,7 +78,8 @@ export default function BotNotificationsSettingsPage() {
     // превратится в ничто. Поэтому колонка блокируется, пока группы нет.
     telegramGroupService
       .status(companiesId)
-      .then((linked) => !cancelled && setIsGroupLinked(linked))
+      // Любая группа — компании или филиала: галочка одна на все (ADR-0010).
+      .then((status) => !cancelled && setIsGroupLinked(status.linked))
       .catch(() => !cancelled && setIsGroupLinked(false));
 
     return () => {

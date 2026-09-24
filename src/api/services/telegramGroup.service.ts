@@ -1,7 +1,8 @@
-// Подключение Telegram-группы компании.
+// Подключение Telegram-групп компании и её филиалов (ADR-0010).
 //
 // Привязку выполняет бот, когда попадает в группу; здесь только выдаётся
-// одноразовый пропуск с выбранной компанией и снимается текущая привязка.
+// одноразовый пропуск с выбранным охватом и снимается текущая привязка.
+// Охват — `locationsId`: null значит группа всей компании.
 
 import { invokeTasksMethod } from "./taskDirectories.service";
 import { translate } from "../../i18n";
@@ -14,19 +15,37 @@ export type TelegramGroupPass = {
   expiresInMinutes: number;
 };
 
+export type TelegramGroupStatus = {
+  /** Есть хоть одна группа — по нему открывается колонка «В группу». */
+  linked: boolean;
+  companyLinked: boolean;
+  branches: Array<{ locationsId: string; title: string; linked: boolean }>;
+};
+
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
 export const telegramGroupService = {
-  status: async (companiesId: string): Promise<boolean> => {
+  status: async (companiesId: string): Promise<TelegramGroupStatus> => {
     const result = await invokeTasksMethod("telegram_group_link_status", {
       companies_id: companiesId,
     });
-    return Boolean(result?.linked);
+    const branches: unknown[] = Array.isArray(result?.branches) ? result?.branches : [];
+    return {
+      // `linked` у бэка — группа компании (так его читала админка до групп
+      // филиалов), «хоть одна группа» — `any_linked`; у старого бэка его нет.
+      linked: Boolean(result?.any_linked ?? result?.linked),
+      companyLinked: Boolean(result?.linked),
+      branches: branches.map((row) => {
+        const branch = (row ?? {}) as Record<string, unknown>;
+        return { locationsId: str(branch.locations_id), title: str(branch.title), linked: Boolean(branch.linked) };
+      }),
+    };
   },
 
-  createPass: async (companiesId: string): Promise<TelegramGroupPass> => {
+  createPass: async (companiesId: string, locationsId: string | null): Promise<TelegramGroupPass> => {
     const result = await invokeTasksMethod("telegram_group_link_create", {
       companies_id: companiesId,
+      locations_id: locationsId,
     });
 
     if (!result?.created) {
@@ -40,9 +59,10 @@ export const telegramGroupService = {
     };
   },
 
-  unlink: async (companiesId: string): Promise<void> => {
+  unlink: async (companiesId: string, locationsId: string | null): Promise<void> => {
     const result = await invokeTasksMethod("telegram_group_unlink", {
       companies_id: companiesId,
+      locations_id: locationsId,
     });
 
     if (!result?.unlinked) {
