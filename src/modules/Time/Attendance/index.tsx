@@ -86,6 +86,8 @@ type AttendanceRecord = {
   checkOutGeo: string;
   checkInReason: string;
   checkOutReason: string;
+  checkInPicture: string;
+  checkOutPicture: string;
 };
 
 type AttendanceDraft = {
@@ -525,6 +527,7 @@ export default function TimeAttendancePage({
   const [employeeFallbackLabel, setEmployeeFallbackLabel] = useState("");
   const [toDelete, setToDelete] = useState<AttendanceRecord | null>(null);
   const [approvalRecord, setApprovalRecord] = useState<AttendanceRecord | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const { data: approvalProcesses } = useApprovalProcessesQuery();
   const approveStageMutation = useApproveStage();
@@ -690,6 +693,8 @@ export default function TimeAttendancePage({
         checkOutGeo: geo?.out || "",
         checkInReason: geo?.inReason || "",
         checkOutReason: geo?.outReason || "",
+        checkInPicture: geo?.inPicture || "",
+        checkOutPicture: geo?.outPicture || "",
       };
     });
 
@@ -1235,6 +1240,7 @@ export default function TimeAttendancePage({
                           {/* Во вкладке «Вне филиала» все строки «Запрошено» — колонка ничего не различает. */}
                           {remoteOnly ? null : <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("attendance.request_status")}</th>}
                           {remoteOnly ? null : <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("absence_calendar.source.label")}</th>}
+                          {remoteOnly ? <th className="whitespace-nowrap px-2 py-2 text-[12px] font-semibold text-slate-500">{t("attendance.photo")}</th> : null}
                           <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("attendance.distance")}</th>
                           {remoteOnly ? <th className="whitespace-nowrap px-2 py-2 text-[12px] font-semibold text-slate-500">{t("attendance.comments")}</th> : null}
                           <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-right text-[12px] font-semibold text-slate-500">{t("attendance.actions")}</th>
@@ -1321,6 +1327,34 @@ export default function TimeAttendancePage({
                                 </span>
                               </td>
                               )}
+                              {remoteOnly ? (
+                                <td className="px-2 py-3 text-[13px] text-slate-700">
+                                  {record.checkInPicture || record.checkOutPicture ? (
+                                    <div className="flex gap-1.5">
+                                      {(
+                                        [
+                                          [t("absence_calendar.check_in"), record.checkInPicture],
+                                          [t("absence_calendar.check_out"), record.checkOutPicture],
+                                        ] as const
+                                      )
+                                        .filter(([, picture]) => picture)
+                                        .map(([label, picture]) => (
+                                          <button
+                                            key={label}
+                                            type="button"
+                                            title={label}
+                                            onClick={() => setPhotoPreview(picture)}
+                                            className="h-10 w-10 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 transition hover:opacity-80"
+                                          >
+                                            <img src={picture} alt={label} loading="lazy" className="h-full w-full object-cover" />
+                                          </button>
+                                        ))}
+                                    </div>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              ) : null}
                               <td className="px-2 py-3 text-[13px] text-slate-700">
                                 {record.checkInGeo || record.checkOutGeo ? (
                                   <div className="flex items-center gap-1.5 whitespace-nowrap">
@@ -1574,6 +1608,12 @@ export default function TimeAttendancePage({
         </div>
       </Modal>
 
+      <Modal isOpen={Boolean(photoPreview)} onClose={() => setPhotoPreview(null)} className="max-w-2xl w-full p-4">
+        {photoPreview ? (
+          <img src={photoPreview} alt={t("attendance.photo")} className="max-h-[80vh] w-full rounded-2xl object-contain" />
+        ) : null}
+      </Modal>
+
       <ApprovalProcessModal
         isOpen={Boolean(approvalRecord)}
         onClose={() => setApprovalRecord(null)}
@@ -1596,12 +1636,12 @@ export default function TimeAttendancePage({
             <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
               {(
                 [
-                  [t("absence_calendar.check_in"), approvalRecord.checkInTime, approvalRecord.checkInGeo, approvalRecord.checkInReason],
-                  [t("absence_calendar.check_out"), approvalRecord.checkOutTime, approvalRecord.checkOutGeo, approvalRecord.checkOutReason],
+                  [t("absence_calendar.check_in"), approvalRecord.checkInTime, approvalRecord.checkInGeo, approvalRecord.checkInReason, approvalRecord.checkInPicture],
+                  [t("absence_calendar.check_out"), approvalRecord.checkOutTime, approvalRecord.checkOutGeo, approvalRecord.checkOutReason, approvalRecord.checkOutPicture],
                 ] as const
               )
                 .filter(([, , geo]) => geo)
-                .map(([label, time, geo, reason]) => (
+                .map(([label, time, geo, reason, picture]) => (
                   <div key={label} className="text-[13px]">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-gray-800">
@@ -1611,6 +1651,7 @@ export default function TimeAttendancePage({
                       <LocationViewLink showDistance={false} value={geo} office={offices.get(approvalRecord.officeId)} />
                     </div>
                     {reason ? <p className="mt-1 text-gray-600">{t("attendance.reason", { reason })}</p> : null}
+                    {picture ? <img src={picture} alt={label} className="mt-2 max-h-48 rounded-lg border border-gray-200 object-contain" /> : null}
                   </div>
                 ))}
             </div>

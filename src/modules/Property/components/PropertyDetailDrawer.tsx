@@ -7,6 +7,7 @@ import {
   formatCurrency,
   formatDate,
   formatDateTime,
+  getInitials,
   type PropertyHistoryEntry,
   type PropertyItem,
 } from "../types";
@@ -19,6 +20,7 @@ interface PropertyDetailDrawerProps {
   onEdit: (item: PropertyItem) => void;
   onMovement: (item: PropertyItem) => void;
   onDelete: (item: PropertyItem) => void;
+  onPreviewPhoto: (item: PropertyItem) => void;
 }
 
 const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
@@ -71,6 +73,7 @@ export default function PropertyDetailDrawer({ isOpen,
   onEdit,
   onMovement,
   onDelete,
+  onPreviewPhoto,
 }: PropertyDetailDrawerProps) {
   const { t } = useTranslation();
   const { data: historyData, isLoading: isHistoryLoading } = usePropertyHistoryQuery(
@@ -111,10 +114,29 @@ export default function PropertyDetailDrawer({ isOpen,
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          {item.assignedToName && (
+            <div className="mb-5 flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-600">
+                {getInitials(item.assignedToName)}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500">
+                  {t("property.table.assigned")}
+                  {item.assignedDate ? ` · ${formatDate(item.assignedDate)}` : ""}
+                </p>
+                <p className="truncate text-sm font-semibold text-gray-900">{item.assignedToName}</p>
+              </div>
+            </div>
+          )}
+
           {/* Photo */}
           <div className="mb-5 flex h-44 w-full items-center justify-center overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
             {item.photo
-              ? <img src={item.photo} alt={item.name} className="h-full w-full object-cover" />
+              ? (
+                <button type="button" onClick={() => onPreviewPhoto(item)} className="h-full w-full cursor-zoom-in">
+                  <img src={item.photo} alt={item.name} className="h-full w-full object-contain" />
+                </button>
+              )
               : <div className="flex flex-col items-center gap-1 text-gray-300"><ImageOff size={28} /><span className="text-xs">{t("property.detail.no_photo")}</span></div>
             }
           </div>
@@ -125,8 +147,6 @@ export default function PropertyDetailDrawer({ isOpen,
             <InfoRow label={t("property.table.cost")} value={formatCurrency(item.cost)} />
             <InfoRow label={t("labels.purchase_date")} value={formatDate(item.purchaseDate)} />
             <InfoRow label={t("property.form.warranty_label")} value={formatDate(item.warrantyUntil)} />
-            <InfoRow label={t("property.table.assigned")} value={item.assignedToName} />
-            <InfoRow label={t("property.movement.issue_date")} value={formatDate(item.assignedDate)} />
           </div>
 
           {item.description && (

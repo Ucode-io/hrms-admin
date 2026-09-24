@@ -1,5 +1,5 @@
 import { ArrowLeftRight, Pencil, Trash2 } from "lucide-react";
-import { formatCurrency, type PropertyItem } from "../types";
+import { formatCurrency, getInitials, type PropertyItem } from "../types";
 import StatusBadge from "./StatusBadge";
 import { useTranslation } from "../../../i18n";
 
@@ -9,21 +9,15 @@ interface PropertyTableProps {
   onEdit: (item: PropertyItem) => void;
   onMovement: (item: PropertyItem) => void;
   onDelete: (item: PropertyItem) => void;
+  onPreviewPhoto: (item: PropertyItem) => void;
 }
-
-const getInitials = (name: string): string =>
-  name
-    .split(" ")
-    .map((part) => part.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
 export default function PropertyTable({ items,
   onOpenDetail,
   onEdit,
   onMovement,
   onDelete,
+  onPreviewPhoto,
 }: PropertyTableProps) {
   const { t } = useTranslation();
   return (
@@ -50,11 +44,16 @@ export default function PropertyTable({ items,
               <td className="px-5 py-3.5">
                 <div className="flex items-center gap-3">
                   {item.photo ? (
-                    <img
-                      src={item.photo}
-                      alt=""
-                      className="h-9 w-9 shrink-0 rounded-lg object-cover"
-                    />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onPreviewPhoto(item);
+                      }}
+                      className="shrink-0 cursor-zoom-in rounded-lg transition hover:opacity-80"
+                    >
+                      <img src={item.photo} alt={item.name} className="h-9 w-9 rounded-lg bg-gray-50 object-contain" />
+                    </button>
                   ) : null}
                   <div className="min-w-0">
                     <div className="font-medium text-gray-800">{item.name}</div>

@@ -93,6 +93,14 @@ export const formatCurrency = (value: number): string => {
   return value.toLocaleString("ru-RU");
 };
 
+export const getInitials = (name: string): string =>
+  name
+    .split(" ")
+    .map((part) => part.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
 export const formatDate = (iso: string | null): string => {
   if (!iso) return "—";
   const date = new Date(iso);

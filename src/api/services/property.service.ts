@@ -127,6 +127,7 @@ export interface PropertiesQueryParams {
   search?: string;
   categoryId?: string;
   status?: PropertyStatus | "";
+  userBaseId?: string;
 }
 
 export interface PropertyWritePayload {
@@ -146,6 +147,7 @@ const propertyService = {
     if (params.search) data.search = params.search;
     if (params.categoryId) data.property_categories_id = params.categoryId;
     if (params.status) data.status = [params.status];
+    if (params.userBaseId) data.user_base_id = params.userBaseId;
     return httpRequest.get(`/v2/items/${PROPERTIES_SLUG}`, {
       params: { with_relations: true, data: encodeJsonToUrlParam(data) },
     }) as unknown as Promise<ListResponse<PropertyApiRow>>;

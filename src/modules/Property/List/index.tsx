@@ -95,6 +95,7 @@ function PropertyList() {
   const [movementItem, setMovementItem] = useState<PropertyItem | null>(null);
   const [detailItem, setDetailItem] = useState<PropertyItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<PropertyItem | null>(null);
+  const [photoItem, setPhotoItem] = useState<PropertyItem | null>(null);
 
   // ── API ──────────────────────────────────────────────────────────────────
   const queryParams = useMemo(() => ({
@@ -318,6 +319,7 @@ function PropertyList() {
             onEdit={openEdit}
             onMovement={setMovementItem}
             onDelete={setDeletingItem}
+            onPreviewPhoto={setPhotoItem}
           />
         ) : (
           <PropertyGrid
@@ -331,6 +333,9 @@ function PropertyList() {
       </div>
 
       {totalPages > 1 && (
+        <>
+        {/* Пагинация прибита к низу экрана (fixed) — без этого места она закрывает последние строки. */}
+        <div className="h-[92px]" aria-hidden />
         <EmployeesPaginationFooter
           visibleRangeLabel={visibleRangeLabel}
           paginationItems={paginationItems}
@@ -341,6 +346,7 @@ function PropertyList() {
           onNext={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
           onPageChange={(p) => setCurrentPage(p)}
         />
+        </>
       )}
 
       {/* ── Modals / Drawer ──────────────────────────────────────────────── */}
@@ -351,8 +357,8 @@ function PropertyList() {
         onEdit={openEdit}
         onMovement={setMovementItem}
         onDelete={setDeletingItem}
+        onPreviewPhoto={setPhotoItem}
       />
-
 
       <MovementModal
         isOpen={Boolean(syncedMovementItem)}
@@ -365,6 +371,12 @@ function PropertyList() {
           }
         }}
       />
+
+      <Modal isOpen={Boolean(photoItem)} onClose={() => setPhotoItem(null)} className="m-4 max-w-4xl p-4">
+        {photoItem?.photo ? (
+          <img src={photoItem.photo} alt={photoItem.name} className="max-h-[80vh] w-full rounded-2xl object-contain" />
+        ) : null}
+      </Modal>
 
       <Modal isOpen={Boolean(deletingItem)} onClose={() => setDeletingItem(null)}
         showCloseButton={false} className="m-4 max-w-[420px]">

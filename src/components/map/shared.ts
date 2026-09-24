@@ -107,6 +107,9 @@ export type DayMarkGeo = {
   /** Причина отметки вне филиала (`attendance_records.reason`) — у той же записи, что и точка. */
   inReason: string;
   outReason: string;
+  /** Снимок с камеры телефона (`attendance_records.picture`) — тоже у той же записи. */
+  inPicture: string;
+  outPicture: string;
 };
 
 /**
@@ -121,17 +124,20 @@ export function markGeoByDay(rows: Record<string, unknown>[]): Map<string, DayMa
     const date = typeof row.date === "string" ? row.date.slice(0, 10) : "";
     const geo = typeof row.map === "string" ? row.map.trim() : "";
     const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+    const picture = typeof row.picture === "string" ? row.picture.trim() : "";
     const direction = markDirection(row.action);
     if (!userId || !date || !geo || direction === "event") continue;
 
     const key = `${userId}|${date}`;
-    const day = byDay.get(key) ?? { in: "", out: "", inReason: "", outReason: "" };
+    const day = byDay.get(key) ?? { in: "", out: "", inReason: "", outReason: "", inPicture: "", outPicture: "" };
     if (direction === "in") {
       day.in = geo;
       day.inReason = reason;
+      day.inPicture = picture;
     } else if (!day.out) {
       day.out = geo;
       day.outReason = reason;
+      day.outPicture = picture;
     }
     byDay.set(key, day);
   }

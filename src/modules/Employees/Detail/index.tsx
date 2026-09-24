@@ -41,6 +41,7 @@ import LicenseCertificatesSection from "./components/LicenseCertificatesSection"
 import SkillsSection from "./components/SkillsSection";
 import WorkSection from "./components/WorkSection";
 import CompensationSection from "./components/CompensationSection";
+import PropertySection from "./components/PropertySection";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
 import { useCustomFieldsSchema } from "../../Settings/CustomFields/useCustomFieldsSchema";
 import { formatDynamicValue } from "../../Settings/CustomFields/formatValue";
@@ -65,6 +66,7 @@ const PRIMARY_TABS = [
   "Компенсация",
   "Отсутствия",
   "Документы",
+  "Имущество",
 ] as const;
 
 const MORE_TABS = ["Посещаемость", "Посещение спорта"] as const;
@@ -83,6 +85,7 @@ const TAB_LABEL_KEYS: Record<Tab, MessageKey> = {
   Компенсация: "employees.detail.tabs.compensation",
   Отсутствия: "employees.detail.tabs.absences",
   Документы: "employees.detail.tabs.documents",
+  Имущество: "employees.detail.tabs.property",
   Посещаемость: "employees.detail.tabs.attendance",
   "Посещение спорта": "employees.detail.tabs.sport_attendance",
 };
@@ -1132,6 +1135,8 @@ function EmployeeDetail() {
           brandColor={brandColor}
           departmentId={employeeDepartmentId}
         />
+      ) : activeTab === "Имущество" ? (
+        <PropertySection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : activeTab === "Посещение спорта" ? (
         <SportAttendanceSection employeeGuid={emp.guid} brandColor={brandColor} />
       ) : (
