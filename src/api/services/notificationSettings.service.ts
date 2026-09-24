@@ -18,6 +18,16 @@ export type NotificationEvent = {
   group_applicable: boolean;
   to_employee: boolean;
   to_group: boolean;
+  /** Свой текст компании сотруднику; пусто — бот шлёт стандартный. */
+  template: string;
+  /** Свой текст в группу компании; пусто — стандартный. */
+  group_template: string;
+  /** Стандартный текст теми же переменными — с него начинает редактор. */
+  default_template: string;
+  /** false — в группу событие не уходит, своего текста для неё нет. */
+  group_text_applicable: boolean;
+  /** Что можно подставить в `{{key}}`. Пусто — своего текста у события нет. */
+  variables: { key: string; label: string }[];
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -37,6 +47,16 @@ const mapEvent = (raw: unknown): NotificationEvent | null => {
     group_applicable: raw.group_applicable !== false,
     to_employee: Boolean(raw.to_employee),
     to_group: Boolean(raw.to_group),
+    template: str(raw.template),
+    group_template: str(raw.group_template),
+    default_template: str(raw.default_template),
+    group_text_applicable: raw.group_text_applicable === true,
+    variables: Array.isArray(raw.variables)
+      ? raw.variables
+          .filter(isRecord)
+          .map((item) => ({ key: str(item.key), label: str(item.label) }))
+          .filter((item) => item.key)
+      : [],
   };
 };
 
@@ -57,6 +77,8 @@ export const notificationSettingsService = {
         event_type: event.event_type,
         to_employee: event.to_employee,
         to_group: event.to_group,
+        template: event.template,
+        group_template: event.group_template,
       })),
     });
 
