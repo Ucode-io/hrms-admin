@@ -24,6 +24,16 @@ import CopilotThinking from "./CopilotThinking";
 import CopilotHistory from "./CopilotHistory";
 import "./copilot.css";
 
+/** Vegapharm keeps these lists as Knowledge Base articles; kb_search hands
+ *  an article's files back as download buttons. */
+const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
+/** `article` is the exact title in the tree — the search matches on it. */
+const VEGAPHARM_HOTKEYS = [
+  { label: "💰 Прайс", article: "Прайс" },
+  { label: "📦 Остатки", article: "Остатки" },
+  { label: "⏳ Сроковые позиции", article: "Сроки по регионам" },
+];
+
 const SUGGESTIONS = [
   "Дай сотрудников младше 22 и старше 19 лет",
   "Дай статистику посещаемости за прошлый месяц",
@@ -253,6 +263,23 @@ const CopilotPanel: React.FC = observer(() => {
           borrows the app's own field styling — same radius, same focus ring — so
           it reads as part of the product and not as a chat widget bolted on. */}
       <div className="shrink-0 px-3 pb-3 pt-2">
+        {companyStore.company?.guid === VEGAPHARM_COMPANY_ID && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {VEGAPHARM_HOTKEYS.map(({ label, article }) => (
+              <button
+                key={article}
+                type="button"
+                onClick={() =>
+                  submit(`Скинь файлы из раздела «${article}» базы знаний`)
+                }
+                disabled={isStreaming}
+                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 transition-colors hover:border-brand-300 hover:bg-brand-50 disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.06]"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="rounded-2xl border border-gray-200 bg-white p-2 shadow-theme-md transition-colors focus-within:border-brand-300 focus-within:ring-3 focus-within:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900">
           {attachment && (
             <div className="mb-2 flex items-center gap-2 rounded-lg bg-gray-100 px-2 py-1.5 text-xs text-gray-700 dark:bg-white/[0.06] dark:text-gray-200">
