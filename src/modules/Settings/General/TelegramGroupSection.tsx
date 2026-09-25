@@ -33,7 +33,6 @@ const POLL_REASON_KEYS: Record<string, MessageKey> = {
   code_required: "settings_general.telegram.poll_reason.code_required",
   scope_mismatch: "settings_general.telegram.poll_reason.scope_mismatch",
   company_taken: "settings_general.telegram.poll_reason.company_taken",
-  branches_taken: "settings_general.telegram.poll_reason.branches_taken",
 };
 
 // `conflict` намеренно не расшифровывается: в проде у бота вебхук, опрос
@@ -103,7 +102,7 @@ export default function TelegramGroupSection({
   const [status, setStatus] = useState<TelegramGroupStatus | null>(null);
   // Правки строк — черновики по chat_id, новая строка — под ключом "".
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [pass, setPass] = useState<(TelegramGroupPass & { values: string[] }) | null>(null);
+  const [pass, setPass] = useState<TelegramGroupPass | null>(null);
   const [unlinking, setUnlinking] = useState<TelegramGroup | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
@@ -150,32 +149,26 @@ export default function TelegramGroupSection({
     t("settings_general.telegram.group_untitled");
 
   /**
-   * Пункты охвата для строки. Филиал из чужой строки неактивен с подписью, в
-   * какой он группе: молча он не переносится — перенос это тишина в прежней
-   * группе. Так же «Вся компания», если группа компании уже другая.
+   * Пункты охвата для строки. Филиал может быть в нескольких группах
+   * (ADR-0013), поэтому его пункт всегда активен. «Вся компания» неактивна с
+   * подписью, если группа компании уже другая: молча она не переносится —
+   * перенос это тишина в прежней группе.
    */
   const optionsFor = (chatId: string | null) => {
     if (!status) return [];
-    const byChat = new Map(status.groups.map((group) => [group.chatId, group]));
-    const takenHint = (otherChat: string | null) => {
-      const other = otherChat && otherChat !== chatId ? byChat.get(otherChat) : undefined;
-      return other ? t("settings_general.telegram.taken_by", { name: groupLabel(other) }) : undefined;
-    };
-    const companyChat = status.groups.find((group) => group.company)?.chatId ?? null;
+    const companyGroup = status.groups.find((group) => group.company && group.chatId !== chatId);
+    const companyHint = companyGroup
+      ? t("settings_general.telegram.taken_by", { name: groupLabel(companyGroup) })
+      : undefined;
 
     return [
       {
         value: COMPANY,
         text: t("settings_general.telegram.scope_company"),
-        disabled: Boolean(takenHint(companyChat)),
-        hint: takenHint(companyChat),
+        disabled: Boolean(companyHint),
+        hint: companyHint,
       },
-      ...status.branches.map((branch) => ({
-        value: branch.locationsId,
-        text: branch.title || "—",
-        disabled: Boolean(takenHint(branch.chatId)),
-        hint: takenHint(branch.chatId),
-      })),
+      ...status.branches.map((branch) => ({ value: branch.locationsId, text: branch.title || "—" })),
     ];
   };
 
@@ -209,17 +202,10 @@ export default function TelegramGroupSection({
 
   const handleCreate = () =>
     run(async () => {
-      const values = drafts[""]?.values || [];
-      setPass({ ...(await telegramGroupService.createPass(companiesId, toScope(values))), values });
+      setPass(await telegramGroupService.createPass(companiesId, toScope(drafts[""]?.values || [])));
     }, "settings_general.telegram.error.pass_failed");
 
   const removeNewRow = () => dropPassThen(() => setDraft("", null));
-
-  /** Привязалось ли то, на что выдан код: компания или хоть один её филиал. */
-  const isPassLinked = (next: TelegramGroupStatus, values: string[]) =>
-    values.includes(COMPANY)
-      ? next.groups.some((group) => group.company)
-      : next.branches.some((branch) => values.includes(branch.locationsId) && branch.chatId);
 
   /**
    * Забрать очередь Telegram сейчас, не дожидаясь крона, и перечитать статус.
@@ -230,14 +216,16 @@ export default function TelegramGroupSection({
   const handleCheck = () =>
     run(async () => {
       const result = await hickvisionService.pollTelegramGroupLinks();
-      const next = await telegramGroupService.status(companiesId);
+      const next = await telegramGroupService.status(companiesId, pass?.token);
       const before = status?.groups.length ?? 0;
       applyStatus(next);
 
-      // Успех — по статусу этой компании, а не по ответу опроса: при вебхуке
-      // опрос всегда `conflict`, крон мог привязать раньше нажатия, а сам
-      // опрос общий на все компании. Без кода — «групп стало больше».
-      if (pass ? isPassLinked(next, pass.values) : next.groups.length > before) {
+      // Успех — по ответу сервера, а не опроса: при вебхуке опрос всегда
+      // `conflict`, крон мог привязать раньше нажатия, а сам опрос общий на все
+      // компании. С кодом — погашен ли он привязкой: по одним группам этого не
+      // видно, филиал мог состоять в той же группе и до кода (ADR-0013). Без
+      // кода — «групп стало больше».
+      if (pass ? next.passUsed : next.groups.length > before) {
         setPass(null);
         setDraft("", null);
         toast.success(t("settings_general.telegram.group_connected"));

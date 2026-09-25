@@ -37,8 +37,11 @@ export type TelegramGroup = {
 export type TelegramGroupStatus = {
   /** Есть хоть одна группа. */
   linked: boolean;
-  branches: Array<{ locationsId: string; title: string; chatId: string | null }>;
+  /** Все филиалы компании: филиал может быть в нескольких группах (ADR-0013). */
+  branches: Array<{ locationsId: string; title: string }>;
   groups: TelegramGroup[];
+  /** Код, переданный в status(), погашен привязкой группы. */
+  passUsed?: boolean;
 };
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -51,7 +54,6 @@ const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 const STATES: TelegramGroupState[] = ["ok", "bot_missing", "migrated", "unknown"];
 
 const REASON_KEYS = {
-  branch_taken: "settings_general.telegram.error.branch_taken",
   company_taken: "settings_general.telegram.error.company_taken",
   scope_required: "settings_general.telegram.error.scope_required",
   group_not_found: "settings_general.telegram.error.group_not_found",
@@ -59,20 +61,23 @@ const REASON_KEYS = {
   forbidden: "settings_general.telegram.error.forbidden",
 } as const;
 
-/** Отказ бэкенда словами: `branch_taken` называет, какие филиалы заняты. */
+/** Отказ бэкенда словами. */
 const refusal = (result: Record<string, unknown>, fallback: Parameters<typeof translate>[0]): Error => {
   const reason = str(result.reason) as keyof typeof REASON_KEYS;
-  const names = list(result.branches).map(str).filter(Boolean).join(", ");
-  return new Error(REASON_KEYS[reason] ? translate(REASON_KEYS[reason], { names }) : translate(fallback));
+  return new Error(translate(REASON_KEYS[reason] || fallback));
 };
 
 const scopeBody = (scope: TelegramGroupScope) =>
   scope.company ? { company: true } : { locations_ids: scope.locationsIds };
 
 export const telegramGroupService = {
-  status: async (companiesId: string): Promise<TelegramGroupStatus> => {
+  /** С `token` ответ ещё говорит, сработал ли этот код. */
+  status: async (companiesId: string, token?: string): Promise<TelegramGroupStatus> => {
     const result = record(
-      await invokeTasksMethod("telegram_group_link_status", { companies_id: companiesId })
+      await invokeTasksMethod("telegram_group_link_status", {
+        companies_id: companiesId,
+        ...(token ? { token } : {}),
+      })
     );
     const groups = list(result.groups).map((raw) => {
       const group = record(raw);
@@ -94,13 +99,10 @@ export const telegramGroupService = {
       linked: groups.length > 0 || Boolean(result.any_linked ?? result.linked),
       branches: list(result.branches).map((raw) => {
         const branch = record(raw);
-        return {
-          locationsId: str(branch.locations_id),
-          title: str(branch.title),
-          chatId: str(branch.chat_id) || null,
-        };
+        return { locationsId: str(branch.locations_id), title: str(branch.title) };
       }),
       groups,
+      passUsed: result.pass_used === true,
     };
   },
 
