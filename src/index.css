@@ -2195,8 +2195,10 @@ span.flatpickr-weekday,
 }
 
 /* The library only shows its placeholder while the node is truly :empty, but a
-   cleared contenteditable keeps a stray <br> — cover that case too. */
-.rsw-ce[contenteditable="true"]:not(:focus):has(> br:only-child)::before {
+   cleared contenteditable keeps a stray <br> — cover that case too. Emptiness
+   comes from the wrapper's data-editor-empty (isEditorEmpty): CSS can't see
+   text nodes, so `:has(> br:only-child)` also matched "line<br>line". */
+[data-editor-empty] .rsw-ce[contenteditable="true"]:not(:focus)::before {
   content: attr(placeholder);
   color: var(--color-gray-400);
   pointer-events: none;

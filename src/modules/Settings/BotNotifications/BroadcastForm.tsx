@@ -34,7 +34,7 @@ import Checkbox from "../../../components/form/input/Checkbox";
 import Radio from "../../../components/form/input/Radio";
 import Input from "../../../components/form/input/InputField";
 import { Modal } from "../../../components/ui/modal";
-import { blockToggle, placeholderFor } from "../../../components/form/RichTextEditor";
+import { blockToggle, isEditorEmpty } from "../../../components/form/RichTextEditor";
 import LocationsInfiniteMultiSelect from "../../../components/autocomplete/LocationsInfiniteMultiSelect";
 import { uploadFileToCdn } from "../../../api/services/file-upload.service";
 import { useTranslation } from "../../../i18n";
@@ -509,11 +509,11 @@ export default function BroadcastFormPage() {
 
               {isDraft && (
                 <>
-                  <div ref={editorRef} className="overflow-hidden rounded-xl border border-gray-200 bg-white focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-100 dark:border-gray-700 dark:bg-gray-900">
+                  <div ref={editorRef} data-editor-empty={isEditorEmpty(form.body) || undefined} className="overflow-hidden rounded-xl border border-gray-200 bg-white focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-100 dark:border-gray-700 dark:bg-gray-900">
                     <Editor
                       value={form.body}
                       onChange={(event) => patch({ body: event.target.value })}
-                      placeholder={placeholderFor(form.body, t("settings_misc.broadcasts.text_placeholder"))}
+                      placeholder={t("settings_misc.broadcasts.text_placeholder")}
                       containerProps={{ style: { border: 0, borderRadius: 0 } }}
                       style={{ minHeight: 200, padding: "12px 14px", fontSize: "14px" }}
                     >

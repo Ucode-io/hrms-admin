@@ -66,12 +66,14 @@ const insertImages = async (editable: HTMLElement | undefined, files: File[]) =>
 
 /** Toggles a block tag on the current selection, back to <p> when already set. */
 /**
- * Плейсхолдер — только пока в редакторе нет текста. Правило для «стрейного
- * <br>» в index.css смотрит на элементы, а текстовых узлов CSS не видит:
- * «строка<br>строка» для него выглядит пустым редактором.
+ * Пуст ли редактор — для плейсхолдера (`data-editor-empty` на обёртке, правило
+ * в index.css). CSS сам не видит текстовых узлов: «строка<br>строка» для него
+ * неотличима от стрейного <br> в очищенном поле. А менять сам проп
+ * `placeholder` нельзя: ContentEditable от него пересоздаётся, заново пишет
+ * innerHTML, и курсор прыгает в начало.
  */
-export const placeholderFor = (html: string, placeholder?: string) =>
-  html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "") ? undefined : placeholder;
+export const isEditorEmpty = (html: string) =>
+  !/<img/i.test(html) && !html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "");
 
 export const blockToggle =
   (tag: string) =>
@@ -178,6 +180,7 @@ export default function RichTextEditor({
 
   return (
     <div
+      data-editor-empty={isEditorEmpty(value) || undefined}
       className={`relative overflow-hidden rounded-xl border bg-white transition ${
         isFocused ? "border-brand-400 ring-2 ring-brand-100" : "border-gray-200"
       } ${className}`}
@@ -211,7 +214,7 @@ export default function RichTextEditor({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        placeholder={placeholderFor(value, placeholder)}
+        placeholder={placeholder}
         containerProps={{ style: { border: 0, borderRadius: 0 } }}
         style={{ minHeight, padding: "12px 14px", fontSize: "14px", color: "rgb(31 41 55)" }}
       >
