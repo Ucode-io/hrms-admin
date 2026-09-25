@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PencilLine, Plus, RotateCcw, TriangleAlert } from "lucide-react";
+import Select from "react-select";
 
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -12,9 +13,11 @@ import TelegramGroupSection from "../General/TelegramGroupSection";
 import {
   notificationSettingsService,
   type NotificationEvent,
+  type NotificationGroup,
 } from "../../../api/services/notificationSettings.service";
 import { useTranslation } from "../../../i18n";
 import { BotNotificationsTabs } from "./Broadcasts";
+import { getDepartmentSelectStyles } from "../Departments/utils";
 
 /**
  * Что бот шлёт сотруднику и что — в группу компании.
@@ -28,8 +31,13 @@ import { BotNotificationsTabs } from "./Broadcasts";
  * своего текста у события не бывает (дневной лист — таблица, а не фраза).
  *
  * Колонка «В группу» есть не у всех: зарплата, бонусы, KPI и корректировки
- * времени в общий чат не уходят никогда — группа одна на всю компанию, а
- * отправленное в неё не отзывается.
+ * времени в общий чат не уходят никогда — отправленное в группу не
+ * отзывается.
+ *
+ * «В группу» у каждой группы своё (ADR-0012): выпадающий список над таблицей
+ * переключает только эту колонку, правки по разным группам копятся здесь и
+ * сохраняются одной кнопкой. «Лично» — одно на всю компанию: личный чат
+ * принадлежит сотруднику, а не группе его филиала.
  */
 export default function BotNotificationsSettingsPage() {
   const { t } = useTranslation();
@@ -40,9 +48,16 @@ export default function BotNotificationsSettingsPage() {
   const companiesId = getCompaniesId() || companyStore.company?.guid || "";
 
   const [events, setEvents] = useState<NotificationEvent[] | null>(null);
+  const [groups, setGroups] = useState<NotificationGroup[]>([]);
+  const [selectedChat, setSelectedChat] = useState("");
+  // Названия групп — от Telegram, через статус привязки.
+  const [groupTitles, setGroupTitles] = useState<Map<string, string | null>>(new Map());
   const [loadError, setLoadError] = useState(false);
   const [isGroupLinked, setIsGroupLinked] = useState<boolean | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Сохранённое состояние — чтобы липкая плашка говорила правду о правках.
+  const [savedEvents, setSavedEvents] = useState("");
+  const [savedGroups, setSavedGroups] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -54,9 +69,13 @@ export default function BotNotificationsSettingsPage() {
 
     notificationSettingsService
       .get(companiesId)
-      .then((list) => {
+      .then((settings) => {
         if (cancelled) return;
+        const list = settings.events;
         setEvents(list);
+        applyGroups(settings.groups);
+        setSavedEvents(JSON.stringify(list));
+        setSavedGroups(JSON.stringify(settings.groups));
         // Пустой ответ — это не «событий нет», это метод, которого на бэкенде
         // ещё нет: каталог непустой всегда. Сохранять поверх такого нельзя.
         if (!list.length) {
@@ -79,8 +98,11 @@ export default function BotNotificationsSettingsPage() {
     // превратится в ничто. Поэтому колонка блокируется, пока группы нет.
     telegramGroupService
       .status(companiesId)
-      // Любая группа — компании или филиала: галочка одна на все (ADR-0010).
-      .then((status) => !cancelled && setIsGroupLinked(status.linked))
+      .then((status) => {
+        if (cancelled) return;
+        setIsGroupLinked(status.linked);
+        setGroupTitles(new Map(status.groups.map((group) => [group.chatId, group.title])));
+      })
       .catch(() => !cancelled && setIsGroupLinked(false));
 
     return () => {
@@ -100,10 +122,59 @@ export default function BotNotificationsSettingsPage() {
     return [...grouped.entries()];
   }, [events]);
 
-  const toggle = (eventType: string, channel: "to_employee" | "to_group") => {
+  const selectedGroup = groups.find((group) => group.chatId === selectedChat) || null;
+
+  const applyGroups = (next: NotificationGroup[]) => {
+    setGroups(next);
+    setSelectedChat((current) =>
+      next.some((group) => group.chatId === current) ? current : next[0]?.chatId || ""
+    );
+  };
+
+  /**
+   * Группу подключили прямо здесь — перечитываем только группы. Всю страницу
+   * нельзя: несохранённые правки «Лично» и текстов пропали бы молча. Галочек
+   * групп до этого не было — секция подключения видна, только пока групп нет.
+   */
+  const reloadGroups = () => {
+    notificationSettingsService
+      .get(companiesId)
+      .then((settings) => {
+        applyGroups(settings.groups);
+        setSavedGroups(JSON.stringify(settings.groups));
+      })
+      .catch(() => toast.error(t("settings_misc.bot_notifications.load_error")));
+    telegramGroupService
+      .status(companiesId)
+      .then((status) => setGroupTitles(new Map(status.groups.map((group) => [group.chatId, group.title]))))
+      .catch(() => undefined);
+  };
+
+  const groupLabel = (group: NotificationGroup) =>
+    groupTitles.get(group.chatId) ||
+    (group.company
+      ? t("settings_general.telegram.scope_company")
+      : group.branches.join(", ")) ||
+    t("settings_general.telegram.group_untitled");
+
+  const isDirty = JSON.stringify(events) !== savedEvents || JSON.stringify(groups) !== savedGroups;
+
+  const groupOptions = groups.map((group) => ({ value: group.chatId, label: groupLabel(group) }));
+
+  const toggle = (eventType: string) => {
     setEvents((current) =>
       (current || []).map((event) =>
-        event.event_type === eventType ? { ...event, [channel]: !event[channel] } : event
+        event.event_type === eventType ? { ...event, to_employee: !event.to_employee } : event
+      )
+    );
+  };
+
+  const toggleGroup = (eventType: string) => {
+    setGroups((current) =>
+      current.map((group) =>
+        group.chatId === selectedChat
+          ? { ...group, toGroup: { ...group.toGroup, [eventType]: !group.toGroup[eventType] } }
+          : group
       )
     );
   };
@@ -120,7 +191,9 @@ export default function BotNotificationsSettingsPage() {
     if (!events) return;
     setIsSaving(true);
     try {
-      await notificationSettingsService.save(companiesId, events);
+      await notificationSettingsService.save(companiesId, events, groups);
+      setSavedEvents(JSON.stringify(events));
+      setSavedGroups(JSON.stringify(groups));
       toast.success(t("settings_misc.bot_notifications.save_success"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("settings_misc.bot_notifications.save_error"));
@@ -155,7 +228,36 @@ export default function BotNotificationsSettingsPage() {
           «Общих», а тут это лишний повод промахнуться.
         */}
         {isGroupLinked === false && (
-          <TelegramGroupSection companiesId={companiesId} onLinkedChange={setIsGroupLinked} />
+          <TelegramGroupSection
+            companiesId={companiesId}
+            onLinkedChange={(linked) => {
+              setIsGroupLinked(linked);
+              if (linked) reloadGroups();
+            }}
+          />
+        )}
+
+        {groups.length > 1 && events !== null && !loadError && (
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              htmlFor="notification-group"
+              className="text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              {t("settings_misc.bot_notifications.group_select")}
+            </label>
+            <div className="w-full max-w-xs">
+              <Select
+                inputId="notification-group"
+                options={groupOptions}
+                value={groupOptions.find((option) => option.value === selectedChat) || null}
+                onChange={(option) => option && setSelectedChat(option.value)}
+                styles={getDepartmentSelectStyles()}
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+                isSearchable={false}
+              />
+            </div>
+          </div>
         )}
 
         {loadError ? (
@@ -188,8 +290,13 @@ export default function BotNotificationsSettingsPage() {
                   <th className="w-40 px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
                     {t("settings_misc.bot_notifications.col_to_employee")}
                   </th>
-                  <th className="w-40 px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
+                  <th className="w-48 px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
                     {t("settings_misc.bot_notifications.col_to_group")}
+                    {selectedGroup && (
+                      <span className="block max-w-[12rem] truncate text-xs font-normal text-gray-500 dark:text-gray-400">
+                        {groupLabel(selectedGroup)}
+                      </span>
+                    )}
                   </th>
                 </tr>
               </thead>
@@ -248,9 +355,7 @@ export default function BotNotificationsSettingsPage() {
                             {event.employee_applicable ? (
                               <Checkbox
                                 checked={event.to_employee}
-                                onChange={() =>
-                                  toggle(event.event_type, "to_employee")
-                                }
+                                onChange={() => toggle(event.event_type)}
                               />
                             ) : (
                               <span className="text-gray-300 dark:text-gray-600">
@@ -261,11 +366,9 @@ export default function BotNotificationsSettingsPage() {
                           <td className="px-4 py-3">
                             {event.group_applicable ? (
                               <Checkbox
-                                checked={event.to_group}
-                                disabled={isGroupLinked === false}
-                                onChange={() =>
-                                  toggle(event.event_type, "to_group")
-                                }
+                                checked={Boolean(selectedGroup?.toGroup[event.event_type])}
+                                disabled={!selectedGroup}
+                                onChange={() => toggleGroup(event.event_type)}
                               />
                             ) : (
                               <span className="text-gray-300 dark:text-gray-600">
@@ -279,6 +382,7 @@ export default function BotNotificationsSettingsPage() {
                             <td colSpan={3} className="px-4 pb-4 pt-1">
                               <TemplateEditor
                                 event={event}
+                                groupOn={groups.some((group) => group.toGroup[event.event_type])}
                                 onChange={(field, template) =>
                                   setTemplate(event.event_type, field, template)
                                 }
@@ -303,9 +407,14 @@ export default function BotNotificationsSettingsPage() {
           настройки компании, которых человек даже не видел.
         */}
         {!loadError && events !== null && events.length > 0 && (
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? t("settings_misc.bot_notifications.saving") : t("settings_misc.bot_notifications.save")}
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white/95 p-4 backdrop-blur">
+            <div className="text-sm text-gray-500">
+              {isDirty
+                ? t("settings_general.status.unsaved")
+                : t("settings_misc.bot_notifications.all_saved")}
+            </div>
+            <Button onClick={handleSave} disabled={isSaving} className="min-w-[170px]">
+              {isSaving ? t("settings_general.action.saving") : t("settings_general.action.save_changes")}
             </Button>
           </div>
         )}
@@ -355,10 +464,13 @@ function splitTemplate(template: string): TemplatePart[] {
  */
 function TemplateEditor({
   event,
+  groupOn,
   onChange,
   onClose,
 }: {
   event: NotificationEvent;
+  /** Уходит ли событие хоть в одну группу: текст для группы общий на все. */
+  groupOn: boolean;
   onChange: (field: TemplateField, template: string) => void;
   onClose: () => void;
 }) {
@@ -372,7 +484,7 @@ function TemplateEditor({
   const draft = drafts[field];
   const inputId = `notification-template-${event.event_type}`;
   const isDefault = draft.trim() === event.default_template.trim();
-  const channelOff = field === "template" ? !event.to_employee : !event.to_group;
+  const channelOff = field === "template" ? !event.to_employee : !groupOn;
 
   const labels = useMemo(
     () => new Map(event.variables.map((variable) => [variable.key, variable.label || variable.key])),

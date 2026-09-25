@@ -36,6 +36,10 @@ import Input from "../../../components/form/input/InputField";
 import { Modal } from "../../../components/ui/modal";
 import { blockToggle, isEditorEmpty } from "../../../components/form/RichTextEditor";
 import LocationsInfiniteMultiSelect from "../../../components/autocomplete/LocationsInfiniteMultiSelect";
+import MultiSelect from "../../../components/form/MultiSelect";
+import { getCompaniesId } from "../../../api/httpRequest";
+import companyStore from "../../../store/company.store";
+import { telegramGroupService, type TelegramGroup } from "../../../api/services/telegramGroup.service";
 import { uploadFileToCdn } from "../../../api/services/file-upload.service";
 import { useTranslation } from "../../../i18n";
 import type { MessageKey } from "../../../i18n/messages";
@@ -67,6 +71,7 @@ const emptyForm = (): BroadcastForm => ({
   include_no_branch: false,
   to_employees: true,
   to_groups: false,
+  group_chat_ids: [],
   body: "",
   attachment: null,
   with_app_button: false,
@@ -140,14 +145,23 @@ function Dialog({ title, onClose, children, footer, wide = false }: { title: str
 }
 
 /** Отказ в отправке целиком — у кого текст пустой или длиннее предела. */
-function ProblemList({ problems, total }: { problems: Problem[]; total: number }) {
+function ProblemList({
+  problems,
+  total,
+  groupName,
+}: {
+  problems: Problem[];
+  total: number;
+  groupName: (chatId: string | undefined) => string | null;
+}) {
   const { t } = useTranslation();
   const who = (problem: Problem) =>
     problem.kind === "employee"
       ? problem.name || t("settings_misc.broadcasts.unnamed")
-      : problem.company
-        ? t("settings_misc.broadcasts.group_company")
-        : t("settings_misc.broadcasts.group_of", { names: (problem.branches || []).join(", ") });
+      : groupName(problem.chat_id) ||
+        (problem.company
+          ? t("settings_misc.broadcasts.group_company")
+          : t("settings_misc.broadcasts.group_of", { names: (problem.branches || []).join(", ") }));
   return (
     <div className="rounded-lg border border-error-200 bg-error-50 p-3 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400">
       <p className="font-medium">{t("settings_misc.broadcasts.problems_title", { count: total })}</p>
@@ -199,6 +213,63 @@ export default function BroadcastFormPage() {
 
   const isDraft = !saved || saved.status === "draft";
   const dirty = JSON.stringify(form) !== baseline;
+
+  // Группы компании — чтобы выбирать их поимённо (ADR-0012). Тот же источник
+  // companies_id, что у «Уведомлений бота».
+  const companiesId = getCompaniesId() || companyStore.company?.guid || "";
+  // null — ещё грузятся: «В группы» до этого не включить, иначе список не
+  // заполнился бы из аудитории. Сбой загрузки — отдельно: без списка групп
+  // выбранные нельзя объявлять отключёнными.
+  const [groups, setGroups] = useState<TelegramGroup[] | null>(null);
+  const [groupsFailed, setGroupsFailed] = useState(false);
+  useEffect(() => {
+    if (!companiesId) return;
+    let cancelled = false;
+    telegramGroupService
+      .status(companiesId)
+      .then((status) => !cancelled && setGroups(status.groups))
+      .catch(() => {
+        if (cancelled) return;
+        setGroups([]);
+        setGroupsFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companiesId]);
+
+  const groupScope = (group: TelegramGroup) =>
+    group.company
+      ? t("settings_general.telegram.scope_company")
+      : group.branches.map((branch) => branch.title).join(", ");
+  const groupLabel = (group: TelegramGroup) =>
+    group.title || groupScope(group) || t("settings_general.telegram.group_untitled");
+  const groupName = (chatId: string | undefined) => {
+    const group = groups?.find((item) => item.chatId === chatId);
+    return group ? groupLabel(group) : null;
+  };
+  const chosenGroups = (groups || []).filter((group) => form.group_chat_ids.includes(group.chatId));
+  // Выбранные, но с тех пор отключённые: рассылку они не получат.
+  const missingGroups = groups && !groupsFailed ? form.group_chat_ids.length - chosenGroups.length : 0;
+
+  /**
+   * «В группы» включили — список предзаполняется из личной аудитории: вся
+   * компания — все группы, выбранные филиалы — группы, где есть хоть один из
+   * них. Дальше HR правит его сам: чат, общий для нескольких филиалов, покажет
+   * рассылку им всем, и это видно по подписи группы.
+   */
+  const toggleGroups = (on: boolean) => {
+    if (!on || form.group_chat_ids.length) return patch({ to_groups: on });
+    const locations = new Set(form.locations.map((item) => item.value));
+    const prefill = (groups || [])
+      .filter((group) =>
+        form.audience === "company"
+          ? true
+          : !group.company && group.branches.some((branch) => locations.has(branch.locationsId))
+      )
+      .map((group) => group.chatId);
+    patch({ to_groups: true, group_chat_ids: prefill });
+  };
 
   const adopt = (broadcast: Broadcast) => {
     setSaved(broadcast);
@@ -253,16 +324,19 @@ export default function BroadcastFormPage() {
   }, [previewKey]);
 
   const hasBranchVar = /\{\{\s*branch\s*\}\}/.test(form.body);
+  // {{branch}} в группе подставляется только у чата ровно одного филиала,
+  // поэтому вкладок групп две, лишь когда среди выбранных есть оба вида.
+  const hasSingleBranchGroup = chosenGroups.some((group) => !group.company && group.branches.length === 1);
+  const hasOtherGroup = chosenGroups.some((group) => group.company || group.branches.length !== 1);
   const previewTabs = useMemo<PreviewTab[]>(() => {
     const tabs: PreviewTab[] = [];
     if (form.to_employees) tabs.push("personal");
     if (form.to_groups) {
-      if (form.audience === "branches") tabs.push("group_branch");
-      else if (hasBranchVar) tabs.push("group_branch", "group_company");
-      else tabs.push("group_company");
+      if (hasBranchVar && hasSingleBranchGroup) tabs.push("group_branch");
+      if (!hasBranchVar || hasOtherGroup || !hasSingleBranchGroup) tabs.push("group_company");
     }
     return tabs.length ? tabs : ["personal"];
-  }, [form.to_employees, form.to_groups, form.audience, hasBranchVar]);
+  }, [form.to_employees, form.to_groups, hasBranchVar, hasSingleBranchGroup, hasOtherGroup]);
   const activeTab = previewTabs.includes(previewTab) ? previewTab : previewTabs[0];
   const shown = preview?.[activeTab];
 
@@ -434,6 +508,16 @@ export default function BroadcastFormPage() {
   const audience = sendDialog?.audience;
   const sectionCls = "rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]";
   const sectionTitle = "mb-4 text-base font-semibold text-gray-800 dark:text-white/90";
+  // Блок канала: включённый — с рамкой бренда, выключенный — приглушён.
+  const channelCls = (on: boolean) =>
+    `rounded-xl border p-4 transition-colors ${
+      on
+        ? "border-brand-200 bg-brand-50/40 dark:border-brand-500/30 dark:bg-brand-500/[0.06]"
+        : "border-gray-200 dark:border-gray-800"
+    }`;
+  const channelHint = "mt-1 pl-8 text-xs text-gray-500 dark:text-gray-400";
+  // Групп у компании нет вовсе — слать в группы некуда.
+  const noGroups = groups !== null && !groupsFailed && groups.length === 0;
 
   return (
     <>
@@ -473,32 +557,89 @@ export default function BroadcastFormPage() {
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
           <div className="space-y-5 xl:col-span-7">
+            {/*
+              Два канала — два блока (ADR-0012): охват по филиалам задаёт только
+              личную рассылку, а группы выбираются поимённо. Каждая настройка
+              стоит внутри своего канала, чтобы не читаться как охват всей
+              рассылки. Выключенный канал сворачивается до строки.
+            */}
             <section className={sectionCls}>
               <h2 className={sectionTitle}>{t("settings_misc.broadcasts.audience")}</h2>
-              <fieldset disabled={!isDraft} className="space-y-4">
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  <Radio id="audience-company" name="audience" value="company" checked={form.audience === "company"} disabled={!isDraft} label={t("settings_misc.broadcasts.audience_company")} onChange={() => patch({ audience: "company" })} />
-                  <Radio id="audience-branches" name="audience" value="branches" checked={form.audience === "branches"} disabled={!isDraft} label={t("settings_misc.broadcasts.audience_branches")} onChange={() => patch({ audience: "branches" })} />
+              <fieldset disabled={!isDraft} className="space-y-3">
+                <div className={channelCls(form.to_employees)}>
+                  <Checkbox checked={form.to_employees} disabled={!isDraft} onChange={(to_employees) => patch({ to_employees })} label={t("settings_misc.broadcasts.to_employees")} />
+                  <p className={channelHint}>{t("settings_misc.broadcasts.to_employees_hint")}</p>
+                  {form.to_employees && (
+                    <div className="mt-3 space-y-3 pl-8">
+                      <div className="flex flex-wrap gap-x-6 gap-y-2">
+                        <Radio id="audience-company" name="audience" value="company" checked={form.audience === "company"} disabled={!isDraft} label={t("settings_misc.broadcasts.audience_company")} onChange={() => patch({ audience: "company" })} />
+                        <Radio id="audience-branches" name="audience" value="branches" checked={form.audience === "branches"} disabled={!isDraft} label={t("settings_misc.broadcasts.audience_branches")} onChange={() => patch({ audience: "branches" })} />
+                      </div>
+                      {form.audience === "branches" && (
+                        <div className="space-y-3">
+                          {isDraft ? (
+                            <LocationsInfiniteMultiSelect value={form.locations} onChange={(locations) => patch({ locations })} menuPortalTarget={document.body} />
+                          ) : (
+                            <p className="text-sm text-gray-800 dark:text-white/90">{form.locations.map((item) => item.label).join(", ") || "—"}</p>
+                          )}
+                          <Checkbox checked={form.include_no_branch} disabled={!isDraft} onChange={(include_no_branch) => patch({ include_no_branch })} label={t("settings_misc.broadcasts.include_no_branch")} />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {form.audience === "branches" && (
-                  <div className="space-y-3">
-                    {isDraft ? (
-                      <LocationsInfiniteMultiSelect value={form.locations} onChange={(locations) => patch({ locations })} menuPortalTarget={document.body} />
-                    ) : (
-                      <p className="text-sm text-gray-800 dark:text-white/90">{form.locations.map((item) => item.label).join(", ") || "—"}</p>
-                    )}
-                    <Checkbox checked={form.include_no_branch} disabled={!isDraft} onChange={(include_no_branch) => patch({ include_no_branch })} label={t("settings_misc.broadcasts.include_no_branch")} />
-                  </div>
-                )}
-
-                <div className="space-y-2 border-t border-gray-100 pt-4 dark:border-gray-800">
-                  <Checkbox checked={form.to_employees} disabled={!isDraft} onChange={(to_employees) => patch({ to_employees })} label={t("settings_misc.broadcasts.to_employees")} />
-                  <Checkbox checked={form.to_groups} disabled={!isDraft} onChange={(to_groups) => patch({ to_groups })} label={t("settings_misc.broadcasts.to_groups")} />
-                  {form.to_groups && (
-                    <p className="pl-8 text-xs text-gray-500 dark:text-gray-400">
-                      {t(form.audience === "company" ? "settings_misc.broadcasts.groups_company_hint" : "settings_misc.broadcasts.groups_branches_hint")}
+                <div className={channelCls(form.to_groups)}>
+                  <Checkbox
+                    checked={form.to_groups}
+                    // Не включить, пока группы грузятся (не из чего заполнить
+                    // список) и пока их нет вовсе — слать некуда.
+                    disabled={!isDraft || groups === null || (noGroups && !form.to_groups)}
+                    onChange={toggleGroups}
+                    label={t("settings_misc.broadcasts.to_groups")}
+                  />
+                  {noGroups ? (
+                    <p className={channelHint}>
+                      {t("settings_misc.broadcasts.groups_none")}{" "}
+                      <Link to="/settings/general" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+                        {t("settings_misc.broadcasts.groups_connect")}
+                      </Link>
                     </p>
+                  ) : (
+                    <p className={channelHint}>{t("settings_misc.broadcasts.groups_hint")}</p>
+                  )}
+                  {form.to_groups && (
+                    <div className="mt-3 space-y-2 pl-8">
+                      {isDraft ? (
+                        <MultiSelect
+                          inline
+                          label={t("settings_misc.broadcasts.groups_label")}
+                          placeholder={t("settings_misc.broadcasts.groups_placeholder")}
+                          options={(groups || []).map((group) => ({
+                            value: group.chatId,
+                            text: groupLabel(group),
+                            hint: group.title ? groupScope(group) : undefined,
+                          }))}
+                          value={chosenGroups.map((group) => group.chatId)}
+                          onChange={(group_chat_ids) => patch({ group_chat_ids })}
+                        />
+                      ) : (
+                        <p className="text-sm text-gray-800 dark:text-white/90">
+                          {chosenGroups.map(groupLabel).join(", ") || "—"}
+                        </p>
+                      )}
+                      {groupsFailed && (
+                        <p className="text-xs text-error-600 dark:text-error-500">
+                          {t("settings_misc.broadcasts.groups_load_error")}
+                        </p>
+                      )}
+                      {isDraft && missingGroups > 0 && (
+                        <p className="flex items-start gap-1.5 text-xs text-warning-700 dark:text-warning-400">
+                          <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+                          {t("settings_misc.broadcasts.groups_disconnected", { count: missingGroups })}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </fieldset>
@@ -652,7 +793,9 @@ export default function BroadcastFormPage() {
                           activeTab === tab ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
                         }`}
                       >
-                        {t(`settings_misc.broadcasts.preview_${tab}` as MessageKey)}
+                        {tab === "group_company" && !previewTabs.includes("group_branch")
+                          ? t("settings_misc.bot_notifications.col_to_group")
+                          : t(`settings_misc.broadcasts.preview_${tab}` as MessageKey)}
                       </button>
                     ))}
                   </div>
@@ -779,27 +922,32 @@ export default function BroadcastFormPage() {
                   <p>{t("settings_misc.broadcasts.summary_groups", { count: audience.groups.length })}</p>
                   {audience.groups.length > 0 && (
                     <ul className="mt-1 list-disc pl-5 text-xs text-gray-600 dark:text-gray-400">
-                      {audience.groups.map((group, index) => (
-                        <li key={index}>
-                          {group.company
-                            ? t("settings_misc.broadcasts.group_company")
-                            : t("settings_misc.broadcasts.group_of", { names: group.branches.join(", ") })}
+                      {audience.groups.map((group) => (
+                        <li key={group.chat_id}>
+                          {groupName(group.chat_id) ||
+                            (group.company
+                              ? t("settings_misc.broadcasts.group_company")
+                              : t("settings_misc.broadcasts.group_of", { names: group.branches.join(", ") }))}
+                          {!group.company && group.branches.length > 0 && groupName(group.chat_id) && (
+                            <span className="text-gray-400"> · {group.branches.join(", ")}</span>
+                          )}
                         </li>
                       ))}
                     </ul>
                   )}
                 </div>
               )}
-              {audience.branches_without_group.length > 0 && (
+              {form.to_groups && audience.groups_disconnected > 0 && (
                 <p className="flex items-start gap-1.5 rounded-lg bg-warning-50 p-2.5 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
                   <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-                  {t("settings_misc.broadcasts.summary_no_group", { names: audience.branches_without_group.map((item) => item.title).join(", ") })}
+                  {t("settings_misc.broadcasts.groups_disconnected", { count: audience.groups_disconnected })}
                 </p>
               )}
               {(sendProblems || audience.problems_total > 0) && (
                 <ProblemList
                   problems={sendProblems?.problems || audience.problems}
                   total={sendProblems?.total || audience.problems_total}
+                  groupName={groupName}
                 />
               )}
               {!sendProblems && !audience.problems_total && (

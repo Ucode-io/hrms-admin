@@ -20,7 +20,7 @@ export type NotificationEvent = {
   to_group: boolean;
   /** Свой текст компании сотруднику; пусто — бот шлёт стандартный. */
   template: string;
-  /** Свой текст в группу компании; пусто — стандартный. */
+  /** Свой текст в группу — общий для всех групп; пусто — стандартный. */
   group_template: string;
   /** Стандартный текст теми же переменными — с него начинает редактор. */
   default_template: string;
@@ -28,6 +28,23 @@ export type NotificationEvent = {
   group_text_applicable: boolean;
   /** Что можно подставить в `{{key}}`. Пусто — своего текста у события нет. */
   variables: { key: string; label: string }[];
+};
+
+/**
+ * «В группу» у одной группы (ADR-0012): галочки по событиям. Название чата
+ * отдаёт статус привязки; здесь только охват — подпись на случай, если
+ * Telegram не ответил.
+ */
+export type NotificationGroup = {
+  chatId: string;
+  company: boolean;
+  branches: string[];
+  toGroup: Record<string, boolean>;
+};
+
+export type NotificationSettings = {
+  events: NotificationEvent[];
+  groups: NotificationGroup[];
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -61,16 +78,33 @@ const mapEvent = (raw: unknown): NotificationEvent | null => {
 };
 
 export const notificationSettingsService = {
-  get: async (companiesId: string): Promise<NotificationEvent[]> => {
+  get: async (companiesId: string): Promise<NotificationSettings> => {
     const result = await invokeTasksMethod("notification_settings_get", {
       companies_id: companiesId,
     });
 
     const events = isRecord(result) && Array.isArray(result.events) ? result.events : [];
-    return events.map(mapEvent).filter((item): item is NotificationEvent => item !== null);
+    const groups = isRecord(result) && Array.isArray(result.groups) ? result.groups : [];
+    return {
+      events: events.map(mapEvent).filter((item): item is NotificationEvent => item !== null),
+      groups: groups.filter(isRecord).map((group) => ({
+        chatId: str(group.chat_id),
+        company: group.company === true,
+        branches: Array.isArray(group.branches) ? group.branches.map(str) : [],
+        toGroup: Object.fromEntries(
+          Object.entries(isRecord(group.to_group) ? group.to_group : {}).filter(
+            (entry): entry is [string, boolean] => typeof entry[1] === "boolean"
+          )
+        ),
+      })),
+    };
   },
 
-  save: async (companiesId: string, events: NotificationEvent[]): Promise<void> => {
+  save: async (
+    companiesId: string,
+    events: NotificationEvent[],
+    groups: NotificationGroup[]
+  ): Promise<void> => {
     const result = await invokeTasksMethod("notification_settings_save", {
       companies_id: companiesId,
       events: events.map((event) => ({
@@ -80,6 +114,7 @@ export const notificationSettingsService = {
         template: event.template,
         group_template: event.group_template,
       })),
+      groups: groups.map((group) => ({ chat_id: group.chatId, to_group: group.toGroup })),
     });
 
     if (!isRecord(result) || !result.saved) {

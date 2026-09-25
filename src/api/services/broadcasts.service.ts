@@ -30,6 +30,8 @@ export type BroadcastForm = {
   include_no_branch: boolean;
   to_employees: boolean;
   to_groups: boolean;
+  /** Группы поимённо — chat_id (ADR-0012), а не выводятся из аудитории. */
+  group_chat_ids: string[];
   /** HTML редактора; сервер сам превращает его в текст Telegram. */
   body: string;
   attachment: { url: string; name: string; kind: AttachmentKind } | null;
@@ -67,6 +69,7 @@ export type BroadcastPreview = {
 export type Problem = {
   kind: "employee" | "group";
   name?: string;
+  chat_id?: string;
   company?: boolean;
   branches?: string[];
   reason: "empty" | "too_long";
@@ -80,8 +83,9 @@ export type BroadcastAudience =
   | {
       ready: true;
       employees: { total: number; linked: number; not_linked: number };
-      groups: { company: boolean; branches: string[] }[];
-      branches_without_group: { guid: string; title: string }[];
+      groups: { chat_id: string; company: boolean; branches: string[] }[];
+      /** Выбранные группы, которые с тех пор отключили: рассылку они не получат. */
+      groups_disconnected: number;
       revision: string;
       problems: Problem[];
       problems_total: number;
@@ -89,6 +93,7 @@ export type BroadcastAudience =
 
 export type Recipient = {
   kind: "employee" | "group";
+  chat_id: string;
   name: string;
   company: boolean;
   branches: string[];
@@ -135,6 +140,7 @@ const mapBroadcast = (raw: Record<string, unknown>): Broadcast => {
       include_no_branch: raw.include_no_branch === true,
       to_employees: raw.to_employees !== false,
       to_groups: raw.to_groups === true,
+      group_chat_ids: Array.isArray(raw.group_chat_ids) ? raw.group_chat_ids.map(str).filter(Boolean) : [],
       body: str(raw.editor_body),
       attachment:
         str(raw.attachment_url) && (kind === "photo" || kind === "document")
@@ -163,6 +169,7 @@ const toPayload = (form: BroadcastForm) => ({
   include_no_branch: form.include_no_branch,
   to_employees: form.to_employees,
   to_groups: form.to_groups,
+  group_chat_ids: form.group_chat_ids,
   body: form.body,
   attachment_url: form.attachment?.url || null,
   attachment_name: form.attachment?.name || null,
@@ -211,10 +218,11 @@ export const broadcastsService = {
       ready: true,
       employees: { total: num(employees.total), linked: num(employees.linked), not_linked: num(employees.not_linked) },
       groups: list(result.groups).map((group) => ({
+        chat_id: str(group.chat_id),
         company: group.company === true,
         branches: Array.isArray(group.branches) ? group.branches.map(str) : [],
       })),
-      branches_without_group: list(result.branches_without_group).map((item) => ({ guid: str(item.guid), title: str(item.title) })),
+      groups_disconnected: num(result.groups_disconnected),
       revision: str(result.revision),
       problems: list(result.problems) as Problem[],
       problems_total: num(result.problems_total),
@@ -246,6 +254,7 @@ export const broadcastsService = {
     const result = await call("broadcast_recipients", { guid, status: STATUS_QUERY[status] });
     return (Array.isArray(result.items) ? result.items : []).filter(isRecord).map((item) => ({
       kind: item.kind === "group" ? "group" : "employee",
+      chat_id: str(item.chat_id),
       name: str(item.name),
       company: item.company === true,
       branches: Array.isArray(item.branches) ? item.branches.map(str) : [],

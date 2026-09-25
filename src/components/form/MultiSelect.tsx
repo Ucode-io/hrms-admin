@@ -1,9 +1,13 @@
 import type React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 
 interface Option {
   value: string;
   text: string;
+  /** Пункт виден, но не выбирается — например, уже занят в другом месте. */
+  disabled?: boolean;
+  /** Подпись под пунктом: почему он неактивен. */
+  hint?: string;
 }
 
 interface MultiSelectProps {
@@ -14,6 +18,11 @@ interface MultiSelectProps {
   onChange?: (selected: string[]) => void;
   disabled?: boolean;
   placeholder?: string;
+  /**
+   * Поле в строке рядом с другими: подпись только для скринридера, без
+   * нижнего отступа.
+   */
+  inline?: boolean;
 }
 
 const MultiSelect: React.FC<MultiSelectProps> = ({
@@ -24,6 +33,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   onChange,
   disabled = false,
   placeholder = "Select options",
+  inline = false,
 }) => {
   const isControlled = value !== undefined;
   const [internalSelected, setInternalSelected] =
@@ -32,6 +42,9 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Из useId, а не из подписи: несколько полей с одной подписью на странице
+  // (строки групп Telegram) иначе делили бы один id.
+  const labelId = `${useId()}-label`;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -63,6 +76,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   };
 
   const handleSelect = (optionValue: string) => {
+    if (options.find((option) => option.value === optionValue)?.disabled) return;
     const newSelected = selectedOptions.includes(optionValue)
       ? selectedOptions.filter((v) => v !== optionValue)
       : [...selectedOptions, optionValue];
@@ -106,13 +120,17 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   return (
     <div className="w-full" ref={dropdownRef}>
       <label
-        className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
-        id={`${label}-label`}
+        className={inline ? "sr-only" : "mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"}
+        id={labelId}
       >
         {label}
       </label>
 
-      <div className="relative z-20 inline-block w-full">
+      {/*
+        z-index — только у открытого: у закрытого своего слоя нет, иначе у
+        нескольких полей подряд список верхнего уходит под поле нижнего.
+      */}
+      <div className={`relative inline-block w-full ${isOpen ? "z-30" : ""}`}>
         <div className="relative flex flex-col items-center">
           <div
             onClick={toggleDropdown}
@@ -121,12 +139,12 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
             role="combobox"
             aria-expanded={isOpen}
             aria-haspopup="listbox"
-            aria-labelledby={`${label}-label`}
+            aria-labelledby={labelId}
             aria-disabled={disabled}
             tabIndex={disabled ? -1 : 0}
           >
             <div
-              className={`mb-2 flex min-h-11  rounded-lg border border-gray-300 py-1.5 pl-3 pr-3 shadow-theme-xs outline-hidden transition focus:border-brand-300 focus:shadow-focus-ring dark:border-gray-700 dark:bg-gray-900 dark:focus:border-brand-300 ${
+              className={`${inline ? "" : "mb-2"} flex min-h-11 rounded-lg border border-gray-300 py-1.5 pl-3 pr-3 shadow-theme-xs outline-hidden transition focus:border-brand-300 focus:shadow-focus-ring dark:border-gray-700 dark:bg-gray-900 dark:focus:border-brand-300 ${
                 disabled
                   ? "opacity-50 cursor-not-allowed bg-gray-50 dark:bg-gray-800"
                   : "cursor-pointer"
@@ -223,16 +241,22 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                 return (
                   <div
                     key={option.value}
-                    className={`hover:bg-primary/5 w-full cursor-pointer rounded-t border-b border-gray-200 dark:border-gray-800 ${
-                      isFocused ? "bg-primary/5" : ""
-                    } ${isSelected ? "bg-primary/10" : ""}`}
+                    className={`w-full rounded-t border-b border-gray-200 dark:border-gray-800 ${
+                      option.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-primary/5"
+                    } ${isFocused ? "bg-primary/5" : ""} ${isSelected ? "bg-primary/10" : ""}`}
                     onClick={() => handleSelect(option.value)}
                     role="option"
                     aria-selected={isSelected}
+                    aria-disabled={option.disabled || undefined}
                   >
                     <div className="relative flex w-full items-center p-2 pl-2">
                       <div className="mx-2 leading-6 text-gray-800 dark:text-white/90">
                         {option.text}
+                        {option.hint && (
+                          <span className="block text-xs leading-4 text-gray-500 dark:text-gray-400">
+                            {option.hint}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
