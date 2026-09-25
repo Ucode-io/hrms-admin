@@ -14,6 +14,7 @@ import {
   type NotificationEvent,
 } from "../../../api/services/notificationSettings.service";
 import { useTranslation } from "../../../i18n";
+import { BotNotificationsTabs } from "./Broadcasts";
 
 /**
  * Что бот шлёт сотруднику и что — в группу компании.
@@ -141,6 +142,8 @@ export default function BotNotificationsSettingsPage() {
             {t("settings_misc.bot_notifications.page_subtitle")}
           </p>
         </div>
+
+        <BotNotificationsTabs />
 
         {/*
           Пока группы нет, колонка «В группу» ничего не значит — поэтому прямо

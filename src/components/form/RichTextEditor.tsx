@@ -65,7 +65,15 @@ const insertImages = async (editable: HTMLElement | undefined, files: File[]) =>
 };
 
 /** Toggles a block tag on the current selection, back to <p> when already set. */
-const blockToggle =
+/**
+ * Плейсхолдер — только пока в редакторе нет текста. Правило для «стрейного
+ * <br>» в index.css смотрит на элементы, а текстовых узлов CSS не видит:
+ * «строка<br>строка» для него выглядит пустым редактором.
+ */
+export const placeholderFor = (html: string, placeholder?: string) =>
+  html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "") ? undefined : placeholder;
+
+export const blockToggle =
   (tag: string) =>
   ({ $selection }: EditorState) => {
     // $selection can be a text node, so walk up to the nearest element first.
@@ -203,7 +211,7 @@ export default function RichTextEditor({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        placeholder={placeholder}
+        placeholder={placeholderFor(value, placeholder)}
         containerProps={{ style: { border: 0, borderRadius: 0 } }}
         style={{ minHeight, padding: "12px 14px", fontSize: "14px", color: "rgb(31 41 55)" }}
       >
