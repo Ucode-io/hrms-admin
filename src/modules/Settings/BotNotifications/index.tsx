@@ -16,8 +16,23 @@ import {
   type NotificationGroup,
 } from "../../../api/services/notificationSettings.service";
 import { useTranslation } from "../../../i18n";
+import type { MessageKey } from "../../../i18n/messages";
 import { BotNotificationsTabs } from "./Broadcasts";
 import { getDepartmentSelectStyles } from "../Departments/utils";
+
+/**
+ * Каталог приходит с бэкенда по-русски. Разделы переводятся по русскому
+ * названию, события — по `event_type`; чего в локалях ещё нет, показываем как
+ * прислал бэкенд, чтобы новое событие не превращалось в ключ перевода.
+ */
+const SECTION_KEYS: Record<string, string> = {
+  Турникет: "turnstile",
+  "Отметки времени": "time_marks",
+  Начисления: "payroll",
+  KPI: "kpi",
+  "Рабочий график": "schedule",
+  Задачи: "tasks",
+};
 
 /**
  * Что бот шлёт сотруднику и что — в группу компании.
@@ -123,6 +138,12 @@ export default function BotNotificationsSettingsPage() {
   }, [events]);
 
   const selectedGroup = groups.find((group) => group.chatId === selectedChat) || null;
+
+  const catalogText = (key: string, fallback: string) => {
+    const fullKey = `settings_misc.bot_notifications.${key}`;
+    const text = t(fullKey as MessageKey);
+    return text === fullKey ? fallback : text;
+  };
 
   const applyGroups = (next: NotificationGroup[]) => {
     setGroups(next);
@@ -308,7 +329,7 @@ export default function BotNotificationsSettingsPage() {
                         colSpan={3}
                         className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
                       >
-                        {section}
+                        {catalogText(`section.${SECTION_KEYS[section]}`, section)}
                       </td>
                     </tr>
                     {sectionEvents.map((event) => (
@@ -317,7 +338,7 @@ export default function BotNotificationsSettingsPage() {
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-gray-800 dark:text-white/90">
-                                {event.title}
+                                {catalogText(`event.${event.event_type}.title`, event.title)}
                               </span>
                               {(event.template.trim() ||
                                 event.group_template.trim()) && (
@@ -330,7 +351,7 @@ export default function BotNotificationsSettingsPage() {
                             </div>
                             {event.hint && (
                               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                {event.hint}
+                                {catalogText(`event.${event.event_type}.hint`, event.hint)}
                               </div>
                             )}
                             {event.variables.length > 0 && (
