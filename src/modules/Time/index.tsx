@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { CalendarCheck, CalendarDays, List, MapPinOff, Plane } from "lucide-react";
+import { CalendarCheck, CalendarDays, List, Plane } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import CalendarModule from "../Calendar";
 import TimeAttendancePage from "./Attendance";
@@ -9,14 +9,13 @@ import AbsenceRequestsView from "./components/AbsenceRequestsView";
 import { useTranslation } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 
-type TimeView = "calendar" | "attendance" | "events" | "absence" | "remote";
+type TimeView = "calendar" | "attendance" | "events" | "absence";
 
 const VIEW_TABS: { value: TimeView; labelKey: MessageKey; icon: typeof CalendarDays }[] = [
   { value: "calendar", labelKey: "breadcrumb.calendar", icon: CalendarDays },
   { value: "attendance", labelKey: "time_module.list", icon: List },
   { value: "events", labelKey: "breadcrumb.attendance", icon: CalendarCheck },
   { value: "absence", labelKey: "dashboard.fallback.absence", icon: Plane },
-  { value: "remote", labelKey: "time_module.remote_marks", icon: MapPinOff },
 ];
 
 const DEFAULT_VIEW: TimeView = "calendar";
@@ -25,8 +24,7 @@ const isTimeView = (value: string | null): value is TimeView =>
   value === "calendar" ||
   value === "attendance" ||
   value === "events" ||
-  value === "absence" ||
-  value === "remote";
+  value === "absence";
 
 function TimeModule() {
   const { t } = useTranslation();
@@ -106,7 +104,6 @@ function TimeModule() {
       {activeView === "attendance" && <TimeAttendancePage leftSlot={viewSelect} />}
       {activeView === "events" && <AttendanceEventsPage leftSlot={viewSelect} />}
       {activeView === "absence" && <AbsenceRequestsView leftSlot={viewSelect} />}
-      {activeView === "remote" && <TimeAttendancePage leftSlot={viewSelect} remoteOnly />}
     </>
   );
 }

@@ -503,15 +503,7 @@ const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
   };
 };
 
-/**
- * `remoteOnly` — вкладка «Вне филиала»: только дни, ушедшие на согласование из-за
- * отметки вне радиуса (integration + requested), за все даты сразу. Та же
- * таблица и та же модалка согласования, другой фильтр.
- */
-export default function TimeAttendancePage({
-  leftSlot,
-  remoteOnly = false,
-}: { leftSlot?: ReactNode; remoteOnly?: boolean } = {}) {
+export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState(() => toIsoDate(new Date()));
@@ -562,9 +554,7 @@ export default function TimeAttendancePage({
     const payload: Record<string, unknown> = {
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
-      ...(remoteOnly
-        ? { status: ["requested"], source_type: ["integration"] }
-        : { date: toExactDateRangeFilter(normalizedDateFilter) }),
+      date: toExactDateRangeFilter(normalizedDateFilter),
     };
 
     if (employeeFilter) {
@@ -575,12 +565,12 @@ export default function TimeAttendancePage({
       payload.action_status = [typeFilter];
     }
 
-    if (sourceTypeFilter && !remoteOnly) {
+    if (sourceTypeFilter) {
       payload.source_type = [sourceTypeFilter];
     }
 
     return payload;
-  }, [page, normalizedDateFilter, employeeFilter, typeFilter, sourceTypeFilter, remoteOnly]);
+  }, [page, normalizedDateFilter, employeeFilter, typeFilter, sourceTypeFilter]);
 
   const { data, isLoading, isFetching, isError, refetch } = useSettingsDirectoryQuery({
     slug: ATTENDANCE_SLUG,
@@ -595,34 +585,20 @@ export default function TimeAttendancePage({
 
   // Unpaginated on purpose — bounded to the one visible day, and the table
   // needs every event for it to find each employee's latest geo-tagged check.
-  // Во вкладке «Вне филиала» строки за разные дни — берём отметки за
-  // диапазон дат этой страницы, а не за выбранный день.
-  const recordsDateFilter = useMemo(() => {
-    if (!remoteOnly) return toExactDateRangeFilter(normalizedDateFilter);
-    const dates = ((data?.response || []) as AttendanceItem[])
-      .map((item) => normalizeDateKey(item.date, item.created_at))
-      .filter(Boolean)
-      .sort();
-    return dates.length ? { $gte: dates[0], $lte: dates[dates.length - 1] } : null;
-  }, [remoteOnly, normalizedDateFilter, data?.response]);
-
   const attendanceRecordsQueryParams = useMemo(
     () => ({
       data: encodeJsonToUrlParam({
-        // ponytail: во вкладке «Вне филиала» диапазон может быть широким —
-        // 2000 отметок хватает на страницу из 20 дней; упрётся — фильтровать по людям.
-        limit: remoteOnly ? 2000 : 500,
+        limit: 500,
         offset: 0,
-        date: recordsDateFilter,
+        date: toExactDateRangeFilter(normalizedDateFilter),
         companies_id: companyStore.company?.guid || COMPANY_ID,
       }),
     }),
-    [recordsDateFilter, remoteOnly]
+    [normalizedDateFilter]
   );
   const { data: attendanceRecordsData } = useSettingsDirectoryQuery({
     slug: ATTENDANCE_RECORDS_SLUG,
     params: attendanceRecordsQueryParams,
-    querySettings: { enabled: Boolean(recordsDateFilter) },
   });
 
   // Raw Hikvision/webapp check events. Only mobile-app ("webapp") events carry
@@ -636,7 +612,7 @@ export default function TimeAttendancePage({
   // CRM report is refreshed immediately and every five minutes while the
   // attendance screen is open. Backend also runs the same idempotent sync.
   useEffect(() => {
-    if (remoteOnly || companyStore.company?.guid !== VEGAPHARM_COMPANY_ID) return;
+    if (companyStore.company?.guid !== VEGAPHARM_COMPANY_ID) return;
     let cancelled = false;
     const sync = async () => {
       try {
@@ -649,7 +625,7 @@ export default function TimeAttendancePage({
     void sync();
     const timer = window.setInterval(sync, 5 * 60 * 1000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [normalizedDateFilter, refetch, remoteOnly]);
+  }, [normalizedDateFilter, refetch]);
 
   // Справочник филиалов — один кешированный запрос на все экраны; из него
   // берутся координаты офиса и его радиус для сверки с отметкой.
@@ -1018,7 +994,7 @@ export default function TimeAttendancePage({
             ) : null}
           </button>
 
-          {remoteOnly ? null : <button
+          <button
             type="button"
             onClick={openCreate}
             className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90"
@@ -1026,7 +1002,7 @@ export default function TimeAttendancePage({
           >
             <Plus className="h-3.5 w-3.5" />
             {t("common.add")}
-          </button>}
+          </button>
         </div>
 
         {isFiltersOpen ? (
@@ -1091,8 +1067,6 @@ export default function TimeAttendancePage({
               />
             </div>
 
-            {/* Во вкладке «Вне филиала» источник зафиксирован — фильтр по нему лишний. */}
-            {remoteOnly ? null : (
             <div
               style={{
                 minWidth: "180px",
@@ -1118,7 +1092,6 @@ export default function TimeAttendancePage({
                 noOptionsMessage={() => t("common.no_options_found")}
               />
             </div>
-            )}
 
             {activeFiltersCount > 0 ? (
               <button
@@ -1153,7 +1126,7 @@ export default function TimeAttendancePage({
 
         <div className="px-4 lg:px-6 py-5">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            {remoteOnly ? null : <div className="flex items-center justify-end gap-3 border-b border-slate-100 px-4 py-2.5">
+            <div className="flex items-center justify-end gap-3 border-b border-slate-100 px-4 py-2.5">
               <div
                 style={{
                   display: "inline-flex",
@@ -1185,7 +1158,7 @@ export default function TimeAttendancePage({
                   <ChevronRight size={16} />
                 </button>
               </div>
-            </div>}
+            </div>
             <div className="px-4 py-4">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -1206,7 +1179,7 @@ export default function TimeAttendancePage({
                 </div>
               ) : records.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
-                  <p className="m-0 text-[13px] text-slate-500">{t(remoteOnly ? "attendance.remote_empty" : "attendance.empty")}</p>
+                  <p className="m-0 text-[13px] text-slate-500">{t("attendance.empty")}</p>
                 </div>
               ) : (
                 <div className="relative space-y-3">
@@ -1237,12 +1210,11 @@ export default function TimeAttendancePage({
                           <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("absence_calendar.check_out")}</th>
                           <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("absence_calendar.attendance.late")}</th>
                           <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("attendance.action_status")}</th>
-                          {/* Во вкладке «Вне филиала» все строки «Запрошено» — колонка ничего не различает. */}
-                          {remoteOnly ? null : <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("attendance.request_status")}</th>}
-                          {remoteOnly ? null : <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("absence_calendar.source.label")}</th>}
-                          {remoteOnly ? <th className="whitespace-nowrap px-2 py-2 text-[12px] font-semibold text-slate-500">{t("attendance.photo")}</th> : null}
+                          <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("attendance.request_status")}</th>
+                          <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("absence_calendar.source.label")}</th>
+                          <th className="whitespace-nowrap px-2 py-2 text-[12px] font-semibold text-slate-500">{t("attendance.photo")}</th>
                           <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-[12px] font-semibold text-slate-500">{t("attendance.distance")}</th>
-                          {remoteOnly ? <th className="whitespace-nowrap px-2 py-2 text-[12px] font-semibold text-slate-500">{t("attendance.comments")}</th> : null}
+                          <th className="whitespace-nowrap px-2 py-2 text-[12px] font-semibold text-slate-500">{t("attendance.comments")}</th>
                           <th className="whitespace-nowrap px-2 py-2 first:pl-0 last:pr-0 text-right text-[12px] font-semibold text-slate-500">{t("attendance.actions")}</th>
                         </tr>
                       </thead>
@@ -1296,7 +1268,6 @@ export default function TimeAttendancePage({
                                   {actionTag.label}
                                 </span>
                               </td>
-                              {remoteOnly ? null : (
                               <td className="px-2 py-3 first:pl-0 text-[13px] text-slate-700">
                                 {/* Одна строка: прогресс этапов виден на кнопке «Подтвердить»,
                                     а история согласования открывается кликом по статусу. */}
@@ -1317,8 +1288,6 @@ export default function TimeAttendancePage({
                                   </span>
                                 )}
                               </td>
-                              )}
-                              {remoteOnly ? null : (
                               <td className="px-2 py-3 first:pl-0 text-[13px] text-slate-700">
                                 <span
                                   className={`inline-flex rounded-full border px-2.5 py-1 text-[12px] font-semibold ${sourceTag.className}`}
@@ -1326,35 +1295,32 @@ export default function TimeAttendancePage({
                                   {sourceTag.label}
                                 </span>
                               </td>
-                              )}
-                              {remoteOnly ? (
-                                <td className="px-2 py-3 text-[13px] text-slate-700">
-                                  {record.checkInPicture || record.checkOutPicture ? (
-                                    <div className="flex gap-1.5">
-                                      {(
-                                        [
-                                          [t("absence_calendar.check_in"), record.checkInPicture],
-                                          [t("absence_calendar.check_out"), record.checkOutPicture],
-                                        ] as const
-                                      )
-                                        .filter(([, picture]) => picture)
-                                        .map(([label, picture]) => (
-                                          <button
-                                            key={label}
-                                            type="button"
-                                            title={label}
-                                            onClick={() => setPhotoPreview(picture)}
-                                            className="h-10 w-10 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 transition hover:opacity-80"
-                                          >
-                                            <img src={picture} alt={label} loading="lazy" className="h-full w-full object-cover" />
-                                          </button>
-                                        ))}
-                                    </div>
-                                  ) : (
-                                    "—"
-                                  )}
-                                </td>
-                              ) : null}
+                              <td className="px-2 py-3 text-[13px] text-slate-700">
+                                {record.checkInPicture || record.checkOutPicture ? (
+                                  <div className="flex gap-1.5">
+                                    {(
+                                      [
+                                        [t("absence_calendar.check_in"), record.checkInPicture],
+                                        [t("absence_calendar.check_out"), record.checkOutPicture],
+                                      ] as const
+                                    )
+                                      .filter(([, picture]) => picture)
+                                      .map(([label, picture]) => (
+                                        <button
+                                          key={label}
+                                          type="button"
+                                          title={label}
+                                          onClick={() => setPhotoPreview(picture)}
+                                          className="h-10 w-10 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 transition hover:opacity-80"
+                                        >
+                                          <img src={picture} alt={label} loading="lazy" className="h-full w-full object-cover" />
+                                        </button>
+                                      ))}
+                                  </div>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
                               <td className="px-2 py-3 text-[13px] text-slate-700">
                                 {record.checkInGeo || record.checkOutGeo ? (
                                   <div className="flex items-center gap-1.5 whitespace-nowrap">
@@ -1373,31 +1339,29 @@ export default function TimeAttendancePage({
                                   "—"
                                 )}
                               </td>
-                              {remoteOnly ? (
-                                <td className="px-2 py-3 text-[13px] text-slate-700">
-                                  {record.checkInReason || record.checkOutReason ? (
-                                    <div className="max-w-[320px] space-y-0.5">
-                                      {(
-                                        [
-                                          [t("absence_calendar.check_in"), record.checkInReason],
-                                          [t("absence_calendar.check_out"), record.checkOutReason],
-                                        ] as const
-                                      )
-                                        .filter(([, reason]) => reason)
-                                        .map(([label, reason]) => (
-                                          <p key={label} title={reason} className="m-0 truncate">
-                                            {record.checkInReason && record.checkOutReason ? (
-                                              <span className="text-slate-400">{label}: </span>
-                                            ) : null}
-                                            {reason}
-                                          </p>
-                                        ))}
-                                    </div>
-                                  ) : (
-                                    "—"
-                                  )}
-                                </td>
-                              ) : null}
+                              <td className="px-2 py-3 text-[13px] text-slate-700">
+                                {record.checkInReason || record.checkOutReason ? (
+                                  <div className="max-w-[320px] space-y-0.5">
+                                    {(
+                                      [
+                                        [t("absence_calendar.check_in"), record.checkInReason],
+                                        [t("absence_calendar.check_out"), record.checkOutReason],
+                                      ] as const
+                                    )
+                                      .filter(([, reason]) => reason)
+                                      .map(([label, reason]) => (
+                                        <p key={label} title={reason} className="m-0 truncate">
+                                          {record.checkInReason && record.checkOutReason ? (
+                                            <span className="text-slate-400">{label}: </span>
+                                          ) : null}
+                                          {reason}
+                                        </p>
+                                      ))}
+                                  </div>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
                               <td className="px-2 py-3 last:pr-0">
                                 <div className="flex justify-end gap-2">
                                   {record.requestStatus === "requested" ? (
