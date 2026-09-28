@@ -1,12 +1,14 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { AlertTriangle, CalendarClock, Download, Lock, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, CreditCard, Download, Lock, X } from "lucide-react";
 import {
+  SHOW_INVOICES_TO_CLIENT,
   useBillingStatus,
   useCanManageBilling,
+  usePaymeConfig,
   type BillingStatus,
 } from "../api/services/billing.service";
-import { formatUsd, formatUzs } from "../modules/Settings/Billing/format";
+import { formatDate, formatUsd, formatUzs } from "../modules/Settings/Billing/format";
 import { useTranslation } from "../i18n";
 import type { MessageKey } from "../i18n/messages";
 
@@ -41,8 +43,14 @@ export default function BillingBanner() {
   const ref = useRef<HTMLDivElement>(null);
 
   const content = status ? describe(status, canManage, t) : null;
-  // Скрытие renewal_soon — до следующей даты списания, а не навсегда.
-  const dismissKey = status?.next_renewal_date ?? "";
+  // «Оплатить картой» — только если касса включена; вопрос задаём, лишь когда есть что оплачивать.
+  const payable = canManage && Boolean(status?.open_invoice) && !["none", "canceled"].includes(status?.banner.kind ?? "none");
+  const { data: payme } = usePaymeConfig(payable);
+  // Скрытие — до своей даты, а не навсегда: сдвинули дату списания или
+  // окончания доступа — баннер снова виден.
+  const dismissKey = status
+    ? `${status.banner.kind}:${status.banner.kind === "cancel_scheduled" ? status.banner.ends_on ?? "" : status.next_renewal_date ?? ""}`
+    : "";
   const visible = Boolean(content) && !(content?.dismissible && dismissed === dismissKey);
 
   useLayoutEffect(() => {
@@ -60,6 +68,12 @@ export default function BillingBanner() {
   }, [visible]);
 
   if (!visible || !content || !status) return null;
+
+  const payByCard = content.action === "invoice" && Boolean(status.open_invoice) && payme?.enabled === true;
+  const downloadInvoice = content.action === "invoice" && Boolean(status.open_invoice) && SHOW_INVOICES_TO_CLIENT;
+  // Долг, а платить из баннера нечем (касса выключена, счёт не показываем) —
+  // ведём на страницу: там сказано, что делать.
+  const details = content.action === "details" || (content.action === "invoice" && !payByCard && !downloadInvoice);
 
   const Icon = content.icon;
   const dismiss = () => {
@@ -80,7 +94,7 @@ export default function BillingBanner() {
       <Icon size={18} className="shrink-0" aria-hidden />
       <p className="min-w-0 flex-1 font-medium">{content.text}</p>
 
-      {content.action === "details" && (
+      {details && (
         <Link
           to="/settings/billing"
           className="shrink-0 rounded-lg px-3 py-1.5 font-semibold underline-offset-2 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -89,7 +103,17 @@ export default function BillingBanner() {
         </Link>
       )}
 
-      {content.action === "invoice" && status.open_invoice && (
+      {payByCard && (
+        <Link
+          to="/settings/billing?topup=1"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 font-semibold shadow-theme-xs ring-1 ring-inset ring-black/10 transition-colors hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          <CreditCard size={15} aria-hidden />
+          {t("billing.banner.pay_card")}
+        </Link>
+      )}
+
+      {downloadInvoice && status.open_invoice && (
         <a
           href={invoicePrintPath(status.open_invoice.id)}
           target="_blank"
@@ -159,16 +183,33 @@ const describe = (
         action: "details",
         dismissible: true,
       };
+    case "cancel_scheduled":
+      return {
+        tone: "gray",
+        icon: CalendarClock,
+        text: t("billing.banner.cancel_scheduled", { date: formatDate(banner.ends_on) }),
+        action: "details",
+        dismissible: true,
+      };
+    // Номер счёта в тексте — только когда счёт клиенту показываем: иначе он ни к чему не ведёт.
     case "past_due":
       return {
         tone: "warning",
         icon: AlertTriangle,
-        text: t(days === 0 ? "billing.banner.past_due_last_day" : "billing.banner.past_due", vars),
+        text: SHOW_INVOICES_TO_CLIENT
+          ? t(days === 0 ? "billing.banner.past_due_last_day" : "billing.banner.past_due", vars)
+          : t(days === 0 ? "billing.banner.past_due_amount_last_day" : "billing.banner.past_due_amount", vars),
         action: "invoice",
         dismissible: false,
       };
     case "read_only":
-      return { tone: "error", icon: Lock, text: t("billing.banner.read_only", vars), action: "invoice", dismissible: false };
+      return {
+        tone: "error",
+        icon: Lock,
+        text: t(SHOW_INVOICES_TO_CLIENT ? "billing.banner.read_only" : "billing.banner.read_only_amount", vars),
+        action: "invoice",
+        dismissible: false,
+      };
     case "canceled":
       return { tone: "error", icon: Lock, text: t("billing.banner.canceled"), action: null, dismissible: false };
     default:

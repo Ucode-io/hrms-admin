@@ -10,12 +10,23 @@ import { retryWithFreshToken } from "../unauthorizedHandler";
 import { BILLING_STATUS_KEY } from "../billingReadOnly";
 import { useCurrentUserAccess } from "./role.service";
 
-const BILLING_BASE_URL = "https://api.admin.u-code.io";
+// Локально против песочницы биллинга (`yarn sandbox` в udevs-hrms-billing):
+// VITE_BILLING_BASE_URL=http://localhost:5199 yarn dev. В сборке переменной нет.
+const BILLING_BASE_URL = import.meta.env.VITE_BILLING_BASE_URL || "https://api.admin.u-code.io";
 const BILLING_FUNCTION_PATH =
   "/v2/invoke_function/udevs-hrms-billing?project-id=9a462573-ce11-4288-928a-a6ba754b6998";
 
+/**
+ * Оплата по счёту на клиенте (решение владельца 28.09): пока клиент платит только
+ * картой. false прячет «Скачать счёт» в баннере, печать и текст про перевод в
+ * блоке долга, таблицу «Счета» и номер счёта в текстах баннера. Счета при этом
+ * выставляются как прежде, оператор их видит и печатает; страница печати
+ * /billing/invoices/:id/print осталась. true — вернуть всё как было.
+ */
+export const SHOW_INVOICES_TO_CLIENT = false;
+
 export type SubscriptionStatus = "unbilled" | "active" | "past_due" | "read_only" | "canceled";
-export type BannerKind = "none" | "renewal_soon" | "past_due" | "read_only" | "canceled";
+export type BannerKind = "none" | "renewal_soon" | "cancel_scheduled" | "past_due" | "read_only" | "canceled";
 
 export type BillingPlanRef = { id: string; code: string; title: string };
 
@@ -49,6 +60,8 @@ export type BillingStatus = {
     amount_uzs?: number;
     amount_usd?: number;
     invoice_number?: string;
+    /** cancel_scheduled: последний день полного доступа. */
+    ends_on?: string;
   };
 };
 
@@ -80,6 +93,19 @@ export type BillingInvoice = {
   };
 };
 
+/** План из каталога. is_active = «видят клиенты»: закрытый план назначает только оператор. */
+export type BillingPlan = {
+  id: string;
+  code: string;
+  title: string;
+  price_usd: number;
+  included_seats: number;
+  overage_price_usd: number;
+  included_ai_usd: number;
+  ai_enabled: boolean;
+  is_active: boolean;
+};
+
 export type BillingOverview = {
   subscription: {
     status: SubscriptionStatus;
@@ -87,30 +113,14 @@ export type BillingOverview = {
     current_period_end: string | null;
     next_renewal_date: string | null;
     grace_until: string | null;
+    cancel_at_period_end?: boolean;
   } | null;
   status: BillingStatus;
-  plan: {
-    id: string;
-    code: string;
-    title: string;
-    price_usd: number;
-    included_seats: number;
-    overage_price_usd: number;
-    included_ai_usd: number;
-    ai_enabled: boolean;
-  } | null;
+  plan: BillingPlan | null;
+  /** Переход на план дешевле, запланированный на next_renewal_date. */
+  pending_plan: BillingPlan | null;
   seats_now: number;
   over_seats_now: number;
-  projected: {
-    renewal_date: string;
-    plan_usd: number;
-    overage_seat_days_so_far: number;
-    overage_usd_so_far: number;
-    amount_usd_so_far: number;
-    fx_rate: number;
-    fx_date: string;
-    amount_uzs_estimate: number;
-  } | null;
   account: { balance_uzs: number };
   open_invoices: BillingInvoice[];
 };
@@ -204,6 +214,95 @@ export const useBillingOverview = () =>
     staleTime: 60_000,
     refetchOnWindowFocus: true,
   });
+
+/** Каталог для смены плана: только открытые планы, от дешёвого к дорогому. */
+export const useBillingPlans = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["billing-plans"],
+    queryFn: () => invoke<{ plans: BillingPlan[] }>("billing_plans_list"),
+    select: (data) => data.plans,
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+
+/**
+ * Что будет при переходе (сервер считает и предпросмотр, и сам переход одной
+ * функцией). upgrade — сразу с доплатой с баланса; insufficient — денег не
+ * хватает, ничего не изменено; downgrade — со следующего продления;
+ * cancel_pending — снят запланированный переход.
+ */
+export type PlanChangeMode = "upgrade" | "insufficient" | "downgrade" | "cancel_pending" | "noop";
+
+export type PlanChangeResult = {
+  preview: boolean;
+  changed: boolean;
+  mode: PlanChangeMode;
+  from_plan: { id: string; title: string; price_usd: number };
+  plan: { id: string; title: string; price_usd: number };
+  applies_on: string | null;
+  amount_usd: number;
+  amount_uzs: number;
+  shortfall_uzs: number;
+  balance_uzs?: number;
+  remaining_days?: number;
+};
+
+export const previewPlanChange = (planId: string) =>
+  invoke<PlanChangeResult>("billing_plan_change", { plan_id: planId, preview: true });
+
+/**
+ * confirmAmountUzs — сумма из окна подтверждения: если за это время она
+ * изменилась (курс, баланс), сервер откажет, и человек подтвердит заново.
+ */
+export const changePlan = (planId: string, requestId: string, confirmAmountUzs?: number) =>
+  invoke<PlanChangeResult>("billing_plan_change", {
+    plan_id: planId,
+    request_id: requestId,
+    ...(confirmAmountUzs === undefined ? {} : { confirm_amount_uzs: confirmAmountUzs }),
+  });
+
+// ───── пополнение картой (Payme) ─────
+
+export type PaymeConfig = {
+  enabled: boolean;
+  merchant_id?: string;
+  api_url?: string;
+  test?: boolean;
+  min_uzs: number;
+  max_uzs: number;
+};
+
+export type Topup = {
+  request_id: string;
+  /** pending — Payme ещё решает (деньги могли списаться), succeeded — на балансе. */
+  state: "pending" | "succeeded" | "failed";
+  amount_uzs: number;
+  credited_uzs: number;
+  card_mask: string | null;
+  order_id: number;
+  error: string | null;
+};
+
+export type TopupResult = { topup: Topup; balance_uzs: number };
+
+/** id кассы и адрес Payme для формы карты; enabled:false — кнопок оплаты картой нет. */
+export const usePaymeConfig = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["billing-payme-config", getCompaniesId()],
+    queryFn: () => invoke<PaymeConfig>("billing_payme_config"),
+    enabled,
+    staleTime: 10 * 60_000,
+  });
+
+/** token — разовый токен карты от Payme; request_id один на попытку, при повторе тот же. */
+export const topupCard = (requestId: string, amountUzs: number, token: string) =>
+  invoke<TopupResult>("billing_topup_card", { request_id: requestId, amount_uzs: amountUzs, token });
+
+export const topupStatus = (requestId: string) =>
+  invoke<TopupResult>("billing_topup_status", { request_id: requestId });
+
+/** После денег: статус (баннер, read_only), обзор, счета, история. */
+export const BILLING_QUERY_KEYS = [BILLING_STATUS_KEY, "billing-overview", "billing-invoices", "billing-transactions"];
 
 export const INVOICES_PAGE_SIZE = 20;
 

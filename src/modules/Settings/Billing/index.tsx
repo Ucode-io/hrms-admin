@@ -1,22 +1,30 @@
-import { useState, type ReactNode } from "react";
-import { Navigate } from "react-router";
-import { AlertTriangle, Printer, Sparkles, Users, Wallet } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Navigate, useSearchParams } from "react-router";
+import { useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { AlertTriangle, ArrowRightLeft, CreditCard, Printer, Sparkles, Users, Wallet } from "lucide-react";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
 import { useTranslation } from "../../../i18n";
 import type { MessageKey } from "../../../i18n/messages";
 import {
+  BILLING_QUERY_KEYS,
   INVOICES_PAGE_SIZE,
+  SHOW_INVOICES_TO_CLIENT,
+  changePlan,
   useBillingInvoices,
   useBillingOverview,
   useBillingStatus,
   useBillingTransactions,
+  usePaymeConfig,
   type BillingInvoice,
   type InvoiceStatus,
   type SubscriptionStatus,
 } from "../../../api/services/billing.service";
 import { invoicePrintPath } from "../../../layout/BillingBanner";
-import { formatDate, formatUsd, formatRate, formatUzs } from "./format";
+import { formatDate, formatUsd, formatUzs } from "./format";
+import PlanChangeModal from "./PlanChangeModal";
+import TopUpModal from "./TopUpModal";
 
 const STATUS_BADGE: Record<SubscriptionStatus, "success" | "warning" | "error" | "light"> = {
   unbilled: "light",
@@ -32,11 +40,36 @@ const INVOICE_BADGE: Record<InvoiceStatus, "warning" | "success" | "light"> = {
   void: "light",
 };
 
-/** Только чтение: ни одной кнопки, меняющей деньги (ADR-0009). */
+/**
+ * Деньги здесь меняют только три действия, и все их правила — на сервере:
+ * пополнение картой (Payme, номер карты к нам не приходит), смена плана
+ * (предпросмотр → подтверждение) и отмена запланированного перехода.
+ */
 const BillingSettingsPage: React.FC = () => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: status } = useBillingStatus();
   const overview = useBillingOverview();
+  const payme = usePaymeConfig(Boolean(overview.data));
+  const paymeConfig = payme.data?.enabled ? payme.data : null;
+  // Касса ответила «выключено» или не ответила вовсе. Пока запрос идёт — не пугаем.
+  const cardUnavailable = !paymeConfig && (payme.isFetched || payme.isError);
+  const [topUpAmount, setTopUpAmount] = useState<number | null>(null);
+  const [planChangeOpen, setPlanChangeOpen] = useState(false);
+  const [cancelingPending, setCancelingPending] = useState(false);
+
+  // Баннер «Оплатить картой» ведёт сюда с ?topup=1 — сразу открываем форму.
+  const wantsTopUp = searchParams.get("topup") === "1";
+  const defaultTopUp = overview.data?.status.open_invoice?.amount_to_pay_uzs ?? 0;
+  useEffect(() => {
+    if (!wantsTopUp || !payme.isFetched) return;
+    if (paymeConfig) setTopUpAmount(defaultTopUp);
+    setSearchParams((params) => {
+      params.delete("topup");
+      return params;
+    }, { replace: true });
+  }, [wantsTopUp, payme.isFetched, paymeConfig, defaultTopUp, setSearchParams]);
 
   // Нет прав (Forbidden) или компания вне биллинга — страницы для человека нет.
   if (status?.status === "unbilled" || overview.error instanceof Error && overview.error.message === "Forbidden") {
@@ -49,6 +82,31 @@ const BillingSettingsPage: React.FC = () => {
   const openInvoice = data?.open_invoices[0];
   const toPay = data?.status.open_invoice?.amount_to_pay_uzs ?? openInvoice?.amount_uzs ?? 0;
   const ai = data?.status.ai ?? status?.ai;
+  const cancelScheduled = Boolean(data?.subscription?.cancel_at_period_end);
+  const canChangePlan = subStatus === "active" && Boolean(data?.plan) && !cancelScheduled;
+  // Как оплатить долг. Без счёта на клиенте путь один — карта; касса выключена — к Udevs.
+  const howToPay = SHOW_INVOICES_TO_CLIENT
+    ? t(paymeConfig ? "billing.open_invoice.how_card" : "billing.open_invoice.how")
+    : paymeConfig
+      ? t("billing.open_invoice.how_card_only")
+      : cardUnavailable
+        ? t("billing.open_invoice.card_unavailable")
+        : null;
+
+  /** Снять запланированный переход — это «выбрать текущий план ещё раз». */
+  const cancelPending = async () => {
+    if (!data?.plan) return;
+    setCancelingPending(true);
+    try {
+      await changePlan(data.plan.id, crypto.randomUUID());
+      for (const key of BILLING_QUERY_KEYS) void queryClient.invalidateQueries(key);
+      toast.success(t("billing.plan.pending_canceled"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("billing.load_error"));
+    } finally {
+      setCancelingPending(false);
+    }
+  };
 
   return (
     <>
@@ -91,7 +149,15 @@ const BillingSettingsPage: React.FC = () => {
                     <p className="mt-2 text-3xl font-semibold tabular-nums text-gray-900">{formatUzs(toPay)}</p>
                     <p className="mt-1 text-sm text-gray-600">{t("billing.open_invoice.to_pay")}</p>
                   </div>
-                  <PrintLink invoiceId={openInvoice.id} primary />
+                  <div className="flex flex-wrap gap-2">
+                    {paymeConfig && (
+                      <button type="button" className={BTN_PRIMARY} onClick={() => setTopUpAmount(toPay)}>
+                        <CreditCard size={16} aria-hidden />
+                        {t("billing.banner.pay_card")}
+                      </button>
+                    )}
+                    {SHOW_INVOICES_TO_CLIENT && <PrintLink invoiceId={openInvoice.id} primary={!paymeConfig} />}
+                  </div>
                 </div>
                 <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                   <Fact label={t("billing.open_invoice.amount")} value={formatUzs(openInvoice.amount_uzs)} />
@@ -101,7 +167,7 @@ const BillingSettingsPage: React.FC = () => {
                     value={`${formatDate(openInvoice.period_start)} – ${formatDate(openInvoice.period_end)}`}
                   />
                 </dl>
-                <p className="mt-4 text-sm text-gray-600">{t("billing.open_invoice.how")}</p>
+                {howToPay && <p className="mt-4 text-sm text-gray-600">{howToPay}</p>}
               </section>
             )}
 
@@ -113,18 +179,51 @@ const BillingSettingsPage: React.FC = () => {
                       {t("billing.plan.per_month", { price: formatUsd(data.plan.price_usd) })}
                     </p>
                   )}
-                  <p className="mt-2 text-sm text-gray-600">
-                    {t("billing.plan.next_renewal")}:{" "}
-                    <span className="font-medium text-gray-900">
-                      {formatDate(data.subscription?.next_renewal_date ?? data.status.next_renewal_date)}
-                    </span>
-                  </p>
+                  {cancelScheduled ? (
+                    // Отмена в конце периода: списания не будет — пишем, до какого дня доступ.
+                    <p className="mt-2 text-sm text-gray-600">
+                      {t("billing.plan.access_until")}:{" "}
+                      <span className="font-medium text-gray-900">{formatDate(data.subscription?.current_period_end)}</span>
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-gray-600">
+                      {t("billing.plan.next_renewal")}:{" "}
+                      <span className="font-medium text-gray-900">
+                        {formatDate(data.subscription?.next_renewal_date ?? data.status.next_renewal_date)}
+                      </span>
+                    </p>
+                  )}
                   {data.status.grace_until && (
                     <p className="mt-1 text-sm text-gray-600">
                       {t("billing.plan.grace_until")}:{" "}
                       <span className="font-medium text-gray-900">{formatDate(data.status.grace_until)}</span>
                     </p>
                   )}
+                  {data.pending_plan && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      {t("billing.plan.pending", {
+                        date: formatDate(data.subscription?.next_renewal_date),
+                        plan: data.pending_plan.title,
+                      })}{" "}
+                      <button
+                        type="button"
+                        className={BTN_LINK}
+                        disabled={cancelingPending}
+                        onClick={() => void cancelPending()}
+                      >
+                        {t("billing.plan.pending_cancel")}
+                      </button>
+                    </p>
+                  )}
+                  {canChangePlan &&
+                    (data.plan?.is_active === false ? (
+                      <p className="mt-3 text-sm text-gray-500">{t("billing.plan.individual")}</p>
+                    ) : (
+                      <button type="button" className={`${BTN_CARD} mt-3`} onClick={() => setPlanChangeOpen(true)}>
+                        <ArrowRightLeft size={15} aria-hidden />
+                        {t("billing.plan.change")}
+                      </button>
+                    ))}
                 </Card>
 
                 <Card icon={Wallet} title={t("billing.balance.title")}>
@@ -139,6 +238,13 @@ const BillingSettingsPage: React.FC = () => {
                     <p className="mt-2 text-sm text-gray-600">
                       {t(data.account.balance_uzs < 0 ? "billing.balance.negative" : "billing.balance.positive")}
                     </p>
+                  )}
+                  {/* При открытом счёте оплата картой — в блоке счёта выше, второй кнопки не нужно. */}
+                  {paymeConfig && !openInvoice && (
+                    <button type="button" className={`${BTN_CARD} mt-3`} onClick={() => setTopUpAmount(0)}>
+                      <CreditCard size={15} aria-hidden />
+                      {t("billing.topup.button")}
+                    </button>
                   )}
                 </Card>
 
@@ -163,44 +269,49 @@ const BillingSettingsPage: React.FC = () => {
               </div>
             )}
 
-            {data.projected && !canceled && (
-              <section className="rounded-2xl border border-gray-200 bg-white p-5">
-                <h2 className="text-base font-semibold text-gray-900">
-                  {t("billing.projected.title")} · {formatDate(data.projected.renewal_date)}
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">{t("billing.projected.hint")}</p>
-                <dl className="mt-4 space-y-2 text-sm">
-                  <Row label={t("billing.projected.plan")} value={formatUsd(data.projected.plan_usd)} />
-                  <Row
-                    label={t("billing.projected.overage", { days: data.projected.overage_seat_days_so_far })}
-                    value={formatUsd(data.projected.overage_usd_so_far)}
-                  />
-                  <div className="border-t border-gray-100 pt-2">
-                    <Row
-                      label={t("billing.projected.total")}
-                      value={formatUsd(data.projected.amount_usd_so_far)}
-                      strong
-                    />
-                  </div>
-                </dl>
-                <p className="mt-2 text-right text-sm text-gray-500">
-                  {t("billing.projected.estimate", {
-                    amount: formatUzs(data.projected.amount_uzs_estimate),
-                    rate: formatRate(data.projected.fx_rate),
-                    date: formatDate(data.projected.fx_date),
-                  })}
-                </p>
-              </section>
-            )}
-
-            <InvoicesSection />
+            {SHOW_INVOICES_TO_CLIENT && <InvoicesSection />}
             <TransactionsSection />
           </>
         )}
       </div>
+
+      {paymeConfig && (
+        <TopUpModal
+          isOpen={topUpAmount !== null}
+          onClose={() => setTopUpAmount(null)}
+          config={paymeConfig}
+          defaultAmount={topUpAmount ?? 0}
+          canceled={canceled}
+        />
+      )}
+      {data?.plan && (
+        <PlanChangeModal
+          isOpen={planChangeOpen}
+          onClose={() => setPlanChangeOpen(false)}
+          currentPlanId={data.plan.id}
+          pendingPlan={data.pending_plan}
+          nextRenewalDate={data.subscription?.next_renewal_date ?? null}
+          onTopUp={
+            paymeConfig
+              ? (amount) => {
+                  setPlanChangeOpen(false);
+                  setTopUpAmount(amount);
+                }
+              : null
+          }
+        />
+      )}
     </>
   );
 };
+
+const BTN_PRIMARY =
+  "inline-flex shrink-0 items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
+/** Действие внутри узкой карточки: без рамки, чтобы не переносилось на две строки. */
+const BTN_CARD =
+  "inline-flex items-center gap-1.5 whitespace-nowrap rounded text-sm font-medium text-brand-600 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500";
+const BTN_LINK =
+  "font-medium text-brand-600 underline-offset-2 hover:underline disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-brand-500";
 
 const Card: React.FC<{ icon: typeof Wallet; title: string; children: ReactNode }> = ({
   icon: Icon,
@@ -222,13 +333,6 @@ const Fact: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div>
     <dt className="text-gray-500">{label}</dt>
     <dd className="mt-0.5 font-medium tabular-nums text-gray-900">{value}</dd>
-  </div>
-);
-
-const Row: React.FC<{ label: string; value: string; strong?: boolean }> = ({ label, value, strong }) => (
-  <div className={`flex items-baseline justify-between gap-4 ${strong ? "font-semibold text-gray-900" : "text-gray-600"}`}>
-    <dt>{label}</dt>
-    <dd className="tabular-nums">{value}</dd>
   </div>
 );
 
