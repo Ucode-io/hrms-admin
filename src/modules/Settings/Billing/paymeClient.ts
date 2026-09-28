@@ -9,6 +9,7 @@ type PaymeCard = {
   number: string;
   expire: string;
   token: string;
+  recurrent?: boolean;
   verify: boolean;
 };
 
@@ -40,9 +41,13 @@ const rpc = async <T>(config: PaymeConfig, method: string, params: Record<string
   return body.result as T;
 };
 
-/** Разовый токен: карта не сохраняется ни у нас, ни в Payme. */
-export const createCard = (config: PaymeConfig, number: string, expire: string) =>
-  rpc<{ card: PaymeCard }>(config, "cards.create", { card: { number, expire }, save: false }).then((r) => r.card);
+/**
+ * save:false — разовый токен, карта нигде не сохраняется. save:true — «Запомнить
+ * карту»: многоразовый токен (если Payme разрешит, recurrent:true); сервер
+ * сохранит его только после успешной оплаты.
+ */
+export const createCard = (config: PaymeConfig, number: string, expire: string, save = false) =>
+  rpc<{ card: PaymeCard }>(config, "cards.create", { card: { number, expire }, save }).then((r) => r.card);
 
 export const sendCode = (config: PaymeConfig, token: string) =>
   rpc<{ sent: boolean; phone: string; wait: number }>(config, "cards.get_verify_code", { token });

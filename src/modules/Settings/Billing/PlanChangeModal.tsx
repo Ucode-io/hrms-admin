@@ -30,9 +30,14 @@ const PlanChangeModal: React.FC<{
   currentPlanId: string;
   pendingPlan: BillingPlan | null;
   nextRenewalDate: string | null;
-  /** Нет денег на повышение: открыть пополнение на недостающую сумму. null — оплаты картой нет. */
-  onTopUp: ((amountUzs: number) => void) | null;
-}> = ({ isOpen, onClose, currentPlanId, pendingPlan, nextRenewalDate, onTopUp }) => {
+  /**
+   * Нет денег на повышение: открыть пополнение на недостающую сумму; после оплаты
+   * родитель откроет окно снова с этим планом. null — оплаты картой нет.
+   */
+  onTopUp: ((amountUzs: number, planId: string) => void) | null;
+  /** Открыть сразу с расчётом этого плана — возврат после пополнения. */
+  initialPlanId?: string | null;
+}> = ({ isOpen, onClose, currentPlanId, pendingPlan, nextRenewalDate, onTopUp, initialPlanId }) => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const plans = useBillingPlans(isOpen);
@@ -49,7 +54,19 @@ const PlanChangeModal: React.FC<{
     setCheckingId(null);
     setError(null);
     requestIdRef.current = null;
-  }, [isOpen]);
+    if (!initialPlanId) return;
+    // Возврат после пополнения: свежий расчёт того же плана, «Перейти» жмёт клиент.
+    let alive = true;
+    setCheckingId(initialPlanId);
+    previewPlanChange(initialPlanId)
+      .then((result) => alive && setPreview(result))
+      .catch((e) => alive && setError(e instanceof Error ? e.message : t("billing.load_error")))
+      .finally(() => alive && setCheckingId(null));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialPlanId]);
 
   const choose = async (plan: BillingPlan) => {
     setError(null);
@@ -232,7 +249,7 @@ const PlanChangeModal: React.FC<{
             </button>
             {preview.mode === "insufficient" ? (
               onTopUp && (
-                <button type="button" className={PRIMARY} onClick={() => onTopUp(preview.shortfall_uzs)}>
+                <button type="button" className={PRIMARY} onClick={() => onTopUp(preview.shortfall_uzs, preview.plan.id)}>
                   {t("billing.topup.button")}
                 </button>
               )

@@ -10,8 +10,10 @@ import type { MessageKey } from "../../../i18n/messages";
 import {
   BILLING_QUERY_KEYS,
   INVOICES_PAGE_SIZE,
+  PAYME_CONFIG_KEY,
   SHOW_INVOICES_TO_CLIENT,
   changePlan,
+  deleteSavedCard,
   useBillingInvoices,
   useBillingOverview,
   useBillingStatus,
@@ -19,10 +21,12 @@ import {
   usePaymeConfig,
   type BillingInvoice,
   type InvoiceStatus,
+  type SavedCard,
   type SubscriptionStatus,
+  type Topup,
 } from "../../../api/services/billing.service";
 import { invoicePrintPath } from "../../../layout/BillingBanner";
-import { formatDate, formatUsd, formatUzs } from "./format";
+import { formatDate, formatUsd, formatUzs, shortCard, tashkentDay } from "./format";
 import PlanChangeModal from "./PlanChangeModal";
 import TopUpModal from "./TopUpModal";
 
@@ -56,7 +60,12 @@ const BillingSettingsPage: React.FC = () => {
   // Касса ответила «выключено» или не ответила вовсе. Пока запрос идёт — не пугаем.
   const cardUnavailable = !paymeConfig && (payme.isFetched || payme.isError);
   const [topUpAmount, setTopUpAmount] = useState<number | null>(null);
+  // «Сменить» карту: окно оплаты сразу с формой новой карты.
+  const [topUpNewCard, setTopUpNewCard] = useState(false);
   const [planChangeOpen, setPlanChangeOpen] = useState(false);
+  // Нехватка при смене плана: после пополнения возвращаемся в окно с этим планом.
+  const [resumePlanId, setResumePlanId] = useState<string | null>(null);
+  const [planChangeInitial, setPlanChangeInitial] = useState<string | null>(null);
   const [cancelingPending, setCancelingPending] = useState(false);
 
   // Баннер «Оплатить картой» ведёт сюда с ?topup=1 — сразу открываем форму.
@@ -269,6 +278,16 @@ const BillingSettingsPage: React.FC = () => {
               </div>
             )}
 
+            {payme.data?.cards_supported && (
+              <PaymentMethodSection
+                card={payme.data.card ?? null}
+                onChange={paymeConfig ? () => {
+                  setTopUpNewCard(true);
+                  setTopUpAmount(toPay);
+                } : null}
+              />
+            )}
+
             {SHOW_INVOICES_TO_CLIENT && <InvoicesSection />}
             <TransactionsSection />
           </>
@@ -278,23 +297,48 @@ const BillingSettingsPage: React.FC = () => {
       {paymeConfig && (
         <TopUpModal
           isOpen={topUpAmount !== null}
-          onClose={() => setTopUpAmount(null)}
+          onClose={() => {
+            setTopUpAmount(null);
+            setTopUpNewCard(false);
+            setResumePlanId(null);
+          }}
           config={paymeConfig}
           defaultAmount={topUpAmount ?? 0}
           canceled={canceled}
+          preferNewCard={topUpNewCard}
+          onSucceeded={
+            resumePlanId
+              ? (topup: Topup) => {
+                  // Деньги на балансе — снова окно смены плана со свежим расчётом.
+                  setTopUpAmount(null);
+                  setTopUpNewCard(false);
+                  toast.success(t("billing.plan_change.topped_up", { amount: formatUzs(topup.credited_uzs) }));
+                  if (topup.card_save === "saved") toast.success(t("billing.topup.card_saved", { card: shortCard(topup.card_mask) }));
+                  setPlanChangeInitial(resumePlanId);
+                  setResumePlanId(null);
+                  setPlanChangeOpen(true);
+                }
+              : undefined
+          }
         />
       )}
       {data?.plan && (
         <PlanChangeModal
           isOpen={planChangeOpen}
-          onClose={() => setPlanChangeOpen(false)}
+          onClose={() => {
+            setPlanChangeOpen(false);
+            setPlanChangeInitial(null);
+          }}
           currentPlanId={data.plan.id}
           pendingPlan={data.pending_plan}
           nextRenewalDate={data.subscription?.next_renewal_date ?? null}
+          initialPlanId={planChangeInitial}
           onTopUp={
             paymeConfig
-              ? (amount) => {
+              ? (amount, planId) => {
                   setPlanChangeOpen(false);
+                  setPlanChangeInitial(null);
+                  setResumePlanId(planId);
                   setTopUpAmount(amount);
                 }
               : null
@@ -328,6 +372,85 @@ const Card: React.FC<{ icon: typeof Wallet; title: string; children: ReactNode }
     {children}
   </section>
 );
+
+/**
+ * Карта компании (одна): маска, срок, кто добавил. «Сменить» — оплатить новой
+ * картой с «Запомнить карту»; «Удалить» — у нас и в Payme. Удалить можно и при
+ * выключенной кассе — тогда нет «Сменить» (onChange = null).
+ */
+const PaymentMethodSection: React.FC<{ card: SavedCard | null; onChange: (() => void) | null }> = ({ card, onChange }) => {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const remove = async () => {
+    if (!card) return;
+    setDeleting(true);
+    try {
+      await deleteSavedCard(card.id);
+      await queryClient.invalidateQueries(PAYME_CONFIG_KEY);
+      toast.success(t("billing.payment_method.deleted"));
+      setConfirming(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("billing.load_error"));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5">
+      <p className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-500">
+        <span className="flex h-7 w-7 items-center justify-center rounded-md border border-brand-100 bg-brand-50 text-brand-500">
+          <CreditCard size={14} aria-hidden />
+        </span>
+        {t("billing.payment_method.title")}
+      </p>
+      {!card ? (
+        <p className="text-sm text-gray-600">{t("billing.payment_method.none")}</p>
+      ) : confirming ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-gray-900">{t("billing.payment_method.delete_confirm", { card: shortCard(card.pan_masked) })}</p>
+          <div className="flex gap-3">
+            <button type="button" className={`${BTN_LINK} text-error-600`} disabled={deleting} onClick={() => void remove()}>
+              {t("billing.payment_method.delete_yes")}
+            </button>
+            <button type="button" className={BTN_LINK} disabled={deleting} onClick={() => setConfirming(false)}>
+              {t("billing.payment_method.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-base font-medium tabular-nums text-gray-900">
+              {t("billing.topup.saved_card", { type: card.card_type, card: shortCard(card.pan_masked), expire: card.expire })}
+              {card.expired && (
+                <span className="ml-2 text-sm font-normal text-error-600">{t("billing.payment_method.expired")}</span>
+              )}
+            </p>
+            {card.added_by?.name && (
+              <p className="mt-0.5 text-sm text-gray-500">
+                {t("billing.payment_method.added_by", { name: card.added_by.name, date: formatDate(tashkentDay(card.created_at)) })}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-4">
+            {onChange && (
+              <button type="button" className={BTN_CARD} onClick={onChange}>
+                {t("billing.payment_method.change")}
+              </button>
+            )}
+            <button type="button" className={BTN_CARD} onClick={() => setConfirming(true)}>
+              {t("billing.payment_method.delete")}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
 
 const Fact: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div>

@@ -10,6 +10,16 @@ export const formatUzs = (value: number): string => `${groupDigits(value)}${NBSP
 
 export const formatUsd = (value: number): string => `$${value.toFixed(2)}`;
 
+/** Момент времени (ISO) → день по Ташкенту «YYYY-MM-DD»: в 23:30 UTC там уже завтра. */
+export const tashkentDay = (iso: string): string =>
+  new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Tashkent" });
+
+/** Маска Payme «860006******6311» → «•••• 6311». */
+export const shortCard = (mask: string | null | undefined): string => {
+  const last = String(mask || "").replace(/\D+/g, "").slice(-4);
+  return last ? `•••• ${last}` : "••••";
+};
+
 /** «2026-10-22» → «22.10.2026». Дата уже ташкентская, Date не нужен. */
 export const formatDate = (value: string | null | undefined): string => {
   if (!value) return "—";

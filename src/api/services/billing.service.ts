@@ -263,6 +263,19 @@ export const changePlan = (planId: string, requestId: string, confirmAmountUzs?:
 
 // ───── пополнение картой (Payme) ─────
 
+/** Сохранённая карта компании (одна). Платить и удалять может любой админ биллинга. */
+export type SavedCard = {
+  id: string;
+  /** Маска от Payme: 860006******6311. */
+  pan_masked: string;
+  /** ММ/ГГ */
+  expire: string;
+  expired: boolean;
+  card_type: string;
+  added_by: { id: string; name: string } | null;
+  created_at: string;
+};
+
 export type PaymeConfig = {
   enabled: boolean;
   merchant_id?: string;
@@ -270,6 +283,9 @@ export type PaymeConfig = {
   test?: boolean;
   min_uzs: number;
   max_uzs: number;
+  /** Сервер умеет сохранять карты. Нет поля — старая функция: форма без «Запомнить карту». */
+  cards_supported?: boolean;
+  card?: SavedCard | null;
 };
 
 export type Topup = {
@@ -279,24 +295,47 @@ export type Topup = {
   amount_uzs: number;
   credited_uzs: number;
   card_mask: string | null;
+  /** Оплачено сохранённой картой. */
+  saved_card?: boolean;
+  /** Просили запомнить карту: чем кончилось; null — не просили. */
+  card_save?: "pending" | "saved" | "not_recurrent" | "failed" | null;
   order_id: number;
   error: string | null;
 };
 
-export type TopupResult = { topup: Topup; balance_uzs: number };
+/** card — карта компании после операции (null — её нет или она перестала действовать). */
+export type TopupResult = { topup: Topup; balance_uzs: number; card?: SavedCard | null };
+
+export const PAYME_CONFIG_KEY = "billing-payme-config";
 
 /** id кассы и адрес Payme для формы карты; enabled:false — кнопок оплаты картой нет. */
 export const usePaymeConfig = (enabled: boolean) =>
   useQuery({
-    queryKey: ["billing-payme-config", getCompaniesId()],
+    queryKey: [PAYME_CONFIG_KEY, getCompaniesId()],
     queryFn: () => invoke<PaymeConfig>("billing_payme_config"),
     enabled,
     staleTime: 10 * 60_000,
   });
 
-/** token — разовый токен карты от Payme; request_id один на попытку, при повторе тот же. */
-export const topupCard = (requestId: string, amountUzs: number, token: string) =>
-  invoke<TopupResult>("billing_topup_card", { request_id: requestId, amount_uzs: amountUzs, token });
+/**
+ * Чем платим: новой картой — токен от Payme (saveCard: запомнить её, токен тогда
+ * из cards.create {save:true}), или сохранённой картой компании по её id.
+ */
+export type TopupSource = { token: string; saveCard?: boolean } | { cardId: string };
+
+/** request_id один на попытку, при повторе тот же. */
+export const topupCard = (requestId: string, amountUzs: number, source: TopupSource) =>
+  invoke<TopupResult>("billing_topup_card", {
+    request_id: requestId,
+    amount_uzs: amountUzs,
+    ...("cardId" in source
+      ? { card_id: source.cardId }
+      : { token: source.token, ...(source.saveCard ? { save_card: true } : {}) }),
+  });
+
+/** Удалить карту компании (у нас и в Payme). Повтор — не ошибка. */
+export const deleteSavedCard = (cardId: string) =>
+  invoke<{ card: SavedCard | null }>("billing_card_delete", { card_id: cardId });
 
 export const topupStatus = (requestId: string) =>
   invoke<TopupResult>("billing_topup_status", { request_id: requestId });
