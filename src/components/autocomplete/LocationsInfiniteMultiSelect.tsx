@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Select, { type InputActionMeta, type MultiValue, type StylesConfig } from "react-select";
+import { showSelectedOptions } from "../form/showSelectedOptions";
 import { type Location, useLocationsQuery } from "../../api/services/location.service";
 import { useTranslation } from "../../i18n";
 
@@ -29,7 +30,7 @@ export default function LocationsInfiniteMultiSelect({ value, onChange, menuPort
     onChange={(selected: MultiValue<Option>) => onChange(selected.map(item => ({ value: item.value, label: item.label })))}
     onInputChange={handleInputChange}
     onMenuScrollToBottom={() => { if (!isFetching && options.length < count) setOffset(previous => previous + PAGE_SIZE); }}
-    isMulti isSearchable closeMenuOnSelect={false} isLoading={isLoading || isFetching}
+    isMulti {...showSelectedOptions} isSearchable closeMenuOnSelect={false} isLoading={isLoading || isFetching}
     placeholder={placeholder} noOptionsMessage={() => isFetching ? t("common.loading") : t("common.no_options_found")}
     menuPortalTarget={menuPortalTarget} menuPosition="fixed"
     styles={styles || { control: (base, state) => ({ ...base, minHeight: 44, borderRadius: 10, borderColor: state.isFocused ? "#465fff" : "#e5e7eb", boxShadow: state.isFocused ? "0 0 0 3px rgba(70,95,255,.1)" : "none" }), menuPortal: base => ({ ...base, zIndex: 100000 }), menu: base => ({ ...base, zIndex: 100000 }) }}

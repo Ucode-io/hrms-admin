@@ -1,5 +1,6 @@
 import type React from "react";
 import { useState, useEffect, useId, useRef } from "react";
+import { Check } from "lucide-react";
 
 interface Option {
   value: string;
@@ -118,7 +119,9 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
   };
 
   return (
-    <div className="w-full" ref={dropdownRef}>
+    // relative — якорь для sr-only подписи: без него она позиционируется от
+    // body, минует внутренний скролл-контейнер и растягивает документ.
+    <div className="relative w-full" ref={dropdownRef}>
       <label
         className={inline ? "sr-only" : "mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"}
         id={labelId}
@@ -242,15 +245,15 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                   <div
                     key={option.value}
                     className={`w-full rounded-t border-b border-gray-200 dark:border-gray-800 ${
-                      option.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-primary/5"
-                    } ${isFocused ? "bg-primary/5" : ""} ${isSelected ? "bg-primary/10" : ""}`}
+                      option.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                    } ${isSelected ? "bg-brand-50 dark:bg-brand-500/15" : isFocused ? "bg-gray-50 dark:bg-white/5" : ""}`}
                     onClick={() => handleSelect(option.value)}
                     role="option"
                     aria-selected={isSelected}
                     aria-disabled={option.disabled || undefined}
                   >
                     <div className="relative flex w-full items-center p-2 pl-2">
-                      <div className="mx-2 leading-6 text-gray-800 dark:text-white/90">
+                      <div className="mx-2 min-w-0 flex-1 leading-6 text-gray-800 dark:text-white/90">
                         {option.text}
                         {option.hint && (
                           <span className="block text-xs leading-4 text-gray-500 dark:text-gray-400">
@@ -258,6 +261,9 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                           </span>
                         )}
                       </div>
+                      {isSelected && (
+                        <Check className="mr-2 size-4 shrink-0 text-brand-500" aria-hidden />
+                      )}
                     </div>
                   </div>
                 );

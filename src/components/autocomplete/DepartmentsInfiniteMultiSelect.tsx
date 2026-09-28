@@ -4,6 +4,7 @@ import Select, {
   type MultiValue,
   type StylesConfig,
 } from "react-select";
+import { showSelectedOptions } from "../form/showSelectedOptions";
 import {
   type Department,
   useDepartmentsSettingsQuery,
@@ -141,7 +142,7 @@ export default function DepartmentsInfiniteMultiSelect({
       onMenuScrollToBottom={handleScrollToBottom}
       placeholder={placeholder}
       isSearchable
-      isMulti
+      isMulti {...showSelectedOptions}
       closeMenuOnSelect={false}
       isLoading={isLoading || isFetching}
       styles={styles || defaultStyles}

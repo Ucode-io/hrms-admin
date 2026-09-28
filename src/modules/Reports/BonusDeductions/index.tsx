@@ -3,6 +3,7 @@ import { observer } from "mobx-react-lite";
 import { Link } from "react-router";
 import { Download, Search } from "lucide-react";
 import Select from "react-select";
+import { showSelectedOptions } from "../../../components/form/showSelectedOptions";
 import PageMeta from "../../../components/common/PageMeta";
 import MonthNavigator from "../../../components/common/MonthNavigator";
 import Spinner from "../../../components/ui/Spinner";
@@ -406,7 +407,7 @@ function BonusDeductionsPage() {
                 <div className="min-w-[220px] flex-1">
                   <p className="sr-only">{t("reports.bonus_deductions.employee_label")}</p>
                   <Select
-                    isMulti
+                    isMulti {...showSelectedOptions}
                     options={employeeOptions}
                     value={collectSelectedOptions(employeeOptions, selectedEmployeeIds)}
                     onChange={(value) => {
@@ -426,7 +427,7 @@ function BonusDeductionsPage() {
                 <div className="min-w-[220px] flex-1">
                   <p className="sr-only">{t("reports.bonus_deductions.department_label")}</p>
                   <Select
-                    isMulti
+                    isMulti {...showSelectedOptions}
                     options={departmentOptions}
                     value={collectSelectedOptions(departmentOptions, selectedDepartmentIds)}
                     onChange={(value) => {

@@ -4,6 +4,7 @@ import Select, {
   type MultiValue,
   type StylesConfig,
 } from "react-select";
+import { showSelectedOptions } from "../form/showSelectedOptions";
 import {
   type ExperienceLevel,
   useExperienceLevelsQuery,
@@ -139,7 +140,7 @@ export default function ExperienceLevelsInfiniteMultiSelect({
       onMenuScrollToBottom={handleScrollToBottom}
       placeholder={placeholder}
       isSearchable
-      isMulti
+      isMulti {...showSelectedOptions}
       closeMenuOnSelect={false}
       isLoading={isLoading || isFetching}
       styles={styles}

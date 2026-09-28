@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import Select, { type StylesConfig } from "react-select";
+import { showSelectedOptions } from "../../../components/form/showSelectedOptions";
 import CreatableSelect from "react-select/creatable";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
@@ -642,7 +643,7 @@ export default function RegionsSettingsPage() {
               {t("settings_misc.regions.app_languages_label")}
             </label>
             <Select
-              isMulti
+              isMulti {...showSelectedOptions}
               options={languageCodeOptions}
               value={selectedLanguageCodeOptions}
               onChange={(options) =>

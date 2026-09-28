@@ -35,6 +35,7 @@ import {
   getAttendanceSourceKind,
 } from "../../utils/attendanceSourcePriority";
 import Select, { type StylesConfig } from "react-select";
+import { showSelectedOptions } from "../../components/form/showSelectedOptions";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
 import { usePositionsQuery } from "../../api/services/position.service";
 import { useDepartmentsSettingsQuery } from "../../api/services/department.service";
@@ -1335,7 +1336,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
           >
             <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
               <Select<FilterOption, true>
-                isMulti
+                isMulti {...showSelectedOptions}
                 inputId="calendar-filter-department"
                 options={departmentFilterOptions}
                 value={departmentFilterOptions.filter((option) =>
@@ -1354,7 +1355,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
 
             <div style={{ minWidth: "200px", maxWidth: "280px", flex: "0 1 280px" }}>
               <Select<FilterOption, true>
-                isMulti
+                isMulti {...showSelectedOptions}
                 inputId="calendar-filter-position"
                 options={positionFilterOptions}
                 value={positionFilterOptions.filter((option) =>

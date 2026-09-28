@@ -4,6 +4,7 @@ import Select, {
   type MultiValue,
   type StylesConfig,
 } from "react-select";
+import { showSelectedOptions } from "../form/showSelectedOptions";
 import { type Employee, useEmployeesQuery } from "../../api/services/employee.service";
 import { useTranslation } from "../../i18n";
 
@@ -190,7 +191,7 @@ export default function EmployeesInfiniteMultiSelect({
       onMenuScrollToBottom={handleScrollToBottom}
       placeholder={placeholder}
       isSearchable
-      isMulti
+      isMulti {...showSelectedOptions}
       isDisabled={isDisabled}
       closeMenuOnSelect={false}
       isLoading={!isDisabled && (isLoading || isFetching)}
