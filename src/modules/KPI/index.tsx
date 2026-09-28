@@ -39,6 +39,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Download,
   GripVertical,
   LayoutGrid,
   List,
@@ -48,6 +49,7 @@ import {
   Plus,
   SlidersHorizontal,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import Select, { type StylesConfig } from "react-select";
@@ -1293,6 +1295,10 @@ function KpiPage() {
   const [expandedColumns, setExpandedColumns] = useState<Set<string>>(() => new Set());
   const [expandedTreeNodeIds, setExpandedTreeNodeIds] = useState<Set<string>>(() => new Set());
   const skipTableLoaderRef = useRef(false);
+  const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
+  const [excelBusy, setExcelBusy] = useState<"download" | "upload" | null>(null);
+  const excelMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const excelInputRef = useRef<HTMLInputElement | null>(null);
 
   // Листы KPI (как в Google Sheets). Пока API их не знает, привязка KPI к
   // листам живёт в localStorage per-company — см. ./sheets.tsx.
@@ -2712,6 +2718,64 @@ function KpiPage() {
     return rows;
   };
 
+  const handleDownloadTemplate = async () => {
+    setExcelBusy("download");
+    try {
+      const { result } = await reportsService.getKpiExcelTemplate({
+        period_type: periodMode,
+        date_from: periodRange.from,
+        date_to: periodRange.to,
+        search: searchQuery.trim() || undefined,
+        position_id: positionFilter || undefined,
+        sources: sourceFilter ? [sourceFilter] : undefined,
+        root_ids: sheetKpiItems.map((item) => item.id),
+      });
+      const link = document.createElement("a");
+      link.href = `data:${result.mime_type};base64,${result.file_base64}`;
+      link.download = result.file_name;
+      link.click();
+      toast.success(`Шаблон скачан: ${result.rows_count} KPI.`);
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : "Не удалось скачать шаблон Excel.");
+    } finally {
+      setExcelBusy(null);
+    }
+  };
+
+  const handleUploadExcel = async (file: File) => {
+    setExcelBusy("upload");
+    try {
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Не удалось прочитать файл."));
+        reader.readAsDataURL(file);
+      });
+      const { result } = await reportsService.importKpiExcel({
+        file_base64: fileBase64,
+        period_type: periodMode,
+        date_from: periodRange.from,
+        date_to: periodRange.to,
+      });
+      const skipped = result.skipped || {};
+      toast.success(`Импорт завершён: добавлено ${result.created_count}, обновлено ${result.updated_count} KPI.`);
+      const problems = [
+        result.unknown_positions?.length
+          ? `должность не найдена: ${result.unknown_positions.join(", ")}`
+          : "",
+        skipped.invalid_period ? `неверный период: ${skipped.invalid_period}` : "",
+        skipped.invalid_value ? `неверное число: ${skipped.invalid_value}` : "",
+        skipped.not_editable ? `родительские или авто KPI: ${skipped.not_editable}` : "",
+      ].filter(Boolean);
+      if (problems.length) toast.warning(`Пропущены строки — ${problems.join("; ")}.`);
+      setReloadToken((prev) => prev + 1);
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : "Не удалось загрузить Excel.");
+    } finally {
+      setExcelBusy(null);
+    }
+  };
+
   return (
     <>
       <PageMeta title="KPI | HRMS" description="Управление KPI по должностям" />
@@ -2780,6 +2844,55 @@ function KpiPage() {
               <Plus size={16} />
               Добавить KPI
             </button>
+
+            <button
+              ref={excelMenuAnchorRef}
+              type="button"
+              className={`dropdown-toggle inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 ${isExcelMenuOpen ? "border-slate-300 bg-slate-50" : ""}`}
+              onClick={() => setIsExcelMenuOpen((open) => !open)}
+              aria-label="Действия с шаблоном"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            <Dropdown
+              isOpen={isExcelMenuOpen}
+              onClose={() => setIsExcelMenuOpen(false)}
+              usePortal
+              anchorEl={excelMenuAnchorRef.current}
+              className="w-[220px] p-1"
+            >
+              <DropdownItem
+                onClick={() => {
+                  if (!excelBusy) void handleDownloadTemplate();
+                }}
+                onItemClick={() => setIsExcelMenuOpen(false)}
+                className={`flex items-center gap-2 rounded-lg ${excelBusy === "download" ? "opacity-60" : ""}`}
+              >
+                <Download size={16} />
+                {excelBusy === "download" ? "Скачивание..." : "Скачать шаблон"}
+              </DropdownItem>
+              <DropdownItem
+                onClick={() => {
+                  if (!excelBusy) excelInputRef.current?.click();
+                }}
+                onItemClick={() => setIsExcelMenuOpen(false)}
+                className={`flex items-center gap-2 rounded-lg ${excelBusy === "upload" ? "opacity-60" : ""}`}
+              >
+                <Upload size={16} />
+                {excelBusy === "upload" ? "Загрузка..." : "Загрузить Excel"}
+              </DropdownItem>
+            </Dropdown>
+            <input
+              ref={excelInputRef}
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void handleUploadExcel(file);
+              }}
+            />
           </div>
         </div>
 

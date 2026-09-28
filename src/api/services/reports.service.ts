@@ -41,6 +41,8 @@ const GET_BONUS_DEDUCTIONS_EXCEL_METHOD = "get_bonus_deductions_excel";
 const GET_ORG_STRUCTURE_METHOD = "get_org_structure";
 const GET_SALARY_EXCEL_TEMPLATE_METHOD = "get_salary_excel_template";
 const IMPORT_SALARY_EXCEL_METHOD = "import_salary_excel";
+const GET_KPI_EXCEL_TEMPLATE_METHOD = "get_kpi_excel_template";
+const IMPORT_KPI_EXCEL_METHOD = "import_kpi_excel";
 const GET_KPI_METHOD = "get_kpi";
 const GET_KPI_TABLE_METHOD = "get_kpi_table";
 const SAVE_KPI_METHOD = "save_kpi";
@@ -1562,6 +1564,27 @@ export type ImportSalaryExcelInvokeResponse = {
       unknown_user?: number;
       missing_type_columns?: number;
     };
+  };
+};
+
+export type KpiExcelTemplateInvokeResponse = {
+  method: typeof GET_KPI_EXCEL_TEMPLATE_METHOD;
+  result: { file_name: string; mime_type: string; file_base64: string; rows_count: number };
+};
+
+export type ImportKpiExcelInvokeResponse = {
+  method: typeof IMPORT_KPI_EXCEL_METHOD;
+  result: {
+    parsed_rows_count: number;
+    created_count: number;
+    updated_count: number;
+    skipped?: {
+      invalid_value?: number;
+      not_editable?: number;
+      unknown_position?: number;
+      invalid_period?: number;
+    };
+    unknown_positions?: string[];
   };
 };
 
@@ -4198,6 +4221,28 @@ const reportsService = {
     });
 
     return normalizeImportSalaryExcelResponse(response.data);
+  },
+  getKpiExcelTemplate: async (
+    requestData: JsonRecord = {}
+  ): Promise<KpiExcelTemplateInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: GET_KPI_EXCEL_TEMPLATE_METHOD, data: requestData },
+    });
+    return normalizeGatewayResponse<KpiExcelTemplateInvokeResponse>(
+      response.data,
+      GET_KPI_EXCEL_TEMPLATE_METHOD
+    );
+  },
+  importKpiExcel: async (
+    requestData: JsonRecord = {}
+  ): Promise<ImportKpiExcelInvokeResponse> => {
+    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
+      data: { method: IMPORT_KPI_EXCEL_METHOD, data: requestData },
+    });
+    return normalizeGatewayResponse<ImportKpiExcelInvokeResponse>(
+      response.data,
+      IMPORT_KPI_EXCEL_METHOD
+    );
   },
 };
 
