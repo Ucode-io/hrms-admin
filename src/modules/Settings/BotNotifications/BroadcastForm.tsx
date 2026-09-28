@@ -736,15 +736,17 @@ export default function BroadcastFormPage() {
               </div>
             </section>
 
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Без flex-wrap снаружи: иначе правая группа целиком съезжает под
+                «Удалить». Переносятся только кнопки внутри неё. */}
+            <div className="flex items-start gap-2">
               {isDraft ? (
                 <>
                   {saved && (
-                    <Button variant="outline" size="sm" disabled={!!busy} startIcon={<Trash2 className="size-4" />} onClick={() => setConfirm("delete")}>
+                    <Button variant="outline" size="sm" className="shrink-0" disabled={!!busy} startIcon={<Trash2 className="size-4" />} onClick={() => setConfirm("delete")}>
                       {t("settings_misc.broadcasts.delete")}
                     </Button>
                   )}
-                  <div className="ml-auto flex flex-wrap gap-2">
+                  <div className="ml-auto flex flex-wrap justify-end gap-2">
                     <span title={preview && !preview.self_linked ? t("settings_misc.broadcasts.test_not_linked") : undefined}>
                       <Button variant="outline" size="sm" disabled={!!busy || uploading || preview?.self_linked === false} onClick={sendTest}>
                         {busy === "test" ? t("settings_misc.broadcasts.sending") : t("settings_misc.broadcasts.send_test")}
