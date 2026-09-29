@@ -10,14 +10,13 @@ import LatePermissionRequestsView from "./components/LatePermissionRequestsView"
 import { useTranslation } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 
-type TimeView = "calendar" | "attendance" | "events" | "absence" | "late";
+type TimeView = "calendar" | "attendance" | "events" | "absence";
 
 const VIEW_TABS: { value: TimeView; labelKey: MessageKey; icon: typeof CalendarDays }[] = [
   { value: "calendar", labelKey: "breadcrumb.calendar", icon: CalendarDays },
   { value: "attendance", labelKey: "time_module.list", icon: List },
   { value: "events", labelKey: "breadcrumb.attendance", icon: CalendarCheck },
   { value: "absence", labelKey: "dashboard.fallback.absence", icon: Plane },
-  { value: "late", labelKey: "late_permission.tab", icon: Clock },
 ];
 
 const DEFAULT_VIEW: TimeView = "calendar";
@@ -26,8 +25,7 @@ const isTimeView = (value: string | null): value is TimeView =>
   value === "calendar" ||
   value === "attendance" ||
   value === "events" ||
-  value === "absence" ||
-  value === "late";
+  value === "absence";
 
 function TimeModule() {
   const { t } = useTranslation();
@@ -46,6 +44,16 @@ function TimeModule() {
     },
     [searchParams, setSearchParams]
   );
+
+  // Внутри «Отсутствия» — ещё и заявки на опоздание (ADR-0015): тот же
+  // разговор «отпросился», но другая сущность и свой список.
+  const absenceKind = searchParams.get("kind") === "late" ? "late" : "absence";
+  const handleKindChange = (kind: "absence" | "late") => {
+    const next = new URLSearchParams(searchParams);
+    if (kind === "late") next.set("kind", "late");
+    else next.delete("kind");
+    setSearchParams(next, { replace: true });
+  };
 
   // Shared view selector rendered on the LEFT of each tab's toolbar row.
   const viewSelect = (
@@ -96,6 +104,33 @@ function TimeModule() {
     </div>
   );
 
+  // Вкладки над самой таблицей, а не в шапке: переключают список, не вид.
+  const kindTabs = (
+    <div className="flex items-center gap-1 border-b border-gray-100 px-3">
+      {([
+        { value: "absence", labelKey: "dashboard.fallback.absence", icon: Plane },
+        { value: "late", labelKey: "late_permission.tab", icon: Clock },
+      ] as const).map((kind) => {
+        const isActive = absenceKind === kind.value;
+        const KindIcon = kind.icon;
+        return (
+          <button
+            key={kind.value}
+            type="button"
+            onClick={() => handleKindChange(kind.value)}
+            className={`-mb-px inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-semibold transition ${
+              isActive ? "" : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+            style={isActive ? { color: "var(--company-color)", borderColor: "var(--company-color)" } : undefined}
+          >
+            <KindIcon className="h-4 w-4" />
+            {t(kind.labelKey)}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <>
       <PageMeta title={`${t("breadcrumb.time")} | HRMS`} description={t("time_module.meta_description")} />
@@ -106,8 +141,12 @@ function TimeModule() {
       {activeView === "calendar" && <CalendarModule leftSlot={viewSelect} />}
       {activeView === "attendance" && <TimeAttendancePage leftSlot={viewSelect} />}
       {activeView === "events" && <AttendanceEventsPage leftSlot={viewSelect} />}
-      {activeView === "absence" && <AbsenceRequestsView leftSlot={viewSelect} />}
-      {activeView === "late" && <LatePermissionRequestsView leftSlot={viewSelect} />}
+      {activeView === "absence" && absenceKind === "absence" && (
+        <AbsenceRequestsView leftSlot={viewSelect} tabs={kindTabs} />
+      )}
+      {activeView === "absence" && absenceKind === "late" && (
+        <LatePermissionRequestsView leftSlot={viewSelect} tabs={kindTabs} />
+      )}
     </>
   );
 }

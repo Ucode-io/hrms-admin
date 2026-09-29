@@ -164,7 +164,7 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
   return result;
 };
 
-function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
+function AbsenceRequestsView({ leftSlot, tabs }: { leftSlot?: ReactNode; tabs?: ReactNode } = {}) {
   const { t, locale } = useTranslation();
   const queryClient = useQueryClient();
   const statusFilterOptions = useMemo(
@@ -520,6 +520,7 @@ function AbsenceRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
 
       {/* Content card */}
       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      {tabs}
       <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-slate-50/70 px-5 py-2.5 text-sm text-gray-500">
         <span className="inline-flex items-center gap-2">
           <CalendarDays size={16} className="text-gray-400" />

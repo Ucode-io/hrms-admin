@@ -47,7 +47,7 @@ const formatDay = (iso: string) => {
 const fullName = (row: LatePermission) =>
   [row.second_name, row.first_name].filter(Boolean).join(" ").trim();
 
-function LatePermissionRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {}) {
+function LatePermissionRequestsView({ leftSlot, tabs }: { leftSlot?: ReactNode; tabs?: ReactNode } = {}) {
   const { t, locale } = useTranslation();
   const brandColor = companyStore.mainColor || "#2563eb";
   const [month, setMonth] = useState(() => {
@@ -131,6 +131,7 @@ function LatePermissionRequestsView({ leftSlot }: { leftSlot?: ReactNode } = {})
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        {tabs}
         <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-slate-50/70 px-5 py-2.5 text-sm text-gray-500">
           <span className="inline-flex items-center gap-2">
             <Clock size={16} className="text-gray-400" />
