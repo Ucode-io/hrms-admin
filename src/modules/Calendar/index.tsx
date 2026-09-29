@@ -445,6 +445,8 @@ type AttendanceCellInfo = {
   checkOutReason: string;
   /** `user_base.locations_id` — филиал сотрудника, для сверки отметки. */
   officeId: string;
+  /** Отметка вне филиала ждёт согласования: показана, но не засчитана. */
+  pending: boolean;
 };
 
 const normalizeAttendanceDotKind = (value: unknown): AttendanceDotKind | null => {
@@ -494,7 +496,9 @@ const renderEmptyOrAttendanceCell = ({
 
   const pillColor = ATTENDANCE_PILL_COLOR[info.kind];
   const pillBg = ATTENDANCE_CELL_BG[info.kind];
-  const tooltip = translate(ATTENDANCE_DOT_LABEL[info.kind]);
+  const tooltip = info.pending
+    ? `${translate(ATTENDANCE_DOT_LABEL[info.kind])} · ${translate("attendance.workflow.requested")}`
+    : translate(ATTENDANCE_DOT_LABEL[info.kind]);
 
   return (
     <td
@@ -523,7 +527,9 @@ const renderEmptyOrAttendanceCell = ({
             },
           });
         }}
-        className="flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] font-semibold transition hover:ring-2 hover:ring-brand-500/20"
+        className={`flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] font-semibold transition hover:ring-2 hover:ring-brand-500/20 ${
+          info.pending ? "border border-dashed border-amber-500" : ""
+        }`}
         style={{ color: pillColor, backgroundColor: pillBg }}
       >
         <AttendanceIcon kind={info.kind} className="h-[18px] w-[18px]" />
@@ -999,6 +1005,9 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
         checkInReason: geo?.inReason || "",
         checkOutReason: geo?.outReason || "",
         officeId: officeIdByEmployee.get(userId) || "",
+        pending:
+          sourceKind === "integration" &&
+          [row.status].flat().some((value) => String(value).trim().toLowerCase() === "requested"),
       };
 
       let userMap = map.get(userId);
@@ -1803,12 +1812,19 @@ function AttendanceTooltip({
           </p>
           <p className="text-xs text-gray-500">{formatDateRu(data.dateKey)}</p>
         </div>
-        <span
-          className="inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
-          style={{ backgroundColor: ATTENDANCE_CELL_BG[data.kind], color: statusColor }}
-        >
-          {t(ATTENDANCE_DOT_LABEL[data.kind])}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+            style={{ backgroundColor: ATTENDANCE_CELL_BG[data.kind], color: statusColor }}
+          >
+            {t(ATTENDANCE_DOT_LABEL[data.kind])}
+          </span>
+          {data.pending ? (
+            <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+              {t("attendance.workflow.requested")}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-3 text-sm">
