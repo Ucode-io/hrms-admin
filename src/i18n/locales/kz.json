@@ -5794,5 +5794,15 @@
   "settings_misc.bot_notifications.event.deduction_added.hint": "Сомалар ешқашан ортақ чатқа жіберілмейді.",
   "settings_misc.broadcasts.to_employees_hint": "Ботпен жеке чатқа. Ботты әлі байламағандар алмайды — жіберер алдында олардың санын көрсетеміз.",
   "settings_misc.broadcasts.groups_none": "Компанияда қосылған Telegram топтары жоқ.",
-  "settings_misc.broadcasts.groups_connect": "Қосу"
+  "settings_misc.broadcasts.groups_connect": "Қосу",
+  "wall_clock.zone_unknown": "қызметкердің жергілікті уақыты, белдеу белгісіз",
+  "wall_clock.at_viewer": "= сізде {time}",
+  "wall_clock.at_viewer_zone": "{zone}: сізде {time}",
+  "wall_clock.employee_local": "Уақыт қызметкердің жері бойынша",
+  "wall_clock.csv_timezone": "Сағат белдеуі",
+  "wall_clock.timesheet_crosses_midnight": "Табель уақыты ({zone}) бойынша аралық түн ортасынан өтеді — оны екі жазбаға бөліңіз",
+  "wall_clock.timesheet_saved_on_date": "Уақыт қосылды және келісуге жіберілді. Табель уақыты ({zone}) бойынша жазба {date} күніне түсті.",
+  "wall_clock.timesheet_source_times": "Табель уақыты ({zone}): қызметкердің жергілікті уақыты бойынша жазба түн ортасынан өтеді",
+  "wall_clock.timesheet_zone_unknown": "Қызметкердің уақыт белдеуі белгісіз — уақыт табель уақытымен ({zone}) енгізіледі және сақталады",
+  "wall_clock.csv_zones_failed": "Қызметкерлердің уақыт белдеулері жүктелмеді — экспорттағы уақыт табель уақытымен ({zone})"
 }

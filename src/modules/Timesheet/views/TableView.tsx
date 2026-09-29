@@ -8,11 +8,15 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
-import { formatDateRu, formatDuration } from "../constants";
+import { TIMESHEET_SOURCE_ZONE, entryEndDate, formatDateRu, formatDuration } from "../constants";
+import type { EmployeeZones } from "../../../hooks/useEmployeeTimeZones";
+import { WallTime } from "../../../components/common/WallTime";
 import { EmployeeAvatar, SourceBadge } from "../components/badges";
 import type { TimesheetEntry } from "../types";
 
 interface TableViewProps {
+  /** Пояса сотрудников строк: время выводится у смотрящего (ADR-0014). */
+  zones: EmployeeZones;
   entries: TimesheetEntry[];
   total: number;
   limit: number;
@@ -50,6 +54,7 @@ export default function TableView({
   onOffsetChange,
   renderManualStatus,
   renderManualActions,
+  zones,
 }: TableViewProps) {
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + limit, total);
@@ -128,10 +133,10 @@ export default function TableView({
                 {/* Записи до мая 2026 приходили без времени начала — только
                     суммарная длительность за день. */}
                 <TableCell className="whitespace-nowrap px-5 py-3 text-sm text-gray-600 dark:text-gray-300">
-                  {entry.startTime || "—"}
+                  <WallTime zones={zones} userBaseId={entry.employeeId ?? ""} date={entry.date} time={entry.startTime} sourceTimeZone={TIMESHEET_SOURCE_ZONE} />
                 </TableCell>
                 <TableCell className="whitespace-nowrap px-5 py-3 text-sm text-gray-600 dark:text-gray-300">
-                  {entry.endTime || "—"}
+                  <WallTime zones={zones} userBaseId={entry.employeeId ?? ""} date={entry.date} time={entry.endTime} atDate={entryEndDate(entry)} sourceTimeZone={TIMESHEET_SOURCE_ZONE} />
                 </TableCell>
 
                 <TableCell className="whitespace-nowrap px-5 py-3 text-sm text-gray-600 dark:text-gray-300">

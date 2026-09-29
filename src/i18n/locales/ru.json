@@ -5829,5 +5829,15 @@
   "settings_misc.bot_notifications.event.deduction_added.hint": "Суммы в общий чат не уходят никогда.",
   "settings_misc.broadcasts.to_employees_hint": "В личный чат с ботом. Кто ещё не привязал бота, не получит — перед отправкой покажем, сколько таких.",
   "settings_misc.broadcasts.groups_none": "У компании нет подключённых Telegram-групп.",
-  "settings_misc.broadcasts.groups_connect": "Подключить"
+  "settings_misc.broadcasts.groups_connect": "Подключить",
+  "wall_clock.zone_unknown": "по месту сотрудника, пояс неизвестен",
+  "wall_clock.at_viewer": "= {time} у вас",
+  "wall_clock.at_viewer_zone": "{zone}: {time} у вас",
+  "wall_clock.employee_local": "Время по месту сотрудника",
+  "wall_clock.csv_timezone": "Часовой пояс",
+  "wall_clock.timesheet_crosses_midnight": "По часам табеля ({zone}) интервал переходит через полночь — разбейте его на две записи",
+  "wall_clock.timesheet_saved_on_date": "Время добавлено и отправлено на согласование. По часам табеля ({zone}) запись легла на {date}.",
+  "wall_clock.timesheet_source_times": "Время по часам табеля ({zone}): по местным часам сотрудника запись переходит через полночь",
+  "wall_clock.timesheet_zone_unknown": "Пояс сотрудника неизвестен — время вводится и сохраняется по часам табеля ({zone})",
+  "wall_clock.csv_zones_failed": "Пояса сотрудников не загрузились — время в выгрузке по часам табеля ({zone})"
 }

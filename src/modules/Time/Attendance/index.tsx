@@ -37,6 +37,9 @@ import { markGeoByDay } from "../../../components/map/shared";
 import { useOffices } from "../../../components/map/useOffices";
 import TimeInput from "../../../components/form/TimeInput";
 import { useTranslation, translate } from "../../../i18n";
+import { useEmployeeTimeZones } from "../../../hooks/useEmployeeTimeZones";
+import { ViewerTimeHint, WallTime } from "../../../components/common/WallTime";
+import { nowInZone } from "../../../utils/wallClock";
 
 const ATTENDANCE_ENTITY_TYPE = "attendance";
 const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
@@ -262,28 +265,6 @@ const normalizeTime = (value: string | null | undefined): string => {
   return "";
 };
 
-const toSortTimestamp = (item: AttendanceItem): number => {
-  const dateValue = typeof item.date === "string" ? item.date.trim() : "";
-  const timeValue = normalizeTime(item.check_in_time) || normalizeTime(item.check_out_time) || "00:00";
-  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
-  const [hours, minutes] = timeValue.split(":").map(Number);
-
-  if (dateMatch) {
-    const year = Number(dateMatch[1]);
-    const month = Number(dateMatch[2]);
-    const day = Number(dateMatch[3]);
-    return Date.UTC(
-      year,
-      month - 1,
-      day,
-      Number.isFinite(hours) ? hours : 0,
-      Number.isFinite(minutes) ? minutes : 0
-    );
-  }
-
-  return toTimestamp(item.created_at);
-};
-
 const formatDateLabel = (value: string): string => {
   if (!value) return "—";
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
@@ -294,10 +275,6 @@ const formatDateLabel = (value: string): string => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-};
-
-const formatTimeLabel = (value: string): string => {
-  return normalizeTime(value) || "—";
 };
 
 const hasDelayValue = (value: string): boolean => DELAY_TIME_PATTERN.test(value) && value !== "00:00";
@@ -520,6 +497,9 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const [toDelete, setToDelete] = useState<AttendanceRecord | null>(null);
   const [approvalRecord, setApprovalRecord] = useState<AttendanceRecord | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // «Сейчас» в форме ещё не правили руками — его можно пересобрать по часам
+  // выбранного сотрудника (ADR-0014, п. 2).
+  const [draftTimeIsDefault, setDraftTimeIsDefault] = useState(true);
 
   const { data: approvalProcesses } = useApprovalProcessesQuery();
   const approveStageMutation = useApproveStage();
@@ -674,23 +654,42 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       };
     });
 
-    return rows.sort((left, right) => {
-      const rightItem: AttendanceItem = {
-        date: right.date,
-        check_in_time: right.checkInTime,
-        check_out_time: right.checkOutTime,
-        created_at: right.createdAt,
-      };
-      const leftItem: AttendanceItem = {
-        date: left.date,
-        check_in_time: left.checkInTime,
-        check_out_time: left.checkOutTime,
-        created_at: left.createdAt,
-      };
-
-      return toSortTimestamp(rightItem) - toSortTimestamp(leftItem);
-    });
+    return rows;
   }, [data?.response, geoByDay]);
+
+  // Пояса видимых сотрудников на день фильтра: по ним время пересчитывается
+  // на экран и сортируются строки (ADR-0014, п. 5) — иначе бакинские «10:00»
+  // встали бы выше ташкентских «09:30».
+  const zones = useEmployeeTimeZones(
+    records.map((record) => record.employeeGuid),
+    normalizedDateFilter,
+    normalizedDateFilter
+  );
+  const sortedRecords = useMemo(() => {
+    const key = (record: AttendanceRecord) =>
+      record.date
+        ? zones.sortKey(record.employeeGuid, record.date, record.checkInTime || record.checkOutTime)
+        : toTimestamp(record.createdAt);
+    return [...records].sort((left, right) => key(right) - key(left));
+  }, [records, zones]);
+
+  const draftDate = draft.date ? toIsoDate(draft.date) : "";
+  const draftZones = useEmployeeTimeZones([draft.employeeGuid], draftDate, draftDate);
+  const draftZone = draft.employeeGuid ? draftZones.zoneOf(draft.employeeGuid, draftDate) : null;
+  const draftTimeZone = draftZone?.timezone ?? "";
+
+  // Сотрудника выбрали в открытой форме — «сейчас» и «сегодня» пересобираются
+  // по его часам, пока админ не поправил поле руками.
+  useEffect(() => {
+    if (!isModalOpen || editingGuid || !draftTimeIsDefault || !draftTimeZone) return;
+    const now = nowInZone(draftTimeZone);
+    const filterIsToday = normalizedDateFilter === toIsoDate(new Date());
+    setDraft((prev) => ({
+      ...prev,
+      checkInTime: now.time,
+      ...(filterIsToday ? { date: parseIsoDate(now.date) } : {}),
+    }));
+  }, [isModalOpen, editingGuid, draftTimeIsDefault, draftTimeZone, normalizedDateFilter]);
 
   // Resolve the approval process for a row from that employee's department.
   const resolveRecordProcess = (record: AttendanceRecord) =>
@@ -751,7 +750,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     }
   }, [data?.count, page, totalPages]);
 
-  const pageItems = records;
+  const pageItems = sortedRecords;
   const visibleFrom = totalCount > 0 ? (page - 1) * PAGE_SIZE + 1 : 0;
   const visibleTo = totalCount > 0 ? Math.min(page * PAGE_SIZE, totalCount) : 0;
   const visibleRangeLabel =
@@ -777,6 +776,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const openCreate = () => {
     setEditingGuid(null);
     setDraft(getDefaultDraft(dateFilter));
+    setDraftTimeIsDefault(true);
     setEmployeeFallbackLabel("");
     setFormError("");
     setIsModalOpen(true);
@@ -1253,10 +1253,10 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                               </td>
                               <td className="whitespace-nowrap px-2 py-3 text-[13px] text-slate-800">{formatDateLabel(record.date)}</td>
                               <td className="whitespace-nowrap px-2 py-3 text-[13px] font-semibold text-slate-900">
-                                {formatTimeLabel(record.checkInTime)}
+                                <WallTime zones={zones} userBaseId={record.employeeGuid} date={record.date} time={record.checkInTime} />
                               </td>
                               <td className="whitespace-nowrap px-2 py-3 text-[13px] font-semibold text-slate-900">
-                                {formatTimeLabel(record.checkOutTime)}
+                                <WallTime zones={zones} userBaseId={record.employeeGuid} date={record.date} time={record.checkOutTime} />
                               </td>
                               <td className="whitespace-nowrap px-2 py-3 text-[13px] font-semibold text-slate-900">
                                 {getDelayLabel(record.delayTime, record.actionStatus)}
@@ -1461,12 +1461,13 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
               </label>
               <DatePicker
                 selected={draft.date}
-                onChange={(date) =>
+                onChange={(date) => {
+                  setDraftTimeIsDefault(false);
                   setDraft((prev) => ({
                     ...prev,
                     date,
-                  }))
-                }
+                  }));
+                }}
                 dateFormat="dd.MM.yyyy"
                 placeholderText={t("common.date_placeholder")}
                 showMonthDropdown
@@ -1485,14 +1486,16 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
               </label>
               <TimeInput
                 value={draft.checkInTime}
-                onChange={(next) =>
+                onChange={(next) => {
+                  setDraftTimeIsDefault(false);
                   setDraft((prev) => ({
                     ...prev,
                     checkInTime: next,
-                  }))
-                }
+                  }));
+                }}
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
+              {draft.employeeGuid ? <ViewerTimeHint date={draftDate} time={draft.checkInTime} zones={draftZone ? [draftZone] : []} status={draftZones.status} /> : null}
             </div>
 
             <div>
@@ -1509,6 +1512,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                 }
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
+              {draft.employeeGuid ? <ViewerTimeHint date={draftDate} time={draft.checkOutTime} zones={draftZone ? [draftZone] : []} status={draftZones.status} /> : null}
             </div>
           </div>
 
@@ -1609,7 +1613,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                   <div key={label} className="text-[13px]">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-gray-800">
-                        {label} {formatTimeLabel(time)}
+                        {label} {zones.text(approvalRecord.employeeGuid, approvalRecord.date, time) || "—"}
                       </span>
                       <DistanceBadge value={geo} office={offices.get(approvalRecord.officeId)} />
                       <LocationViewLink showDistance={false} value={geo} office={offices.get(approvalRecord.officeId)} />

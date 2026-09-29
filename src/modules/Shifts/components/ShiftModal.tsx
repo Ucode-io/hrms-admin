@@ -59,6 +59,9 @@ import type { ShiftEmployee } from "../types";
 import TimeInput from "../../../components/form/TimeInput";
 import DateInput from "../../../components/form/DateInput";
 import { useTranslation } from "../../../i18n";
+import { useEmployeeTimeZones } from "../../../hooks/useEmployeeTimeZones";
+import { ViewerTimeHint } from "../../../components/common/WallTime";
+import type { ZoneInterval } from "../../../utils/wallClock";
 
 type Directory = { guid: string; title: string };
 
@@ -541,6 +544,19 @@ export default function ShiftModal({
     () => employees.map((item) => ({ value: item.id, label: item.name })),
     [employees],
   );
+
+  // Время смены вводится по месту сотрудника и сохраняется как есть; под
+  // полем — «= 10:00 у вас», по строке на каждый пояс выбранных людей
+  // (ADR-0014, п. 2). Пояс берётся на первую дату периода.
+  const hintZones = useEmployeeTimeZones(employeeIds, dateFrom, dateFrom);
+  const selectedZones = [
+    ...new Map(
+      employeeIds
+        .map((id) => hintZones.zoneOf(id, dateFrom))
+        .filter((zone): zone is ZoneInterval => zone !== null)
+        .map((zone) => [`${zone.timezone}|${zone.region_title ?? ""}`, zone] as const)
+    ).values(),
+  ];
 
   const rangeTo = dateTo && dateTo >= dateFrom ? dateTo : dateFrom;
   const isRange = Boolean(dateFrom) && rangeTo > dateFrom;
@@ -1243,6 +1259,7 @@ export default function ShiftModal({
                     onChange={(next) => setStartTime(next)}
                     className={inputClass}
                   />
+                  {employeeIds.length > 0 ? <ViewerTimeHint date={dateFrom} time={startTime} zones={selectedZones} status={hintZones.status} /> : null}
                 </div>
                 <div>
                   <label className={labelClass}>Окончание</label>
@@ -1251,6 +1268,7 @@ export default function ShiftModal({
                     onChange={(next) => setEndTime(next)}
                     className={inputClass}
                   />
+                  {employeeIds.length > 0 ? <ViewerTimeHint date={dateFrom} time={endTime} zones={selectedZones} status={hintZones.status} /> : null}
                   {endTime <= startTime && (
                     <p className="mt-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">
                       Переходит через полночь — смена считается ночной.

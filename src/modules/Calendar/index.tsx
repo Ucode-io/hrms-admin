@@ -48,6 +48,8 @@ import LocationViewLink, { DistanceBadge } from "../../components/map/LocationVi
 import { markGeoByDay } from "../../components/map/shared";
 import { type Office, useOffices } from "../../components/map/useOffices";
 import { useTranslation, translate, getLocale, monthNames, weekdayNames } from "../../i18n";
+import { useEmployeeTimeZones } from "../../hooks/useEmployeeTimeZones";
+import { WallTime } from "../../components/common/WallTime";
 import type { MessageKey } from "../../i18n/messages";
 
 const PAGE_SIZE = 20;
@@ -1738,6 +1740,10 @@ function AttendanceTooltip({
 }) {
   const { t } = useTranslation();
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  // Пояс одного сотрудника на день тултипа (ADR-0014). Не общий запрос на всех
+  // подгруженных: тот пересобирался бы с каждой страницей прокрутки. Повторное
+  // открытие того же дня берётся из кеша react-query.
+  const zones = useEmployeeTimeZones([data?.employeeGuid], data?.dateKey ?? "", data?.dateKey ?? "");
 
   useEffect(() => {
     if (!data) return undefined;
@@ -1808,7 +1814,9 @@ function AttendanceTooltip({
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-3 text-sm">
         <div>
           <dt className="text-[11px] text-gray-500">{t("absence_calendar.check_in")}</dt>
-          <dd className="font-semibold text-gray-900">{data.checkInTime || "—"}</dd>
+          <dd className="font-semibold text-gray-900">
+            <WallTime zones={zones} userBaseId={data.employeeGuid} date={data.dateKey} time={data.checkInTime} />
+          </dd>
           {data.checkInGeo ? (
             <dd className="mt-1">
               <DistanceBadge value={data.checkInGeo} office={offices.get(data.officeId)} reason={data.checkInReason} />
@@ -1817,7 +1825,9 @@ function AttendanceTooltip({
         </div>
         <div>
           <dt className="text-[11px] text-gray-500">{t("absence_calendar.check_out")}</dt>
-          <dd className="font-semibold text-gray-900">{data.checkOutTime || "—"}</dd>
+          <dd className="font-semibold text-gray-900">
+            <WallTime zones={zones} userBaseId={data.employeeGuid} date={data.dateKey} time={data.checkOutTime} />
+          </dd>
           {data.checkOutGeo ? (
             <dd className="mt-1">
               <DistanceBadge value={data.checkOutGeo} office={offices.get(data.officeId)} reason={data.checkOutReason} />

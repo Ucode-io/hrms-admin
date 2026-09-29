@@ -2,6 +2,7 @@ import axios from "axios";
 import authStore from "../../store/auth.store";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
 import { retryWithFreshToken } from "../unauthorizedHandler";
+import { isKnownTimeZone, type ZoneInterval } from "../../utils/wallClock";
 
 const API_BASE_URL = "https://api.admin.u-code.io";
 const HICKVISION_FUNCTION_PATH =
@@ -114,6 +115,35 @@ export type LatenessResult = {
   work_start_minutes: number | null;
 };
 
+/** Потолок пар «сотрудник × дата» у `resolve_time_zones` (`MAX_PAIRS` в hickvision). */
+const MAX_ZONE_PAIRS = 200000;
+
+const resolveTimeZonesChunk = async (requestData: {
+  user_base_ids: string[];
+  date_from: string;
+  date_to: string;
+}): Promise<Record<string, ZoneInterval[]>> => {
+  const response = await hickvisionRequest.post(HICKVISION_FUNCTION_PATH, {
+    data: { method: "resolve_time_zones", data: requestData },
+  });
+
+  const payload = extractGatewayPayload(response.data);
+  if (!isRecord(payload) || !isRecord(payload.result) || !isRecord(payload.result.time_zones)) {
+    throw new Error("Unexpected response format for resolve_time_zones");
+  }
+
+  // Зона, которую не понимает `Intl` браузера, — неизвестный пояс, а не
+  // упавший рендер: отрезок выбрасывается, и строки на эти даты идут без
+  // пересчёта.
+  const zones = payload.result.time_zones as Record<string, ZoneInterval[]>;
+  return Object.fromEntries(
+    Object.entries(zones).map(([id, intervals]) => [
+      id,
+      (Array.isArray(intervals) ? intervals : []).filter((zone) => isKnownTimeZone(zone.timezone)),
+    ])
+  );
+};
+
 const hickvisionService = {
   /**
    * Опоздание считает сервер — тот же расчёт, что применяется к проходу через
@@ -146,6 +176,32 @@ const hickvisionService = {
     }
 
     return payload.result as LatenessResult;
+  },
+
+  /**
+   * Пояс каждого сотрудника на каждую дату диапазона, сжатый в интервалы
+   * (ADR-0014, п. 3). Правило «филиал на дату → регион → компания →
+   * Asia/Tashkent» живёт только в hickvision: тем же методом штампует мини-апп.
+   */
+  resolveTimeZones: async (requestData: {
+    user_base_ids: string[];
+    date_from: string;
+    date_to: string;
+  }): Promise<Record<string, ZoneInterval[]>> => {
+    // Метод отказывает больше чем на MAX_ZONE_PAIRS пар «сотрудник × дата»
+    // (годовая выгрузка табеля по 600 людям) — бьём по сотрудникам.
+    const days = Math.round((Date.parse(requestData.date_to) - Date.parse(requestData.date_from)) / 86400000) + 1;
+    const size = Math.max(1, Math.floor(MAX_ZONE_PAIRS / days));
+    const ids = requestData.user_base_ids;
+    // Кривые даты дают NaN — один запрос, пусть отказ скажет сервер.
+    if (!(ids.length > size)) return resolveTimeZonesChunk(requestData);
+    // По очереди, а не разом: каждая часть — самый тяжёлый запрос метода
+    // (подзапрос филиала на каждую пару), и пачка таких кладёт базу.
+    const result: Record<string, ZoneInterval[]> = {};
+    for (let i = 0; i < ids.length; i += size) {
+      Object.assign(result, await resolveTimeZonesChunk({ ...requestData, user_base_ids: ids.slice(i, i + size) }));
+    }
+    return result;
   },
 
   /**

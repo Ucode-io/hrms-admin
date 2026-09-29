@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Check, Clock3, Pencil, Plus, Trash2 } from "lucide-react";
@@ -30,6 +30,9 @@ import {
 import TimeInput from "../../../../components/form/TimeInput";
 import hickvisionService, { type LatenessResult } from "../../../../api/services/hickvision.service";
 import { useTranslation, translate } from "../../../../i18n";
+import { useEmployeeTimeZones } from "../../../../hooks/useEmployeeTimeZones";
+import { ViewerTimeHint, WallTime } from "../../../../components/common/WallTime";
+import { nowInZone } from "../../../../utils/wallClock";
 
 type AttendanceSectionProps = {
   employeeGuid: string;
@@ -132,7 +135,6 @@ const formatDateLabel = (value: string): string => {
   });
 };
 
-const formatTimeLabel = (value: string): string => normalizeTimeValue(value) || "—";
 
 const hasDelayValue = (value: string): boolean => DELAY_TIME_PATTERN.test(value) && value !== "00:00";
 
@@ -262,28 +264,6 @@ const toTimestamp = (value: string | null | undefined): number => {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
 
-const toSortTimestamp = (record: AttendanceRecord): number => {
-  const dateMatch = DATE_PATTERN.exec(record.date.trim());
-  const time = normalizeTimeValue(record.checkInTime) || normalizeTimeValue(record.checkOutTime) || "00:00";
-  const [hours, minutes] = time.split(":").map(Number);
-
-  if (dateMatch) {
-    const year = Number(dateMatch[1]);
-    const month = Number(dateMatch[2]);
-    const day = Number(dateMatch[3]);
-
-    return Date.UTC(
-      year,
-      month - 1,
-      day,
-      Number.isFinite(hours) ? hours : 0,
-      Number.isFinite(minutes) ? minutes : 0
-    );
-  }
-
-  return toTimestamp(record.createdAt);
-};
-
 const getDefaultDraft = (): AttendanceDraft => {
   const now = new Date();
   const timeNow = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -307,6 +287,8 @@ export default function AttendanceSection({
   const [error, setError] = useState("");
   const [toDelete, setToDelete] = useState<AttendanceRecord | null>(null);
   const [approvalRecord, setApprovalRecord] = useState<AttendanceRecord | null>(null);
+  // «Сейчас» в форме ещё не правили руками — берётся по часам сотрудника.
+  const [draftTimeIsDefault, setDraftTimeIsDefault] = useState(true);
 
   // Approval process covering this employee's department (if configured).
   const { data: approvalProcesses } = useApprovalProcessesQuery();
@@ -363,8 +345,34 @@ export default function AttendanceSection({
       ).toLowerCase(),
     }));
 
-    return rows.sort((left, right) => toSortTimestamp(right) - toSortTimestamp(left));
+    return rows;
   }, [data?.response, employeeGuid]);
+
+  // Пояс сотрудника на всю историю строк: у переведённых между поясами он
+  // меняется по датам, и каждая строка пересчитывается своим (ADR-0014).
+  const recordDates = records.map((record) => record.date.slice(0, 10)).filter((date) => DATE_PATTERN.test(date)).sort();
+  const zones = useEmployeeTimeZones([employeeGuid], recordDates[0] ?? "", recordDates[recordDates.length - 1] ?? "");
+  const sortedRecords = useMemo(() => {
+    const key = (record: AttendanceRecord) =>
+      DATE_PATTERN.test(record.date.slice(0, 10))
+        ? zones.sortKey(employeeGuid, record.date, record.checkInTime || record.checkOutTime)
+        : toTimestamp(record.createdAt);
+    return [...records].sort((left, right) => key(right) - key(left));
+  }, [records, zones, employeeGuid]);
+
+  const draftDate = draft.date ? toApiDate(draft.date) : "";
+  const draftZones = useEmployeeTimeZones([employeeGuid], draftDate, draftDate);
+  const draftZone = draftZones.zoneOf(employeeGuid, draftDate);
+  const draftTimeZone = draftZone?.timezone ?? "";
+
+  // Новая запись: «сегодня» и «сейчас» — по часам сотрудника, а не браузера,
+  // пока админ не поправил поля руками (ADR-0014, п. 2).
+  useEffect(() => {
+    if (!isModalOpen || editingGuid || !draftTimeIsDefault || !draftTimeZone) return;
+    const now = nowInZone(draftTimeZone);
+    const [year, month, day] = now.date.split("-").map(Number);
+    setDraft((prev) => ({ ...prev, date: new Date(year, month - 1, day), checkInTime: now.time }));
+  }, [isModalOpen, editingGuid, draftTimeIsDefault, draftTimeZone]);
 
   // Bulk approval progress for visible records so finalized rows can still
   // show the clickable audit badge.
@@ -393,6 +401,7 @@ export default function AttendanceSection({
   const openCreate = () => {
     setEditingGuid(null);
     setDraft(getDefaultDraft());
+    setDraftTimeIsDefault(true);
     setError("");
     setIsModalOpen(true);
   };
@@ -622,7 +631,7 @@ export default function AttendanceSection({
                   </tr>
                 </thead>
                 <tbody>
-                  {records.map((record) => {
+                  {sortedRecords.map((record) => {
                     const actionTag = getActionStatusTag(record.actionStatus, record.delayTime);
                     const requestTag = getWorkflowStatusTag(record.requestStatus);
 
@@ -643,10 +652,10 @@ export default function AttendanceSection({
                           {formatDateLabel(record.date)}
                         </td>
                         <td className="py-3 text-[13px] font-semibold text-slate-900">
-                          {formatTimeLabel(record.checkInTime)}
+                          <WallTime zones={zones} userBaseId={employeeGuid} date={record.date} time={record.checkInTime} />
                         </td>
                         <td className="py-3 text-[13px] font-semibold text-slate-900">
-                          {formatTimeLabel(record.checkOutTime)}
+                          <WallTime zones={zones} userBaseId={employeeGuid} date={record.date} time={record.checkOutTime} />
                         </td>
                         <td className="py-3 text-[13px] text-slate-700">
                           <span
@@ -743,12 +752,13 @@ export default function AttendanceSection({
               </label>
               <DatePicker
                 selected={draft.date}
-                onChange={(date) =>
+                onChange={(date) => {
+                  setDraftTimeIsDefault(false);
                   setDraft((prev) => ({
                     ...prev,
                     date,
-                  }))
-                }
+                  }));
+                }}
                 dateFormat="dd.MM.yyyy"
                 placeholderText={t("employees.detail.dismissal_date_placeholder")}
                 showMonthDropdown
@@ -767,14 +777,16 @@ export default function AttendanceSection({
               </label>
               <TimeInput
                 value={draft.checkInTime}
-                onChange={(next) =>
+                onChange={(next) => {
+                  setDraftTimeIsDefault(false);
                   setDraft((prev) => ({
                     ...prev,
                     checkInTime: next,
-                  }))
-                }
+                  }));
+                }}
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
+              <ViewerTimeHint date={draftDate} time={draft.checkInTime} zones={draftZone ? [draftZone] : []} status={draftZones.status} />
             </div>
 
             <div>
@@ -791,6 +803,7 @@ export default function AttendanceSection({
                 }
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
+              <ViewerTimeHint date={draftDate} time={draft.checkOutTime} zones={draftZone ? [draftZone] : []} status={draftZones.status} />
             </div>
           </div>
 

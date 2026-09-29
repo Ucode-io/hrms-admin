@@ -36,6 +36,9 @@ import LocationViewLink, { DistanceBadge, MarkReason } from "../../../components
 import { type DayMarkGeo, markDirection, markGeoByDay } from "../../../components/map/shared";
 import { type Office, useOffices } from "../../../components/map/useOffices";
 import { useTranslation, translate } from "../../../i18n";
+import { useEmployeeTimeZones, type EmployeeZones } from "../../../hooks/useEmployeeTimeZones";
+import { WallTime } from "../../../components/common/WallTime";
+import { clockOfMinutes } from "../../../utils/wallClock";
 
 type DataRow = Record<string, unknown>;
 
@@ -216,7 +219,7 @@ const buildSummaryEvents = (rows: DataRow[]): AccessEvent[] =>
     return result;
   }).sort((left, right) => left.time.localeCompare(right.time));
 
-function AttendanceDayCell({ day, geo, office }: { day?: AttendanceDay; geo?: DayMarkGeo; office?: Office }) {
+function AttendanceDayCell({ day, geo, office, zones, employeeId }: { day?: AttendanceDay; geo?: DayMarkGeo; office?: Office; zones: EmployeeZones; employeeId: string }) {
   const { t } = useTranslation();
   if (!day) return <span className="text-sm text-slate-300">—</span>;
   const workedMinutes = Math.max(0, Math.round(day.seconds / 60));
@@ -226,10 +229,10 @@ function AttendanceDayCell({ day, geo, office }: { day?: AttendanceDay; geo?: Da
     <div className="min-w-[142px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
       <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-700">
         <span className="inline-flex items-center gap-1.5">
-          {day.checkIn ? <><LogIn size={14} className="shrink-0 text-slate-500" />{day.checkIn}</> : <MissingEventIcon type="in" />}
+          {day.checkIn ? <><LogIn size={14} className="shrink-0 text-slate-500" /><WallTime zones={zones} userBaseId={employeeId} date={day.date} time={day.checkIn} /></> : <MissingEventIcon type="in" />}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          {day.checkOut ? <><LogOut size={14} className="shrink-0 text-slate-500" />{day.checkOut}</> : <MissingEventIcon type="out" />}
+          {day.checkOut ? <><LogOut size={14} className="shrink-0 text-slate-500" /><WallTime zones={zones} userBaseId={employeeId} date={day.date} time={day.checkOut} /></> : <MissingEventIcon type="out" />}
         </span>
       </div>
       {geo ? (
@@ -270,7 +273,9 @@ function EmployeesOverview({
   onShiftMonth,
   geoByDay,
   offices,
+  zones,
 }: {
+  zones: EmployeeZones;
   geoByDay: Map<string, DayMarkGeo>;
   offices: Map<string, Office>;
   employees: AttendanceEmployee[];
@@ -352,7 +357,7 @@ function EmployeesOverview({
                       }}
                       className={`px-3 py-1.5 align-middle ${day ? "cursor-pointer hover:bg-blue-50/60" : ""} ${isToday(date) ? "bg-blue-50/30" : ""}`}
                     >
-                      <AttendanceDayCell day={day} geo={geoByDay.get(`${employee.id}|${date}`)} office={offices.get(employee.officeId)} />
+                      <AttendanceDayCell day={day} geo={geoByDay.get(`${employee.id}|${date}`)} office={offices.get(employee.officeId)} zones={zones} employeeId={employee.id} />
                     </td>
                   );
                 })}
@@ -371,11 +376,18 @@ function EmptyState({ icon, title, hint }: { icon: "users" | "clock"; title: str
   return <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center"><Icon size={30} className="mx-auto mb-3 text-slate-300" /><p className="text-sm font-medium text-slate-600">{title}</p><p className="mt-1 text-xs text-slate-400">{hint}</p></div>;
 }
 
-function AccessTimeline({ events }: { events: AccessEvent[] }) {
+/**
+ * Таймлайн строится по минутам смотрящего (ADR-0014, п. 5): он и есть вывод.
+ * Ось может выйти за 0…24 ч, подписи делений берутся по модулю суток.
+ */
+function AccessTimeline({ events, toViewer }: { events: AccessEvent[]; toViewer: (time: string) => { minutes: number; text: string } | null }) {
   const { t } = useTranslation();
   const timed = events
-    .map((event) => ({ event, minutes: minutesFromClock(event.time) }))
-    .filter((item): item is { event: AccessEvent; minutes: number } => item.minutes !== null)
+    .map((event) => {
+      const viewer = toViewer(event.time);
+      return viewer ? { event: { ...event, time: viewer.text }, minutes: viewer.minutes } : null;
+    })
+    .filter((item): item is { event: AccessEvent; minutes: number } => item !== null)
     .sort((a, b) => a.minutes - b.minutes);
   if (timed.length === 0) return null;
   const firstEntry = timed.find((item) => item.event.type === "in");
@@ -389,12 +401,15 @@ function AccessTimeline({ events }: { events: AccessEvent[] }) {
     return { ...item, lane: labelLane };
   });
   const maxLabelLane = Math.max(...positionedEvents.map((item) => item.lane));
-  const from = Math.max(0, Math.floor((Math.min(...timed.map((item) => item.minutes)) - 60) / 60) * 60);
-  const to = Math.min(1440, Math.ceil((Math.max(...timed.map((item) => item.minutes)) + 60) / 60) * 60);
+  const minMinutes = Math.min(...timed.map((item) => item.minutes));
+  const maxMinutes = Math.max(...timed.map((item) => item.minutes));
+  // Край суток держит ось, пока пересчёт не вывел отметки за него.
+  const from = Math.max(minMinutes < 0 ? -Infinity : 0, Math.floor((minMinutes - 60) / 60) * 60);
+  const to = Math.min(maxMinutes > 1440 ? Infinity : 1440, Math.ceil((maxMinutes + 60) / 60) * 60);
   const span = Math.max(60, to - from);
   const ticks: number[] = [];
   for (let tick = from; tick <= to; tick += Math.max(60, Math.ceil(span / 360) * 60)) ticks.push(tick);
-  const clock = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:00`;
+  const clock = clockOfMinutes;
   const hasAttendanceSpan = Boolean(firstEntry && lastAction.minutes > firstEntry.minutes);
   const attendanceStart = firstEntry ? ((firstEntry.minutes - from) / span) * 100 : 0;
   const attendanceWidth = firstEntry ? ((lastAction.minutes - firstEntry.minutes) / span) * 100 : 0;
@@ -467,7 +482,7 @@ function AccessTimeline({ events }: { events: AccessEvent[] }) {
   );
 }
 
-function EventCards({ events, office }: { events: AccessEvent[]; office?: Office }) {
+function EventCards({ events, office, display }: { events: AccessEvent[]; office?: Office; display: (time: string) => string }) {
   const { t } = useTranslation();
   const [preview, setPreview] = useState<AccessEvent | null>(null);
   if (events.length === 0) return null;
@@ -479,13 +494,13 @@ function EventCards({ events, office }: { events: AccessEvent[]; office?: Office
           {events.map((event) => {
             const Icon = event.type === "in" ? LogIn : event.type === "out" ? LogOut : Camera;
             return <article key={event.id} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/40">
-              {event.image ? <button type="button" onClick={() => setPreview(event)} className="group relative block aspect-[16/9] w-full overflow-hidden bg-slate-100"><img src={event.image} alt={`${event.label} ${event.time}`} className="h-full w-full object-cover transition group-hover:scale-[1.02]" onError={(e) => { e.currentTarget.parentElement?.classList.add("hidden"); }} /><span className="absolute right-2 top-2 rounded-lg bg-slate-900/65 p-1.5 text-white"><Maximize2 size={14} /></span></button> : null}
-              <div className="flex items-center gap-3 p-4"><span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${event.type === "in" ? "bg-emerald-100 text-emerald-600" : event.type === "out" ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"}`}><Icon size={18} /></span><div><p className="text-sm font-semibold text-slate-800">{event.label} · {event.time}</p>{event.camera ? <p className="mt-0.5 text-xs text-slate-400">{event.camera}</p> : null}{event.location ? <p className="mt-1 text-xs"><LocationViewLink value={event.location} office={office} /></p> : null}{event.reason ? <p className="mt-1 max-w-[260px]"><MarkReason reason={event.reason} /></p> : null}</div></div>
+              {event.image ? <button type="button" onClick={() => setPreview(event)} className="group relative block aspect-[16/9] w-full overflow-hidden bg-slate-100"><img src={event.image} alt={`${event.label} ${display(event.time)}`} className="h-full w-full object-cover transition group-hover:scale-[1.02]" onError={(e) => { e.currentTarget.parentElement?.classList.add("hidden"); }} /><span className="absolute right-2 top-2 rounded-lg bg-slate-900/65 p-1.5 text-white"><Maximize2 size={14} /></span></button> : null}
+              <div className="flex items-center gap-3 p-4"><span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${event.type === "in" ? "bg-emerald-100 text-emerald-600" : event.type === "out" ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"}`}><Icon size={18} /></span><div><p className="text-sm font-semibold text-slate-800">{event.label} · {display(event.time)}</p>{event.camera ? <p className="mt-0.5 text-xs text-slate-400">{event.camera}</p> : null}{event.location ? <p className="mt-1 text-xs"><LocationViewLink value={event.location} office={office} /></p> : null}{event.reason ? <p className="mt-1 max-w-[260px]"><MarkReason reason={event.reason} /></p> : null}</div></div>
             </article>;
           })}
         </div>
       </section>
-      <Modal isOpen={Boolean(preview)} onClose={() => setPreview(null)} className="max-w-4xl p-4">{preview?.image ? <img src={preview.image} alt={`${preview.label} ${preview.time}`} className="max-h-[80vh] w-full rounded-2xl object-contain" /> : null}</Modal>
+      <Modal isOpen={Boolean(preview)} onClose={() => setPreview(null)} className="max-w-4xl p-4">{preview?.image ? <img src={preview.image} alt={`${preview.label} ${display(preview.time)}`} className="max-h-[80vh] w-full rounded-2xl object-contain" /> : null}</Modal>
     </>
   );
 }
@@ -522,6 +537,7 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
     querySettings: { enabled: !employeeId, keepPreviousData: true },
   });
   const geoByDay = useMemo(() => markGeoByDay((monthRecordsQuery.data?.response ?? []) as DataRow[]), [monthRecordsQuery.data?.response]);
+  const overviewZones = useEmployeeTimeZones(allEmployees.map((item) => item.id), range.from, range.to);
 
   const dayQuery = useSettingsDirectoryQuery({
     slug: "attendance",
@@ -580,7 +596,15 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   // единственный верный ответ уже посчитан по графику при записи строки.
   // Нет `delay_time` — показываем «—», а не выдуманное число.
   const lateMinutes = storedDelayMinutes;
-  const loadingDetail = dayQuery.isLoading || recordsQuery.isLoading;
+  const detailZones = useEmployeeTimeZones([employeeId], anchor, anchor);
+  const loadingDetail = dayQuery.isLoading || recordsQuery.isLoading || detailZones.status === "loading";
+  const displayTime = (time: string) => detailZones.text(employeeId, anchor, time) || time;
+  const toViewer = (time: string) => {
+    const viewer = detailZones.viewerClock(employeeId, anchor, time);
+    if (viewer) return { minutes: viewer.minutes, text: displayTime(time) };
+    const minutes = minutesFromClock(time);
+    return minutes === null ? null : { minutes, text: time };
+  };
 
   return (
     <>
@@ -599,10 +623,11 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
               onShiftMonth={(amount) => patchParams({ date: shiftAnchor("month", anchor, amount) })}
               geoByDay={geoByDay}
               offices={offices}
+              zones={overviewZones}
             />
           </> : <>
             <div className="mb-4 flex flex-wrap items-center gap-3"><button type="button" onClick={() => patchParams({ employee: null })} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"><ArrowLeft size={15} />{t("time_events.back_to_employees")}</button>{selectedEmployee ? <div className="flex items-center gap-3"><EmployeeAvatar name={selectedEmployee.name} photo={selectedEmployee.photo} seed={selectedEmployee.id} size={42} /><div><h1 className="text-base font-bold text-slate-900">{selectedEmployee.name}</h1>{selectedEmployee.department ? <p className="text-xs text-slate-400">{selectedEmployee.department}</p> : null}</div></div> : null}<div className="ml-auto inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm"><button type="button" aria-label={t("time_events.prev_day")} onClick={() => patchParams({ date: shiftDays(anchor, -1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronLeft size={16} /></button><span className="min-w-[145px] px-3 text-center text-xs font-semibold text-slate-700">{formatDateRu(anchor)}</span><button type="button" aria-label={t("time_events.next_day")} onClick={() => patchParams({ date: shiftDays(anchor, 1) })} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50"><ChevronRight size={16} /></button></div></div>
-            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title={t("time_events.marks_load_error")} hint={t("time_events.marks_load_error_hint")} /> : events.length === 0 ? <EmptyState icon="clock" title={t("time_events.no_marks_on_date", { date: formatDateRu(anchor) })} hint={t("time_events.no_fake_data")} /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label={t("time_events.first_check_in")} value={firstEvent?.time || "—"} /><Metric label={t("time_events.last_check_out")} value={lastEvent?.time || "—"} /><Metric label={t("time_events.between_first_last")} value={formatDuration(duration)} /><Metric label={t("absence_calendar.attendance.late")} value={formatMinuteOffset(lateMinutes)} /></div><AccessTimeline events={events} /><EventCards events={events} office={office} /></div>}
+            {loadingDetail ? <div className="flex min-h-[360px] items-center justify-center"><Spinner /></div> : dayQuery.isError || recordsQuery.isError ? <EmptyState icon="clock" title={t("time_events.marks_load_error")} hint={t("time_events.marks_load_error_hint")} /> : events.length === 0 ? <EmptyState icon="clock" title={t("time_events.no_marks_on_date", { date: formatDateRu(anchor) })} hint={t("time_events.no_fake_data")} /> : <div className="space-y-4"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label={t("time_events.first_check_in")} value={<WallTime zones={detailZones} userBaseId={employeeId} date={anchor} time={firstEvent?.time} />} /><Metric label={t("time_events.last_check_out")} value={<WallTime zones={detailZones} userBaseId={employeeId} date={anchor} time={lastEvent?.time} />} /><Metric label={t("time_events.between_first_last")} value={formatDuration(duration)} /><Metric label={t("absence_calendar.attendance.late")} value={formatMinuteOffset(lateMinutes)} /></div><AccessTimeline events={events} toViewer={toViewer} /><EventCards events={events} office={office} display={displayTime} /></div>}
           </>}
         </div>
       </div>
@@ -610,7 +635,7 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value }: { label: string; value: ReactNode }) {
   return <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3"><div className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div><div className="mt-1 text-lg font-bold text-slate-800">{value}</div></div>;
 }
 

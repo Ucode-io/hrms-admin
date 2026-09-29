@@ -17,7 +17,20 @@ import {
   useTimesheetListQuery,
 } from "../../api/services/timesheet.service";
 import { EMPTY_FILTERS } from "./components/FiltersBar";
-import { formatDateRu, formatDuration, shiftDays } from "./constants";
+import {
+  TIMESHEET_SOURCE_LABEL,
+  TIMESHEET_SOURCE_ZONE,
+  employeeToSource,
+  entryEndDate,
+  formatDateRu,
+  formatDuration,
+  shiftDays,
+  timesheetSourceZone,
+  viewerTime,
+} from "./constants";
+import { useEmployeeTimeZones } from "../../hooks/useEmployeeTimeZones";
+import { ViewerTimeHint, WallTime } from "../../components/common/WallTime";
+import { VIEWER_TIME_ZONE, offsetOnDate } from "../../utils/wallClock";
 import { EmployeeAvatar, SourceBadge } from "./components/badges";
 import DayTimeline, { type TimelineGap } from "./components/DayTimeline";
 import ConfirmDeleteModal from "./components/ConfirmDeleteModal";
@@ -52,6 +65,10 @@ const toMinutes = (value: string): number | null => {
   const match = TIME_PATTERN.exec(value.trim());
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 };
+
+/** «2026-08-03T09:06:00» из табеля → «10:06 +1» у смотрящего относительно дня страницы. */
+const viewerOfIso = (iso: string, pageDate: string): string =>
+  viewerTime(pageDate, iso.slice(11, 16), iso.slice(0, 10));
 
 const cellInput =
   "h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 outline-none transition focus:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
@@ -117,6 +134,31 @@ export default function TimesheetDayPage() {
     [dayTasks, fallbackTasks]
   );
 
+  // ── Пояса (ADR-0014) ────────────────────────────────────────────────────
+  // Записи приходят в поясе табеля (UTC+5 для всех), черновик вводится по
+  // месту сотрудника, а на экран всё идёт в поясе смотрящего.
+  const zones = useEmployeeTimeZones([employeeId], date, date);
+  const employeeZone = zones.zoneOf(employeeId, date);
+  const employeeTimeZone = employeeZone?.timezone ?? null;
+  const timelineShift = useMemo(() => {
+    // Кривая дата в адресе — без сдвига: день всё равно ответит ошибкой, а
+    // `Intl` на несуществующем моменте уронил бы всю страницу.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { entries: 0, draft: 0 };
+    const viewer = offsetOnDate(VIEWER_TIME_ZONE, date);
+    return {
+      entries: viewer - offsetOnDate(TIMESHEET_SOURCE_ZONE, date),
+      // Пояс неизвестен — ввод уходит в reports как есть, то есть в поясе табеля.
+      draft: viewer - offsetOnDate(employeeTimeZone ?? TIMESHEET_SOURCE_ZONE, date),
+    };
+  }, [date, employeeTimeZone]);
+  // Пока пояс сотрудника грузится, ввод не во что переводить: сохранённое
+  // «как есть» легло бы в reports со сдвигом (ADR-0014, п. 2). Пояса нет —
+  // отказ метода или сотрудник не найден — ввод идёт по часам табеля, и
+  // черновик об этом говорит, а не сохраняет молча.
+  const zonePending = zones.status === "loading";
+  const zoneUnknown = !zonePending && !employeeZone;
+  const inputZones = [employeeZone ?? timesheetSourceZone(date)];
+
   // ── Ручное время ────────────────────────────────────────────────────────
   const [draft, setDraft] = useState<ManualDraft | null>(null);
   const [draftError, setDraftError] = useState("");
@@ -160,7 +202,7 @@ export default function TimesheetDayPage() {
   };
 
   const submitDraft = async () => {
-    if (!draft) return;
+    if (!draft || zonePending) return;
     if (draftSeconds <= 0) {
       setDraftError(t("timesheet.validation.end_after_start"));
       return;
@@ -172,14 +214,17 @@ export default function TimesheetDayPage() {
 
     const project = projects.find((item) => item.id === draft.projectId);
     const task = visibleTasks.find((item) => item.id === draft.taskId);
+    const interval = employeeToSource(date, draft.startTime, draft.endTime, employeeTimeZone);
+    if (!interval) {
+      setDraftError(t("wall_clock.timesheet_crosses_midnight", { zone: TIMESHEET_SOURCE_LABEL }));
+      return;
+    }
 
     try {
       setDraftError("");
       await saveManual.mutateAsync({
         user_base_id: employeeId,
-        work_date: date,
-        start_time: draft.startTime,
-        end_time: draft.endTime,
+        ...interval,
         ...(draft.projectId
           ? { project_id: draft.projectId, project_name: project?.name ?? "" }
           : {}),
@@ -187,7 +232,13 @@ export default function TimesheetDayPage() {
         reason: draft.reason.trim(),
       });
       setDraft(null);
-      toast.success(t("timesheet.toast.time_added"));
+      // Черновик уехал на соседние сутки табеля: здесь его не будет видно,
+      // поэтому говорим, куда он лёг, а не молча «добавлено».
+      toast.success(
+        interval.work_date === date
+          ? t("timesheet.toast.time_added")
+          : t("wall_clock.timesheet_saved_on_date", { date: formatDateRu(interval.work_date), zone: TIMESHEET_SOURCE_LABEL })
+      );
     } catch (saveError) {
       setDraftError(
         saveError instanceof Error ? saveError.message : t("timesheet.toast.save_failed")
@@ -246,9 +297,7 @@ export default function TimesheetDayPage() {
         // пометки «+1» такое окончание читается как «закончил до начала».
         value:
           day.firstStart && day.lastEnd
-            ? `${day.firstStart.slice(11, 16)} – ${day.lastEnd.slice(11, 16)}${
-                day.lastEnd.slice(0, 10) > day.date ? " (+1)" : ""
-              }`
+            ? `${viewerOfIso(day.firstStart, day.date)} – ${viewerOfIso(day.lastEnd, day.date)}`
             : "—",
       },
       { label: t("timesheet.day_page.breaks_label"), value: formatDuration(day.breakSeconds) },
@@ -265,8 +314,13 @@ export default function TimesheetDayPage() {
    */
   const draftPosition = draft
     ? (() => {
+        // Записи в поясе табеля, черновик — по месту сотрудника. Уехавший на
+        // соседние сутки табеля черновик среди записей дня места не имеет — в конец.
+        const source = employeeToSource(date, draft.startTime, draft.startTime, employeeTimeZone);
+        if (source && source.work_date !== date) return entries.length;
+        const draftStart = source?.start_time ?? draft.startTime;
         const index = entries.findIndex(
-          (entry) => (entry.startTime || "99:99") >= draft.startTime
+          (entry) => (entry.startTime || "99:99") >= draftStart
         );
         return index === -1 ? entries.length : index;
       })()
@@ -282,6 +336,7 @@ export default function TimesheetDayPage() {
           }
           className={cellInput}
         />
+        <ViewerTimeHint date={date} time={draft.startTime} zones={inputZones} status={zonePending ? "loading" : "ready"} />
       </TableCell>
       <TableCell className="whitespace-nowrap px-5 py-2.5">
         <TimeInput
@@ -291,6 +346,7 @@ export default function TimesheetDayPage() {
           }
           className={cellInput}
         />
+        <ViewerTimeHint date={date} time={draft.endTime} zones={inputZones} status={zonePending ? "loading" : "ready"} />
       </TableCell>
       <TableCell className="whitespace-nowrap px-5 py-2.5 text-sm font-semibold text-gray-800 dark:text-white/90">
         {formatDuration(draftSeconds)}
@@ -347,6 +403,9 @@ export default function TimesheetDayPage() {
           }}
           className={cellInput}
         />
+        {zoneUnknown && (
+          <p className="mt-1 text-[11px] text-warning-600">{t("wall_clock.timesheet_zone_unknown", { zone: TIMESHEET_SOURCE_LABEL })}</p>
+        )}
         {draftError && <p className="mt-1 text-[11px] text-error-600">{draftError}</p>}
       </TableCell>
       <TableCell className="whitespace-nowrap px-5 py-2.5 text-right">
@@ -366,7 +425,7 @@ export default function TimesheetDayPage() {
           <button
             type="button"
             onClick={() => void submitDraft()}
-            disabled={saveManual.isLoading}
+            disabled={saveManual.isLoading || zonePending}
             title={t("timesheet.button.save_inline")}
             className="rounded-lg bg-emerald-600 p-1.5 text-white transition hover:bg-emerald-700 disabled:opacity-60"
           >
@@ -465,7 +524,9 @@ export default function TimesheetDayPage() {
 
       {/* ── Таймлайн дня ────────────────────────────────────────────────── */}
       <div className="mt-4">
-        {day ? (
+        {/* Сдвиг черновика зависит от пояса сотрудника: промежуток, кликнутый до
+            его приезда, дал бы время в чужом поясе. */}
+        {day && !zonePending ? (
           <DayTimeline
             date={date}
             entries={entries}
@@ -475,6 +536,7 @@ export default function TimesheetDayPage() {
             draftRange={
               draft ? { startTime: draft.startTime, endTime: draft.endTime } : null
             }
+            shift={timelineShift}
           />
         ) : (
           <TimelineSkeleton />
@@ -558,10 +620,10 @@ export default function TimesheetDayPage() {
                     }`}
                   >
                     <TableCell className="whitespace-nowrap px-5 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      {entry.startTime || "—"}
+                      <WallTime zones={zones} userBaseId={employeeId} date={entry.date} time={entry.startTime} sourceTimeZone={TIMESHEET_SOURCE_ZONE} />
                     </TableCell>
                     <TableCell className="whitespace-nowrap px-5 py-3 text-sm text-gray-600 dark:text-gray-300">
-                      {entry.endTime || "—"}
+                      <WallTime zones={zones} userBaseId={employeeId} date={entry.date} time={entry.endTime} atDate={entryEndDate(entry)} sourceTimeZone={TIMESHEET_SOURCE_ZONE} />
                     </TableCell>
                     <TableCell className="whitespace-nowrap px-5 py-3 text-sm font-semibold text-gray-800 dark:text-white/90">
                       {formatDuration(entry.durationSeconds)}

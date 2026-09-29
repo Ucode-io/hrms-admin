@@ -4,7 +4,7 @@
 // Поэтому спрашиваем всегда и показываем, что именно удаляем.
 
 import { Modal } from "../../../components/ui/modal";
-import { formatDateRu, formatDuration } from "../constants";
+import { entryEndDate, formatDateRu, formatDuration, viewerTime } from "../constants";
 import type { TimesheetEntry } from "../types";
 
 interface ConfirmDeleteModalProps {
@@ -21,7 +21,9 @@ export default function ConfirmDeleteModal({
   onConfirm,
 }: ConfirmDeleteModalProps) {
   const interval =
-    entry?.startTime && entry?.endTime ? `${entry.startTime} – ${entry.endTime}` : null;
+    entry?.startTime && entry?.endTime
+      ? `${viewerTime(entry.date, entry.startTime)} – ${viewerTime(entry.date, entry.endTime, entryEndDate(entry))}`
+      : null;
 
   return (
     <Modal

@@ -5794,5 +5794,15 @@
   "settings_misc.bot_notifications.event.deduction_added.hint": "金额永远不会发送到群聊。",
   "settings_misc.broadcasts.to_employees_hint": "发送到每位员工与机器人的私聊。尚未绑定机器人的员工将收不到——发送前会显示人数。",
   "settings_misc.broadcasts.groups_none": "公司没有已连接的 Telegram 群组。",
-  "settings_misc.broadcasts.groups_connect": "去连接"
+  "settings_misc.broadcasts.groups_connect": "去连接",
+  "wall_clock.zone_unknown": "员工当地时间，时区未知",
+  "wall_clock.at_viewer": "= 您的时间 {time}",
+  "wall_clock.at_viewer_zone": "{zone}：您的时间 {time}",
+  "wall_clock.employee_local": "按员工当地时间",
+  "wall_clock.csv_timezone": "时区",
+  "wall_clock.timesheet_crosses_midnight": "按考勤表时间（{zone}）该时段跨越午夜，请拆分为两条记录",
+  "wall_clock.timesheet_saved_on_date": "时间已添加并提交审批。按考勤表时间（{zone}）该记录落在 {date}。",
+  "wall_clock.timesheet_source_times": "考勤表时间（{zone}）：按员工当地时间该记录跨越午夜",
+  "wall_clock.timesheet_zone_unknown": "员工时区未知 — 时间按考勤表时间（{zone}）输入和保存",
+  "wall_clock.csv_zones_failed": "员工时区加载失败 — 导出中的时间为考勤表时间（{zone}）"
 }

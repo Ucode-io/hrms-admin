@@ -1,12 +1,17 @@
-import { SOURCE_META, formatDateRu } from "./constants";
+import { SOURCE_META, TIMESHEET_SOURCE_LABEL, entryEndDate, formatDateRu, sourceToEmployee } from "./constants";
 import type { TimesheetEntry } from "./types";
+import { translate } from "../../i18n";
+import type { ZoneInterval } from "../../utils/wallClock";
 
-const COLUMNS = [
+// Функция, а не константа: `translate` читает язык в момент вызова, а модуль
+// импортируется один раз на загрузку страницы.
+const columns = () => [
   "Сотрудник",
   "Департамент",
   "Дата",
   "Начало",
   "Окончание",
+  translate("wall_clock.csv_timezone"),
   "Часы",
   "Проект",
   "Задача",
@@ -24,14 +29,30 @@ const escapeCell = (value: string): string => `"${String(value ?? "").replace(/"
 const hoursCell = (seconds: number): string =>
   (Math.round((seconds / 3600) * 100) / 100).toFixed(2).replace(".", ",");
 
-export const buildTimesheetCsv = (entries: TimesheetEntry[]): string => {
-  const rows = entries.map((entry) =>
-    [
+/**
+ * Время в файле — по месту сотрудника, а не того, кто скачал (ADR-0014, п. 8):
+ * файл пересылают дальше, а пояс скачавшего в нём не записан. Поэтому рядом
+ * колонка с поясом. Без пояса сотрудника время остаётся в поясе табеля.
+ *
+ * Время — чистое «HH:MM», без меток суток: файл читают Excel и импорт. «Дата» —
+ * местная дата начала, она может разойтись с датой табеля; конец раньше
+ * начала — значит, следующие сутки.
+ */
+export const buildTimesheetCsv = (
+  entries: TimesheetEntry[],
+  zoneOf: (employeeId: string, date: string) => ZoneInterval | null
+): string => {
+  const rows = entries.map((entry) => {
+    const zone = entry.employeeId ? zoneOf(entry.employeeId, entry.date) : null;
+    const start = entry.startTime ? sourceToEmployee(entry.date, entry.startTime, zone?.timezone ?? null) : null;
+    const end = entry.endTime ? sourceToEmployee(entryEndDate(entry), entry.endTime, zone?.timezone ?? null) : null;
+    return [
       entry.employeeName,
       entry.department,
-      formatDateRu(entry.date),
-      entry.startTime,
-      entry.endTime,
+      formatDateRu(start?.date ?? entry.date),
+      start?.time ?? "",
+      end?.time ?? "",
+      zone?.timezone ?? TIMESHEET_SOURCE_LABEL,
       hoursCell(entry.durationSeconds),
       entry.projectName,
       entry.taskName,
@@ -39,10 +60,10 @@ export const buildTimesheetCsv = (entries: TimesheetEntry[]): string => {
       entry.reason,
     ]
       .map(escapeCell)
-      .join(";")
-  );
+      .join(";");
+  });
 
-  return [COLUMNS.map(escapeCell).join(";"), ...rows].join("\r\n");
+  return [columns().map(escapeCell).join(";"), ...rows].join("\r\n");
 };
 
 /** BOM обязателен: без него Excel читает файл как ANSI и ломает кириллицу. */

@@ -15,10 +15,13 @@ import {
   formatShiftTime,
   fromIsoDate,
   getInitials,
+  hasFixedTime,
   isToday,
   shiftKind,
 } from "../constants";
 import type { Shift } from "../../../api/services/shift.service";
+import type { EmployeeZones } from "../../../hooks/useEmployeeTimeZones";
+import { WallRange } from "../../../components/common/WallTime";
 import type { CellKind, ItemBy, ShiftEmployee, ShiftGroup } from "../types";
 
 interface GridViewProps {
@@ -26,6 +29,8 @@ interface GridViewProps {
   groups: ShiftGroup[];
   /** `${employeeId}|${iso}` → смена. Одна на пару — это гарантирует индекс в БД. */
   shiftByCell: Map<string, Shift>;
+  /** Пояса сотрудников строк: время смены выводится у смотрящего (ADR-0014). */
+  zones: EmployeeZones;
   isMonthScale: boolean;
   /** Строка секции: человек или свёрнутая в сводку должность. */
   itemBy: ItemBy;
@@ -66,6 +71,7 @@ const positionRows = (employees: ShiftEmployee[]) => {
 export default function GridView({ dates,
   groups,
   shiftByCell,
+  zones,
   isMonthScale,
   itemBy,
   offDayByDate,
@@ -93,7 +99,11 @@ export default function GridView({ dates,
     const shift = shiftByCell.get(`${employee.id}|${iso}`) ?? null;
     const kind: CellKind = shift ? shiftKind(shift) : "off";
     const meta = KIND_META[kind];
-    const time = shift ? formatShiftTime(shift) : "";
+    const time = shift
+      ? hasFixedTime(shift)
+        ? `${zones.text(employee.id, iso, shift.start_time)}–${zones.text(employee.id, iso, shift.end_time)}`
+        : formatShiftTime(shift)
+      : "";
     const dayOff = offDayByDate.get(iso);
 
     return (
@@ -120,7 +130,11 @@ export default function GridView({ dates,
             // Вид смены читается цветом — легенда над таблицей объясняет какой,
             // и дублировать её словом в каждой клетке незачем. Время важнее.
             <span className="block text-[11px] font-semibold" style={{ color: meta.color }}>
-              {time || meta.label}
+              {shift && hasFixedTime(shift) ? (
+                <WallRange zones={zones} userBaseId={employee.id} date={iso} start={shift.start_time} end={shift.end_time} />
+              ) : (
+                time || meta.label
+              )}
             </span>
           )}
         </button>

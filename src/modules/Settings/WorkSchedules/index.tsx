@@ -598,7 +598,12 @@ export default function WorkSchedulesSettingsPage() {
 
               <div className="rounded-xl border border-gray-200">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
-                  <h4 className="text-lg font-semibold text-gray-900">{t("settings_misc.work_schedules.section_schedule")}</h4>
+                  {/* Шаблон к поясу не привязан: «09:00» — девять утра у каждого,
+                      кто по нему работает, поэтому пересчитывать нечего (ADR-0014). */}
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">{t("settings_misc.work_schedules.section_schedule")}</h4>
+                    <p className="text-xs text-gray-500">{t("wall_clock.employee_local")}</p>
+                  </div>
 
                   <button
                     type="button"

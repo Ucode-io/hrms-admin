@@ -15,6 +15,7 @@ import {
   DEFAULT_VIEW,
   SOURCE_META,
   SOURCE_ORDER,
+  TIMESHEET_SOURCE_LABEL,
   formatDuration,
   rangeForScale,
   toIsoDate,
@@ -29,6 +30,10 @@ import { SourceLegend } from "./components/badges";
 import TableView from "./views/TableView";
 import TimelineView from "./views/TimelineView";
 import { buildTimesheetCsv, downloadCsv } from "./exportCsv";
+import { translate } from "../../i18n";
+import hickvisionService from "../../api/services/hickvision.service";
+import { useEmployeeTimeZones } from "../../hooks/useEmployeeTimeZones";
+import { zoneOn, type ZoneInterval } from "../../utils/wallClock";
 import ManualTimeModal from "./components/ManualTimeModal";
 import ConfirmDeleteModal from "./components/ConfirmDeleteModal";
 import ApprovalProcessModal from "../../components/approvals/ApprovalProcessModal";
@@ -138,6 +143,26 @@ export default function TimesheetPage() {
 
   const data = view === "table" ? listQuery.data ?? null : timelineHead;
 
+  // Пояса видимых сотрудников — для серой строки «по месту» (ADR-0014). Время
+  // табеля на экране от них не зависит: его пояс известен (TIMESHEET_SOURCE_ZONE).
+  // Таймлайн показывает время только на шкале «день» — на остальных не
+  // спрашиваем: год по 600 людям, перезапрошенный на каждой подгрузке, никто
+  // бы не увидел.
+  // ponytail: на шкале «день» каждая подгрузка перезапрашивает пояса всех
+  // загруженных строк — O(n²) по страницам, но на одну дату: 30 страниц по 20
+  // человек — 9 300 пар вместо 600. Станет заметно — ключ на страницу
+  // (`useQueries`) со слиянием ответов.
+  const zones = useEmployeeTimeZones(
+    view === "table"
+      ? (listQuery.data?.entries ?? []).map((entry) => entry.employeeId)
+      : scale === "day"
+        ? timelineRows.map((row) => row.employeeId)
+        : [],
+    range.from,
+    range.to,
+    { keepPrevious: true }
+  );
+
   // Справочники фильтров приходят с обоими методами — берём из того ответа,
   // который уже есть, чтобы селекты не пустели при переключении представления.
   const employees = data?.employees ?? listQuery.data?.employees ?? [];
@@ -210,8 +235,18 @@ export default function TimesheetPage() {
         toast.error("За выбранный период нечего экспортировать.");
         return;
       }
+      // Пояса — отдельным запросом на всю выгрузку. Отказ метода выгрузку не
+      // срывает: время останется в поясе табеля, колонка это назовёт, а тост
+      // скажет сразу.
+      const ids = [...new Set(entries.map((entry) => entry.employeeId).filter((id): id is string => Boolean(id)))];
+      const zonesById = await hickvisionService
+        .resolveTimeZones({ user_base_ids: ids, date_from: range.from, date_to: range.to })
+        .catch(() => {
+          toast.warning(translate("wall_clock.csv_zones_failed", { zone: TIMESHEET_SOURCE_LABEL }));
+          return {} as Record<string, ZoneInterval[]>;
+        });
       downloadCsv(
-        buildTimesheetCsv(entries),
+        buildTimesheetCsv(entries, (employeeId, date) => zoneOn(zonesById[employeeId], date)),
         `Табель_${range.from}_${range.to}.csv`
       );
       if ((result?.total ?? 0) > entries.length) {
@@ -316,6 +351,7 @@ export default function TimesheetPage() {
           </div>
         ) : view === "table" ? (
           <TableView
+            zones={zones}
             entries={listQuery.data?.entries ?? []}
             total={listQuery.data?.total ?? 0}
             limit={PAGE_SIZE}
@@ -391,6 +427,7 @@ export default function TimesheetPage() {
           />
         ) : (
           <TimelineView
+            zones={zones}
             dates={timelineHead?.dates ?? []}
             rows={timelineRows}
             total={timelineHead?.total ?? 0}

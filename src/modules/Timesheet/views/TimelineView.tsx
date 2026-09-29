@@ -10,11 +10,18 @@ import {
   fromIsoDate,
   isToday,
   isWeekend,
+  lastEndDate,
+  TIMESHEET_SOURCE_ZONE,
+  viewerTime,
 } from "../constants";
+import type { EmployeeZones } from "../../../hooks/useEmployeeTimeZones";
+import { WallTime } from "../../../components/common/WallTime";
 import { EmployeeAvatar } from "../components/badges";
 import type { TimelineDay, TimelineRow, TimelineScale } from "../types";
 
 interface TimelineViewProps {
+  /** Пояса сотрудников строк: время выводится у смотрящего (ADR-0014). */
+  zones: EmployeeZones;
   dates: string[];
   rows: TimelineRow[];
   scale: TimelineScale;
@@ -92,13 +99,14 @@ const cellTitle = (day: TimelineDay): string => {
     `План: ${day.planSeconds > 0 ? formatDuration(day.planSeconds) : "выходной"}`,
   ];
   if (day.breakSeconds > 0) parts.push(`Перерывы: ${formatDuration(day.breakSeconds)}`);
-  if (day.firstStart && day.lastEnd) parts.push(`${day.firstStart} – ${day.lastEnd}`);
+  if (day.firstStart && day.lastEnd) parts.push(`${viewerTime(day.date, day.firstStart)} – ${viewerTime(day.date, day.lastEnd, lastEndDate(day))}`);
   if (day.absence) parts.push(day.absence);
   if (day.holiday) parts.push(day.holiday);
   return parts.join(" · ");
 };
 
 export default function TimelineView({
+  zones,
   dates,
   rows,
   scale,
@@ -215,10 +223,10 @@ export default function TimelineView({
                 {showTimes && (
                   <>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
-                      {row.days[0]?.firstStart || "—"}
+                      <WallTime zones={zones} userBaseId={row.employeeId} date={row.days[0]?.date ?? ""} time={row.days[0]?.firstStart} sourceTimeZone={TIMESHEET_SOURCE_ZONE} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300">
-                      {row.days[0]?.lastEnd || "—"}
+                      <WallTime zones={zones} userBaseId={row.employeeId} date={row.days[0]?.date ?? ""} time={row.days[0]?.lastEnd} atDate={row.days[0] ? lastEndDate(row.days[0]) : null} sourceTimeZone={TIMESHEET_SOURCE_ZONE} />
                     </td>
                   </>
                 )}

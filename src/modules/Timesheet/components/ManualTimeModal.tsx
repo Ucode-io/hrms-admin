@@ -11,7 +11,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "../../../components/ui/modal";
 import type { TimesheetDirectoryItem, TimesheetEmployee, TimesheetEntry } from "../types";
 import type { ManualTimeSavePayload } from "../../../api/services/manualTime.service";
-import { formatDuration } from "../constants";
+import { TIMESHEET_SOURCE_LABEL, employeeToSource, formatDuration, sourceToEmployee, timesheetSourceZone } from "../constants";
+import { useEmployeeTimeZones } from "../../../hooks/useEmployeeTimeZones";
+import { ViewerTimeHint } from "../../../components/common/WallTime";
+import { translate } from "../../../i18n";
 import TimeInput from "../../../components/form/TimeInput";
 import DateInput from "../../../components/form/DateInput";
 
@@ -66,12 +69,24 @@ export default function ManualTimeModal({
   const [taskId, setTaskId] = useState("");
   const [reason, setReason] = useState("");
   const [formError, setFormError] = useState("");
+  // Время в форме — по часам табеля (UTC+5), а не по месту сотрудника: так
+  // открывается запись, которая по местным часам переходит через полночь.
+  const [inSourceZone, setInSourceZone] = useState(false);
+  // Запись, уже переведённая в местное время за это открытие.
+  const [convertedEntry, setConvertedEntry] = useState<TimesheetEntry | null>(null);
+  // Местная дата, которую подставил перевод. Это дата сотрудника, а не день
+  // табеля: в режиме «Длительность» времени нет, и она увела бы запись на
+  // соседний день, хотя админ дату не трогал.
+  const [convertedDate, setConvertedDate] = useState<string | null>(null);
 
   // Форма пересобирается при каждом открытии: иначе прошлый черновик всплывал
   // бы поверх новой записи.
   useEffect(() => {
     if (!isOpen) return;
     setFormError("");
+    setInSourceZone(false);
+    setConvertedEntry(null);
+    setConvertedDate(null);
     setEmployeeId(entry?.employeeId ?? "");
     setDate(entry?.date || defaultDate);
     setProjectId(entry?.projectId ?? "");
@@ -88,6 +103,54 @@ export default function ManualTimeModal({
         : "1"
     );
   }, [isOpen, entry, defaultDate]);
+
+  // Время вводится по месту сотрудника (ADR-0014, п. 2), а reports ждёт его в
+  // поясе табеля — перевод при сохранении. Пояс правленой записи берётся на её
+  // собственную дату: дата в форме после перевода может съехать на сутки.
+  const zones = useEmployeeTimeZones([employeeId], date, date);
+  const zone = employeeId ? zones.zoneOf(employeeId, date) : null;
+  const entryZones = useEmployeeTimeZones([entry?.employeeId], entry?.date ?? "", entry?.date ?? "");
+  const entryZone = entry?.employeeId ? entryZones.zoneOf(entry.employeeId, entry.date) : null;
+  const entryTimeZone = entryZone?.timezone ?? "";
+
+  // Перевод правленой записи — один раз на открытие, когда пояс её даты
+  // известен. До этого поля времени заблокированы, после — правки админа
+  // не затираются.
+  const hasEntryInterval = Boolean(entry?.startTime && entry?.endTime);
+  const converting = isOpen && hasEntryInterval && convertedEntry !== entry;
+  useEffect(() => {
+    if (!isOpen || !entry?.startTime || !entry?.endTime || convertedEntry === entry) return;
+    if (entryZones.status === "loading") return;
+    setConvertedEntry(entry);
+    const start = sourceToEmployee(entry.date, entry.startTime, entryTimeZone || null);
+    const end = sourceToEmployee(entry.date, entry.endTime, entryTimeZone || null);
+    // Пояса нет — переводить не во что, и форма остаётся в часах табеля. Конец
+    // по местным часам ушёл на другие сутки — в «с — по» одного дня такой
+    // интервал не записать, и тоже часы табеля: в них он корректен.
+    if (!entryTimeZone || end.date !== start.date) {
+      setInSourceZone(true);
+      return;
+    }
+    setDate(start.date);
+    setConvertedDate(start.date);
+    setStartTime(start.time);
+    setEndTime(end.time);
+  }, [isOpen, entry, entryTimeZone, entryZones.status, convertedEntry]);
+
+  // Пока пояс грузится, ввод не во что переводить: сохранённое «как есть»
+  // легло бы в reports со сдвигом.
+  const zonePending =
+    converting || (mode === "interval" && !inSourceZone && zones.status === "loading");
+  // Пояс ввода. Пока дата та, что подставил перевод, — пояс записи: по нему
+  // время и переведено, и нетронутая запись должна вернуться туда же, даже
+  // если с местной даты сотрудника перевели в другой пояс. Дату сменили —
+  // пояс новой даты, а без него всё равно пояс записи: отказ запроса иначе
+  // отправил бы переведённое время как UTC+5.
+  const inputZone = inSourceZone ? null : date === convertedDate ? entryZone : zone ?? entryZone;
+  // Пояса нет совсем — время понимается по часам табеля, и форма это говорит,
+  // а не сохраняет молча (ADR-0014, п. 2).
+  const zoneUnknown = mode === "interval" && Boolean(employeeId) && !zonePending && !inSourceZone && !inputZone;
+  const inputZones = [inputZone ?? timesheetSourceZone(date)];
 
   const visibleTasks = useMemo(
     () => (projectId ? tasks.filter((task) => !task.projectId || task.projectId === projectId) : tasks),
@@ -106,6 +169,7 @@ export default function ManualTimeModal({
   }, [mode, startTime, endTime, hours]);
 
   const handleSubmit = () => {
+    if (zonePending) return;
     if (!employeeId) {
       setFormError("Выберите сотрудника");
       return;
@@ -129,14 +193,22 @@ export default function ManualTimeModal({
 
     const project = projects.find((item) => item.id === projectId);
     const task = visibleTasks.find((item) => item.id === taskId);
+    const interval =
+      mode === "interval"
+        ? employeeToSource(date, startTime, endTime, inputZone?.timezone ?? null)
+        : null;
+    if (mode === "interval" && !interval) {
+      setFormError(translate("wall_clock.timesheet_crosses_midnight", { zone: TIMESHEET_SOURCE_LABEL }));
+      return;
+    }
 
     setFormError("");
     onSubmit({
       ...(entry?.id ? { guid: entry.id } : {}),
       user_base_id: employeeId,
-      work_date: date,
-      ...(mode === "interval"
-        ? { start_time: startTime, end_time: endTime }
+      work_date: interval?.work_date ?? (entry && date === convertedDate ? entry.date : date),
+      ...(interval
+        ? { start_time: interval.start_time, end_time: interval.end_time }
         : { duration_minutes: Math.round(previewSeconds / 60) }),
       ...(projectId ? { project_id: projectId, project_name: project?.name ?? "" } : {}),
       ...(taskId ? { task_id: taskId, task_name: task?.name ?? "" } : {}),
@@ -177,7 +249,7 @@ export default function ManualTimeModal({
 
         <div>
           <label className={labelClass}>Дата</label>
-          <DateInput value={date} onChange={setDate} className={inputClass} />
+          <DateInput value={date} onChange={setDate} className={inputClass} disabled={converting} />
         </div>
 
         <div>
@@ -213,7 +285,9 @@ export default function ManualTimeModal({
                 value={startTime}
                 onChange={(next) => setStartTime(next)}
                 className={inputClass}
+                disabled={converting}
               />
+              <ViewerTimeHint date={date} time={startTime} zones={inputZones} status={zonePending ? "loading" : "ready"} />
             </div>
             <div>
               <label className={labelClass}>Окончание</label>
@@ -221,8 +295,20 @@ export default function ManualTimeModal({
                 value={endTime}
                 onChange={(next) => setEndTime(next)}
                 className={inputClass}
+                disabled={converting}
               />
+              <ViewerTimeHint date={date} time={endTime} zones={inputZones} status={zonePending ? "loading" : "ready"} />
             </div>
+            {inSourceZone || zoneUnknown ? (
+              <p className="text-xs text-gray-500 sm:col-span-2 dark:text-gray-400">
+                {translate(
+                  inSourceZone && entryTimeZone
+                    ? "wall_clock.timesheet_source_times"
+                    : "wall_clock.timesheet_zone_unknown",
+                  { zone: TIMESHEET_SOURCE_LABEL }
+                )}
+              </p>
+            ) : null}
           </>
         ) : (
           <div>
@@ -306,7 +392,7 @@ export default function ManualTimeModal({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isSaving}
+          disabled={isSaving || zonePending}
           className="h-10 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60"
         >
           {isSaving ? "Сохранение…" : entry ? "Сохранить" : "Отправить на согласование"}

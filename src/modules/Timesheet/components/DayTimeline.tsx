@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { SOURCE_META, SOURCE_ORDER, formatDuration, fromIsoDate } from "../constants";
 import type { TimesheetEntry, TimesheetSource } from "../types";
+import { clockOfMinutes, minutesOfClock } from "../../../utils/wallClock";
 
 /**
  * Заливка трекера тёмная, у остальных источников — светлая. Белая подпись на
@@ -9,13 +10,8 @@ import type { TimesheetEntry, TimesheetSource } from "../types";
 const labelColor = (source: TimesheetSource): string =>
   source === "tracker" ? "#ffffff" : "#1e293b";
 
-const pad = (value: number) => String(value).padStart(2, "0");
-
-/** Минуты от полуночи → «09:06». Значения за полночь сворачиваются в сутки. */
-const clock = (minutes: number): string => {
-  const normalized = ((Math.round(minutes) % 1440) + 1440) % 1440;
-  return `${pad(Math.floor(normalized / 60))}:${pad(normalized % 60)}`;
-};
+/** Минуты от полуночи → «09:06»; секунды из `toMinutes` дают дробные минуты. */
+const clock = (minutes: number): string => clockOfMinutes(Math.round(minutes));
 
 /**
  * «2026-08-03T09:06:00» → минуты от полуночи опорного дня.
@@ -35,13 +31,6 @@ const toMinutes = (value: string | null, baseDate: string): number | null => {
   return dayShift * 1440 + hours * 60 + minutes + seconds / 60;
 };
 
-/** Запасной разбор для старых записей без полной даты — только «HH:MM». */
-const clockToMinutes = (value: string): number | null => {
-  const match = /^(\d{1,2}):(\d{2})/.exec(value || "");
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
-};
-
 type Segment = {
   entry: TimesheetEntry;
   from: number;
@@ -53,6 +42,13 @@ const MIN_SPAN_MINUTES = 6 * 60;
 /** Промежуток без записей: по клику по нему заводится ручное время. */
 export type TimelineGap = { startTime: string; endTime: string };
 
+/**
+ * Сдвиги в минутах до часов смотрящего (ADR-0014, п. 5: таймлайн — это вывод).
+ * Записи приходят в поясе табеля, черновик вводится по месту сотрудника,
+ * поэтому сдвига два. Для одного человека на один день каждый постоянен.
+ */
+export type TimelineShift = { entries: number; draft: number };
+
 export default function DayTimeline({
   date,
   entries,
@@ -60,9 +56,11 @@ export default function DayTimeline({
   onHoverEntry,
   onGapClick,
   draftRange = null,
+  shift = { entries: 0, draft: 0 },
 }: {
   date: string;
   entries: TimesheetEntry[];
+  shift?: TimelineShift;
   /** Общая с таблицей записей подсветка: наведение работает в обе стороны. */
   hoveredEntryId?: string | null;
   onHoverEntry?: (entryId: string | null) => void;
@@ -79,23 +77,25 @@ export default function DayTimeline({
   // когда смотрит, куда он встанет.
   const draftBounds = useMemo(() => {
     if (!draftRange) return null;
-    const from = clockToMinutes(draftRange.startTime);
-    const to = clockToMinutes(draftRange.endTime);
+    const from = minutesOfClock(draftRange.startTime);
+    const to = minutesOfClock(draftRange.endTime);
     if (from === null || to === null) return null;
-    return { from, to: Math.max(to, from + 1) };
-  }, [draftRange]);
+    return { from: from + shift.draft, to: Math.max(to, from + 1) + shift.draft };
+  }, [draftRange, shift.draft]);
 
   const { segments, skipped, axisFrom, axisTo, ticks, sources } = useMemo(() => {
     const built: Segment[] = [];
     let skippedCount = 0;
 
     entries.forEach((entry) => {
-      const from = toMinutes(entry.start, date) ?? clockToMinutes(entry.startTime);
-      if (from === null) {
+      const rawFrom = toMinutes(entry.start, date) ?? minutesOfClock(entry.startTime);
+      if (rawFrom === null) {
         skippedCount += 1;
         return;
       }
-      let to = toMinutes(entry.end, date) ?? clockToMinutes(entry.endTime);
+      const from = rawFrom + shift.entries;
+      const rawTo = toMinutes(entry.end, date) ?? minutesOfClock(entry.endTime);
+      let to = rawTo === null ? null : rawTo + shift.entries;
       // Длительность надёжнее конца: у записей за полночь конец без даты
       // оказывался бы левее начала.
       if (to === null || to <= from) to = from + entry.durationSeconds / 60;
@@ -120,7 +120,8 @@ export default function DayTimeline({
     const minFrom = Math.min(...bounds.map((item) => item.from));
     const maxTo = Math.max(...bounds.map((item) => item.to));
 
-    let start = Math.max(0, Math.floor(minFrom / 60) * 60 - 30);
+    // Край суток держит шкалу, пока пересчёт не вывел записи за него.
+    let start = Math.max(minFrom < 0 ? -Infinity : 0, Math.floor(minFrom / 60) * 60 - 30);
     let end = Math.ceil(maxTo / 60) * 60 + 30;
     if (end - start < MIN_SPAN_MINUTES) end = start + MIN_SPAN_MINUTES;
 
@@ -153,7 +154,7 @@ export default function DayTimeline({
       ticks: tickList,
       sources: present,
     };
-  }, [entries, date, draftBounds]);
+  }, [entries, date, draftBounds, shift.entries]);
 
   const span = Math.max(1, axisTo - axisFrom);
   const percent = (minutes: number) => ((minutes - axisFrom) / span) * 100;
@@ -165,12 +166,14 @@ export default function DayTimeline({
    * границ дала бы отрицательные окна.
    *
    * Всё, что за полночь, отсекаем: запись табеля принадлежит одному дню, и
-   * форма всё равно не приняла бы интервал через сутки.
+   * форма всё равно не приняла бы интервал через сутки. Полночь тут двойная:
+   * сутки табеля и сутки сотрудника, окно — их пересечение.
    */
   const gaps = useMemo(() => {
-    const dayEnd = 24 * 60 - 1;
+    const dayStart = Math.max(shift.entries, shift.draft);
+    const dayEnd = Math.min(shift.entries, shift.draft) + 24 * 60 - 1;
     const busy = segments
-      .map(({ from, to }) => ({ from: Math.max(0, from), to: Math.min(to, dayEnd) }))
+      .map(({ from, to }) => ({ from: Math.max(dayStart, from), to: Math.min(to, dayEnd) }))
       .filter((item) => item.to > item.from)
       .sort((left, right) => left.from - right.from);
 
@@ -181,7 +184,7 @@ export default function DayTimeline({
       else merged.push({ ...item });
     }
 
-    const windowFrom = Math.max(0, axisFrom);
+    const windowFrom = Math.max(dayStart, axisFrom);
     const windowTo = Math.min(axisTo, dayEnd);
     const result: { from: number; to: number }[] = [];
     let cursor = windowFrom;
@@ -194,7 +197,7 @@ export default function DayTimeline({
 
     // Окна тоньше пяти минут кликом не поймать, а мусорных полосок дают много.
     return result.filter((item) => item.to - item.from >= 5);
-  }, [segments, axisFrom, axisTo]);
+  }, [segments, axisFrom, axisTo, shift.entries, shift.draft]);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -263,15 +266,16 @@ export default function DayTimeline({
               gaps.map((gap) => {
                 const left = percent(gap.from);
                 const width = Math.max(0.4, percent(gap.to) - left);
-                const startTime = clock(gap.from);
-                const endTime = clock(gap.to);
+                // Форма ждёт время по месту сотрудника, подпись — у смотрящего.
+                const startTime = clock(gap.from - shift.draft);
+                const endTime = clock(gap.to - shift.draft);
 
                 return (
                   <button
                     key={`gap-${gap.from}-${gap.to}`}
                     type="button"
                     onClick={() => onGapClick({ startTime, endTime })}
-                    title={`Добавить время ${startTime} – ${endTime}`}
+                    title={`Добавить время ${clock(gap.from)} – ${clock(gap.to)}`}
                     className="group absolute inset-y-2 flex items-center justify-center rounded-md border border-dashed border-transparent transition hover:border-brand-300 hover:bg-brand-50/60"
                     style={{ left: `${left}%`, width: `${width}%` }}
                   >

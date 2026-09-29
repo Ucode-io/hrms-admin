@@ -51,6 +51,7 @@ import {
   formatShiftTime,
   fromIsoDate,
   getInitials,
+  hasFixedTime,
   isWeekend,
   normalizeTime,
   rangeForScale,
@@ -69,6 +70,8 @@ import type {
   ShiftsScale,
 } from "./types";
 import { useTranslation } from "../../i18n";
+import { useEmployeeTimeZones } from "../../hooks/useEmployeeTimeZones";
+import { WallRange } from "../../components/common/WallTime";
 
 const BREADCRUMBS = [{ label: "График работы", to: "/shifts" }];
 
@@ -260,6 +263,14 @@ export default function ShiftsPage() {
     });
     return map;
   }, [visibleShifts]);
+
+  // Пояс смены — пояс сотрудника на дату смены, а не её `locations_id`
+  // (ADR-0014, п. 3). Открытые смены без человека остаются в местном времени.
+  const zones = useEmployeeTimeZones(
+    employees.map((employee) => employee.id),
+    range.from,
+    range.to
+  );
 
   const openShifts = useMemo(
     () => visibleShifts.filter((shift) => !shift.user_base_id),
@@ -763,6 +774,7 @@ export default function ShiftsPage() {
               dates={dates}
               groups={groups}
               shiftByCell={shiftByCell}
+              zones={zones}
               isMonthScale={scale === "month"}
               itemBy={itemBy}
               offDayByDate={offDayByDate}
@@ -847,7 +859,11 @@ export default function ShiftsPage() {
                     color: meta.color,
                   }}
                 >
-                  {time || meta.label}
+                  {shift && hasFixedTime(shift) ? (
+                    <WallRange zones={zones} userBaseId={employee.id} date={breakdown.date} start={shift.start_time} end={shift.end_time} />
+                  ) : (
+                    time || meta.label
+                  )}
                 </span>
                 <button
                   type="button"

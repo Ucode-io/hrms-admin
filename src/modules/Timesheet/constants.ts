@@ -1,6 +1,7 @@
 import type { TimelineScale, TimesheetSource, TimesheetView } from "./types";
 import { translate, getLocale, monthNames, weekdayNames } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
+import { formatClock, rebaseClock, toViewerClock, utcOffsetLabel, type ZoneInterval } from "../../utils/wallClock";
 
 /** Таймлайн идёт первым и открывается по умолчанию — с него читают день. */
 export const VIEW_ORDER: TimesheetView[] = ["timeline", "table"];
@@ -231,3 +232,87 @@ export const avatarColor = (seed: string): string => {
  * сверх него упирается в край.
  */
 export const BAR_SCALE_SECONDS = 10 * 3600;
+
+/**
+ * Пояс строк табеля. reports отдаёт время Time Doctor и ручных записей как
+ * UTC, сдвинутый на `TIMESHEET_TZ_OFFSET_MINUTES` (+5 ч) для всех сотрудников,
+ * а не настенные часы сотрудника, как остальной HRMS (ADR-0005). Etc/GMT-5 —
+ * это UTC+5: знак у Etc-зон обратный. Сменят смещение в reports — менять здесь.
+ */
+export const TIMESHEET_SOURCE_ZONE = "Etc/GMT-5";
+/** «UTC+5» из константы: подписи и тексты `wall_clock.*` получают его как `{zone}`. */
+export const TIMESHEET_SOURCE_LABEL = utcOffsetLabel(TIMESHEET_SOURCE_ZONE, Date.now());
+
+/**
+ * Поля ввода табеля, когда пояс сотрудника неизвестен: время понимается по
+ * часам табеля, и подсказка «= 10:00 у вас» считается от них (ADR-0014, п. 2).
+ */
+export const timesheetSourceZone = (date: string): ZoneInterval => ({
+  from: date,
+  to: date,
+  timezone: TIMESHEET_SOURCE_ZONE,
+  regions_id: null,
+  region_title: TIMESHEET_SOURCE_LABEL,
+});
+
+/**
+ * Время табеля у смотрящего одной строкой — для подсказок и текста.
+ * `atDate` — дата самого времени, если оно на других сутках, чем строка
+ * (конец за полночь); метка суток всё равно от `date`.
+ */
+export const viewerTime = (date: string, time: string, atDate: string = date): string => {
+  const clock = toViewerClock(atDate, time, TIMESHEET_SOURCE_ZONE);
+  return clock ? formatClock(rebaseClock(clock, atDate, date)) : time;
+};
+
+/** Дата конца записи: `end` несёт полную дату, `endTime` — только часы. */
+export const entryEndDate = (entry: { date: string; end?: string | null }): string =>
+  entry.end?.slice(0, 10) || entry.date;
+
+/**
+ * Дата последнего окончания в ячейке таймлайна. reports отдаёт его без даты
+ * (`timesheet-timeline.js`), но запись короче суток: конец раньше первого
+ * начала — значит, уже следующие сутки.
+ */
+export const lastEndDate = (day: { date: string; firstStart?: string | null; lastEnd?: string | null }): string =>
+  day.firstStart && day.lastEnd && day.lastEnd < day.firstStart ? shiftDays(day.date, 1) : day.date;
+
+/** Строка табеля → местное время сотрудника: для формы правки и CSV. */
+export const sourceToEmployee = (
+  date: string,
+  time: string,
+  employeeTimeZone: string | null
+): { date: string; time: string } => {
+  const clock = employeeTimeZone ? toViewerClock(date, time, TIMESHEET_SOURCE_ZONE, employeeTimeZone) : null;
+  if (!clock) return { date, time };
+  return { date: shiftDays(date, clock.dayShift), time: clock.time };
+};
+
+/**
+ * Ввод по месту сотрудника (ADR-0014, п. 2) → строки, которые ждёт reports.
+ * Пояс неизвестен — отправляется как есть, то есть по часам табеля: формы об
+ * этом говорят (`wall_clock.timesheet_zone_unknown`). null — по часам табеля
+ * интервал переходит через полночь, а reports такие не принимает.
+ *
+ * Конец ровно в полночь табеля уходит как 23:59: иначе бакинские 18:00–23:00
+ * (= 19:00–00:00 UTC+5) не сохранить ни целиком, ни двумя записями — вторая,
+ * 22:00–23:00, упирается в ту же полночь. Теряется минута; reports `24:00` не
+ * принимает (`manual-time-common.js`, `parseClock`).
+ */
+export const employeeToSource = (
+  date: string,
+  start: string,
+  end: string,
+  employeeTimeZone: string | null
+): { work_date: string; start_time: string; end_time: string } | null => {
+  if (!employeeTimeZone) return { work_date: date, start_time: start, end_time: end };
+  const from = toViewerClock(date, start, employeeTimeZone, TIMESHEET_SOURCE_ZONE);
+  const to = toViewerClock(date, end, employeeTimeZone, TIMESHEET_SOURCE_ZONE);
+  if (!from || !to) return null;
+  const work_date = shiftDays(date, from.dayShift);
+  if (from.dayShift === to.dayShift) return { work_date, start_time: from.time, end_time: to.time };
+  const endsAtMidnight = to.minutes === (from.dayShift + 1) * 1440;
+  // Начало в 23:59 табеля дало бы пустой интервал 23:59–23:59.
+  if (!endsAtMidnight || from.time === "23:59") return null;
+  return { work_date, start_time: from.time, end_time: "23:59" };
+};

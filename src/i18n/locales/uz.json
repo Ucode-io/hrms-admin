@@ -5794,5 +5794,15 @@
   "settings_misc.bot_notifications.event.deduction_added.hint": "Summalar hech qachon umumiy chatga yuborilmaydi.",
   "settings_misc.broadcasts.to_employees_hint": "Bot bilan shaxsiy chatga. Botni hali ulamaganlar olmaydi — yuborishdan oldin ularning sonini ko‘rsatamiz.",
   "settings_misc.broadcasts.groups_none": "Kompaniyada ulangan Telegram guruhlar yo‘q.",
-  "settings_misc.broadcasts.groups_connect": "Ulash"
+  "settings_misc.broadcasts.groups_connect": "Ulash",
+  "wall_clock.zone_unknown": "xodim joyi vaqti, vaqt mintaqasi noma'lum",
+  "wall_clock.at_viewer": "= sizda {time}",
+  "wall_clock.at_viewer_zone": "{zone}: sizda {time}",
+  "wall_clock.employee_local": "Vaqt xodim joyi bo'yicha",
+  "wall_clock.csv_timezone": "Vaqt mintaqasi",
+  "wall_clock.timesheet_crosses_midnight": "Tabel vaqti ({zone}) bo'yicha oraliq yarim tundan o'tadi — uni ikki yozuvga bo'ling",
+  "wall_clock.timesheet_saved_on_date": "Vaqt qo'shildi va kelishuvga yuborildi. Tabel vaqti ({zone}) bo'yicha yozuv {date} sanasiga tushdi.",
+  "wall_clock.timesheet_source_times": "Tabel vaqti ({zone}): xodimning mahalliy vaqti bo'yicha yozuv yarim tundan o'tadi",
+  "wall_clock.timesheet_zone_unknown": "Xodimning vaqt mintaqasi noma'lum — vaqt tabel vaqti ({zone}) bo'yicha kiritiladi va saqlanadi",
+  "wall_clock.csv_zones_failed": "Xodimlarning vaqt mintaqalari yuklanmadi — eksportdagi vaqt tabel vaqti ({zone}) bo'yicha"
 }
