@@ -5804,5 +5804,19 @@
   "wall_clock.timesheet_saved_on_date": "时间已添加并提交审批。按考勤表时间（{zone}）该记录落在 {date}。",
   "wall_clock.timesheet_source_times": "考勤表时间（{zone}）：按员工当地时间该记录跨越午夜",
   "wall_clock.timesheet_zone_unknown": "员工时区未知 — 时间按考勤表时间（{zone}）输入和保存",
-  "wall_clock.csv_zones_failed": "员工时区加载失败 — 导出中的时间为考勤表时间（{zone}）"
+  "wall_clock.csv_zones_failed": "员工时区加载失败 — 导出中的时间为考勤表时间（{zone}）",
+  "employees.list.crm_no_onboarding": "不会创建入职任务",
+  "employees.list.crm_loading": "正在加载 CRM 数据…",
+  "employees.list.crm_error": "CRM 错误",
+  "employees.list.crm_bad_response": "CRM 响应格式不正确",
+  "employees.list.crm_summary_total": "总计",
+  "employees.list.crm_summary_new": "新增",
+  "employees.list.crm_summary_matched": "将关联到现有员工",
+  "employees.list.crm_summary_ambiguous": "需要核查",
+  "employees.list.crm_kind_new": "新员工",
+  "employees.list.crm_kind_matched": "将关联",
+  "employees.list.crm_kind_linked": "已关联",
+  "employees.list.crm_kind_ambiguous": "待核查",
+  "employees.list.crm_import_success": "CRM 导入：新增 {created}，关联 {linked}",
+  "employees.list.crm_import_error": "导入失败"
 }

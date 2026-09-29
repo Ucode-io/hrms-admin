@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import authStore from "../../store/auth.store";
 import { retryWithFreshToken } from "../unauthorizedHandler";
 import { injectCompaniesIdIntoInvokeFunctionRequest } from "../httpRequest";
+import { translate } from "../../i18n";
 
 const PATH = "/v2/invoke_function/udevs-hrms-reports?project-id=9a462573-ce11-4288-928a-a6ba754b6998";
 const request = axios.create({ baseURL: "https://api.admin.u-code.io", timeout: 120000 });
@@ -24,7 +25,7 @@ async function invoke<T>(method: string, data: Record<string, unknown> = {}): Pr
     if (node.method === method) return node.result as T;
     node = node.data;
   }
-  throw new Error("CRM javobi noto‘g‘ri formatda keldi");
+  throw new Error(translate("employees.list.crm_bad_response"));
 }
 
 export type CrmPreviewItem = {

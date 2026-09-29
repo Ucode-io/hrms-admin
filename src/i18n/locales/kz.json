@@ -5804,5 +5804,19 @@
   "wall_clock.timesheet_saved_on_date": "Уақыт қосылды және келісуге жіберілді. Табель уақыты ({zone}) бойынша жазба {date} күніне түсті.",
   "wall_clock.timesheet_source_times": "Табель уақыты ({zone}): қызметкердің жергілікті уақыты бойынша жазба түн ортасынан өтеді",
   "wall_clock.timesheet_zone_unknown": "Қызметкердің уақыт белдеуі белгісіз — уақыт табель уақытымен ({zone}) енгізіледі және сақталады",
-  "wall_clock.csv_zones_failed": "Қызметкерлердің уақыт белдеулері жүктелмеді — экспорттағы уақыт табель уақытымен ({zone})"
+  "wall_clock.csv_zones_failed": "Қызметкерлердің уақыт белдеулері жүктелмеді — экспорттағы уақыт табель уақытымен ({zone})",
+  "employees.list.crm_no_onboarding": "Онбординг тапсырмалары жасалмайды",
+  "employees.list.crm_loading": "CRM деректері жүктелуде…",
+  "employees.list.crm_error": "CRM қатесі",
+  "employees.list.crm_bad_response": "CRM жауабы қате форматта келді",
+  "employees.list.crm_summary_total": "Барлығы",
+  "employees.list.crm_summary_new": "Жаңа",
+  "employees.list.crm_summary_matched": "Барларына байланысады",
+  "employees.list.crm_summary_ambiguous": "Тексеру қажет",
+  "employees.list.crm_kind_new": "Жаңа",
+  "employees.list.crm_kind_matched": "Байланысады",
+  "employees.list.crm_kind_linked": "Байланысқан",
+  "employees.list.crm_kind_ambiguous": "Тексеру",
+  "employees.list.crm_import_success": "CRM импорты: жаңа {created}, байланысқан {linked}",
+  "employees.list.crm_import_error": "Импорт қатесі"
 }

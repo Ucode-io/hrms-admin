@@ -5839,5 +5839,19 @@
   "wall_clock.timesheet_saved_on_date": "Время добавлено и отправлено на согласование. По часам табеля ({zone}) запись легла на {date}.",
   "wall_clock.timesheet_source_times": "Время по часам табеля ({zone}): по местным часам сотрудника запись переходит через полночь",
   "wall_clock.timesheet_zone_unknown": "Пояс сотрудника неизвестен — время вводится и сохраняется по часам табеля ({zone})",
-  "wall_clock.csv_zones_failed": "Пояса сотрудников не загрузились — время в выгрузке по часам табеля ({zone})"
+  "wall_clock.csv_zones_failed": "Пояса сотрудников не загрузились — время в выгрузке по часам табеля ({zone})",
+  "employees.list.crm_no_onboarding": "Задачи онбординга не создаются",
+  "employees.list.crm_loading": "Загружаем данные CRM…",
+  "employees.list.crm_error": "Ошибка CRM",
+  "employees.list.crm_bad_response": "Ответ CRM пришёл в неверном формате",
+  "employees.list.crm_summary_total": "Всего",
+  "employees.list.crm_summary_new": "Новые",
+  "employees.list.crm_summary_matched": "Свяжутся с существующими",
+  "employees.list.crm_summary_ambiguous": "Нужна проверка",
+  "employees.list.crm_kind_new": "Новый",
+  "employees.list.crm_kind_matched": "Будет связан",
+  "employees.list.crm_kind_linked": "Связан",
+  "employees.list.crm_kind_ambiguous": "Проверить",
+  "employees.list.crm_import_success": "Импорт из CRM: новых {created}, связано {linked}",
+  "employees.list.crm_import_error": "Ошибка импорта"
 }

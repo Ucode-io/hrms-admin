@@ -167,7 +167,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
   const crmStatus = useVegapharmCrmStatus(isVegapharm);
   const crmPreview = useVegapharmCrmPreview(isVegapharm && crmModalOpen);
   const crmImport = useVegapharmCrmImport();
-  // Кого импортировать. По умолчанию все, кроме «Tekshirish»: их бэкенд всё равно пропускает.
+  // Кого импортировать. По умолчанию все, кроме ambiguous: их бэкенд всё равно пропускает.
   const crmSelectable = useMemo(() => (crmPreview.data?.items || []).filter((item) => item.kind !== "ambiguous").map((item) => item.crm_id), [crmPreview.data]);
   const [crmSelected, setCrmSelected] = useState<Set<number>>(new Set());
   useEffect(() => setCrmSelected(new Set(crmSelectable)), [crmSelectable]);
@@ -1010,21 +1010,21 @@ const EmployeesListContent = observer(function EmployeesListContent() {
         <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: "min(920px,100%)", maxHeight: "85vh", overflow: "auto", borderRadius: 16, background: "#fff", boxShadow: "0 24px 70px rgba(15,23,42,.25)" }}>
             <div style={{ display: "flex", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid #e2e8f0" }}>
-              <div><div style={{ fontSize: 18, fontWeight: 700 }}>{t("employees.list.crm_modal_title")}</div><div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>Onboarding vazifalari yaratilmaydi</div></div>
+              <div><div style={{ fontSize: 18, fontWeight: 700 }}>{t("employees.list.crm_modal_title")}</div><div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>{t("employees.list.crm_no_onboarding")}</div></div>
               <button onClick={() => setCrmModalOpen(false)} style={{ marginLeft: "auto", border: 0, background: "transparent", cursor: "pointer" }}><X size={20}/></button>
             </div>
             <div style={{ padding: 22 }}>
-              {crmPreview.isLoading ? <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>CRM ma’lumotlari yuklanmoqda…</div> : crmPreview.error ? <div style={{ padding: 16, background: "#fef2f2", color: "#b91c1c", borderRadius: 10 }}>{crmPreview.error instanceof Error ? crmPreview.error.message : "CRM xatosi"}</div> : (
+              {crmPreview.isLoading ? <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>{t("employees.list.crm_loading")}</div> : crmPreview.error ? <div style={{ padding: 16, background: "#fef2f2", color: "#b91c1c", borderRadius: 10 }}>{crmPreview.error instanceof Error ? crmPreview.error.message : t("employees.list.crm_error")}</div> : (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 18 }}>
-                    {[['Jami',crmPreview.data?.summary.total],['Yangi',crmPreview.data?.summary.new],['Mavjudga bog‘lanadi',crmPreview.data?.summary.matched],['Tekshirish kerak',crmPreview.data?.summary.ambiguous]].map(([label,value]) => <div key={String(label)} style={{ padding: 13, border: "1px solid #e2e8f0", borderRadius: 10 }}><div style={{ fontSize: 12, color: "#64748b" }}>{label}</div><div style={{ fontSize: 22, fontWeight: 700 }}>{value ?? 0}</div></div>)}
+                    {[[t('employees.list.crm_summary_total'),crmPreview.data?.summary.total],[t('employees.list.crm_summary_new'),crmPreview.data?.summary.new],[t('employees.list.crm_summary_matched'),crmPreview.data?.summary.matched],[t('employees.list.crm_summary_ambiguous'),crmPreview.data?.summary.ambiguous]].map(([label,value]) => <div key={String(label)} style={{ padding: 13, border: "1px solid #e2e8f0", borderRadius: 10 }}><div style={{ fontSize: 12, color: "#64748b" }}>{label}</div><div style={{ fontSize: 22, fontWeight: 700 }}>{value ?? 0}</div></div>)}
                   </div>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 13, cursor: "pointer" }}>
                     <input type="checkbox" checked={crmSelectable.length > 0 && crmSelected.size === crmSelectable.length} onChange={(e) => setCrmSelected(new Set(e.target.checked ? crmSelectable : []))} />
                     {t("settings_roles.select_all")} <span style={{ color: "#64748b" }}>({crmSelected.size}/{crmSelectable.length})</span>
                   </label>
                   <div style={{ maxHeight: 380, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
-                    {(crmPreview.data?.items || []).map(item => <label key={item.crm_id} style={{ display: "grid", gridTemplateColumns: "20px 1.4fr 1fr 1fr 120px", gap: 12, alignItems: "center", padding: "10px 12px", borderBottom: "1px solid #f1f5f9", fontSize: 13, cursor: item.kind === "ambiguous" ? "default" : "pointer" }}><input type="checkbox" disabled={item.kind === "ambiguous"} checked={crmSelected.has(item.crm_id)} onChange={() => toggleCrm(item.crm_id)} /><span><strong>{item.full_name}</strong><div style={{ fontSize: 12, color: "#64748b" }}>{[item.phone, item.email].filter(Boolean).join(" · ") || "—"}</div></span><span>{item.department || '—'}</span><span>{item.position || '—'}</span><span style={{ color: item.kind==='ambiguous'?'#b45309':item.kind==='new'?'#0369a1':'#15803d' }}>{item.kind==='new'?'Yangi':item.kind==='matched'?'Bog‘lanadi':item.kind==='linked'?'Bog‘langan':'Tekshirish'}</span></label>)}
+                    {(crmPreview.data?.items || []).map(item => <label key={item.crm_id} style={{ display: "grid", gridTemplateColumns: "20px 1.4fr 1fr 1fr 120px", gap: 12, alignItems: "center", padding: "10px 12px", borderBottom: "1px solid #f1f5f9", fontSize: 13, cursor: item.kind === "ambiguous" ? "default" : "pointer" }}><input type="checkbox" disabled={item.kind === "ambiguous"} checked={crmSelected.has(item.crm_id)} onChange={() => toggleCrm(item.crm_id)} /><span><strong>{item.full_name}</strong><div style={{ fontSize: 12, color: "#64748b" }}>{[item.phone, item.email].filter(Boolean).join(" · ") || "—"}</div></span><span>{item.department || '—'}</span><span>{item.position || '—'}</span><span style={{ color: item.kind==='ambiguous'?'#b45309':item.kind==='new'?'#0369a1':'#15803d' }}>{t(`employees.list.crm_kind_${item.kind}`)}</span></label>)}
                   </div>
                 </>
               )}
@@ -1032,7 +1032,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
               <button disabled={!(crmPreview.data?.items || []).some(item => item.user_base_id)} onClick={downloadCrmIds} style={{ padding: "9px 15px", border: "1px solid #bae6fd", borderRadius: 9, background: "#f0f9ff", color: "#0369a1", cursor: "pointer", marginRight: "auto" }}>{t("employees.list.crm_download_ids")}</button>
               <button onClick={() => setCrmModalOpen(false)} style={{ padding: "9px 15px", border: "1px solid #cbd5e1", borderRadius: 9, background: "#fff", cursor: "pointer" }}>{t("common.cancel")}</button>
-              <button disabled={!crmPreview.data || crmImport.isLoading || crmSelected.size === 0} onClick={async()=>{ try { const ids=[...crmSelected]; const result=await crmImport.mutateAsync(ids); toast.success(`CRM import: ${result.created} yangi, ${result.linked} bog‘landi`); setCrmModalOpen(false); } catch(e){ toast.error(e instanceof Error?e.message:"Import xatosi"); } }} style={{ padding: "9px 15px", border: 0, borderRadius: 9, background: brandColor, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{crmImport.isLoading?t('employees.list.crm_importing'):`${t('employees.list.crm_import_button')} (${crmSelected.size})`}</button>
+              <button disabled={!crmPreview.data || crmImport.isLoading || crmSelected.size === 0} onClick={async()=>{ try { const ids=[...crmSelected]; const result=await crmImport.mutateAsync(ids); toast.success(t('employees.list.crm_import_success', { created: result.created, linked: result.linked })); setCrmModalOpen(false); } catch(e){ toast.error(e instanceof Error?e.message:t('employees.list.crm_import_error')); } }} style={{ padding: "9px 15px", border: 0, borderRadius: 9, background: brandColor, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{crmImport.isLoading?t('employees.list.crm_importing'):`${t('employees.list.crm_import_button')} (${crmSelected.size})`}</button>
             </div>
           </div>
         </div>

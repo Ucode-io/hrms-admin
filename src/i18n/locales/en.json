@@ -5875,5 +5875,19 @@
   "wall_clock.timesheet_saved_on_date": "Time added and sent for approval. In timesheet time ({zone}) the entry falls on {date}.",
   "wall_clock.timesheet_source_times": "Timesheet time ({zone}): in the employee's local time this entry crosses midnight",
   "wall_clock.timesheet_zone_unknown": "Employee's time zone is unknown — time is entered and saved in timesheet time ({zone})",
-  "wall_clock.csv_zones_failed": "Employee time zones failed to load — times in the export are in timesheet time ({zone})"
+  "wall_clock.csv_zones_failed": "Employee time zones failed to load — times in the export are in timesheet time ({zone})",
+  "employees.list.crm_no_onboarding": "Onboarding tasks are not created",
+  "employees.list.crm_loading": "Loading CRM data…",
+  "employees.list.crm_error": "CRM error",
+  "employees.list.crm_bad_response": "CRM response has an unexpected format",
+  "employees.list.crm_summary_total": "Total",
+  "employees.list.crm_summary_new": "New",
+  "employees.list.crm_summary_matched": "Will link to existing",
+  "employees.list.crm_summary_ambiguous": "Needs review",
+  "employees.list.crm_kind_new": "New",
+  "employees.list.crm_kind_matched": "Will be linked",
+  "employees.list.crm_kind_linked": "Linked",
+  "employees.list.crm_kind_ambiguous": "Review",
+  "employees.list.crm_import_success": "CRM import: {created} new, {linked} linked",
+  "employees.list.crm_import_error": "Import error"
 }

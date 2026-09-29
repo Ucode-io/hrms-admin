@@ -5804,5 +5804,19 @@
   "wall_clock.timesheet_saved_on_date": "Vaqt qo'shildi va kelishuvga yuborildi. Tabel vaqti ({zone}) bo'yicha yozuv {date} sanasiga tushdi.",
   "wall_clock.timesheet_source_times": "Tabel vaqti ({zone}): xodimning mahalliy vaqti bo'yicha yozuv yarim tundan o'tadi",
   "wall_clock.timesheet_zone_unknown": "Xodimning vaqt mintaqasi noma'lum — vaqt tabel vaqti ({zone}) bo'yicha kiritiladi va saqlanadi",
-  "wall_clock.csv_zones_failed": "Xodimlarning vaqt mintaqalari yuklanmadi — eksportdagi vaqt tabel vaqti ({zone}) bo'yicha"
+  "wall_clock.csv_zones_failed": "Xodimlarning vaqt mintaqalari yuklanmadi — eksportdagi vaqt tabel vaqti ({zone}) bo'yicha",
+  "employees.list.crm_no_onboarding": "Onboarding vazifalari yaratilmaydi",
+  "employees.list.crm_loading": "CRM ma’lumotlari yuklanmoqda…",
+  "employees.list.crm_error": "CRM xatosi",
+  "employees.list.crm_bad_response": "CRM javobi noto‘g‘ri formatda keldi",
+  "employees.list.crm_summary_total": "Jami",
+  "employees.list.crm_summary_new": "Yangi",
+  "employees.list.crm_summary_matched": "Mavjudga bog‘lanadi",
+  "employees.list.crm_summary_ambiguous": "Tekshirish kerak",
+  "employees.list.crm_kind_new": "Yangi",
+  "employees.list.crm_kind_matched": "Bog‘lanadi",
+  "employees.list.crm_kind_linked": "Bog‘langan",
+  "employees.list.crm_kind_ambiguous": "Tekshirish",
+  "employees.list.crm_import_success": "CRM import: {created} yangi, {linked} bog‘landi",
+  "employees.list.crm_import_error": "Import xatosi"
 }
