@@ -132,6 +132,8 @@ export type BillingTransaction = {
   balance_after_uzs: number;
   invoice_id: string | null;
   description: string;
+  /** Служебные поля проводки; у перевода — reference (номер платёжки). */
+  meta?: Record<string, unknown>;
   created_at: string;
 };
 
@@ -367,14 +369,16 @@ export const useBillingInvoice = (invoiceId: string) =>
     enabled: Boolean(invoiceId),
   });
 
-export const useBillingTransactions = () =>
+/** Последние limit операций (сервер отдаёт до 200); «Показать ещё» увеличивает limit. */
+export const useBillingTransactions = (limit = 20) =>
   useQuery({
-    queryKey: ["billing-transactions", getCompaniesId()],
+    queryKey: ["billing-transactions", getCompaniesId(), limit],
     queryFn: () =>
       invoke<{ transactions: BillingTransaction[]; balance_uzs: number }>(
         "billing_transactions_list",
-        { limit: 50 }
+        { limit }
       ),
+    keepPreviousData: true,
   });
 
 /** Пункт «Биллинг» в настройках: только когда статус пришёл и компания в биллинге. */

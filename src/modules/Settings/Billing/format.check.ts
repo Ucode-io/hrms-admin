@@ -5,7 +5,7 @@
 // Ломается на том, что попадает в печатный счёт: разряды, род тысяч, склонения.
 
 import assert from "node:assert/strict";
-import { formatDate, formatRate, groupDigits, shortCard, tashkentDay, uzsInWords } from "./format.ts";
+import { daysBetween, formatDate, formatRate, fullCardMask, groupDigits, shortCard, tashkentDay, uzsInWords } from "./format.ts";
 
 const sp = (s: string) => s.replace(/ /g, " ");
 
@@ -18,6 +18,10 @@ assert.equal(shortCard("860006******6311"), "•••• 6311");
 assert.equal(shortCard(null), "••••");
 assert.equal(tashkentDay("2026-09-27T20:30:00Z"), "2026-09-28");
 assert.equal(tashkentDay("2026-09-28T06:00:00Z"), "2026-09-28");
+assert.equal(daysBetween("2026-09-28", "2026-10-26"), 28);
+assert.equal(daysBetween("2026-09-28", "2026-09-28"), 0);
+assert.equal(daysBetween("2026-12-31", "2027-01-01"), 1);
+assert.equal(fullCardMask("860006******6311"), "**** **** **** 6311");
 
 assert.equal(
   uzsInWords(1558896),

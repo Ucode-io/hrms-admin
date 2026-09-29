@@ -14,6 +14,25 @@ export const formatUsd = (value: number): string => `$${value.toFixed(2)}`;
 export const tashkentDay = (iso: string): string =>
   new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Tashkent" });
 
+/** Дней от from до to (оба «YYYY-MM-DD»): «через N дн.», «осталось N дн.». */
+export const daysBetween = (from: string, to: string): number => {
+  const utc = (day: string) => {
+    const [y, m, d] = day.slice(0, 10).split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((utc(to) - utc(from)) / 86_400_000);
+};
+
+/** Дней от сегодняшнего дня по Ташкенту до day; null — даты нет. */
+export const daysFromToday = (day: string | null | undefined): number | null =>
+  day ? daysBetween(tashkentDay(new Date().toISOString()), day) : null;
+
+/** Маска Payme «860006******6311» → «**** **** **** 6311», как на самой карте. */
+export const fullCardMask = (mask: string | null | undefined): string => {
+  const last = String(mask || "").replace(/\D+/g, "").slice(-4);
+  return `**** **** **** ${last || "****"}`;
+};
+
 /** Маска Payme «860006******6311» → «•••• 6311». */
 export const shortCard = (mask: string | null | undefined): string => {
   const last = String(mask || "").replace(/\D+/g, "").slice(-4);
