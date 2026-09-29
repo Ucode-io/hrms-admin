@@ -167,6 +167,15 @@ const EmployeesListContent = observer(function EmployeesListContent() {
   const crmStatus = useVegapharmCrmStatus(isVegapharm);
   const crmPreview = useVegapharmCrmPreview(isVegapharm && crmModalOpen);
   const crmImport = useVegapharmCrmImport();
+  // Кого импортировать. По умолчанию все, кроме «Tekshirish»: их бэкенд всё равно пропускает.
+  const crmSelectable = useMemo(() => (crmPreview.data?.items || []).filter((item) => item.kind !== "ambiguous").map((item) => item.crm_id), [crmPreview.data]);
+  const [crmSelected, setCrmSelected] = useState<Set<number>>(new Set());
+  useEffect(() => setCrmSelected(new Set(crmSelectable)), [crmSelectable]);
+  const toggleCrm = (id: number) => setCrmSelected((prev) => {
+    const next = new Set(prev);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
   const crmLinkedIds = useMemo(() => new Set((crmStatus.data?.links || []).map((item) => item.user_base_id)), [crmStatus.data]);
   const selectPortalTarget = typeof document !== "undefined" ? document.body : null;
   const updateListSessionState = (patch: Partial<EmployeesListSessionState>) => {
@@ -1010,8 +1019,12 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 18 }}>
                     {[['Jami',crmPreview.data?.summary.total],['Yangi',crmPreview.data?.summary.new],['Mavjudga bog‘lanadi',crmPreview.data?.summary.matched],['Tekshirish kerak',crmPreview.data?.summary.ambiguous]].map(([label,value]) => <div key={String(label)} style={{ padding: 13, border: "1px solid #e2e8f0", borderRadius: 10 }}><div style={{ fontSize: 12, color: "#64748b" }}>{label}</div><div style={{ fontSize: 22, fontWeight: 700 }}>{value ?? 0}</div></div>)}
                   </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 13, cursor: "pointer" }}>
+                    <input type="checkbox" checked={crmSelectable.length > 0 && crmSelected.size === crmSelectable.length} onChange={(e) => setCrmSelected(new Set(e.target.checked ? crmSelectable : []))} />
+                    {t("settings_roles.select_all")} <span style={{ color: "#64748b" }}>({crmSelected.size}/{crmSelectable.length})</span>
+                  </label>
                   <div style={{ maxHeight: 380, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
-                    {(crmPreview.data?.items || []).map(item => <div key={item.crm_id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 120px", gap: 12, padding: "10px 12px", borderBottom: "1px solid #f1f5f9", fontSize: 13 }}><strong>{item.full_name}</strong><span>{item.department || '—'}</span><span>{item.position || '—'}</span><span style={{ color: item.kind==='ambiguous'?'#b45309':item.kind==='new'?'#0369a1':'#15803d' }}>{item.kind==='new'?'Yangi':item.kind==='matched'?'Bog‘lanadi':item.kind==='linked'?'Bog‘langan':'Tekshirish'}</span></div>)}
+                    {(crmPreview.data?.items || []).map(item => <label key={item.crm_id} style={{ display: "grid", gridTemplateColumns: "20px 1.4fr 1fr 1fr 120px", gap: 12, alignItems: "center", padding: "10px 12px", borderBottom: "1px solid #f1f5f9", fontSize: 13, cursor: item.kind === "ambiguous" ? "default" : "pointer" }}><input type="checkbox" disabled={item.kind === "ambiguous"} checked={crmSelected.has(item.crm_id)} onChange={() => toggleCrm(item.crm_id)} /><span><strong>{item.full_name}</strong><div style={{ fontSize: 12, color: "#64748b" }}>{[item.phone, item.email].filter(Boolean).join(" · ") || "—"}</div></span><span>{item.department || '—'}</span><span>{item.position || '—'}</span><span style={{ color: item.kind==='ambiguous'?'#b45309':item.kind==='new'?'#0369a1':'#15803d' }}>{item.kind==='new'?'Yangi':item.kind==='matched'?'Bog‘lanadi':item.kind==='linked'?'Bog‘langan':'Tekshirish'}</span></label>)}
                   </div>
                 </>
               )}
@@ -1019,7 +1032,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 22px", borderTop: "1px solid #e2e8f0" }}>
               <button disabled={!(crmPreview.data?.items || []).some(item => item.user_base_id)} onClick={downloadCrmIds} style={{ padding: "9px 15px", border: "1px solid #bae6fd", borderRadius: 9, background: "#f0f9ff", color: "#0369a1", cursor: "pointer", marginRight: "auto" }}>{t("employees.list.crm_download_ids")}</button>
               <button onClick={() => setCrmModalOpen(false)} style={{ padding: "9px 15px", border: "1px solid #cbd5e1", borderRadius: 9, background: "#fff", cursor: "pointer" }}>{t("common.cancel")}</button>
-              <button disabled={!crmPreview.data || crmImport.isLoading} onClick={async()=>{ try { const ids=(crmPreview.data?.items||[]).filter(i=>i.kind!=="ambiguous").map(i=>i.crm_id); const result=await crmImport.mutateAsync(ids); toast.success(`CRM import: ${result.created} yangi, ${result.linked} bog‘landi`); setCrmModalOpen(false); } catch(e){ toast.error(e instanceof Error?e.message:"Import xatosi"); } }} style={{ padding: "9px 15px", border: 0, borderRadius: 9, background: brandColor, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{crmImport.isLoading?t('employees.list.crm_importing'):t('employees.list.crm_import_button')}</button>
+              <button disabled={!crmPreview.data || crmImport.isLoading || crmSelected.size === 0} onClick={async()=>{ try { const ids=[...crmSelected]; const result=await crmImport.mutateAsync(ids); toast.success(`CRM import: ${result.created} yangi, ${result.linked} bog‘landi`); setCrmModalOpen(false); } catch(e){ toast.error(e instanceof Error?e.message:"Import xatosi"); } }} style={{ padding: "9px 15px", border: 0, borderRadius: 9, background: brandColor, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{crmImport.isLoading?t('employees.list.crm_importing'):`${t('employees.list.crm_import_button')} (${crmSelected.size})`}</button>
             </div>
           </div>
         </div>
