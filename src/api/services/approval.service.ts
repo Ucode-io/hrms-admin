@@ -76,7 +76,7 @@ const findGatewayResult = (
   return null;
 };
 
-const invoke = async (
+export const invoke = async (
   method: string,
   data: Record<string, unknown>
 ): Promise<Record<string, unknown> | null> => {

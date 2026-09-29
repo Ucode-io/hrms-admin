@@ -1,21 +1,23 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { CalendarCheck, CalendarDays, List, Plane } from "lucide-react";
+import { CalendarCheck, CalendarDays, Clock, List, Plane } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import CalendarModule from "../Calendar";
 import TimeAttendancePage from "./Attendance";
 import AttendanceEventsPage from "./Attendance/AttendanceEventsPage";
 import AbsenceRequestsView from "./components/AbsenceRequestsView";
+import LatePermissionRequestsView from "./components/LatePermissionRequestsView";
 import { useTranslation } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 
-type TimeView = "calendar" | "attendance" | "events" | "absence";
+type TimeView = "calendar" | "attendance" | "events" | "absence" | "late";
 
 const VIEW_TABS: { value: TimeView; labelKey: MessageKey; icon: typeof CalendarDays }[] = [
   { value: "calendar", labelKey: "breadcrumb.calendar", icon: CalendarDays },
   { value: "attendance", labelKey: "time_module.list", icon: List },
   { value: "events", labelKey: "breadcrumb.attendance", icon: CalendarCheck },
   { value: "absence", labelKey: "dashboard.fallback.absence", icon: Plane },
+  { value: "late", labelKey: "late_permission.tab", icon: Clock },
 ];
 
 const DEFAULT_VIEW: TimeView = "calendar";
@@ -24,7 +26,8 @@ const isTimeView = (value: string | null): value is TimeView =>
   value === "calendar" ||
   value === "attendance" ||
   value === "events" ||
-  value === "absence";
+  value === "absence" ||
+  value === "late";
 
 function TimeModule() {
   const { t } = useTranslation();
@@ -104,6 +107,7 @@ function TimeModule() {
       {activeView === "attendance" && <TimeAttendancePage leftSlot={viewSelect} />}
       {activeView === "events" && <AttendanceEventsPage leftSlot={viewSelect} />}
       {activeView === "absence" && <AbsenceRequestsView leftSlot={viewSelect} />}
+      {activeView === "late" && <LatePermissionRequestsView leftSlot={viewSelect} />}
     </>
   );
 }

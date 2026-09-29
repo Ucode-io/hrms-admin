@@ -9,6 +9,7 @@ export type ApprovalProcessType =
   | "attendance_change_approval"
   | "remote_mark_approval"
   | "manual_time_approval"
+  | "late_permission_approval"
   | "employee_work_approval";
 
 export interface ApprovalRef {
@@ -38,6 +39,7 @@ export const PROCESS_TYPES = [
   { value: "attendance_change_approval", labelKey: "settings_approvals.process_types.attendance_change_approval" },
   { value: "remote_mark_approval", labelKey: "settings_approvals.process_types.remote_mark_approval" },
   { value: "manual_time_approval", labelKey: "settings_approvals.process_types.manual_time_approval" },
+  { value: "late_permission_approval", labelKey: "settings_approvals.process_types.late_permission_approval" },
   { value: "employee_work_approval", labelKey: "settings_approvals.process_types.employee_work_approval" },
 ] as const satisfies ReadonlyArray<{ value: ApprovalProcessType; labelKey: MessageKey }>;
 

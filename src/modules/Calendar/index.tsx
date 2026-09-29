@@ -447,6 +447,8 @@ type AttendanceCellInfo = {
   officeId: string;
   /** Отметка вне филиала ждёт согласования: показана, но не засчитана. */
   pending: boolean;
+  /** «Приду к» одобренного разрешения на опоздание (ADR-0015) или "". */
+  lateBy: string;
 };
 
 const normalizeAttendanceDotKind = (value: unknown): AttendanceDotKind | null => {
@@ -496,9 +498,11 @@ const renderEmptyOrAttendanceCell = ({
 
   const pillColor = ATTENDANCE_PILL_COLOR[info.kind];
   const pillBg = ATTENDANCE_CELL_BG[info.kind];
-  const tooltip = info.pending
-    ? `${translate(ATTENDANCE_DOT_LABEL[info.kind])} · ${translate("attendance.workflow.requested")}`
-    : translate(ATTENDANCE_DOT_LABEL[info.kind]);
+  const tooltip = [
+    translate(ATTENDANCE_DOT_LABEL[info.kind]),
+    info.pending ? translate("attendance.workflow.requested") : "",
+    info.lateBy ? translate("late_permission.badge", { time: info.lateBy }) : "",
+  ].filter(Boolean).join(" · ");
 
   return (
     <td
@@ -527,12 +531,15 @@ const renderEmptyOrAttendanceCell = ({
             },
           });
         }}
-        className={`flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] font-semibold transition hover:ring-2 hover:ring-brand-500/20 ${
+        className={`relative flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] font-semibold transition hover:ring-2 hover:ring-brand-500/20 ${
           info.pending ? "border border-dashed border-amber-500" : ""
         }`}
         style={{ color: pillColor, backgroundColor: pillBg }}
       >
         <AttendanceIcon kind={info.kind} className="h-[18px] w-[18px]" />
+        {info.lateBy ? (
+          <Clock3 className="absolute right-0.5 top-0.5 h-2.5 w-2.5 text-sky-600" aria-hidden />
+        ) : null}
       </button>
     </td>
   );
@@ -935,6 +942,35 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     },
   });
 
+  // Одобренные разрешения на опоздание месяца — у админки на таблицу чтение.
+  const latePermissionsQueryParams = useMemo(
+    () => ({
+      data: encodeJsonToUrlParam({
+        limit: 2000,
+        offset: 0,
+        date: { $gte: monthStartIso, $lte: monthEndIso },
+        status: ["approved"],
+        companies_id: companyStore.company?.guid || COMPANY_ID,
+      }),
+    }),
+    [monthStartIso, monthEndIso]
+  );
+  const { data: latePermissionsData } = useSettingsDirectoryQuery({
+    slug: "late_permissions",
+    params: latePermissionsQueryParams,
+    querySettings: { enabled: Boolean(monthStartIso) && Boolean(monthEndIso) },
+  });
+  const latePermissionRows = (latePermissionsData as { response?: unknown[] } | undefined)?.response;
+  const lateByDay = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of (latePermissionRows || []) as Record<string, unknown>[]) {
+      const status = [row.status].flat().map(String);
+      if (!status.includes("approved") || row.deleted_at) continue;
+      map.set(`${row.user_base_id}|${String(row.date).slice(0, 10)}`, String(row.arrive_by || ""));
+    }
+    return map;
+  }, [latePermissionRows]);
+
   const geoByDay = useMemo(
     () => markGeoByDay((attendanceRecordsData?.response || []) as Record<string, unknown>[]),
     [attendanceRecordsData?.response]
@@ -1008,6 +1044,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
         pending:
           sourceKind === "integration" &&
           [row.status].flat().some((value) => String(value).trim().toLowerCase() === "requested"),
+        lateBy: lateByDay.get(`${userId}|${dateKey}`) || "",
       };
 
       let userMap = map.get(userId);
@@ -1019,7 +1056,7 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     }
 
     return map;
-  }, [attendanceData?.response, geoByDay, officeIdByEmployee, t]);
+  }, [attendanceData?.response, geoByDay, lateByDay, officeIdByEmployee, t]);
 
   if (typeof employeesData?.count === "number" && Number.isFinite(employeesData.count)) {
     lastKnownTotalCountRef.current = employeesData.count;
@@ -1822,6 +1859,11 @@ function AttendanceTooltip({
           {data.pending ? (
             <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
               {t("attendance.workflow.requested")}
+            </span>
+          ) : null}
+          {data.lateBy ? (
+            <span className="inline-flex items-center rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+              {t("late_permission.badge", { time: data.lateBy })}
             </span>
           ) : null}
         </div>
