@@ -21,7 +21,6 @@ export type WorkFormState = {
   positionsId: string;
   experienceLevelId: string;
   employeeWorkReasonId: string;
-  workScheduleId: string;
   salary: string;
   dateFrom: string;
   dateTo: string;
@@ -50,7 +49,6 @@ export type WorkFieldContext = {
     position: RemoteSelectOption | null;
     experienceLevel: RemoteSelectOption | null;
     workReason: RemoteSelectOption | null;
-    workSchedule: RemoteSelectOption | null;
   };
   /** Уровни ограничены группой выбранной должности; null — ограничения нет. */
   /** Уровни выбранной должности. Пустое множество = выбирать нечего. */
@@ -216,20 +214,6 @@ export const WORK_FIELDS: WorkFieldMeta[] = [
         classNamePrefix: "work-reason-select",
         onChange: (value) =>
           ctx.setForm((prev) => ({ ...prev, employeeWorkReasonId: value })),
-      }),
-  },
-  {
-    key: "work_schedule_id",
-    label: translate("employees.work_fields.schedule"),
-    defaultWidth: "full",
-    render: (ctx) =>
-      directoryField(ctx, {
-        slug: "work_schedule",
-        value: ctx.form.workScheduleId,
-        fallback: ctx.fallbackOptions.workSchedule,
-        placeholder: translate("employees.work_fields.schedule_placeholder"),
-        classNamePrefix: "work-schedule-select",
-        onChange: (value) => ctx.setForm((prev) => ({ ...prev, workScheduleId: value })),
       }),
   },
   {

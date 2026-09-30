@@ -425,14 +425,10 @@ export default function HickvisionIntegrationSettingsPage() {
       });
 
       const summary = response.result.summary;
-      const processedCount = summary.total_events ?? summary.total_pairs ?? 0;
-      const skippedCount =
-        (summary.skipped_manual_accepted ?? 0) +
-        (summary.skipped_attendance_exists ?? 0) +
-        (summary.skipped_non_working_day ?? 0) +
-        (summary.skipped_remote_work_schedule ?? 0) +
-        (summary.skipped_no_company_membership ?? 0) +
-        (summary.no_event ?? 0);
+      const processedCount = summary.total_pairs ?? 0;
+      // Пропускается теперь только чужая компания: выходные и праздники
+      // решает смена, отметка без смены пишется «вне графика».
+      const skippedCount = summary.skipped_no_company_membership ?? 0;
       setSyncNotice(
         t("settings_integrations.hickvision.sync_completed", {
           processed: processedCount,

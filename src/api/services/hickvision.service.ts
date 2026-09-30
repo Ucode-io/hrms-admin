@@ -11,17 +11,20 @@ const SYNC_ATTENDANCE_METHOD = "sync_attendance_by_date_range";
 
 type JsonRecord = Record<string, unknown>;
 
+// Пересчёт по сменам: отметка идёт в смену, в чью зону попала, прочие — «вне
+// графика»; выходных и праздников как причины пропуска больше нет.
 export type SyncAttendanceSummary = {
-  total_events?: number;
+  linked_records?: number;
   total_pairs?: number;
   inserted_integration: number;
   updated_integration: number;
-  skipped_manual_accepted?: number;
-  skipped_attendance_exists?: number;
-  skipped_non_working_day?: number;
-  skipped_remote_work_schedule?: number;
+  /** Строки «вне графика», пересобранные из сырых отметок. */
+  off_schedule_written?: number;
+  /** Снятые строки: «вне графика» без своих отметок и прогулы на днях без смены. */
+  removed?: number;
+  /** Строки со временем на днях, где смены уже нет (их могла записать CRM). */
+  integration_without_shift?: number;
   skipped_no_company_membership?: number;
-  no_event?: number;
 };
 
 export type SyncAttendanceByDateRangeResult = {

@@ -335,18 +335,6 @@ export const settingsSections: SettingsSection[] = [
           subtitleKey: "settings_misc.settings_index.items.absence-policies.subtitle",
         },
       ],
-      [
-        {
-          id: "work-schedules",
-
-          titleKey: "settings_misc.settings_index.items.work-schedules.title",
-          icon: ListOrdered,
-          path: "/settings/work-schedules",
-          // Не «смены»: здесь недельные шаблоны, а смены на конкретные даты
-          // живут на отдельном экране /shifts.
-          subtitleKey: "settings_misc.settings_index.items.work-schedules.subtitle",
-        },
-      ],
     ],
   },
   {

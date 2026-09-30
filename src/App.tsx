@@ -60,7 +60,6 @@ import ApprovalsSettingsPage from "./modules/Settings/Approvals";
 import ApprovalProcessDetailPage from "./modules/Settings/Approvals/Detail";
 import DocumentsSettingsPage from "./modules/Settings/Documents";
 import CreateDocumentTemplatePage from "./modules/Settings/Documents/TemplateCreate";
-import WorkSchedulesSettingsPage from "./modules/Settings/WorkSchedules";
 import AttendancePenaltiesSettingsPage from "./modules/Settings/AttendancePenalties";
 import ProbationPoliciesSettingsPage from "./modules/Settings/ProbationPolicies";
 import DismissalReasonsSettingsPage from "./modules/Settings/DismissalReasons";
@@ -270,7 +269,6 @@ function App() {
                 <Route path="documents/templates/new" element={<CreateDocumentTemplatePage />} />
                 <Route path="documents/templates/:id/edit" element={<CreateDocumentTemplatePage />} />
                 <Route path="documents/templates/:id" element={<CreateDocumentTemplatePage />} />
-                <Route path="work-schedules" element={<WorkSchedulesSettingsPage />} />
                 <Route path="attendance-penalties" element={<AttendancePenaltiesSettingsPage />} />
                 <Route path="probation-policies" element={<ProbationPoliciesSettingsPage />} />
                 <Route path="dismissal-reasons" element={<DismissalReasonsSettingsPage />} />

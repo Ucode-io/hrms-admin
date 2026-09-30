@@ -77,11 +77,7 @@ import {
   type WorkFormState,
   type WorkModalMode,
 } from "./work-layout/workFields";
-import { useTranslation, translate, weekdayNames } from "../../../../i18n";
-import { useQuery } from "react-query";
-import reportsService, { type WorkScheduleDay } from "../../../../api/services/reports.service";
-import { useEmployeeTimeZones, type EmployeeZones } from "../../../../hooks/useEmployeeTimeZones";
-import { WallRange } from "../../../../components/common/WallTime";
+import { useTranslation, translate } from "../../../../i18n";
 
 type WorkSectionProps = {
   employeeGuid: string;
@@ -103,8 +99,6 @@ type WorkRecord = {
   positionTitle: string;
   experienceLevelTitle: string;
   reasonTitle: string;
-  workScheduleTitle: string;
-  workScheduleId: string;
   salary: number | null;
   dateFrom: string;
   dateTo: string;
@@ -151,7 +145,6 @@ const createEmptyFormState = (): WorkFormState => ({
   positionsId: "",
   experienceLevelId: "",
   employeeWorkReasonId: "",
-  workScheduleId: "",
   salary: "",
   dateFrom: "",
   dateTo: "",
@@ -335,11 +328,6 @@ const normalizeRecord = (row: EmployeeWork): WorkRecord => {
       (typeof row.employee_work_reason_id_data?.title === "string" &&
         row.employee_work_reason_id_data.title) ||
       "—",
-    workScheduleTitle:
-      (typeof row.work_schedule_id_data?.title === "string" &&
-        row.work_schedule_id_data.title) ||
-      "—",
-    workScheduleId: readString(row.work_schedule_id),
     salary: parseSalary(row.salary),
     dateFrom: readString(row.date_from),
     dateTo: readString(row.date_to),
@@ -353,7 +341,6 @@ const buildFormState = (record: EmployeeWork | null, mode: WorkModalMode): WorkF
   positionsId: readString(record?.positions_id),
   experienceLevelId: readString(record?.experience_levels_id),
   employeeWorkReasonId: readString(record?.employee_work_reason_id),
-  workScheduleId: readString(record?.work_schedule_id),
   salary:
     record?.salary === null || record?.salary === undefined ? "" : String(record.salary),
   dateFrom:
@@ -418,69 +405,8 @@ function TimelineTag({
   );
 }
 
-const SCHEDULE_DAY_ORDER: WorkScheduleDay["day"][] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-/** Дата, на которую берётся пояс часов графика: сегодня, если запись его покрывает, иначе её край. */
-const scheduleZoneDate = (record: WorkRecord): string =>
-  record.dateFrom && record.dateFrom > todayIso
-    ? record.dateFrom.slice(0, 10)
-    : record.dateTo && record.dateTo < todayIso
-      ? record.dateTo.slice(0, 10)
-      : todayIso;
-
-/**
- * Часы из дней графика рядом с его названием: название — свободный текст и
- * о часах может врать. Выводятся у смотрящего (ADR-0014); одинаковые часы
- * разных дней склеиваются в одну строку «Пн, Вт, Ср 09:00–18:00».
- */
-function ScheduleHours({
-  scheduleId,
-  employeeGuid,
-  date,
-  zones,
-}: {
-  scheduleId: string;
-  employeeGuid: string;
-  date: string;
-  zones: EmployeeZones;
-}) {
-  const { locale } = useTranslation();
-  const { data: schedule } = useQuery(
-    ["work_schedule", scheduleId],
-    async () => (await reportsService.getWorkSchedules({ guid: scheduleId })).schedules?.[0] ?? null,
-    { enabled: Boolean(scheduleId), staleTime: 10 * 60 * 1000 }
-  );
-  if (!schedule) return null;
-
-  const dayNames = weekdayNames(locale);
-  const byHours = new Map<string, { start: string; end: string; days: string[] }>();
-  [...schedule.days]
-    .sort((a, b) => SCHEDULE_DAY_ORDER.indexOf(a.day) - SCHEDULE_DAY_ORDER.indexOf(b.day))
-    .forEach((day) => {
-      if (day.is_day_off || !day.work_start_time || !day.work_end_time) return;
-      const key = `${day.work_start_time}|${day.work_end_time}`;
-      const group = byHours.get(key) ?? { start: day.work_start_time, end: day.work_end_time, days: [] };
-      group.days.push(dayNames[SCHEDULE_DAY_ORDER.indexOf(day.day)] ?? day.day);
-      byHours.set(key, group);
-    });
-  if (byHours.size === 0) return null;
-
-  return (
-    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[13px] leading-5 text-slate-500">
-      {[...byHours.values()].map((group) => (
-        <span key={`${group.start}|${group.end}`} className="inline-flex items-start gap-1.5">
-          <span className="text-slate-400">{group.days.join(", ")}</span>
-          <WallRange zones={zones} userBaseId={employeeGuid} date={date} start={group.start} end={group.end} />
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function WorkTimelineCard({
   record,
-  employeeGuid,
-  scheduleZones,
   brandColor,
   isCurrent,
   customValues,
@@ -489,9 +415,6 @@ function WorkTimelineCard({
   actionButtonRef,
 }: {
   record: WorkRecord;
-  employeeGuid: string;
-  /** Пояса сотрудника на даты всех карточек — один запрос на ленту. */
-  scheduleZones: EmployeeZones;
   brandColor: string;
   isCurrent: boolean;
   /** Заполненные динамические поля записи: подпись → значение. */
@@ -507,7 +430,6 @@ function WorkTimelineCard({
   );
   const secondaryMeta = [
     record.experienceLevelTitle,
-    record.workScheduleTitle !== "—" ? t("employees.work.schedule_label", { title: record.workScheduleTitle }) : "",
   ].filter((item) => item && item !== "—");
   const salaryValue = formatSalary(record.salary);
   const durationLabel = getDurationLabel(record.dateFrom, record.dateTo);
@@ -569,14 +491,6 @@ function WorkTimelineCard({
                 <p className="m-0 mt-1 text-[13px] leading-5 text-slate-400">
                   {secondaryMeta.join(" • ")}
                 </p>
-              ) : null}
-              {record.workScheduleId ? (
-                <ScheduleHours
-                  scheduleId={record.workScheduleId}
-                  employeeGuid={employeeGuid}
-                  date={scheduleZoneDate(record)}
-                  zones={scheduleZones}
-                />
               ) : null}
             </div>
 
@@ -877,18 +791,6 @@ export default function WorkSection({
     return [currentTimelineRecord, ...historyTimelineRecords];
   }, [currentTimelineRecord, historyTimelineRecords, isHistoryExpanded]);
 
-  // Пояса для часов графика — один запрос на всю ленту, а не на карточку. По
-  // всем записям, а не видимым: раскрытие истории не перезапрашивает пояса.
-  const scheduleDates = timelineRecords
-    .filter((item) => item.record.workScheduleId)
-    .map((item) => scheduleZoneDate(item.record))
-    .sort();
-  const scheduleZones = useEmployeeTimeZones(
-    [employeeGuid],
-    scheduleDates[0] ?? "",
-    scheduleDates[scheduleDates.length - 1] ?? ""
-  );
-
   const editingRaw = useMemo(() => {
     if (!editingRecordGuid) return null;
     return recordByGuid.get(editingRecordGuid) || null;
@@ -1129,15 +1031,6 @@ export default function WorkSection({
     );
   }, [form.employeeWorkReasonId, modalSourceRecord]);
 
-  const workScheduleFallbackOption = useMemo<RemoteSelectOption | null>(() => {
-    return buildFallbackOption(
-      form.workScheduleId,
-      typeof modalSourceRecord?.work_schedule_id_data?.title === "string"
-        ? modalSourceRecord.work_schedule_id_data.title
-        : ""
-    );
-  }, [form.workScheduleId, modalSourceRecord]);
-
   /** Всё, что нужно реестру полей модалки для рендера контролов. */
   const workFieldContext: WorkFieldContext = {
     form,
@@ -1154,7 +1047,6 @@ export default function WorkSection({
       position: positionFallbackOption,
       experienceLevel: experienceLevelFallbackOption,
       workReason: workReasonFallbackOption,
-      workSchedule: workScheduleFallbackOption,
     },
     allowedExperienceLevelIds,
     hasPositionGroup: Boolean(selectedPositionGroupId),
@@ -1396,7 +1288,6 @@ export default function WorkSection({
       positions_id: form.positionsId || null,
       experience_levels_id: form.experienceLevelId || null,
       employee_work_reason_id: employeeWorkReasonId || null,
-      work_schedule_id: form.workScheduleId || null,
       salary: salaryValue,
       date_from: form.dateFrom,
       date_to: modalMode === "edit" ? form.dateTo || null : null,
@@ -1865,8 +1756,6 @@ export default function WorkSection({
 
                       <WorkTimelineCard
                         record={item.record}
-                        employeeGuid={employeeGuid}
-                        scheduleZones={scheduleZones}
                         brandColor={brandColor}
                         isCurrent={item.isCurrent}
                         customValues={item.customValues}

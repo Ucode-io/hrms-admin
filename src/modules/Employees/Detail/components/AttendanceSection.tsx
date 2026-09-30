@@ -33,6 +33,8 @@ import { useTranslation, translate } from "../../../../i18n";
 import { useEmployeeTimeZones } from "../../../../hooks/useEmployeeTimeZones";
 import { ViewerTimeHint, WallTime } from "../../../../components/common/WallTime";
 import { nowInZone } from "../../../../utils/wallClock";
+import { useShiftsQuery } from "../../../../api/services/shift.service";
+import { formatShiftTime, shiftKind } from "../../../Shifts/constants";
 
 type AttendanceSectionProps = {
   employeeGuid: string;
@@ -365,6 +367,18 @@ export default function AttendanceSection({
   const draftZone = draftZones.zoneOf(employeeGuid, draftDate);
   const draftTimeZone = draftZone?.timezone ?? "";
 
+  // Смена сотрудника на выбранную дату (решение 16): новую ручную отметку без
+  // смены не сохранить — иначе она обходила бы «вне графика» (решение 14).
+  const draftShiftsQuery = useShiftsQuery(
+    { from: draftDate, to: draftDate },
+    isModalOpen && Boolean(draftDate)
+  );
+  const draftShift = useMemo(
+    () => (draftShiftsQuery.data?.response ?? []).find((shift) => shift.user_base_id === employeeGuid) ?? null,
+    [draftShiftsQuery.data, employeeGuid]
+  );
+  const draftShiftPending = draftShiftsQuery.isLoading || draftShiftsQuery.isFetching;
+
   // Новая запись: «сегодня» и «сейчас» — по часам сотрудника, а не браузера,
   // пока админ не поправил поля руками (ADR-0014, п. 2).
   useEffect(() => {
@@ -429,6 +443,17 @@ export default function AttendanceSection({
     if (!checkInTime && !checkOutTime) {
       setError(t("employees.attendance.time_required"));
       return;
+    }
+
+    if (!editingGuid) {
+      if (draftShiftPending) {
+        setError(t("attendance.shift_loading"));
+        return;
+      }
+      if (!draftShift) {
+        setError(t("attendance.no_shift"));
+        return;
+      }
     }
 
     const date = toApiDate(draft.date);
@@ -767,6 +792,18 @@ export default function AttendanceSection({
                 wrapperClassName="w-full"
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
+              {draftDate ? (
+                draftShiftPending ? (
+                  <p className="mt-1 text-[12px] text-slate-400">{t("attendance.shift_loading")}</p>
+                ) : draftShift ? (
+                  <p className="mt-1 text-[12px] font-medium text-slate-600">
+                    {t("attendance.shift_of_day", { range: formatShiftTime(draftShift) })}
+                    {shiftKind(draftShift) === "remote" ? ` · ${t("attendance.shift_remote")}` : ""}
+                  </p>
+                ) : !editingGuid ? (
+                  <p className="mt-1 text-[12px] font-medium text-amber-700">{t("attendance.no_shift")}</p>
+                ) : null
+              ) : null}
             </div>
           </div>
 

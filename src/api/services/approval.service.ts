@@ -145,8 +145,12 @@ export const findApprovalProcessFor = (
  * `requested` появляется только от отметки вне радиуса филиала — остальные
  * отметки сервер сразу засчитывает; `manual` — ручная заявка на правку.
  */
+// «Вне графика» — тоже отметка сотрудника (турникет или мини-апп), а не
+// правка HR: дальняя отметка без смены согласуется как дальняя отметка.
 export const attendanceApprovalType = (sourceType: string): ApprovalProcessType =>
-  sourceType === "integration" ? "remote_mark_approval" : "attendance_change_approval";
+  sourceType === "integration" || sourceType === "off_schedule"
+    ? "remote_mark_approval"
+    : "attendance_change_approval";
 
 // --- approval_actions ledger ----------------------------------------------
 

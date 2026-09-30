@@ -22,19 +22,16 @@ import { useEmployeesQuery, type Employee } from "../../api/services/employee.se
 import { usePositionsQuery } from "../../api/services/position.service";
 import { useLocationsQuery } from "../../api/services/location.service";
 import { useHolidayDaysQuery } from "../../api/services/holidayPolicy.service";
-import employeeWorkService from "../../api/services/employeeWork.service";
-import reportsService, { type WorkSchedule } from "../../api/services/reports.service";
+import hickvisionService from "../../api/services/hickvision.service";
 import {
   isShiftListTruncated,
   useSaveShifts,
   useShiftsQuery,
   type SaveResult,
   type Shift,
-  type ShiftInput,
 } from "../../api/services/shift.service";
 import type { SavePlan } from "./plan";
 import {
-  DAY_CODE_TO_DOW,
   GROUP_BY_META,
   GROUP_BY_ORDER,
   ITEM_BY_META,
@@ -49,11 +46,9 @@ import {
   formatDateRu,
   formatRangeLabel,
   formatShiftTime,
-  fromIsoDate,
   getInitials,
   hasFixedTime,
   isWeekend,
-  normalizeTime,
   rangeForScale,
   shiftAnchor,
   shiftKind,
@@ -163,7 +158,6 @@ export default function ShiftsPage() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [autofillingId, setAutofillingId] = useState<string | null>(null);
 
   // Разбор свёрнутой строки-должности: кто из неё в этот день работает.
   const [breakdown, setBreakdown] = useState<{
@@ -361,6 +355,40 @@ export default function ShiftsPage() {
   // Удаление идёт той же мутацией: одна операция может и править, и снимать.
   const deleteShifts = useSaveShifts();
 
+  /** Дата смены по guid — для снятых строк, у которых в плане остался один guid. */
+  const shiftDateByGuid = useMemo(
+    () => new Map(allShifts.map((shift) => [shift.guid, String(shift.date ?? "").slice(0, 10)])),
+    [allShifts]
+  );
+
+  /**
+   * Пересчёт посещаемости после правки смен (решение 15): отметки уже
+   * записаны по старым сменам, и поставленная задним числом смена забирает
+   * отметку из «вне графика», а снятая — свой прогул. Только если среди дат
+   * есть сегодня или прошлые дни: у будущих отметок ещё нет, а турникет и
+   * простановка прогулов читают смены вживую.
+   *
+   * Отказ пересчёта не отменяет сохранённые смены — о нём отдельный тост.
+   */
+  const resyncAttendance = async (dates: Iterable<string | null | undefined>) => {
+    const today = toIsoDate(new Date());
+    const past = [...new Set([...dates].map((date) => String(date ?? "").slice(0, 10)))]
+      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= today)
+      .sort();
+    if (past.length === 0) return;
+    try {
+      await hickvisionService.syncAttendanceByDateRange({
+        from_date: past[0],
+        to_date: past[past.length - 1],
+      });
+    } catch (error) {
+      console.error("Shifts: attendance resync failed", error);
+      toast.error(
+        "Смены сохранены, но посещаемость за прошедшие дни не пересчиталась. Сохраните ещё раз или запустите синхронизацию в настройках Hikvision."
+      );
+    }
+  };
+
   const openModal = (employeeId: string | null, date: string, shift: Shift | null) => {
     setModalError("");
     setModalShift(shift);
@@ -408,6 +436,15 @@ export default function ShiftsPage() {
       const summary = saveSummary(result, plan.skipped);
       if (result.failed > 0 || result.deleteFailed > 0) toast.error(summary);
       else toast.success(summary);
+      if (result.saved > 0 || result.deleted > 0) {
+        // Новые даты строк, прежняя дата перенесённой смены и даты снятых.
+        await resyncAttendance([
+          ...plan.dates,
+          ...[...plan.updates, ...plan.creates].map((row) => row.date),
+          modalShift?.date,
+          ...plan.deletes.map((guid) => shiftDateByGuid.get(guid)),
+        ]);
+      }
     } catch (error) {
       setModalError(
         error instanceof Error ? error.message : "Не удалось сохранить смену."
@@ -421,105 +458,11 @@ export default function ShiftsPage() {
       setIsModalOpen(false);
       if (result.deleteFailed > 0) toast.error(saveSummary(result, 0));
       else toast.success(`Удалено смен: ${result.deleted}.`);
+      if (result.deleted > 0) {
+        await resyncAttendance([modalShift?.date, ...guids.map((guid) => shiftDateByGuid.get(guid))]);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось удалить смену.");
-    }
-  };
-
-  /**
-   * Заполнение периода по недельному шаблону самого сотрудника.
-   *
-   * Уже стоящие смены не трогаем: автозаполнение — помощник на старте месяца,
-   * а не кнопка «стереть всё, что я правил руками». Сколько пропущено — видно
-   * в тосте, молча расходиться с ожиданием оно не должно.
-   */
-  const handleAutofill = async (employee: ShiftEmployee) => {
-    setAutofillingId(employee.id);
-    try {
-      const works = await employeeWorkService.getList({ userBaseId: employee.id, limit: 50 });
-      const current = [...(works.response ?? [])]
-        .filter((work) => work.work_schedule_id)
-        .sort((a, b) => String(b.date_from ?? "").localeCompare(String(a.date_from ?? "")))[0];
-
-      if (!current?.work_schedule_id) {
-        toast.error(`У сотрудника ${employee.name} не назначен график работы.`);
-        return;
-      }
-
-      const result = await reportsService.getWorkSchedules({ guid: current.work_schedule_id });
-      const schedule: WorkSchedule | undefined = result.schedules?.[0];
-      if (!schedule) {
-        toast.error("График сотрудника не найден.");
-        return;
-      }
-
-      const byDow = new Map<number, WorkSchedule["days"][number]>();
-      schedule.days.forEach((day) => {
-        const dow = DAY_CODE_TO_DOW[day.day];
-        if (dow !== undefined) byDow.set(dow, day);
-      });
-
-      const rows: ShiftInput[] = [];
-      let skipped = 0;
-      // Один прогон — один график: автозаполнение и так пишет период в границы
-      // видимого, то есть заводит серию из одного человека, просто без имени.
-      const seriesId = crypto.randomUUID();
-
-      dates.forEach((iso) => {
-        if (shiftByCell.has(`${employee.id}|${iso}`)) {
-          skipped += 1;
-          return;
-        }
-        const day = byDow.get(fromIsoDate(iso).getDay());
-        if (!day) return;
-
-        const start = normalizeTime(day.work_start_time);
-        const end = normalizeTime(day.work_end_time);
-        // Нерабочий день шаблона не превращается в запись: «не работает» —
-        // это отсутствие смены, пустая клетка и есть выходной.
-        if (day.is_day_off || !start || !end) return;
-
-        rows.push({
-          date: iso,
-          // Автозаполнение — это тоже период: тот, что открыт на экране.
-          // Открыв потом любую из этих смен, человек увидит его целиком.
-          date_from: range.from,
-          date_to: range.to,
-          series_id: seriesId,
-          user_base_id: employee.id,
-          start_time: start,
-          end_time: end,
-          // Шаблон всегда задаёт конкретные часы, поэтому длительности здесь
-          // не бывает — «часов в день» проставляют только руками.
-          hours_per_day: null,
-          positions_id: employee.positionId,
-          locations_id: employee.locationId,
-          project: null,
-          comment: null,
-        });
-      });
-
-      if (rows.length === 0) {
-        toast.info(
-          skipped > 0
-            ? "В этом периоде у сотрудника уже расставлены все смены."
-            : "График сотрудника не даёт смен на этот период."
-        );
-        return;
-      }
-
-      const saved = await saveShifts.mutateAsync({ rows });
-      toast.success(
-        skipped > 0
-          ? `Создано смен: ${saved.saved}. Пропущено уже занятых дней: ${skipped}.`
-          : `Создано смен: ${saved.saved} по графику «${schedule.title}».`
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Не удалось заполнить период по графику."
-      );
-    } finally {
-      setAutofillingId(null);
     }
   };
 
@@ -780,11 +723,9 @@ export default function ShiftsPage() {
               offDayByDate={offDayByDate}
               collapsedGroups={collapsedGroups}
               showGroupHeaders={groupBy !== "employee"}
-              autofillingId={autofillingId}
               onToggleGroup={toggleGroup}
               onCellClick={openModal}
               onOpenShiftsClick={(date, shifts) => openModal(null, date, shifts[0] ?? null)}
-              onAutofill={handleAutofill}
               onBreakdownClick={(label, members, date) =>
                 setBreakdown({ label, employees: members, date })
               }

@@ -105,11 +105,13 @@ const minutesFromClock = (value: string): number | null => {
   return Number(match[1]) * 60 + Number(match[2]);
 };
 
+// Уход раньше прихода — это следующие сутки: строка ночной смены лежит на
+// дате её начала, «пришёл 22:05, ушёл 06:10» — это 8 ч 05 мин, а не ноль.
 const secondsBetween = (from: string, to: string): number => {
   const start = minutesFromClock(from);
   const end = minutesFromClock(to);
-  if (start === null || end === null || end <= start) return 0;
-  return (end - start) * 60;
+  if (start === null || end === null || end === start) return 0;
+  return ((end > start ? end : end + 24 * 60) - start) * 60;
 };
 
 const WORK_DAY_PLAN_MINUTES = 8 * 60;

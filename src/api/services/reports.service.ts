@@ -63,9 +63,6 @@ const GET_TASKS_BY_STATUS_TABLE_METHOD = "get_tasks_by_status_table";
 const GET_TASKS_BY_EMPLOYEE_METHOD = "get_tasks_by_employee";
 const GET_TIMESHEET_REPORT_METHOD = "get_timesheet_report";
 const GET_TIMESHEET_REPORT_TABLE_METHOD = "get_timesheet_report_table";
-const GET_WORK_SCHEDULES_METHOD = "get_work_schedules";
-const SAVE_WORK_SCHEDULE_METHOD = "save_work_schedule";
-const DELETE_WORK_SCHEDULE_METHOD = "delete_work_schedule";
 
 export type ApproveAbsenceResult = {
   absences_id: string;
@@ -618,6 +615,8 @@ export type AttendanceReportResult = {
     employees_count?: number;
     scheduled_working_days?: number;
     worked_days?: number;
+    // Пришёл без смены — отдельно от отработанных (решение 14).
+    off_schedule_days?: number;
     on_time_days?: number;
     total_late_time?: number;
     late_arrivals_count?: number;
@@ -648,13 +647,15 @@ export type AttendanceTableItem = {
   month: string;
   scheduled_working_days: number;
   worked_days: number;
+  // Пришёл без смены — отдельно от отработанных (решение 14).
+  off_schedule_days: number;
   on_time_days: number;
   late_days: number;
   total_late_time: number;
-  // false when the employee has no work_schedule assigned for the period —
-  // lateness can't be computed reliably, so total_late_time is forced to 0.
+  // false when the employee has no shift in the month — lateness can't be
+  // computed, so total_late_time is not a real 0. (Name kept for the API.)
   has_work_schedule: boolean;
-  // true when the employee's current work schedule is marked remote.
+  // true when every shift of the month is remote.
   is_remote: boolean;
   total_absent_days: number;
   excused_absence_days: number;
@@ -725,10 +726,10 @@ export type LatenessTableItem = {
   on_time_days: number;
   total_late_time: number;
   avg_late_time: number;
-  // false when the employee has no work_schedule assigned for the period —
-  // lateness can't be computed reliably, so total_late_time is forced to 0.
+  // false when the employee has no shift in the month — lateness can't be
+  // computed, so total_late_time is not a real 0. (Name kept for the API.)
   has_work_schedule: boolean;
-  // true when the employee's current work schedule is marked remote.
+  // true when every shift of the month is remote.
   is_remote: boolean;
 };
 
@@ -3303,77 +3304,6 @@ const normalizeGatewayResponse = <T extends { method: string; result: unknown }>
   throw new Error(`Unexpected response format for ${expectedMethod}`);
 };
 
-export type WorkScheduleDayCode =
-  | "mon"
-  | "tue"
-  | "wed"
-  | "thu"
-  | "fri"
-  | "sat"
-  | "sun";
-
-export interface WorkScheduleDay {
-  day: WorkScheduleDayCode;
-  work_start_time: string | null;
-  work_end_time: string | null;
-  lunch_start_time: string | null;
-  lunch_end_time: string | null;
-  work_hours: number;
-  break_hours: number;
-  is_day_off: boolean;
-}
-
-export interface WorkSchedule {
-  guid: string;
-  title: string;
-  is_remote: boolean;
-  total_work_hours: number;
-  total_break_hours: number;
-  days: WorkScheduleDay[];
-}
-
-export interface GetWorkSchedulesResult {
-  count: number;
-  schedules: WorkSchedule[];
-}
-
-export type GetWorkSchedulesInvokeResponse = {
-  method: typeof GET_WORK_SCHEDULES_METHOD;
-  result: GetWorkSchedulesResult;
-};
-
-export type SaveWorkScheduleInvokeResponse = {
-  method: typeof SAVE_WORK_SCHEDULE_METHOD;
-  result: WorkSchedule;
-};
-
-export type DeleteWorkScheduleResult = {
-  guid: string;
-  deleted: boolean;
-  deleted_days_count: number;
-};
-
-export type DeleteWorkScheduleInvokeResponse = {
-  method: typeof DELETE_WORK_SCHEDULE_METHOD;
-  result: DeleteWorkScheduleResult;
-};
-
-export interface SaveWorkScheduleDayInput {
-  day: WorkScheduleDayCode;
-  work_start_time?: string | null;
-  work_end_time?: string | null;
-  lunch_start_time?: string | null;
-  lunch_end_time?: string | null;
-  is_day_off?: boolean;
-}
-
-export interface SaveWorkScheduleInput {
-  guid?: string;
-  title: string;
-  is_remote?: boolean;
-  days: SaveWorkScheduleDayInput[];
-}
-
 export type PenaltyPolicy = { guid: string; title: string; rules: unknown };
 export type PenaltyAssignment = {
   guid: string;
@@ -3434,54 +3364,6 @@ const reportsService = {
       method: string;
       result: { created: number; updated: number; removed: number; days: number };
     }>(response.data, ATTENDANCE_PENALTIES_SYNC_METHOD).result;
-  },
-  getWorkSchedules: async (requestData: {
-    limit?: number;
-    offset?: number;
-    search?: string;
-    guid?: string;
-  } = {}): Promise<GetWorkSchedulesResult> => {
-    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
-      data: {
-        method: GET_WORK_SCHEDULES_METHOD,
-        data: requestData,
-      },
-    });
-
-    return normalizeGatewayResponse<GetWorkSchedulesInvokeResponse>(
-      response.data,
-      GET_WORK_SCHEDULES_METHOD
-    ).result;
-  },
-  saveWorkSchedule: async (
-    requestData: SaveWorkScheduleInput
-  ): Promise<WorkSchedule> => {
-    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
-      data: {
-        method: SAVE_WORK_SCHEDULE_METHOD,
-        data: requestData,
-      },
-    });
-
-    return normalizeGatewayResponse<SaveWorkScheduleInvokeResponse>(
-      response.data,
-      SAVE_WORK_SCHEDULE_METHOD
-    ).result;
-  },
-  deleteWorkSchedule: async (
-    guid: string
-  ): Promise<DeleteWorkScheduleResult> => {
-    const response = await reportsRequest.post(REPORTS_FUNCTION_PATH, {
-      data: {
-        method: DELETE_WORK_SCHEDULE_METHOD,
-        data: { guid },
-      },
-    });
-
-    return normalizeGatewayResponse<DeleteWorkScheduleInvokeResponse>(
-      response.data,
-      DELETE_WORK_SCHEDULE_METHOD
-    ).result;
   },
   getKpi: async (
     requestData: JsonRecord = {}

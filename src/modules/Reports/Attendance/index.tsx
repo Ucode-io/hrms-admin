@@ -172,6 +172,8 @@ function AttendancePage() {
     t("reports.attendance.col_employee"),
     t("reports.attendance.col_working_days"),
     t("reports.attendance.col_worked"),
+    // Пришёл без смены — не рабочий день, пока HR не поставит смену (решение 14).
+    t("reports.attendance.col_off_schedule"),
     t("reports.attendance.col_absent_days"),
     t("reports.attendance.col_paid"),
     t("reports.attendance.col_unpaid"),
@@ -416,6 +418,9 @@ function AttendancePage() {
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">
                           {item.worked_days}
+                        </td>
+                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-500">
+                          {Number(item.off_schedule_days || 0)}
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-800">{item.total_absent_days}</td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">{item.paid_absence_days}</td>

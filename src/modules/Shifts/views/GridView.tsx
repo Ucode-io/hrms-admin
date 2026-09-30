@@ -7,7 +7,7 @@
 // оставлен пустым. Именно так видно, кого забыли поставить.
 
 import { Fragment } from "react";
-import { ChevronDown, Plus, RefreshCw } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import {
   KIND_META,
   avatarColor,
@@ -38,11 +38,9 @@ interface GridViewProps {
   offDayByDate: Map<string, string>;
   collapsedGroups: Set<string>;
   showGroupHeaders: boolean;
-  autofillingId: string | null;
   onToggleGroup: (key: string) => void;
   onCellClick: (employeeId: string | null, date: string, shift: Shift | null) => void;
   onOpenShiftsClick: (date: string, shifts: Shift[]) => void;
-  onAutofill: (employee: ShiftEmployee) => void;
   onBreakdownClick: (label: string, employees: ShiftEmployee[], date: string) => void;
 }
 
@@ -77,11 +75,9 @@ export default function GridView({ dates,
   offDayByDate,
   collapsedGroups,
   showGroupHeaders,
-  autofillingId,
   onToggleGroup,
   onCellClick,
   onOpenShiftsClick,
-  onAutofill,
   onBreakdownClick,
 }: GridViewProps) {
   const columnCount = dates.length + 1;
@@ -357,21 +353,6 @@ export default function GridView({ dates,
                               {employee.position || "—"}
                             </span>
                           </span>
-                          {/* Разворачивает недельный шаблон самого сотрудника,
-                              а не выдуманный 5/2: часы, обед и выходные берутся
-                              из его work_schedule. */}
-                          <button
-                            type="button"
-                            onClick={() => onAutofill(employee)}
-                            disabled={autofillingId === employee.id}
-                            title="Заполнить период по графику сотрудника"
-                            className="rounded-lg border border-gray-200 p-1.5 text-gray-400 transition hover:bg-gray-50 hover:text-brand-500 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-white/5"
-                          >
-                            <RefreshCw
-                              size={13}
-                              className={autofillingId === employee.id ? "animate-spin" : ""}
-                            />
-                          </button>
                         </div>
                       </td>
 

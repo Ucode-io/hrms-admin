@@ -36,6 +36,8 @@ import LocationViewLink, { DistanceBadge } from "../../../components/map/Locatio
 import { markGeoByDay } from "../../../components/map/shared";
 import { useOffices } from "../../../components/map/useOffices";
 import TimeInput from "../../../components/form/TimeInput";
+import { useShiftsQuery } from "../../../api/services/shift.service";
+import { crossesMidnight, formatShiftTime, shiftKind, timeToMinutes } from "../../Shifts/constants";
 import { useTranslation, translate } from "../../../i18n";
 import { useEmployeeTimeZones } from "../../../hooks/useEmployeeTimeZones";
 import { ViewerTimeHint, WallTime } from "../../../components/common/WallTime";
@@ -68,7 +70,9 @@ type AttendanceItem = {
 
 type AttendanceWorkflowStatus = "accepted" | "rejected" | "requested" | "unknown";
 type AttendanceActionStatus = "present" | "late" | "absent" | "unknown";
-type AttendanceSourceType = "manual" | "integration" | "absences" | "unknown";
+// off_schedule — отметка без смены на этот день («вне графика»): не рабочий
+// день, пока HR не поставит смену (решения 5 и 14).
+type AttendanceSourceType = "manual" | "integration" | "absences" | "off_schedule" | "unknown";
 
 type AttendanceRecord = {
   guid: string;
@@ -309,8 +313,18 @@ const normalizeAttendanceSourceType = (value: unknown): AttendanceSourceType => 
   if (normalized === "manual") return "manual";
   if (normalized === "integration") return "integration";
   if (normalized === "absences") return "absences";
+  if (normalized === "off_schedule") return "off_schedule";
   return "unknown";
 };
+
+/**
+ * Источник строки, который сохраняет правка или согласование. Ручная правка
+ * делает строку ручной, но «интеграция» и «вне графика» свой источник
+ * сохраняют: иначе согласованная отметка без смены молча стала бы ручной —
+ * то есть рабочим днём в обход решения 14.
+ */
+const keptSourceType = (sourceType: AttendanceSourceType | undefined): string =>
+  sourceType === "integration" || sourceType === "off_schedule" ? sourceType : "manual";
 
 /**
  * Статус уже сохранённой строки, у которой он почему-то пуст.
@@ -411,6 +425,13 @@ const getSourceTypeTag = (
     return {
       label: translate("dashboard.fallback.absence"),
       className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (sourceType === "off_schedule") {
+    return {
+      label: translate("attendance.source.off_schedule"),
+      className: "border-slate-300 bg-slate-50 text-slate-600",
     };
   }
 
@@ -526,6 +547,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       { value: "manual", label: "HRMS" },
       { value: "integration", label: "Hikvision / QuadraSoft" },
       { value: "absences", label: t("dashboard.fallback.absence") },
+      { value: "off_schedule", label: t("attendance.source.off_schedule") },
     ],
     [t]
   );
@@ -678,6 +700,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const draftZone = draft.employeeGuid ? draftZones.zoneOf(draft.employeeGuid, draftDate) : null;
   const draftTimeZone = draftZone?.timezone ?? "";
 
+
   // Сотрудника выбрали в открытой форме — «сейчас» и «сегодня» пересобираются
   // по его часам, пока админ не поправил поле руками.
   useEffect(() => {
@@ -763,6 +786,31 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     [records, editingGuid]
   );
 
+  // Смена сотрудника на выбранную дату (решение 16): по ней форма показывает,
+  // с чем сверяется опоздание, и понимает, что уход раньше прихода — это уже
+  // следующие сутки ночной смены.
+  const draftShiftsQuery = useShiftsQuery(
+    { from: draftDate, to: draftDate },
+    isModalOpen && Boolean(draftDate) && Boolean(draft.employeeGuid)
+  );
+  const draftShift = useMemo(
+    () => (draftShiftsQuery.data?.response ?? []).find((shift) => shift.user_base_id === draft.employeeGuid) ?? null,
+    [draftShiftsQuery.data, draft.employeeGuid]
+  );
+  const draftShiftPending = draftShiftsQuery.isLoading || draftShiftsQuery.isFetching;
+  // Строки «интеграции» и «вне графика» правятся и без смены: их записал
+  // турникет, а не HR. Новая ручная отметка без смены — нет (решение 16).
+  const draftNeedsShift = !editingRecord || editingRecord.sourceType === "manual" || editingRecord.sourceType === "unknown";
+  const draftCheckOutNextDay = useMemo(() => {
+    const checkIn = timeToMinutes(draft.checkInTime);
+    const checkOut = timeToMinutes(draft.checkOutTime);
+    if (checkOut == null) return false;
+    if (checkIn != null) return checkOut <= checkIn;
+    // Один уход: следующие сутки — только у ночной смены и раньше её начала.
+    const start = timeToMinutes(draftShift?.start_time);
+    return Boolean(draftShift && crossesMidnight(draftShift) && start != null && checkOut < start);
+  }, [draft.checkInTime, draft.checkOutTime, draftShift]);
+
   const closeModal = () => {
     if (isSaving) return;
 
@@ -802,6 +850,17 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       return;
     }
 
+    if (draftNeedsShift) {
+      if (draftShiftPending) {
+        setFormError(t("attendance.shift_loading"));
+        return;
+      }
+      if (!draftShift) {
+        setFormError(t("attendance.no_shift"));
+        return;
+      }
+    }
+
     const date = toIsoDate(draft.date);
     const companiesId = companyStore.company?.guid || COMPANY_ID;
 
@@ -828,7 +887,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       delay_time: normalizeDelayTimeForPayload(lateness.delay_time),
       status: ["accepted"],
       action_status: [lateness.action_status],
-      source_type: [editingRecord?.sourceType === "integration" ? "integration" : "manual"],
+      source_type: [keptSourceType(editingRecord?.sourceType)],
     };
 
     try {
@@ -878,7 +937,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         ? resolveActionStatusFromDelay(record.checkInTime, record.delayTime)
         : record.actionStatus,
     ],
-    source_type: [record.sourceType === "integration" ? "integration" : "manual"],
+    source_type: [keptSourceType(record.sourceType)],
   });
 
   const confirmRecord = (record: AttendanceRecord) =>
@@ -1476,6 +1535,21 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                 wrapperClassName="w-full"
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
               />
+              {draft.employeeGuid && draftDate ? (
+                draftShiftPending ? (
+                  <p className="mt-1 text-[12px] text-slate-400">{t("attendance.shift_loading")}</p>
+                ) : draftShift ? (
+                  <p className="mt-1 text-[12px] font-medium text-slate-600">
+                    {t("attendance.shift_of_day", { range: formatShiftTime(draftShift) })}
+                    {shiftKind(draftShift) === "remote" ? ` · ${t("attendance.shift_remote")}` : ""}
+                  </p>
+                ) : draftNeedsShift ? (
+                  <p className="mt-1 text-[12px] font-medium text-amber-700">
+                    {t("attendance.no_shift")}{" "}
+                    <Link to="/shifts" className="underline">{t("sidebar.work_schedule")}</Link>
+                  </p>
+                ) : null
+              ) : null}
             </div>
           </div>
 
@@ -1501,6 +1575,11 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 {t("attendance.check_out_time")}
+                {draftCheckOutNextDay ? (
+                  <span className="ml-1.5 rounded-full bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700">
+                    {t("attendance.next_day")}
+                  </span>
+                ) : null}
               </label>
               <TimeInput
                 value={draft.checkOutTime}
