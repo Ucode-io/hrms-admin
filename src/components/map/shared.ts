@@ -117,11 +117,18 @@ export type DayMarkGeo = {
  * Строки приходят от новых к старым: приход перезаписываем до самого раннего,
  * уход берём первый встреченный, то есть последний за день.
  */
-export function markGeoByDay(rows: Record<string, unknown>[]): Map<string, DayMarkGeo> {
+export function markGeoByDay(
+  rows: Record<string, unknown>[],
+  // Дата, под которой отметка лежит в сетке. По умолчанию — календарная дата
+  // отметки; ночью уход в 06:00 принадлежит вчерашней смене, и вызывающий,
+  // знающий смены, возвращает её дату.
+  dateOf?: (row: Record<string, unknown>, userId: string, date: string) => string
+): Map<string, DayMarkGeo> {
   const byDay = new Map<string, DayMarkGeo>();
   for (const row of rows) {
     const userId = typeof row.user_base_id === "string" ? row.user_base_id : "";
-    const date = typeof row.date === "string" ? row.date.slice(0, 10) : "";
+    const markDate = typeof row.date === "string" ? row.date.slice(0, 10) : "";
+    const date = markDate && dateOf ? dateOf(row, userId, markDate) : markDate;
     const geo = typeof row.map === "string" ? row.map.trim() : "";
     const reason = typeof row.reason === "string" ? row.reason.trim() : "";
     const picture = typeof row.picture === "string" ? row.picture.trim() : "";

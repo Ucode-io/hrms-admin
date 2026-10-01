@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { Icon } from "@iconify/react";
-import { Check, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, SlidersHorizontal, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock3, Loader2, Minus, Plus, SlidersHorizontal, X } from "lucide-react";
 import { Link } from "react-router";
 import { useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -46,6 +46,9 @@ import companyStore from "../../store/company.store";
 import encodeJsonToUrlParam from "../../utils/encodeJsonToUrlParam";
 import LocationViewLink, { DistanceBadge } from "../../components/map/LocationViewLink";
 import { markGeoByDay } from "../../components/map/shared";
+import { useShiftsQuery } from "../../api/services/shift.service";
+import { addDays } from "../../utils/shiftWindow";
+import { clockOfMark, shiftDateOfMark, shiftsByEmployeeOf } from "../../utils/shiftAttribution";
 import { type Office, useOffices } from "../../components/map/useOffices";
 import { useTranslation, translate, getLocale, monthNames, weekdayNames } from "../../i18n";
 import { useEmployeeTimeZones } from "../../hooks/useEmployeeTimeZones";
@@ -402,7 +405,9 @@ const normalizeAbsence = (
   };
 };
 
-type AttendanceDotKind = "present" | "late" | "absent";
+// off_schedule — отметка без смены на этот день. Серая, не зелёная: день не
+// считается отработанным, и зелёная галочка сказала бы HR обратное.
+type AttendanceDotKind = "present" | "late" | "absent" | "off_schedule";
 
 // Base brand colour per attendance type. Pill uses this colour for the icon
 // and as a low-opacity background, matching the visual language of absence
@@ -411,23 +416,27 @@ const ATTENDANCE_PILL_COLOR: Record<AttendanceDotKind, string> = {
   present: "#10B981",
   late: "#F59E0B",
   absent: "#EF4444",
+  off_schedule: "#64748B",
 };
 
 const ATTENDANCE_CELL_BG: Record<AttendanceDotKind, string> = {
   present: "#D1FAE5",
   late: "#FEF3C7",
   absent: "#FEE2E2",
+  off_schedule: "#E2E8F0",
 };
 
 const ATTENDANCE_DOT_LABEL: Record<AttendanceDotKind, MessageKey> = {
   present: "absence_calendar.attendance.present",
   late: "absence_calendar.attendance.late",
   absent: "absence_calendar.attendance.absent",
+  off_schedule: "attendance.source.off_schedule",
 };
 
 const AttendanceIcon = ({ kind, className }: { kind: AttendanceDotKind; className?: string }) => {
   if (kind === "late") return <Clock3 className={className} />;
   if (kind === "absent") return <X className={className} />;
+  if (kind === "off_schedule") return <Minus className={className} />;
   return <Check className={className} />;
 };
 
@@ -928,7 +937,8 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
       data: encodeJsonToUrlParam({
         limit: 2000,
         offset: 0,
-        date: { $gte: monthStartIso, $lte: monthEndIso },
+        // ±1 день: уход ночной смены лежит на следующей календарной дате.
+        date: { $gte: addDays(monthStartIso, -1), $lte: addDays(monthEndIso, 1) },
         companies_id: companyStore.company?.guid || COMPANY_ID,
       }),
     }),
@@ -971,9 +981,23 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
     return map;
   }, [latePermissionRows]);
 
+  // Смены нужны, чтобы отнести отметку к смене, а не к календарной дате: утренний
+  // уход ночной смены иначе подписался бы на чужую клетку.
+  const { data: calendarShiftsData } = useShiftsQuery(
+    { from: addDays(monthStartIso, -1), to: addDays(monthEndIso, 1) },
+    Boolean(monthStartIso) && Boolean(monthEndIso)
+  );
+  const shiftsByEmployee = useMemo(
+    () => shiftsByEmployeeOf(calendarShiftsData?.response ?? []),
+    [calendarShiftsData?.response]
+  );
   const geoByDay = useMemo(
-    () => markGeoByDay((attendanceRecordsData?.response || []) as Record<string, unknown>[]),
-    [attendanceRecordsData?.response]
+    () =>
+      markGeoByDay(
+        (attendanceRecordsData?.response || []) as Record<string, unknown>[],
+        (row, userId, date) => shiftDateOfMark(shiftsByEmployee.get(userId), date, clockOfMark(row))
+      ),
+    [attendanceRecordsData?.response, shiftsByEmployee]
   );
 
   // Филиал берётся из той же развёрнутой связи, что и имя, — отдельного
@@ -1013,16 +1037,22 @@ export default function CalendarModule({ leftSlot }: { leftSlot?: ReactNode } = 
       const sourceKind = getAttendanceSourceKind(row.source_type);
       if (sourceKind === "absences") continue;
 
-      const kind = normalizeAttendanceDotKind(row.action_status);
+      // «Вне графика» — по источнику, а не по action_status: у такой строки он
+      // всегда «present», и без этой проверки день стал бы зелёным «пришёл».
+      const kind =
+        sourceKind === "off_schedule"
+          ? "off_schedule"
+          : normalizeAttendanceDotKind(row.action_status);
       if (!kind) continue;
 
       // Не «Hikvision»: отметка могла прийти и из мини-аппа, а строка дня знает
       // только тип источника, не устройство. Точный источник — в событиях,
       // Настройки → Интеграции → Записи, там же фото и координаты.
+      // Вне графика — тоже отметка с турникета или из мини-аппа.
       const sourceLabel =
         sourceKind === "manual"
           ? "HRMS"
-          : sourceKind === "integration"
+          : sourceKind === "integration" || sourceKind === "off_schedule"
             ? t("absence_calendar.source.integration")
             : t("absence_calendar.source.unknown");
 
@@ -1827,7 +1857,9 @@ function AttendanceTooltip({
       ? "#047857"
       : data.kind === "late"
         ? "#B45309"
-        : "#B91C1C";
+        : data.kind === "off_schedule"
+          ? "#334155"
+          : "#B91C1C";
 
   return (
     <div

@@ -17,7 +17,11 @@ import PageMeta from "../../../components/common/PageMeta";
 import Spinner from "../../../components/ui/Spinner";
 import { Modal } from "../../../components/ui/modal";
 import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirectory.service";
+import { type Shift, useShiftsQuery } from "../../../api/services/shift.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
+import { getAttendanceSourceKind } from "../../../utils/attendanceSourcePriority";
+import { dayNumber, shiftSpan } from "../../../utils/shiftWindow";
+import { clockOfMark, shiftDateOfMark, shiftsByEmployeeOf } from "../../../utils/shiftAttribution";
 import { EmployeeAvatar } from "../../Timesheet/components/badges";
 import {
   formatDateRu,
@@ -47,6 +51,14 @@ type AccessEvent = {
   type: "in" | "out" | "event";
   label: string;
   time: string;
+  /**
+   * Сутки относительно даты смены: уход ночной смены в 06:00 — это +1. Время
+   * выше — местные часы сотрудника, а не момент: сутки нужны, чтобы
+   * упорядочить отметки смены и посчитать между ними.
+   */
+  dayOffset: number;
+  /** Минуты от полуночи даты смены (с учётом `dayOffset`), местные часы. */
+  minutes: number;
   image: string;
   camera: string;
   /** Поле MAP из attendance_records: «широта,долгота» либо "". */
@@ -60,6 +72,8 @@ type AttendanceDay = {
   checkIn: string;
   checkOut: string;
   seconds: number;
+  /** Отметка без смены на этот день: день не отработан, плана нет. */
+  offSchedule: boolean;
 };
 
 type AttendanceEmployee = {
@@ -114,8 +128,31 @@ const secondsBetween = (from: string, to: string): number => {
   return ((end > start ? end : end + 24 * 60) - start) * 60;
 };
 
-const WORK_DAY_PLAN_MINUTES = 8 * 60;
+// Шкала полоски дня — не короче 12 ч; длинная смена растягивает её, чтобы метка
+// плана не упиралась в край.
 const WORK_DAY_SCALE_MINUTES = 12 * 60;
+
+const scaleForPlan = (planMinutes: number | null): number =>
+  planMinutes ? Math.max(WORK_DAY_SCALE_MINUTES, Math.ceil((planMinutes * 1.5) / 60) * 60) : WORK_DAY_SCALE_MINUTES;
+
+/** Длина смены в минутах: по времени (ночная — через полночь) или «часов в день». */
+const shiftPlanMinutes = (shift: Shift): number => {
+  const span = shiftSpan(shift);
+  if (!span) return 0;
+  if (span.timed) return span.end - span.start;
+  return Math.round(Number(shift.hours_per_day) * 60);
+};
+
+/** План дня — сумма длин смен сотрудника на эту дату. */
+const planByDayOf = (shifts: Shift[]): Map<string, number> => {
+  const plan = new Map<string, number>();
+  for (const shift of shifts) {
+    if (!shift.user_base_id) continue;
+    const key = `${shift.user_base_id}|${String(shift.date).slice(0, 10)}`;
+    plan.set(key, (plan.get(key) ?? 0) + shiftPlanMinutes(shift));
+  }
+  return plan;
+};
 
 const formatMinuteOffset = (minutes: number | null): string => {
   if (minutes === null) return "—";
@@ -176,11 +213,15 @@ const groupAttendance = (rows: DataRow[]): AttendanceEmployee[] => {
     const existing = current.days.find((day) => day.date === date);
     const nextIn = existing?.checkIn && existing.checkIn < checkIn ? existing.checkIn : checkIn || existing?.checkIn || "";
     const nextOut = existing?.checkOut && existing.checkOut > checkOut ? existing.checkOut : checkOut || existing?.checkOut || "";
+    const isOffSchedule = getAttendanceSourceKind(row.source_type) === "off_schedule";
     const day: AttendanceDay = {
       date,
       checkIn: nextIn,
       checkOut: nextOut,
       seconds: secondsBetween(nextIn, nextOut),
+      // День «вне графика» только если так помечены все его строки: рядом с
+      // записью по смене он уже не про отсутствие смены.
+      offSchedule: existing ? existing.offSchedule && isOffSchedule : isOffSchedule,
     };
     current.days = [...current.days.filter((item) => item.date !== date), day].sort((a, b) => a.date.localeCompare(b.date));
     current.totalSeconds = current.days.reduce((sum, item) => sum + item.seconds, 0);
@@ -191,11 +232,21 @@ const groupAttendance = (rows: DataRow[]): AttendanceEmployee[] => {
   return [...grouped.values()].filter((item) => item.name).sort((a, b) => a.name.localeCompare(b.name));
 };
 
-const buildRawEvents = (rows: DataRow[]): AccessEvent[] =>
+/**
+ * Отметки смены `anchor`. Строки приходят за `anchor ± 1` день: у ночной смены
+ * приход лежит на одной календарной дате, уход — на следующей. Чьей смене
+ * принадлежит отметка, решает зона смены (`shiftDateOfMark`), а не календарная
+ * дата; иначе утренний уход попал бы на чужой день, а вечерний приход — на
+ * вчерашний.
+ */
+const buildRawEvents = (rows: DataRow[], anchor: string, shifts: Shift[]): AccessEvent[] =>
   rows
     .flatMap((row, index) => {
       const time = normalizeTime(row.event_time || row.action_time);
       if (!time) return [];
+      const markDate = readString(row.date).slice(0, 10) || anchor;
+      if (shiftDateOfMark(shifts, markDate, time) !== anchor) return [];
+      const dayOffset = (dayNumber(markDate) ?? 0) - (dayNumber(anchor) ?? 0);
       const type = markDirection(row.action);
       const rawLabel = Array.isArray(row.action) ? readString(row.action[0]) : readString(row.action);
       return [{
@@ -203,30 +254,41 @@ const buildRawEvents = (rows: DataRow[]): AccessEvent[] =>
         type,
         label: type === "in" ? translate("time_events.entry") : type === "out" ? translate("time_events.exit") : rawLabel || translate("time_events.event"),
         time,
+        dayOffset,
+        minutes: dayOffset * 24 * 60 + (minutesFromClock(time) ?? 0),
         image: resolvePicture(row.picture),
         camera: firstString(row, ["camera_name", "device_name", "terminal_name", "door_name", "location_name", "mac_address"]),
         location: readString(row.map),
         reason: readString(row.reason),
       } satisfies AccessEvent];
     })
-    .sort((left, right) => left.time.localeCompare(right.time));
+    .sort((left, right) => left.minutes - right.minutes);
 
 const buildSummaryEvents = (rows: DataRow[]): AccessEvent[] =>
   rows.flatMap((row, index) => {
     const result: AccessEvent[] = [];
     const checkIn = normalizeTime(row.check_in_time);
     const checkOut = normalizeTime(row.check_out_time);
-    if (checkIn) result.push({ id: `${index}-in`, type: "in", label: translate("time_events.entry"), time: checkIn, image: "", camera: "", location: "", reason: "" });
-    if (checkOut) result.push({ id: `${index}-out`, type: "out", label: translate("time_events.exit"), time: checkOut, image: "", camera: "", location: "", reason: "" });
+    const inMinutes = minutesFromClock(checkIn);
+    const outMinutes = minutesFromClock(checkOut);
+    // Строка лежит на дате смены: уход раньше прихода — следующие сутки.
+    const outOffset = inMinutes !== null && outMinutes !== null && outMinutes < inMinutes ? 1 : 0;
+    if (checkIn) result.push({ id: `${index}-in`, type: "in", label: translate("time_events.entry"), time: checkIn, dayOffset: 0, minutes: inMinutes ?? 0, image: "", camera: "", location: "", reason: "" });
+    if (checkOut) result.push({ id: `${index}-out`, type: "out", label: translate("time_events.exit"), time: checkOut, dayOffset: outOffset, minutes: outOffset * 24 * 60 + (outMinutes ?? 0), image: "", camera: "", location: "", reason: "" });
     return result;
-  }).sort((left, right) => left.time.localeCompare(right.time));
+  }).sort((left, right) => left.minutes - right.minutes);
 
-function AttendanceDayCell({ day, geo, office, zones, employeeId }: { day?: AttendanceDay; geo?: DayMarkGeo; office?: Office; zones: EmployeeZones; employeeId: string }) {
+function AttendanceDayCell({ day, geo, office, zones, employeeId, planMinutes }: { day?: AttendanceDay; geo?: DayMarkGeo; office?: Office; zones: EmployeeZones; employeeId: string; planMinutes: number | null }) {
   const { t } = useTranslation();
   if (!day) return <span className="text-sm text-slate-300">—</span>;
   const workedMinutes = Math.max(0, Math.round(day.seconds / 60));
-  const progress = Math.min(100, (workedMinutes / WORK_DAY_SCALE_MINUTES) * 100);
-  const planPosition = (WORK_DAY_PLAN_MINUTES / WORK_DAY_SCALE_MINUTES) * 100;
+  // План — длина смены этого дня, а не «8 часов для всех»; без смены (вне
+  // графика) плана нет и метки нет.
+  const plan = day.offSchedule ? null : planMinutes || null;
+  const scale = scaleForPlan(plan);
+  const progress = Math.min(100, (workedMinutes / scale) * 100);
+  const planPosition = plan ? Math.min(100, (plan / scale) * 100) : null;
+  const barTitle = plan ? t("time_events.worked_vs_plan", { minutes: workedMinutes, plan }) : undefined;
   return (
     <div className="min-w-[142px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
       <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-700">
@@ -244,10 +306,20 @@ function AttendanceDayCell({ day, geo, office, zones, employeeId }: { day?: Atte
         </div>
       ) : null}
       <div className="mt-1.5 flex items-center gap-2">
-        <div className="relative h-1 flex-1 rounded-full bg-slate-200" title={t("time_events.worked_vs_plan", { minutes: workedMinutes, plan: 480 })}>
-          <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
-          <span className="absolute top-1/2 h-3 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900" style={{ left: `${planPosition}%` }} aria-label={t("time_events.plan_8h")} />
-        </div>
+        {day.offSchedule ? (
+          // Серая плашка вместо полоски: план не с чем сравнивать, а зелёная
+          // шкала читалась бы как «отработано».
+          <span className="inline-flex flex-1 items-center">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{t("attendance.source.off_schedule")}</span>
+          </span>
+        ) : (
+          <div className="relative h-1 flex-1 rounded-full bg-slate-200" title={barTitle}>
+            <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
+            {planPosition !== null ? (
+              <span className="absolute top-1/2 h-3 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900" style={{ left: `${planPosition}%` }} aria-label={barTitle} />
+            ) : null}
+          </div>
+        )}
         <span className="shrink-0 text-[10px] font-semibold text-slate-600">{formatDuration(day.seconds)}</span>
       </div>
     </div>
@@ -274,11 +346,14 @@ function EmployeesOverview({
   onOpen,
   onShiftMonth,
   geoByDay,
+  planByDay,
   offices,
   zones,
 }: {
   zones: EmployeeZones;
   geoByDay: Map<string, DayMarkGeo>;
+  /** Минуты смен по ключу «сотрудник|дата». */
+  planByDay: Map<string, number>;
   offices: Map<string, Office>;
   employees: AttendanceEmployee[];
   dates: string[];
@@ -359,7 +434,7 @@ function EmployeesOverview({
                       }}
                       className={`px-3 py-1.5 align-middle ${day ? "cursor-pointer hover:bg-blue-50/60" : ""} ${isToday(date) ? "bg-blue-50/30" : ""}`}
                     >
-                      <AttendanceDayCell day={day} geo={geoByDay.get(`${employee.id}|${date}`)} office={offices.get(employee.officeId)} zones={zones} employeeId={employee.id} />
+                      <AttendanceDayCell day={day} geo={geoByDay.get(`${employee.id}|${date}`)} office={offices.get(employee.officeId)} zones={zones} employeeId={employee.id} planMinutes={planByDay.get(`${employee.id}|${date}`) ?? null} />
                     </td>
                   );
                 })}
@@ -382,11 +457,11 @@ function EmptyState({ icon, title, hint }: { icon: "users" | "clock"; title: str
  * Таймлайн строится по минутам смотрящего (ADR-0014, п. 5): он и есть вывод.
  * Ось может выйти за 0…24 ч, подписи делений берутся по модулю суток.
  */
-function AccessTimeline({ events, toViewer }: { events: AccessEvent[]; toViewer: (time: string) => { minutes: number; text: string } | null }) {
+function AccessTimeline({ events, toViewer }: { events: AccessEvent[]; toViewer: (event: AccessEvent) => { minutes: number; text: string } | null }) {
   const { t } = useTranslation();
   const timed = events
     .map((event) => {
-      const viewer = toViewer(event.time);
+      const viewer = toViewer(event);
       return viewer ? { event: { ...event, time: viewer.text }, minutes: viewer.minutes } : null;
     })
     .filter((item): item is { event: AccessEvent; minutes: number } => item !== null)
@@ -520,9 +595,12 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   }, [range.from, range.to]);
   const [search, setSearch] = useState("");
 
+  // «Вне графика» — тоже отметка с турникета или из мини-аппа, только на день
+  // без смены. Фильтр по MULTISELECT в ucode — пересечение (`&&`), поэтому оба
+  // значения дают строки любого из двух видов.
   const overviewQuery = useSettingsDirectoryQuery({
     slug: "attendance",
-    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 1000, offset: 0, date: { $gte: range.from, $lte: range.to }, source_type: ["integration"] }) },
+    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 1000, offset: 0, date: { $gte: range.from, $lte: range.to }, source_type: ["integration", "off_schedule"] }) },
     querySettings: { enabled: !employeeId, keepPreviousData: true },
   });
   const allEmployees = useMemo(() => groupAttendance((overviewQuery.data?.response ?? []) as DataRow[]), [overviewQuery.data?.response]);
@@ -535,15 +613,30 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   // месяц с потолком 10000 строк — при большем штате резать по сотрудникам.
   const monthRecordsQuery = useSettingsDirectoryQuery({
     slug: "attendance_records",
-    params: { data: encodeJsonToUrlParam({ limit: 10000, offset: 0, date: { $gte: range.from, $lte: range.to } }) },
+    params: { data: encodeJsonToUrlParam({ limit: 10000, offset: 0, date: { $gte: shiftDays(range.from, -1), $lte: shiftDays(range.to, 1) } }) },
     querySettings: { enabled: !employeeId, keepPreviousData: true },
   });
-  const geoByDay = useMemo(() => markGeoByDay((monthRecordsQuery.data?.response ?? []) as DataRow[]), [monthRecordsQuery.data?.response]);
+  // Смены месяца ±1 день: у ночной смены последнего числа уход лежит в
+  // следующем месяце, а отметку первого числа утром может забрать смена
+  // прошлого месяца. Они нужны для плана дня и для привязки отметки к смене.
+  const monthShiftsQuery = useShiftsQuery({ from: shiftDays(range.from, -1), to: shiftDays(range.to, 1) }, !employeeId);
+  const monthShifts = useMemo(() => monthShiftsQuery.data?.response ?? [], [monthShiftsQuery.data?.response]);
+  const planByDay = useMemo(() => planByDayOf(monthShifts), [monthShifts]);
+  const monthShiftsByEmployee = useMemo(() => shiftsByEmployeeOf(monthShifts), [monthShifts]);
+  // Расстояние до офиса — под датой смены, а не календарной датой отметки:
+  // иначе утренний уход ночной смены подписался бы на чужой день.
+  const geoByDay = useMemo(
+    () => markGeoByDay(
+      (monthRecordsQuery.data?.response ?? []) as DataRow[],
+      (row, userId, date) => shiftDateOfMark(monthShiftsByEmployee.get(userId), date, clockOfMark(row)),
+    ),
+    [monthRecordsQuery.data?.response, monthShiftsByEmployee],
+  );
   const overviewZones = useEmployeeTimeZones(allEmployees.map((item) => item.id), range.from, range.to);
 
   const dayQuery = useSettingsDirectoryQuery({
     slug: "attendance",
-    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 100, offset: 0, date: { $gte: anchor, $lte: anchor }, user_base_id: employeeId, source_type: ["integration"] }) },
+    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 100, offset: 0, date: { $gte: anchor, $lte: anchor }, user_base_id: employeeId, source_type: ["integration", "off_schedule"] }) },
     querySettings: { enabled: Boolean(employeeId), keepPreviousData: true },
   });
   const dayRows = useMemo(() => (dayQuery.data?.response ?? []) as DataRow[], [dayQuery.data?.response]);
@@ -552,19 +645,22 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   // Фильтр по человеку, а не по `hikvision_id`: отметки «пришёл/ушёл» из webapp
   // лежат в той же таблице, но терминала у них нет и поле пустое — по нему они
   // просто выпадали из ленты. `user_base_id` есть у обоих источников.
+  // Диапазон ±1 день: отметки ночной смены лежат на двух календарных датах,
+  // какие из них этого дня — решают смены (`buildRawEvents`).
   const recordsQuery = useSettingsDirectoryQuery({
     slug: "attendance_records",
-    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 200, offset: 0, date: { $gte: anchor, $lte: anchor }, user_base_id: employeeId }) },
+    params: { with_relations: true, data: encodeJsonToUrlParam({ limit: 200, offset: 0, date: { $gte: shiftDays(anchor, -1), $lte: shiftDays(anchor, 1) }, user_base_id: employeeId }) },
     querySettings: { enabled: Boolean(employeeId), keepPreviousData: true },
   });
+  const dayShiftsQuery = useShiftsQuery({ from: shiftDays(anchor, -1), to: shiftDays(anchor, 1) }, Boolean(employeeId));
+  const employeeShifts = useMemo(
+    () => (dayShiftsQuery.data?.response ?? []).filter((shift) => shift.user_base_id === employeeId),
+    [dayShiftsQuery.data?.response, employeeId],
+  );
   const events = useMemo(() => {
-    const raw = ((recordsQuery.data?.response ?? []) as DataRow[]).filter((row) => {
-      const rowDate = readString(row.date).slice(0, 10);
-      return !rowDate || rowDate === anchor;
-    });
-    const rawEvents = buildRawEvents(raw);
+    const rawEvents = buildRawEvents((recordsQuery.data?.response ?? []) as DataRow[], anchor, employeeShifts);
     return rawEvents.length ? rawEvents : buildSummaryEvents(dayRows);
-  }, [recordsQuery.data?.response, dayRows, anchor]);
+  }, [recordsQuery.data?.response, dayRows, anchor, employeeShifts]);
 
   const offices = useOffices();
   // Экран всегда про одного сотрудника, поэтому филиал один на все карточки.
@@ -590,7 +686,8 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   };
   const firstEvent = events[0];
   const lastEvent = events[events.length - 1];
-  const duration = firstEvent && lastEvent ? secondsBetween(firstEvent.time, lastEvent.time) : 0;
+  // По минутам смены, а не по часам суток: уход ночной смены в 06:00 — это +1.
+  const duration = firstEvent && lastEvent ? Math.max(0, lastEvent.minutes - firstEvent.minutes) * 60 : 0;
   const storedDelay = dayRows.map((row) => normalizeTime(row.delay_time)).find(Boolean) ?? "";
   const storedDelayMinutes = minutesFromClock(storedDelay);
   // Только записанное опоздание. Своего запасного расчёта здесь нет: он был бы
@@ -599,13 +696,16 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
   // Нет `delay_time` — показываем «—», а не выдуманное число.
   const lateMinutes = storedDelayMinutes;
   const detailZones = useEmployeeTimeZones([employeeId], anchor, anchor);
-  const loadingDetail = dayQuery.isLoading || recordsQuery.isLoading || detailZones.status === "loading";
+  // Без смен отметки разошлись бы по календарным датам, а через секунду
+  // переехали бы по сменам — поэтому ждём и их.
+  const loadingDetail = dayQuery.isLoading || recordsQuery.isLoading || dayShiftsQuery.isLoading || detailZones.status === "loading";
   const displayTime = (time: string) => detailZones.text(employeeId, anchor, time) || time;
-  const toViewer = (time: string) => {
-    const viewer = detailZones.viewerClock(employeeId, anchor, time);
-    if (viewer) return { minutes: viewer.minutes, text: displayTime(time) };
-    const minutes = minutesFromClock(time);
-    return minutes === null ? null : { minutes, text: time };
+  // Сутки смены добавляются к пересчитанным минутам: уход в 06:00 ночной смены
+  // стоит на оси правее прихода в 22:00, а не левее (ось может выходить за 24 ч).
+  const toViewer = (event: AccessEvent) => {
+    const viewer = detailZones.viewerClock(employeeId, anchor, event.time);
+    if (viewer) return { minutes: viewer.minutes + event.dayOffset * 24 * 60, text: displayTime(event.time) };
+    return { minutes: event.minutes, text: event.time };
   };
 
   return (
@@ -624,6 +724,7 @@ export default function AttendanceEventsPage({ leftSlot }: { leftSlot?: ReactNod
               onOpen={openEmployee}
               onShiftMonth={(amount) => patchParams({ date: shiftAnchor("month", anchor, amount) })}
               geoByDay={geoByDay}
+              planByDay={planByDay}
               offices={offices}
               zones={overviewZones}
             />

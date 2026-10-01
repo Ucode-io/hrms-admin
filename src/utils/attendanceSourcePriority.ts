@@ -1,9 +1,18 @@
-export type AttendanceSourceKind = "absences" | "manual" | "integration" | "unknown";
+// off_schedule — отметка без смены на этот день («вне графика»): строка есть,
+// но рабочим днём не считается. Приоритет как у неизвестного источника: любая
+// настоящая запись дня её перекрывает.
+export type AttendanceSourceKind =
+  | "absences"
+  | "manual"
+  | "integration"
+  | "off_schedule"
+  | "unknown";
 
 export const ATTENDANCE_SOURCE_PRIORITY: Record<AttendanceSourceKind, number> = {
   absences: 1,
   manual: 2,
   integration: 3,
+  off_schedule: 4,
   unknown: 4,
 };
 
@@ -30,6 +39,7 @@ export const getAttendanceSourceKind = (
   if (candidates.includes("absences")) return "absences";
   if (candidates.includes("manual")) return "manual";
   if (candidates.includes("integration")) return "integration";
+  if (candidates.includes("off_schedule")) return "off_schedule";
   return "unknown";
 };
 
