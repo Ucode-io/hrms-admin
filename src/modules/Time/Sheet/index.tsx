@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
-import { AlertCircle, Download, Loader2, LogIn, SlidersHorizontal, X } from "lucide-react";
+import { AlertCircle, FileSpreadsheet, Loader2, LogIn, SlidersHorizontal, X } from "lucide-react";
 import Select from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
@@ -27,7 +27,7 @@ import { buildPaginationItems } from "../Attendance";
 import { type SheetCell, type SheetTotals, buildRow } from "./sheet";
 import { type SheetData, employeeName, isDismissed, sheetInputsOf } from "./sheetData";
 import DayModal from "./DayModal";
-import { exportSheetCsv } from "./exportSheet";
+import { exportSheetXlsx } from "./exportSheet";
 
 const PAGE_SIZE = 20;
 // ponytail: уволенные в периоде — одним запросом до 500; хватит, пока компании не текут сотнями в месяц.
@@ -151,7 +151,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      await exportSheetCsv({ filters, range, dates, today, shifts: data.shifts, policies, label: `${range.from}_${range.to}` });
+      await exportSheetXlsx({ filters, range, dates, today, shifts: data.shifts, policies, label: `${range.from}_${range.to}` });
     } catch (error) {
       console.error("Attendance sheet export failed:", error);
       toast.error(t("attendance_sheet.export_error"));
@@ -230,7 +230,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
               disabled={isExporting || totalCount === 0 || !shiftsReady}
               className="inline-flex h-[38px] items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isExporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              {isExporting ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />}
               {isExporting ? t("attendance_sheet.exporting") : t("attendance_sheet.export")}
             </button>
           </div>

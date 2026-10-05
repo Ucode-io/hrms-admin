@@ -5845,7 +5845,7 @@
   "attendance_sheet.day_off_short": "休",
   "attendance_sheet.dismissed_on": "已离职 {date}",
   "attendance_sheet.empty": "没有符合筛选条件的员工",
-  "attendance_sheet.export": "导出 CSV",
+  "attendance_sheet.export": "导出 Excel",
   "attendance_sheet.exporting": "正在导出…",
   "attendance_sheet.export_error": "考勤表导出失败",
   "attendance_sheet.legend.worked": "已工作小时",
@@ -5879,5 +5879,6 @@
   "attendance_sheet.col_hint.late": "迟到合计",
   "attendance_sheet.col_hint.overtime": "超出班次的加班，每天 15 分钟起算",
   "attendance_sheet.col_hint.absences": "有班次但没有打卡和已批准请假的天数",
-  "attendance_sheet.col_hint.off_schedule": "有打卡但没有班次的天数"
+  "attendance_sheet.col_hint.off_schedule": "有打卡但没有班次的天数",
+  "attendance_sheet.xlsx_legend": "图例"
 }

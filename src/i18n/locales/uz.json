@@ -5845,7 +5845,7 @@
   "attendance_sheet.day_off_short": "D",
   "attendance_sheet.dismissed_on": "Ishdan bo'shatilgan {date}",
   "attendance_sheet.empty": "Filtr bo'yicha xodimlar yo'q",
-  "attendance_sheet.export": "CSV eksport",
+  "attendance_sheet.export": "Excel eksport",
   "attendance_sheet.exporting": "Yuklanmoqda…",
   "attendance_sheet.export_error": "Tabelni yuklab bo'lmadi",
   "attendance_sheet.legend.worked": "Ishlangan soatlar",
@@ -5879,5 +5879,6 @@
   "attendance_sheet.col_hint.late": "Kechikishlar yig'indisi",
   "attendance_sheet.col_hint.overtime": "Smenadan ortiq ish, kuniga 15 daqiqadan",
   "attendance_sheet.col_hint.absences": "Smena bor, belgilar va tasdiqlangan ta'til yo'q kunlar",
-  "attendance_sheet.col_hint.off_schedule": "Belgilar bor, lekin smena yo'q kunlar"
+  "attendance_sheet.col_hint.off_schedule": "Belgilar bor, lekin smena yo'q kunlar",
+  "attendance_sheet.xlsx_legend": "Belgilar"
 }

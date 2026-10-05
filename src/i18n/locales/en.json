@@ -5950,7 +5950,7 @@
   "attendance_sheet.day_off_short": "O",
   "attendance_sheet.dismissed_on": "Dismissed {date}",
   "attendance_sheet.empty": "No employees match the filter",
-  "attendance_sheet.export": "Export CSV",
+  "attendance_sheet.export": "Export Excel",
   "attendance_sheet.exporting": "Exporting…",
   "attendance_sheet.export_error": "Failed to export the attendance sheet",
   "attendance_sheet.legend.worked": "Hours worked",
@@ -5984,5 +5984,6 @@
   "attendance_sheet.col_hint.late": "Total lateness",
   "attendance_sheet.col_hint.overtime": "Overtime beyond the shift, from 15 minutes a day",
   "attendance_sheet.col_hint.absences": "Days with a shift but no marks and no approved leave",
-  "attendance_sheet.col_hint.off_schedule": "Days with marks but no shift"
+  "attendance_sheet.col_hint.off_schedule": "Days with marks but no shift",
+  "attendance_sheet.xlsx_legend": "Legend"
 }

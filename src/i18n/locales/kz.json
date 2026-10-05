@@ -5845,7 +5845,7 @@
   "attendance_sheet.day_off_short": "Д",
   "attendance_sheet.dismissed_on": "Жұмыстан босатылған {date}",
   "attendance_sheet.empty": "Сүзгі бойынша қызметкерлер жоқ",
-  "attendance_sheet.export": "CSV экспорт",
+  "attendance_sheet.export": "Excel экспорт",
   "attendance_sheet.exporting": "Жүктелуде…",
   "attendance_sheet.export_error": "Табельді жүктеу мүмкін болмады",
   "attendance_sheet.legend.worked": "Жұмыс сағаттары",
@@ -5879,5 +5879,6 @@
   "attendance_sheet.col_hint.late": "Кешігулер қосындысы",
   "attendance_sheet.col_hint.overtime": "Ауысымнан тыс жұмыс, күніне 15 минуттан",
   "attendance_sheet.col_hint.absences": "Ауысым бар, белгілер мен мақұлданған демалыс жоқ күндер",
-  "attendance_sheet.col_hint.off_schedule": "Белгілер бар, бірақ ауысым жоқ күндер"
+  "attendance_sheet.col_hint.off_schedule": "Белгілер бар, бірақ ауысым жоқ күндер",
+  "attendance_sheet.xlsx_legend": "Белгілер"
 }

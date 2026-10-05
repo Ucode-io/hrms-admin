@@ -5914,7 +5914,7 @@
   "attendance_sheet.day_off_short": "В",
   "attendance_sheet.dismissed_on": "Уволен {date}",
   "attendance_sheet.empty": "Нет сотрудников по фильтру",
-  "attendance_sheet.export": "Экспорт CSV",
+  "attendance_sheet.export": "Экспорт Excel",
   "attendance_sheet.exporting": "Выгружаем…",
   "attendance_sheet.export_error": "Не удалось выгрузить табель",
   "attendance_sheet.legend.worked": "Отработано часов",
@@ -5948,5 +5948,6 @@
   "attendance_sheet.col_hint.late": "Сумма опозданий",
   "attendance_sheet.col_hint.overtime": "Переработка сверх смены, от 15 минут в день",
   "attendance_sheet.col_hint.absences": "Дни со сменой без отметок и без одобренного отсутствия",
-  "attendance_sheet.col_hint.off_schedule": "Дни с отметками, но без смены"
+  "attendance_sheet.col_hint.off_schedule": "Дни с отметками, но без смены",
+  "attendance_sheet.xlsx_legend": "Обозначения"
 }
