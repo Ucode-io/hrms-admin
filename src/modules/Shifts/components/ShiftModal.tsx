@@ -20,9 +20,17 @@
 // диапазон, в серии не один человек, часть дней занята, кого-то убрали из
 // списка или в графике есть пропущенные дни. Что именно уедет в базу, считает
 // `../plan.ts` — здесь остаётся ввод и подтверждение.
+//
+// Вид смены — переключатель «Дневная / Ночная / Удалённо» (решения 26–31):
+// дневную и ночную различает время, удалённую выбирают руками, и она пишется
+// полем `is_remote`. Правила — `kindForTimes` / `pickKind` в `../constants`.
+//
+// Форма открывается и на должность за день (`group`, решение 32): люди
+// должности и время большинства, сохранение ставит всем одно время.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StylesConfig } from "react-select";
+import { House, Moon, Sun, type LucideIcon } from "lucide-react";
 import { Modal } from "../../../components/ui/modal";
 import EmployeesInfiniteMultiSelect from "../../../components/autocomplete/EmployeesInfiniteMultiSelect";
 import {
@@ -30,11 +38,19 @@ import {
   datesInRange,
   formatDateRu,
   fromIsoDate,
+  kindForTimes,
   normalizeTime,
+  pickKind,
+  shiftKind,
+  switchTimeMode,
+  timesCrossMidnight,
+  type KindState,
+  type TimeMode,
 } from "../constants";
 import {
   buildDeletePlan,
   buildSavePlan,
+  dayVariants,
   resolveAssignee,
   resolveEditedDate,
   seriesMembers,
@@ -55,7 +71,7 @@ import {
   type Shift,
 } from "../../../api/services/shift.service";
 import type { Employee } from "../../../api/services/employee.service";
-import type { ShiftEmployee } from "../types";
+import type { PositionDay, ShiftEmployee, ShiftKind } from "../types";
 import TimeInput from "../../../components/form/TimeInput";
 import DateInput from "../../../components/form/DateInput";
 import { useTranslation } from "../../../i18n";
@@ -72,6 +88,12 @@ interface ShiftModalProps {
   shift: Shift | null;
   /** Предзаполнение при создании кликом по пустой ячейке. */
   defaults: { date: string; employeeId: string | null };
+  /**
+   * Должность за день — клик по клетке строки-должности (решение 32). Форма
+   * создания с людьми должности и временем большинства; занятые дни второй
+   * шаг предлагает перезаписать.
+   */
+  group?: PositionDay | null;
   employees: ShiftEmployee[];
   positions: Directory[];
   locations: Directory[];
@@ -151,6 +173,13 @@ const PEOPLE_LABEL: Record<PeopleScope, string> = {
 };
 
 const PEOPLE_ORDER: PeopleScope[] = ["all", "single"];
+
+/** Переключатель вида: три взаимоисключающих варианта (решение 26). */
+const KIND_OPTIONS: { kind: ShiftKind; label: string; Icon: LucideIcon }[] = [
+  { kind: "day", label: "Дневная", Icon: Sun },
+  { kind: "night", label: "Ночная", Icon: Moon },
+  { kind: "remote", label: "Удалённо", Icon: House },
+];
 
 const periodLabel = (dates: string[]): string => {
   if (dates.length === 0) return "нет подходящих дней";
@@ -283,6 +312,7 @@ export default function ShiftModal({
   onClose,
   shift,
   defaults,
+  group = null,
   employees,
   positions,
   locations,
@@ -297,9 +327,10 @@ export default function ShiftModal({
   const [headcount, setHeadcount] = useState("1");
   // «Время от–до» или «Часов в день»: второе задаёт длительность, не говоря,
   // когда именно работать. Заполнено всегда ровно одно из двух.
-  const [timeMode, setTimeMode] = useState<"range" | "hours">("range");
+  const [timeMode, setTimeMode] = useState<TimeMode>("range");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("18:00");
+  const [kind, setKind] = useState<ShiftKind>("day");
   const [hours, setHours] = useState("8");
   const [dateFrom, setDateFrom] = useState(defaults.date);
   const [dateTo, setDateTo] = useState(defaults.date);
@@ -377,7 +408,9 @@ export default function ShiftModal({
     setPendingDelete(null);
     setScope("single");
     setPeople("all");
-    setConflictPolicy("skip");
+    // Форму на должность открывают, чтобы править смены, которые уже стоят:
+    // «перезаписать» там и есть намерение, «оставить» — исключение.
+    setConflictPolicy(group ? "overwrite" : "skip");
     setFillGaps(false);
     setRemoval("delete");
     setSeriesRows([]);
@@ -394,6 +427,7 @@ export default function ShiftModal({
       setHours(hasHours ? String(savedHours) : "8");
       setStartTime(normalizeTime(shift.start_time) || "09:00");
       setEndTime(normalizeTime(shift.end_time) || "18:00");
+      setKind(shiftKind(shift));
       // Период, которым смену заводили, а не её единственный день: человек,
       // открывший среду из месячного графика, спрашивает про весь график.
       // У строк без периода (автозаполнение, всё созданное до этих полей)
@@ -407,6 +441,28 @@ export default function ShiftModal({
       return;
     }
 
+    if (group) {
+      // Должность за день: время и вид — у большинства, филиал — если он у
+      // всех один, иначе из карточки каждого.
+      const sample = dayVariants(group.shifts)[0]?.sample ?? null;
+      const sampleHours = Number(sample?.hours_per_day);
+      const byHours = Number.isFinite(sampleHours) && sampleHours > 0;
+      const places = new Set(group.shifts.map((item) => item.locations_id ?? ""));
+      setEmployeeIds(group.employeeIds);
+      setTimeMode(byHours ? "hours" : "range");
+      setHours(byHours ? String(sampleHours) : "8");
+      setStartTime(normalizeTime(sample?.start_time) || "09:00");
+      setEndTime(normalizeTime(sample?.end_time) || "18:00");
+      setKind(sample ? shiftKind(sample) : "day");
+      setDateFrom(group.date);
+      setDateTo(group.date);
+      setPositionId(group.positionId ?? "");
+      setLocationId(places.size === 1 ? [...places][0] : "");
+      setProject("");
+      setComment("");
+      return;
+    }
+
     // Создание: должность и филиал подставляем из карточки сотрудника, но
     // дальше они живут в смене — грид группирует по ним, а не по карточке.
     const employee = employeesRef.current.find(
@@ -416,6 +472,7 @@ export default function ShiftModal({
     setTimeMode("range");
     setStartTime("09:00");
     setEndTime("18:00");
+    setKind("day");
     setHours("8");
     setDateFrom(defaults.date);
     setDateTo(defaults.date);
@@ -423,7 +480,32 @@ export default function ShiftModal({
     setLocationId(employee?.locationId ?? "");
     setProject("");
     setComment("");
-  }, [isOpen, shift, defaults]);
+  }, [isOpen, shift, defaults, group]);
+
+  /** Вид и время одним значением — правила переключателя в `../constants`. */
+  const kindState: KindState = { kind, timeMode, start: startTime, end: endTime };
+  const applyKindState = (next: KindState) => {
+    setKind(next.kind);
+    setTimeMode(next.timeMode);
+    setStartTime(next.start);
+    setEndTime(next.end);
+  };
+
+  /**
+   * Разное время у людей формы на должность — по тем, кто ещё в списке:
+   * убрали всех «не таких» — предупреждать больше не о чем.
+   */
+  const groupVariants = useMemo(
+    () =>
+      group
+        ? dayVariants(
+            group.shifts.filter(
+              (item) => item.user_base_id && employeeIds.includes(item.user_base_id),
+            ),
+          )
+        : [],
+    [group, employeeIds],
+  );
 
   /**
    * Серия правимой смены — состав и дни недели.
@@ -779,6 +861,7 @@ export default function ShiftModal({
       hours_per_day: usesHours ? hoursValue : null,
       positions_id: positionId || null,
       locations_id: locationId || null,
+      is_remote: kind === "remote",
       project: project.trim() || null,
       comment: comment.trim() || null,
     };
@@ -973,7 +1056,8 @@ export default function ShiftModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-[560px] p-5 lg:p-6"
+      // Под строку «Время от–до | Часов в день» + «Дневная | Ночная | Удалённо».
+      className="max-w-[600px] p-5 lg:p-6"
     >
       <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
         {isDeleteStep
@@ -982,7 +1066,9 @@ export default function ShiftModal({
             ? "Применить изменения"
             : isEditing
               ? `Смена — ${formatDateRu(shift?.date ?? "")}`
-              : "Новая смена"}
+              : group
+                ? `${group.label} — ${formatDateRu(group.date)}`
+                : "Новая смена"}
       </h4>
 
       {showConfirm ? (
@@ -1148,6 +1234,21 @@ export default function ShiftModal({
         </div>
       ) : (
         <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+          {groupVariants.length > 1 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+              <p className="text-[13px] font-medium text-amber-800 dark:text-amber-300">
+                Разное время у сотрудников:
+              </p>
+              <p className="mt-0.5 text-[13px] text-amber-800 dark:text-amber-300">
+                {groupVariants.map((item) => `${item.label} — ${item.count}`).join(" · ")}
+              </p>
+              <p className="mt-1 text-[12px] text-amber-700 dark:text-amber-400">
+                Сохранение поставит всем одно время. Кого не трогать — уберите
+                из списка.
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass}>
@@ -1228,26 +1329,58 @@ export default function ShiftModal({
           </div>
 
           <div>
-            <div className="mb-2.5 inline-flex rounded-xl border border-gray-200 p-[3px] dark:border-gray-700">
-              {(
-                [
-                  ["range", "Время от–до"],
-                  ["hours", "Часов в день"],
-                ] as const
-              ).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setTimeMode(mode)}
-                  className={`h-8 rounded-lg px-3 text-[12px] font-semibold transition ${
-                    timeMode === mode
-                      ? "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
-                      : "text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="mb-2.5 flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-xl border border-gray-200 p-[3px] dark:border-gray-700">
+                {(
+                  [
+                    ["range", "Время от–до"],
+                    ["hours", "Часов в день"],
+                  ] as const
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => applyKindState(switchTimeMode(kindState, mode))}
+                    className={`h-8 rounded-lg px-3 text-[12px] font-semibold transition ${
+                      timeMode === mode
+                        ? "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
+                        : "text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Вид смены. Дневную и ночную время переключает само; нажатие
+                  на вид с неподходящим временем подставляет обычное время вида. */}
+              <div className="inline-flex rounded-xl border border-gray-200 p-[3px] dark:border-gray-700">
+                {KIND_OPTIONS.map(({ kind: option, label, Icon }) => {
+                  const isUnavailable = option === "night" && timeMode === "hours";
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      disabled={isUnavailable}
+                      aria-pressed={kind === option}
+                      title={
+                        isUnavailable ? "У смены по часам нет времени суток" : undefined
+                      }
+                      onClick={() => applyKindState(pickKind(kindState, option))}
+                      className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition ${
+                        kind === option
+                          ? "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
+                          : isUnavailable
+                            ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                            : "text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5"
+                      }`}
+                    >
+                      <Icon size={14} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {timeMode === "range" ? (
@@ -1256,7 +1389,10 @@ export default function ShiftModal({
                   <label className={labelClass}>Начало</label>
                   <TimeInput
                     value={startTime}
-                    onChange={(next) => setStartTime(next)}
+                    onChange={(next) => {
+                      setStartTime(next);
+                      setKind(kindForTimes({ ...kindState, start: next }));
+                    }}
                     className={inputClass}
                   />
                   {employeeIds.length > 0 ? <ViewerTimeHint date={dateFrom} time={startTime} zones={selectedZones} status={hintZones.status} /> : null}
@@ -1265,13 +1401,16 @@ export default function ShiftModal({
                   <label className={labelClass}>Окончание</label>
                   <TimeInput
                     value={endTime}
-                    onChange={(next) => setEndTime(next)}
+                    onChange={(next) => {
+                      setEndTime(next);
+                      setKind(kindForTimes({ ...kindState, end: next }));
+                    }}
                     className={inputClass}
                   />
                   {employeeIds.length > 0 ? <ViewerTimeHint date={dateFrom} time={endTime} zones={selectedZones} status={hintZones.status} /> : null}
-                  {endTime <= startTime && (
-                    <p className="mt-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">
-                      Переходит через полночь — смена считается ночной.
+                  {timesCrossMidnight(startTime, endTime) && (
+                    <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                      Окончание — на следующий день.
                     </p>
                   )}
                 </div>
@@ -1440,7 +1579,9 @@ export default function ShiftModal({
         </div>
 
         <div className="flex items-center gap-2">
-          {!isEditing && !showConfirm && plannedCount > 1 && (
+          {/* У формы на должность дни людей заняты — их перезапишут, а не
+              создадут, и цифра «создано» соврала бы. */}
+          {!isEditing && !showConfirm && plannedCount > 1 && !group?.shifts.length && (
             <span className="text-[12px] text-gray-400 dark:text-gray-500">
               Будет создано: {plannedCount}
             </span>

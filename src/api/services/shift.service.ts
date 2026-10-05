@@ -39,6 +39,7 @@ const UPSERT_FIELDS = [
   "hours_per_day",
   "positions_id",
   "locations_id",
+  "is_remote",
   "project",
   "comment",
 ];
@@ -91,6 +92,12 @@ export interface Shift {
   positions_id_data?: RelationData;
   locations_id: string | null;
   locations_id_data?: RelationData;
+  /**
+   * Удалённая смена: ни прогула, ни опоздания. Отдельное поле, а не название
+   * филиала (решения 22–23, 01.10.2026): филиал у удалённой смены настоящий.
+   * Пусто у строк, заведённых до поля, — это «не удалённая».
+   */
+  is_remote?: boolean | null;
   project: string | null;
   comment: string | null;
   created_at?: string;
@@ -110,6 +117,7 @@ export type ShiftInput = {
   hours_per_day: number | null;
   positions_id: string | null;
   locations_id: string | null;
+  is_remote: boolean;
   project: string | null;
   comment: string | null;
 };
@@ -282,6 +290,7 @@ const shiftService = {
           hours_per_day: row.hours_per_day ?? null,
           positions_id: row.positions_id ?? null,
           locations_id: row.locations_id ?? null,
+          is_remote: row.is_remote === true,
           project: row.project ?? null,
           comment: row.comment ?? null,
         })),

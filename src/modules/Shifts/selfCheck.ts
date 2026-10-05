@@ -19,13 +19,18 @@ import {
   formatShiftTime,
   fromIsoDate,
   hasFixedTime,
+  kindForTimes,
+  pickKind,
   shiftKind,
   shiftMinutes,
+  switchTimeMode,
   normalizeTime,
+  type KindState,
 } from "./constants";
 import {
   buildDeletePlan,
   buildSavePlan,
+  dayVariants,
   resolveAssignee,
   resolveEditedDate,
   type PlanRequest,
@@ -56,20 +61,97 @@ assert.equal(shiftKind(shift({})), "day");
 // Переход через полночь — это и есть ночная смена.
 assert.equal(shiftKind(shift({ start_time: "21:00", end_time: "06:00" })), "night");
 
-// Удалёнка — признак места, а не времени.
+// Удалёнка — поле смены, а не название филиала (решения 22–23).
+assert.equal(shiftKind(shift({ is_remote: true })), "remote");
 assert.equal(
-  shiftKind(shift({ locations_id_data: { title: "Удалённо" } })),
+  shiftKind(shift({ is_remote: false, locations_id_data: { title: "Удалённо" } })),
+  "day"
+);
+// Пустое поле — строки до его появления: не удалённая.
+assert.equal(shiftKind(shift({ is_remote: null })), "day");
+
+// Удалённая через полночь остаётся удалённой: виды взаимоисключающи, и
+// удалёнку выбирают руками (решение 28).
+assert.equal(
+  shiftKind(shift({ start_time: "22:00", end_time: "07:00", is_remote: true })),
   "remote"
 );
 
-// Ночь старше удалёнки: дежурство из дома важнее прочесть как ночное —
-// иначе фильтр «Ночные» потеряет ровно те смены, ради которых он заведён.
+// ── Переключатель вида в форме ───────────────────────────────────────────
+const form = (patch: Partial<KindState> = {}): KindState => ({
+  kind: "day",
+  timeMode: "range",
+  start: "09:00",
+  end: "18:00",
+  ...patch,
+});
+
+// Время главное: правка через полночь переводит дневную в ночную и обратно.
+assert.equal(kindForTimes(form({ start: "18:00", end: "02:00" })), "night");
+assert.equal(kindForTimes(form({ kind: "night", start: "09:00", end: "18:00" })), "day");
+// 16:00–23:59 — не через полночь, дневная.
+assert.equal(kindForTimes(form({ kind: "night", start: "16:00", end: "23:59" })), "day");
+// «Удалённо» правка времени не снимает — время у неё любое.
+assert.equal(kindForTimes(form({ kind: "remote", start: "18:00", end: "02:00" })), "remote");
+
+// Нажатие на вид: неподходящее время заменяется обычным временем вида…
+assert.deepEqual(pickKind(form(), "night"), form({ kind: "night", start: "22:00", end: "06:00" }));
+assert.deepEqual(
+  pickKind(form({ kind: "night", start: "22:00", end: "06:00" }), "day"),
+  form({ kind: "day", start: "09:00", end: "18:00" })
+);
+// …подходящее остаётся: из «Удалённо» 09:00–18:00 в «Дневная» — время то же.
+assert.deepEqual(pickKind(form({ kind: "remote" }), "day"), form({ kind: "day" }));
+assert.deepEqual(
+  pickKind(form({ kind: "remote", start: "23:00", end: "07:00" }), "night"),
+  form({ kind: "night", start: "23:00", end: "07:00" })
+);
+// «Удалённо» время не трогает никогда.
+assert.deepEqual(
+  pickKind(form({ kind: "night", start: "22:00", end: "06:00" }), "remote"),
+  form({ kind: "remote", start: "22:00", end: "06:00" })
+);
+
+// «По часам» ночной не бывает: «Ночная» не нажимается, ночная становится дневной.
+const hoursForm = form({ timeMode: "hours" });
+assert.deepEqual(pickKind(hoursForm, "night"), hoursForm);
+assert.equal(pickKind(hoursForm, "remote").kind, "remote");
 assert.equal(
-  shiftKind(
-    shift({ start_time: "22:00", end_time: "07:00", locations_id_data: { title: "Удалённо" } })
-  ),
+  switchTimeMode(form({ kind: "night", start: "22:00", end: "06:00" }), "hours").kind,
+  "day"
+);
+assert.equal(switchTimeMode(form({ kind: "remote" }), "hours").kind, "remote");
+// Обратно ко времени — вид снова по времени.
+assert.equal(
+  switchTimeMode(form({ kind: "day", timeMode: "hours", start: "22:00", end: "06:00" }), "range")
+    .kind,
   "night"
 );
+
+// ── Форма на должность за день: варианты смен ───────────────────────────
+// Customer Care 01.10: трое 09–18 в офисе, одна 09–18 удалённо, 16–23:59, 12–21.
+const careDay = dayVariants([
+  shift({ guid: "1" }),
+  shift({ guid: "2" }),
+  shift({ guid: "3" }),
+  shift({ guid: "4", is_remote: true }),
+  shift({ guid: "5", start_time: "16:00", end_time: "23:59" }),
+  shift({ guid: "6", start_time: "12:00", end_time: "21:00" }),
+]);
+// Большинство первым, удалёнка — отдельный вариант при том же времени.
+assert.deepEqual(
+  careDay.map((item) => [item.label, item.count]),
+  [
+    ["09:00–18:00", 3],
+    ["09:00–18:00 удалённо", 1],
+    ["12:00–21:00", 1],
+    ["16:00–23:59", 1],
+  ]
+);
+assert.equal(careDay[0].sample.guid, "1");
+// Одинаковые смены — один вариант, предупреждать не о чем.
+assert.equal(dayVariants([shift({ guid: "a" }), shift({ guid: "b" })]).length, 1);
+assert.equal(dayVariants([]).length, 0);
 
 // ── Длительность ─────────────────────────────────────────────────────────
 assert.equal(shiftMinutes(shift({})), 9 * 60);
@@ -132,6 +214,7 @@ const baseOf = (patch: Partial<ShiftBase> = {}): ShiftBase => ({
   hours_per_day: null,
   positions_id: null,
   locations_id: null,
+  is_remote: false,
   project: null,
   comment: null,
   ...patch,
@@ -261,6 +344,12 @@ assert.deepEqual(guids(wholePeriod.updates), ["orig", "tue"]);
 assert.equal(wholePeriod.updates[1].date, "2026-04-21");
 assert.equal(wholePeriod.updates[1].user_base_id, "a");
 assert.equal(wholePeriod.updates[1].start_time, "10:00");
+
+// «Удалённо» разливается на серию, как время, и доезжает в ряду полем.
+const remoteSeries = plan({ ...editArgs, base: baseOf({ is_remote: true }) });
+assert.deepEqual(guids(remoteSeries.updates), ["orig", "tue"]);
+assert.equal(remoteSeries.updates[1].is_remote, true);
+assert.equal(remoteSeries.updates[1].start_time, "09:00");
 
 // Дыры правка не заполняет: у «a» в серии уже есть строки, и пустые дни —
 // записанное решение, а не отсутствие данных.

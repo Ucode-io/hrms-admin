@@ -55,9 +55,8 @@ export const ITEM_BY_META: Record<ItemBy, { label: string }> = {
 };
 
 /**
- * Цвета вида смены. Те же четыре, что в прототипе — но теперь это подсказка,
- * выведенная из данных, а не хранимое поле, которое админ мог проставить
- * вразрез со временем.
+ * Цвета вида смены. Дневная и ночная выводятся из времени, удалённая — из
+ * поля `is_remote`; вразрез со временем вид проставить нельзя.
  */
 export const KIND_META: Record<CellKind, { label: string; color: string; soft: string }> = {
   day: { label: "Дневная", color: "#2563eb", soft: "#eff6ff" },
@@ -71,9 +70,6 @@ export const KIND_ORDER: ShiftKind[] = ["day", "night", "remote"];
 
 /** Легенда над таблицей: в ней выходной есть, потому что клетки им закрашены. */
 export const LEGEND_ORDER: CellKind[] = [...KIND_ORDER, "off"];
-
-/** Филиал считается удалённым по названию — отдельного флага у `locations` нет. */
-const REMOTE_LOCATION = /удал|remote|дом/i;
 
 export const timeToMinutes = (value: string | null | undefined): number | null => {
   if (!value) return null;
@@ -108,22 +104,86 @@ export const hoursPerDay = (shift: Shift): number | null => {
   return Number.isFinite(raw) && raw > 0 ? raw : null;
 };
 
+/** Время «начало–конец» переходит через полночь: конец не позже начала. */
+export const timesCrossMidnight = (
+  start: string | null | undefined,
+  end: string | null | undefined
+): boolean => {
+  const from = timeToMinutes(start);
+  const to = timeToMinutes(end);
+  if (from == null || to == null) return false;
+  return to <= from;
+};
+
 /** Смена переходит через полночь: конец не позже начала. */
-export const crossesMidnight = (shift: Shift): boolean => {
-  const start = timeToMinutes(shift.start_time);
-  const end = timeToMinutes(shift.end_time);
-  if (start == null || end == null) return false;
-  return end <= start;
+export const crossesMidnight = (shift: Shift): boolean =>
+  timesCrossMidnight(shift.start_time, shift.end_time);
+
+/**
+ * Вид смены. Удалённая — та, у которой стоит `is_remote` (решения 22–23): её
+ * выбирают руками, и время у неё любое, в том числе через полночь. Остальные
+ * делятся временем: через полночь — ночная, иначе дневная. Смена «по часам»
+ * времени суток не имеет и ночной не бывает.
+ */
+export const shiftKind = (shift: Shift): ShiftKind => {
+  if (shift.is_remote === true) return "remote";
+  if (crossesMidnight(shift)) return "night";
+  return "day";
 };
 
 /**
- * Вид смены выводится, а не хранится. Ночь старше удалёнки — ночное дежурство
- * из дома важнее прочесть как ночное.
+ * Обычное время вида — его форма подставляет, когда выбранный вид с текущим
+ * временем не сходится (решение 30): нажали «Ночная» на 09:00–18:00.
  */
-export const shiftKind = (shift: Shift): ShiftKind => {
-  if (crossesMidnight(shift)) return "night";
-  if (REMOTE_LOCATION.test(String(shift.locations_id_data?.title ?? ""))) return "remote";
-  return "day";
+export const KIND_DEFAULT_TIMES: Record<"day" | "night", { start: string; end: string }> = {
+  day: { start: "09:00", end: "18:00" },
+  night: { start: "22:00", end: "06:00" },
+};
+
+/** Как задано время смены в форме: часами суток или длительностью. */
+export type TimeMode = "range" | "hours";
+
+/** Вид и время в форме — то, что меняют переключатели вида и режима. */
+export type KindState = {
+  kind: ShiftKind;
+  timeMode: TimeMode;
+  start: string;
+  end: string;
+};
+
+/**
+ * Правила переключателя «Дневная / Ночная / Удалённо» (решения 27–31).
+ *
+ * Время главное: дневную и ночную различает переход через полночь, поэтому
+ * правка времени сама переводит вид между ними. «Удалённо» выбирают только
+ * руками, и правка времени его не снимает — у удалённой время любое.
+ */
+export const kindForTimes = (state: KindState): ShiftKind => {
+  if (state.kind === "remote") return "remote";
+  if (state.timeMode === "hours") return "day";
+  return timesCrossMidnight(state.start, state.end) ? "night" : "day";
+};
+
+/**
+ * Нажатие на вид. Время, которое этому виду подходит, не трогаем; не
+ * подходит — подставляем обычное время вида. «Ночная» у смены «по часам»
+ * невозможна: времени суток у неё нет — нажатие ничего не меняет.
+ */
+export const pickKind = (state: KindState, target: ShiftKind): KindState => {
+  if (target === "remote") return { ...state, kind: "remote" };
+  if (state.timeMode === "hours") {
+    return target === "night" ? state : { ...state, kind: "day" };
+  }
+  const crosses = timesCrossMidnight(state.start, state.end);
+  const fits = target === "night" ? crosses : !crosses;
+  if (fits) return { ...state, kind: target };
+  return { ...state, kind: target, ...KIND_DEFAULT_TIMES[target] };
+};
+
+/** Смена режима времени: ночная «по часам» становится дневной. */
+export const switchTimeMode = (state: KindState, timeMode: TimeMode): KindState => {
+  const next = { ...state, timeMode };
+  return { ...next, kind: kindForTimes(next) };
 };
 
 /** Длительность смены в минутах, с учётом перехода через полночь. */

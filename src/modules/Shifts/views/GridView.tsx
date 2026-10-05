@@ -41,7 +41,8 @@ interface GridViewProps {
   onToggleGroup: (key: string) => void;
   onCellClick: (employeeId: string | null, date: string, shift: Shift | null) => void;
   onOpenShiftsClick: (date: string, shifts: Shift[]) => void;
-  onBreakdownClick: (label: string, employees: ShiftEmployee[], date: string) => void;
+  /** Клетка строки-должности — форма на всю должность за этот день. */
+  onPositionDayClick: (label: string, employees: ShiftEmployee[], date: string) => void;
 }
 
 const headCellClass =
@@ -78,7 +79,7 @@ export default function GridView({ dates,
   onToggleGroup,
   onCellClick,
   onOpenShiftsClick,
-  onBreakdownClick,
+  onPositionDayClick,
 }: GridViewProps) {
   const columnCount = dates.length + 1;
 
@@ -157,10 +158,10 @@ export default function GridView({ dates,
       <td key={iso} className={`px-1 py-1 ${dayOff ? offColumnClass : ""}`}>
         <button
           type="button"
-          onClick={() => onBreakdownClick(label, members, iso)}
+          onClick={() => onPositionDayClick(label, members, iso)}
           title={`${label} · ${formatDayHeader(iso)}${
             dayOff ? ` (${dayOff})` : ""
-          } — работает ${working} из ${total}`}
+          } — работает ${working} из ${total} · нажмите, чтобы править смены должности`}
           className="flex min-h-[38px] w-full flex-col items-center justify-center gap-1 rounded-lg bg-gray-50 px-1 py-1.5 transition hover:bg-gray-100 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]"
         >
           <span className="flex h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">

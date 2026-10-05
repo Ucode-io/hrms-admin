@@ -10,7 +10,7 @@
 // одна строка с этим `series_id`. Отдельного списка участников нет нигде, и
 // заводить его нельзя: он был бы вторым определением того же множества.
 
-import { datesInRange, fromIsoDate, normalizeTime } from "./constants";
+import { datesInRange, formatShiftTime, fromIsoDate, normalizeTime } from "./constants";
 import type { Shift, ShiftInput, ShiftRow } from "../../api/services/shift.service";
 
 /**
@@ -37,6 +37,7 @@ export const toShiftRow = (shift: Shift): ShiftRow => ({
   hours_per_day: shift.hours_per_day ?? null,
   positions_id: shift.positions_id ?? null,
   locations_id: shift.locations_id ?? null,
+  is_remote: shift.is_remote === true,
   project: shift.project ?? null,
   comment: shift.comment ?? null,
 });
@@ -150,6 +151,7 @@ const PROPAGATED = [
   "hours_per_day",
   "positions_id",
   "locations_id",
+  "is_remote",
   "project",
   "comment",
 ] as const;
@@ -183,6 +185,7 @@ export const shiftToBase = (shift: Shift): ShiftBase => ({
   hours_per_day: numberValue(shift.hours_per_day),
   positions_id: textValue(shift.positions_id),
   locations_id: textValue(shift.locations_id),
+  is_remote: shift.is_remote === true,
   project: textValue(shift.project),
   comment: textValue(shift.comment),
 });
@@ -274,6 +277,33 @@ export const resolveEditedDate = (
 ): string => {
   if (!original) return "";
   return dateFrom === dateTo ? dateFrom : original.date;
+};
+
+/** Один вариант смен дня: «09:00–18:00 удалённо — 1». */
+export type DayVariant = { key: string; label: string; count: number; sample: Shift };
+
+/**
+ * Смены людей одной должности за день, сведённые по времени и удалёнке
+ * (решение 32). Первым идёт вариант большинства — им форма на должность и
+ * заполняется; больше одного варианта — форма предупреждает, что сохранение
+ * поставит всем одно время. Время — местное, как в полях формы.
+ */
+export const dayVariants = (shifts: Shift[]): DayVariant[] => {
+  const byKey = new Map<string, DayVariant>();
+  shifts.forEach((shift) => {
+    const time = formatShiftTime(shift) || "без времени";
+    const remote = shift.is_remote === true;
+    const key = `${time}|${remote}`;
+    const found = byKey.get(key);
+    if (found) {
+      found.count += 1;
+      return;
+    }
+    byKey.set(key, { key, label: remote ? `${time} удалённо` : time, count: 1, sample: shift });
+  });
+  return [...byKey.values()].sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label)
+  );
 };
 
 /** Дни, по которым пройдётся правка. Одна ось из двух — общая с удалением. */

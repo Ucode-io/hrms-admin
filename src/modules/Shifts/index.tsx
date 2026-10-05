@@ -1,8 +1,7 @@
 // Смены — планирование работы по конкретным датам.
 //
-// Экран отдельный от «Графика работы» в настройках: там недельные шаблоны
-// (Work Schedule), здесь экземпляры на даты (Shift). Плановые часы табеля и
-// зарплаты по сменам НЕ считаются — см. docs/adr/0002.
+// Посещаемость, прогулы, штрафы, табель и зарплата считаются только по ним:
+// недельного графика больше нет (решения 29–30.09.2026, «только смены»).
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -10,7 +9,6 @@ import { ChevronLeft, ChevronRight, Filter, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import PageMeta from "../../components/common/PageMeta";
 import Spinner from "../../components/ui/Spinner";
-import { Modal } from "../../components/ui/modal";
 import {
   PILL_GROUP,
   PILL_ICON_BUTTON,
@@ -41,13 +39,8 @@ import {
   LEGEND_ORDER,
   SCALE_META,
   SCALE_ORDER,
-  avatarColor,
   datesInRange,
-  formatDateRu,
   formatRangeLabel,
-  formatShiftTime,
-  getInitials,
-  hasFixedTime,
   isWeekend,
   rangeForScale,
   shiftAnchor,
@@ -59,6 +52,7 @@ import GridView from "./views/GridView";
 import type {
   GroupBy,
   ItemBy,
+  PositionDay,
   ShiftEmployee,
   ShiftGroup,
   ShiftsFilters,
@@ -66,7 +60,6 @@ import type {
 } from "./types";
 import { useTranslation } from "../../i18n";
 import { useEmployeeTimeZones } from "../../hooks/useEmployeeTimeZones";
-import { WallRange } from "../../components/common/WallTime";
 
 const BREADCRUMBS = [{ label: "График работы", to: "/shifts" }];
 
@@ -159,19 +152,14 @@ export default function ShiftsPage() {
   const [offset, setOffset] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  // Разбор свёрнутой строки-должности: кто из неё в этот день работает.
-  const [breakdown, setBreakdown] = useState<{
-    label: string;
-    employees: ShiftEmployee[];
-    date: string;
-  } | null>(null);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalShift, setModalShift] = useState<Shift | null>(null);
   const [modalDefaults, setModalDefaults] = useState({
     date: anchor,
     employeeId: null as string | null,
   });
+  // Должность за день — форма открыта кликом по клетке строки-должности.
+  const [modalGroup, setModalGroup] = useState<PositionDay | null>(null);
   const [modalError, setModalError] = useState("");
 
   // Поиск уходит на сервер — печатать по букве в запрос нельзя.
@@ -393,6 +381,34 @@ export default function ShiftsPage() {
     setModalError("");
     setModalShift(shift);
     setModalDefaults({ date, employeeId });
+    setModalGroup(null);
+    setIsModalOpen(true);
+  };
+
+  /**
+   * Клик по клетке строки-должности (решение 32): форма на всю должность за
+   * день. В ней люди должности, у кого в этот день есть смена, и время
+   * большинства; смен нет ни у кого — все люди должности, это создание.
+   * Удаления в такой форме нет: снимать смены — по одному человеку.
+   */
+  const openPositionDay = (label: string, members: ShiftEmployee[], date: string) => {
+    const shifts = members
+      .map((employee) => shiftByCell.get(`${employee.id}|${date}`))
+      .filter((item): item is Shift => Boolean(item));
+    const working = new Set(shifts.map((item) => item.user_base_id));
+    setModalError("");
+    setModalShift(null);
+    setModalDefaults({ date, employeeId: null });
+    setModalGroup({
+      label,
+      positionId: members.find((employee) => employee.positionId)?.positionId ?? null,
+      date,
+      employeeIds: (shifts.length > 0
+        ? members.filter((employee) => working.has(employee.id))
+        : members
+      ).map((employee) => employee.id),
+      shifts,
+    });
     setIsModalOpen(true);
   };
 
@@ -726,9 +742,7 @@ export default function ShiftsPage() {
               onToggleGroup={toggleGroup}
               onCellClick={openModal}
               onOpenShiftsClick={(date, shifts) => openModal(null, date, shifts[0] ?? null)}
-              onBreakdownClick={(label, members, date) =>
-                setBreakdown({ label, employees: members, date })
-              }
+              onPositionDayClick={openPositionDay}
             />
           )}
         </div>
@@ -763,65 +777,6 @@ export default function ShiftsPage() {
         )}
       </div>
 
-      {/* Свёрнутая строка не должна быть тупиком: сводка «3 из 5» полезна ровно
-          до вопроса «а кто эти двое» — ответ здесь же, вместе с правкой. */}
-      <Modal
-        isOpen={Boolean(breakdown)}
-        onClose={() => setBreakdown(null)}
-        className="max-w-[520px] p-5 lg:p-6"
-      >
-        <h4 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {breakdown?.label} — {formatDateRu(breakdown?.date ?? "")}
-        </h4>
-        <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-          {breakdown?.employees.map((employee) => {
-            const shift = shiftByCell.get(`${employee.id}|${breakdown.date}`) ?? null;
-            const meta = KIND_META[shift ? shiftKind(shift) : "off"];
-            const time = shift ? formatShiftTime(shift) : "";
-            return (
-              <div
-                key={employee.id}
-                className="flex items-center gap-3 rounded-xl border border-gray-100 px-3 py-2 dark:border-gray-800"
-              >
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                  style={{ backgroundColor: avatarColor(employee.id) }}
-                >
-                  {getInitials(employee.name)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] text-gray-700 dark:text-white/90">
-                  {employee.name}
-                </span>
-                <span
-                  className="rounded-lg border px-2 py-1 text-[11px] font-semibold"
-                  style={{
-                    borderColor: meta.color,
-                    backgroundColor: meta.soft,
-                    color: meta.color,
-                  }}
-                >
-                  {shift && hasFixedTime(shift) ? (
-                    <WallRange zones={zones} userBaseId={employee.id} date={breakdown.date} start={shift.start_time} end={shift.end_time} />
-                  ) : (
-                    time || meta.label
-                  )}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBreakdown(null);
-                    openModal(employee.id, breakdown.date, shift);
-                  }}
-                  className="text-[12px] font-medium text-brand-500 transition hover:text-brand-600"
-                >
-                  Изменить
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </Modal>
-
       <ShiftModal
         isOpen={isModalOpen}
         onClose={() => {
@@ -830,6 +785,7 @@ export default function ShiftsPage() {
         }}
         shift={modalShift}
         defaults={modalDefaults}
+        group={modalGroup}
         employees={employees}
         positions={positions.map((item) => ({ guid: item.guid, title: item.title }))}
         locations={locations.map((item) => ({ guid: item.guid, title: item.title }))}
