@@ -271,17 +271,19 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
             ) : rows.length === 0 ? (
               <div className="py-16 text-center text-sm text-slate-500">{t("attendance_sheet.empty")}</div>
             ) : (
-              <div className="max-w-full overflow-x-auto">
+              // Своя прокрутка по обеим осям — иначе шапка с датами не закрепится:
+              // sticky держится за ближайший прокручиваемый контейнер.
+              <div className="max-h-[calc(100vh-250px)] max-w-full overflow-auto">
                 <table className="min-w-full border-collapse text-[12px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50">
-                      <th className="sticky left-0 z-20 min-w-[230px] bg-slate-50 px-4 py-2 text-left text-xs font-semibold text-slate-500">{t("absence_request.employee")}</th>
+                      <th className={`sticky left-0 top-0 z-30 min-w-[230px] bg-slate-50 px-4 py-2 text-left text-xs font-semibold text-slate-500 ${HEAD_EDGE}`}>{t("absence_request.employee")}</th>
                       {dates.map((date) => {
                         const day = fromIsoDate(date);
                         return (
                           <th
                             key={date}
-                            className={`px-0.5 py-1.5 text-center font-semibold ${scale === "week" ? "min-w-[84px]" : "min-w-[38px]"} ${isToday(date) ? "bg-blue-50 text-blue-700" : isWeekend(date) ? "text-rose-500" : "text-slate-600"}`}
+                            className={`sticky top-0 z-20 px-0.5 py-1.5 text-center font-semibold ${HEAD_EDGE} ${scale === "week" ? "min-w-[84px]" : "min-w-[38px]"} ${isToday(date) ? "bg-blue-50 text-blue-700" : isWeekend(date) ? "bg-slate-50 text-rose-500" : "bg-slate-50 text-slate-600"}`}
                           >
                             <div className="text-[12px] leading-tight">{day.getDate()}</div>
                             <div className="text-[10px] font-medium leading-tight opacity-70">{weekdayShort(day.getDay())}</div>
@@ -289,7 +291,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
                         );
                       })}
                       {totalsHeaders(t, hasOffSchedule).map(({ label, hint }, index) => (
-                        <th key={label} className={`whitespace-nowrap bg-slate-50 px-2 py-2 text-right text-[11px] font-semibold text-slate-500 ${index === 0 ? "border-l border-slate-200" : ""}`}>
+                        <th key={label} className={`sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-2 py-2 text-right ${HEAD_EDGE} text-[11px] font-semibold text-slate-500 ${index === 0 ? "border-l border-slate-200" : ""}`}>
                           <HoverTooltip text={hint} align="end">
                             <span className="cursor-help border-b border-dotted border-slate-300">{label}</span>
                           </HoverTooltip>
@@ -314,7 +316,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
                           </div>
                         </td>
                         {cells.map((cell) => (
-                          <td key={cell.date} className={`p-0 text-center ${isToday(cell.date) ? "bg-blue-50/50" : ""}`}>
+                          <td key={cell.date} className={`px-0.5 py-[3px] text-center ${isToday(cell.date) ? "bg-blue-50/50" : ""}`}>
                             <SheetCellView cell={cell} onOpen={() => setSelected({ employeeId: employee.guid, date: cell.date })} />
                           </td>
                         ))}
@@ -358,6 +360,9 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
   );
 }
 
+/** Нижняя граница закреплённой шапки: обычный border у sticky-ячейки с border-collapse уезжает. */
+const HEAD_EDGE = "shadow-[inset_0_-1px_0_#e2e8f0]";
+
 const TOTAL_COLUMNS = ["days", "hours", "plan", "late", "overtime", "absences", "off_schedule"] as const;
 
 const totalsHeaders = (t: ReturnType<typeof useTranslation>["t"], withOffSchedule: boolean) =>
@@ -391,7 +396,7 @@ const tint = (hex: string, alpha: number): string => {
 
 function SheetCellView({ cell, onOpen }: { cell: SheetCell; onOpen: () => void }) {
   const { t } = useTranslation();
-  if (cell.kind === "outside") return <div className="h-9 bg-[repeating-linear-gradient(135deg,#f8fafc_0_4px,#f1f5f9_4px_8px)]" />;
+  if (cell.kind === "outside") return <div className="h-[30px] rounded-[5px] bg-[repeating-linear-gradient(135deg,#f8fafc_0_4px,#f1f5f9_4px_8px)]" />;
 
   let content: ReactNode = null;
   let className = "text-slate-800";
@@ -426,6 +431,8 @@ function SheetCellView({ cell, onOpen }: { cell: SheetCell; onOpen: () => void }
       break;
     case "missing_mark":
       content = <AlertCircle size={14} className="mx-auto text-amber-500" />;
+      // Заливка — как у Leave: цвет знака с прозрачностью.
+      style = { backgroundColor: tint("#f59e0b", 0.14) };
       hints.push(missing, plan);
       break;
     case "absent":
@@ -463,7 +470,7 @@ function SheetCellView({ cell, onOpen }: { cell: SheetCell; onOpen: () => void }
     <button
       type="button"
       onClick={onOpen}
-      className={`relative flex h-9 w-full items-center justify-center px-0.5 text-[12px] tabular-nums outline-none transition hover:ring-1 hover:ring-inset hover:ring-brand-300 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400 ${className}`}
+      className={`relative flex h-[30px] w-full items-center justify-center rounded-[5px] px-0.5 text-[12px] tabular-nums outline-none transition hover:ring-1 hover:ring-inset hover:ring-brand-300 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400 ${className}`}
       style={style}
     >
       {content}
