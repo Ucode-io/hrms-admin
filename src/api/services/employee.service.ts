@@ -177,56 +177,66 @@ export const fetchEmployeesList = async (params: {
 };
 
 // ───── List employees ─────
+export type EmployeesListParams = {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  status?: EmployeeStatus;
+  positions_id?: string[];
+  departments_id?: string[];
+  locations_id?: string[];
+  /** Уволенные не раньше этой даты («ГГГГ-ММ-ДД») — для табелей прошлых периодов. */
+  dismissed_since?: string;
+};
+
+/** Страница сотрудников; та же выборка, что у `useEmployeesQuery`, без хука — для выгрузок. */
+export const fetchEmployees = async (params: EmployeesListParams = {}) => {
+  const dataObj: Record<string, any> = {
+    limit: params.limit ?? 10,
+    offset: params.offset ?? 0,
+  };
+
+  if (EMPLOYEE_ROLE_ID) {
+    dataObj.role_id = EMPLOYEE_ROLE_ID;
+  }
+
+  if (params.search) {
+    dataObj.search = params.search;
+  }
+
+  if (params.status) {
+    dataObj.status = [params.status];
+  }
+
+  if (params.positions_id && params.positions_id.length > 0) {
+    dataObj.positions_id = params.positions_id;
+  }
+
+  if (params.departments_id && params.departments_id.length > 0) {
+    dataObj.departments_id = params.departments_id;
+  }
+
+  if (params.locations_id && params.locations_id.length > 0) {
+    dataObj.locations_id = params.locations_id;
+  }
+
+  if (params.dismissed_since) {
+    dataObj.dismissal_date = { $gte: params.dismissed_since };
+  }
+
+  const res = await instance.get(`/v2/items/${SLUG}`, {
+    params: {
+      "project-id": PROJECT_ID,
+      data: JSON.stringify(dataObj),
+    },
+  });
+  return res.data?.data?.data;
+};
+
 export const useEmployeesQuery = (
-  params: {
-    limit?: number;
-    offset?: number;
-    search?: string;
-    status?: EmployeeStatus;
-    positions_id?: string[];
-    departments_id?: string[];
-    locations_id?: string[];
-    enabled?: boolean;
-  } = {}
+  params: EmployeesListParams & { enabled?: boolean } = {}
 ) => {
-  return useQuery(["employees", params], async () => {
-    const dataObj: Record<string, any> = {
-      limit: params.limit ?? 10,
-      offset: params.offset ?? 0,
-    };
-
-    if (EMPLOYEE_ROLE_ID) {
-      dataObj.role_id = EMPLOYEE_ROLE_ID;
-    }
-
-    if (params.search) {
-      dataObj.search = params.search;
-    }
-
-    if (params.status) {
-      dataObj.status = [params.status];
-    }
-
-    if (params.positions_id && params.positions_id.length > 0) {
-      dataObj.positions_id = params.positions_id;
-    }
-
-    if (params.departments_id && params.departments_id.length > 0) {
-      dataObj.departments_id = params.departments_id;
-    }
-
-    if (params.locations_id && params.locations_id.length > 0) {
-      dataObj.locations_id = params.locations_id;
-    }
-
-    const res = await instance.get(`/v2/items/${SLUG}`, {
-      params: {
-        "project-id": PROJECT_ID,
-        data: JSON.stringify(dataObj),
-      },
-    });
-    return res.data?.data?.data;
-  }, {
+  return useQuery(["employees", params], () => fetchEmployees(params), {
     enabled: params.enabled ?? true,
     keepPreviousData: true,
   });

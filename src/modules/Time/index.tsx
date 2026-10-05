@@ -1,21 +1,23 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { CalendarCheck, CalendarDays, Clock, List, Plane } from "lucide-react";
+import { CalendarCheck, CalendarDays, Clock, List, Plane, Sheet } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import CalendarModule from "../Calendar";
 import TimeAttendancePage from "./Attendance";
 import AttendanceEventsPage from "./Attendance/AttendanceEventsPage";
 import AbsenceRequestsView from "./components/AbsenceRequestsView";
 import LatePermissionRequestsView from "./components/LatePermissionRequestsView";
+import AttendanceSheetView from "./Sheet";
 import { useTranslation } from "../../i18n";
 import type { MessageKey } from "../../i18n/messages";
 
-type TimeView = "calendar" | "attendance" | "events" | "absence";
+type TimeView = "calendar" | "attendance" | "events" | "sheet" | "absence";
 
 const VIEW_TABS: { value: TimeView; labelKey: MessageKey; icon: typeof CalendarDays }[] = [
   { value: "calendar", labelKey: "breadcrumb.calendar", icon: CalendarDays },
   { value: "attendance", labelKey: "time_module.list", icon: List },
   { value: "events", labelKey: "breadcrumb.attendance", icon: CalendarCheck },
+  { value: "sheet", labelKey: "attendance_sheet.tab", icon: Sheet },
   { value: "absence", labelKey: "dashboard.fallback.absence", icon: Plane },
 ];
 
@@ -25,6 +27,7 @@ const isTimeView = (value: string | null): value is TimeView =>
   value === "calendar" ||
   value === "attendance" ||
   value === "events" ||
+  value === "sheet" ||
   value === "absence";
 
 function TimeModule() {
@@ -141,6 +144,7 @@ function TimeModule() {
       {activeView === "calendar" && <CalendarModule leftSlot={viewSelect} />}
       {activeView === "attendance" && <TimeAttendancePage leftSlot={viewSelect} />}
       {activeView === "events" && <AttendanceEventsPage leftSlot={viewSelect} />}
+      {activeView === "sheet" && <AttendanceSheetView leftSlot={viewSelect} />}
       {activeView === "absence" && absenceKind === "absence" && (
         <AbsenceRequestsView leftSlot={viewSelect} tabs={kindTabs} />
       )}

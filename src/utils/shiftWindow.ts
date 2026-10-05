@@ -56,6 +56,13 @@ export function shiftSpan(shift: ShiftLike): { timed: boolean; start: number; en
   return Number.isFinite(hours) && hours > 0 ? { timed: false, start: 0, end: DAY } : null
 }
 
+/** Длина смены в минутах: по времени (ночная — через полночь) или «часов в день». */
+export function shiftLengthMinutes(shift: ShiftLike): number {
+  const span = shiftSpan(shift)
+  if (!span) return 0
+  return span.timed ? span.end - span.start : Math.round(Number(shift.hours_per_day) * 60)
+}
+
 /** Зона смены: чьи отметки она забирает. */
 export function shiftWindow(shift: ShiftLike): { from: number; to: number } | null {
   const span = shiftSpan(shift)
