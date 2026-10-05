@@ -127,6 +127,13 @@ export type PlanRequest = {
   fillGaps: boolean;
   removal: RemovalPolicy;
   /**
+   * Правка дня должности (решение 32): перезапись меняет у стоящих смен время
+   * и вид, а филиал, проект и комментарий — только если они заполнены в форме.
+   * Должность и серия остаются у каждой строки свои: форму открывают поправить
+   * время, а не переписать чужие смены полями одной формы.
+   */
+  dayEdit?: boolean;
+  /**
    * Смены, о которых форма знает: период формы плюс вся серия целиком —
    * включая её строки за пределами периода.
    */
@@ -510,13 +517,27 @@ export const buildSavePlan = (request: PlanRequest): SavePlan => {
           // Перезапись переносит строку в правимую серию: иначе поля говорят
           // одно, `series_id` — другое, и два графика по очереди разливаются
           // по одной строке. Цена: соседний график тихо теряет день.
-          plan.updates.push({
-            ...toShiftRow(found),
-            ...fieldsFor(employeeId),
-            date,
-            user_base_id: employeeId,
-            series_id: seriesId,
-          });
+          plan.updates.push(
+            request.dayEdit
+              ? {
+                  ...toShiftRow(found),
+                  start_time: base.start_time,
+                  end_time: base.end_time,
+                  hours_per_day: base.hours_per_day,
+                  is_remote: base.is_remote,
+                  locations_id: base.locations_id ?? found.locations_id ?? null,
+                  // Заполненное в форме — всем; пустое — у каждого своё.
+                  project: base.project ?? found.project ?? null,
+                  comment: base.comment ?? found.comment ?? null,
+                }
+              : {
+                  ...toShiftRow(found),
+                  ...fieldsFor(employeeId),
+                  date,
+                  user_base_id: employeeId,
+                  series_id: seriesId,
+                }
+          );
         } else {
           plan.skipped += 1;
         }

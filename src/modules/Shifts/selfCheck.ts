@@ -263,6 +263,33 @@ const row = (patch: Partial<Shift>): Shift => shift({ series_id: "S", ...patch }
 const seriesShift = (patch: Partial<Shift>): Shift =>
   row({ date_from: "2026-04-20", date_to: "2026-04-26", ...patch });
 
+// Правка дня должности: перезапись меняет время и вид, а филиал, проект,
+// комментарий, должность и серию оставляет у каждой строки свои.
+{
+  const mine = shift({ guid: "m", user_base_id: "a", series_id: "month-a", positions_id: "dev", locations_id: "warehouse", project: "P", comment: "C" });
+  const result = plan({
+    employeeIds: ["a"],
+    employeeMeta: { a: { positionId: "card-pos", locationId: "card-office" } },
+    base: baseOf({ start_time: "10:00", end_time: "19:00", is_remote: true }),
+    conflicts: "overwrite",
+    dayEdit: true,
+    existing: [mine],
+  });
+  assert.equal(result.updates.length, 1);
+  const [updated] = result.updates;
+  assert.deepEqual(
+    [updated.start_time, updated.end_time, updated.is_remote],
+    ["10:00", "19:00", true]
+  );
+  assert.deepEqual(
+    [updated.series_id, updated.positions_id, updated.locations_id, updated.project, updated.comment],
+    ["month-a", "dev", "warehouse", "P", "C"]
+  );
+  // Заполненный в форме филиал — всем.
+  const moved = plan({ employeeIds: ["a"], base: baseOf({ locations_id: "office" }), conflicts: "overwrite", dayEdit: true, existing: [mine] });
+  assert.equal(moved.updates[0].locations_id, "office");
+}
+
 // Мультиселект: строка на человека и дату, должность — своя у каждого.
 const twoPeople = plan({
   employeeIds: ["a", "b"],

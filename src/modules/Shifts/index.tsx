@@ -237,6 +237,16 @@ export default function ShiftsPage() {
     [allShifts, filters.positionId, filters.locationId, filters.kind]
   );
 
+  // Все смены по клетке, мимо фильтров: форма дня должности должна видеть и
+  // скрытые фильтром смены, иначе сохранение перезапишет их вслепую.
+  const anyShiftByCell = useMemo(() => {
+    const map = new Map<string, Shift>();
+    allShifts.forEach((shift) => {
+      if (shift.user_base_id) map.set(`${shift.user_base_id}|${shift.date}`, shift);
+    });
+    return map;
+  }, [allShifts]);
+
   const shiftByCell = useMemo(() => {
     const map = new Map<string, Shift>();
     visibleShifts.forEach((shift) => {
@@ -393,7 +403,7 @@ export default function ShiftsPage() {
    */
   const openPositionDay = (label: string, members: ShiftEmployee[], date: string) => {
     const shifts = members
-      .map((employee) => shiftByCell.get(`${employee.id}|${date}`))
+      .map((employee) => anyShiftByCell.get(`${employee.id}|${date}`))
       .filter((item): item is Shift => Boolean(item));
     const working = new Set(shifts.map((item) => item.user_base_id));
     setModalError("");

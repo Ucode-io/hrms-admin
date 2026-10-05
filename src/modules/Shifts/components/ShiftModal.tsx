@@ -713,6 +713,7 @@ export default function ShiftModal({
         conflicts: policy,
         fillGaps: gaps,
         removal: removalPolicy,
+        dayEdit: Boolean(group),
         existing,
       }),
     [
@@ -724,6 +725,7 @@ export default function ShiftModal({
       dateFrom,
       rangeTo,
       weekdays,
+      group,
     ],
   );
 
