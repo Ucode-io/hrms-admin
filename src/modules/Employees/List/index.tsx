@@ -169,9 +169,13 @@ const EmployeesListContent = observer(function EmployeesListContent() {
   const crmImport = useVegapharmCrmImport();
   // Кого импортировать. По умолчанию все, кроме ambiguous: их бэкенд всё равно пропускает.
   const crmSelectable = useMemo(() => (crmPreview.data?.items || []).filter((item) => item.kind !== "ambiguous").map((item) => item.crm_id), [crmPreview.data]);
-  const [crmSelected, setCrmSelected] = useState<Set<number>>(new Set());
-  useEffect(() => setCrmSelected(new Set(crmSelectable)), [crmSelectable]);
-  const toggleCrm = (id: number) => setCrmSelected((prev) => {
+  // Храним снятых, а не выбранных: превью перезапрашивается (кэш при повторном
+  // открытии, фокус окна), и сброс выбора на «все» по новым данным молча
+  // возвращал снятые галочки — 05.10.2026 так завелись три лишних человека.
+  const [crmExcluded, setCrmExcluded] = useState<Set<number>>(new Set());
+  useEffect(() => { if (crmModalOpen) setCrmExcluded(new Set()); }, [crmModalOpen]);
+  const crmSelected = useMemo(() => new Set(crmSelectable.filter((id) => !crmExcluded.has(id))), [crmSelectable, crmExcluded]);
+  const toggleCrm = (id: number) => setCrmExcluded((prev) => {
     const next = new Set(prev);
     if (!next.delete(id)) next.add(id);
     return next;
@@ -1020,7 +1024,7 @@ const EmployeesListContent = observer(function EmployeesListContent() {
                     {[[t('employees.list.crm_summary_total'),crmPreview.data?.summary.total],[t('employees.list.crm_summary_new'),crmPreview.data?.summary.new],[t('employees.list.crm_summary_matched'),crmPreview.data?.summary.matched],[t('employees.list.crm_summary_ambiguous'),crmPreview.data?.summary.ambiguous]].map(([label,value]) => <div key={String(label)} style={{ padding: 13, border: "1px solid #e2e8f0", borderRadius: 10 }}><div style={{ fontSize: 12, color: "#64748b" }}>{label}</div><div style={{ fontSize: 22, fontWeight: 700 }}>{value ?? 0}</div></div>)}
                   </div>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 13, cursor: "pointer" }}>
-                    <input type="checkbox" checked={crmSelectable.length > 0 && crmSelected.size === crmSelectable.length} onChange={(e) => setCrmSelected(new Set(e.target.checked ? crmSelectable : []))} />
+                    <input type="checkbox" checked={crmSelectable.length > 0 && crmSelected.size === crmSelectable.length} onChange={(e) => setCrmExcluded(new Set(e.target.checked ? [] : crmSelectable))} />
                     {t("settings_roles.select_all")} <span style={{ color: "#64748b" }}>({crmSelected.size}/{crmSelectable.length})</span>
                   </label>
                   <div style={{ maxHeight: 380, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
