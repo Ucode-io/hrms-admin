@@ -89,7 +89,7 @@ const findCalendarResult = (raw: unknown, depth = 0): AttendanceListResponse | n
   return findCalendarResult(raw.data, depth + 1);
 };
 
-const fetchCalendarAttendance = async (
+export const fetchCalendarAttendance = async (
   params: CalendarAttendanceParams
 ): Promise<AttendanceListResponse> => {
   const employeeIds = Array.from(

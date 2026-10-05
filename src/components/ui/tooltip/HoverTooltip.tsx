@@ -7,9 +7,12 @@ const HoverTooltip = ({
   text,
   children,
   align = "center",
+  className = "inline-flex",
 }: {
   text: string;
   children: ReactNode;
+  /** Классы обёртки-якоря; по умолчанию она по размеру содержимого. */
+  className?: string;
   // "end" — правый край тултипа по правому краю якоря: для якорей у правого края экрана.
   align?: "center" | "end";
 }) => {
@@ -32,7 +35,7 @@ const HoverTooltip = ({
   return (
     <span
       ref={anchorRef}
-      className="inline-flex"
+      className={className}
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}

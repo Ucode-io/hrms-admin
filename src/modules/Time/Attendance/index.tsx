@@ -1,9 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import { Check, ChevronLeft, ChevronRight, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
-import Select, { type SingleValue, type StylesConfig } from "react-select";
+import Select, { type SingleValue } from "react-select";
 import PageMeta from "../../../components/common/PageMeta";
 import { Modal } from "../../../components/ui/modal";
 import EmployeeInfiniteSelect from "../../../components/autocomplete/EmployeeInfiniteSelect";
@@ -11,39 +9,22 @@ import EmployeesPaginationFooter from "../../Employees/List/components/Employees
 import companyStore from "../../../store/company.store";
 import {
   COMPANY_ID,
-  useCreateSettingsDirectoryItem,
   useDeleteSettingsDirectoryItem,
   useSettingsDirectoryQuery,
-  useUpdateSettingsDirectoryItem,
 } from "../../../api/services/settingsDirectory.service";
 import encodeJsonToUrlParam from "../../../utils/encodeJsonToUrlParam";
-import ApprovalProcessModal from "../../../components/approvals/ApprovalProcessModal";
 import ApprovalProgressButton from "../../../components/approvals/ApprovalProgressButton";
-import {
-  countApprovedStages,
-  isProcessComplete,
-} from "../../Settings/Approvals/approvalRuntime";
-import {
-  attendanceApprovalType,
-  findApprovalProcessFor,
-  useApprovalProcessesQuery,
-  useApproveStage,
-  useEntityApprovalsQuery,
-} from "../../../api/services/approval.service";
+import { countApprovedStages } from "../../Settings/Approvals/approvalRuntime";
 import { syncVegapharmCrmAttendance } from "../../../api/services/vegapharmCrm.service";
-import hickvisionService, { type LatenessResult } from "../../../api/services/hickvision.service";
 import LocationViewLink, { DistanceBadge } from "../../../components/map/LocationViewLink";
 import { markGeoByDay } from "../../../components/map/shared";
 import { useOffices } from "../../../components/map/useOffices";
-import TimeInput from "../../../components/form/TimeInput";
-import { useShiftsQuery } from "../../../api/services/shift.service";
-import { crossesMidnight, formatShiftTime, shiftKind, timeToMinutes } from "../../Shifts/constants";
 import { useTranslation, translate } from "../../../i18n";
 import { useEmployeeTimeZones } from "../../../hooks/useEmployeeTimeZones";
-import { ViewerTimeHint, WallTime } from "../../../components/common/WallTime";
-import { nowInZone } from "../../../utils/wallClock";
+import { WallTime } from "../../../components/common/WallTime";
+import AttendanceMarkModal, { getEmployeeSelectStyles } from "./AttendanceMarkModal";
+import { useAttendanceReview } from "./useAttendanceReview";
 
-const ATTENDANCE_ENTITY_TYPE = "attendance";
 const VEGAPHARM_COMPANY_ID = "c9a7fee7-e210-477e-bee3-5f18e388e630";
 
 type AttendanceItem = {
@@ -97,13 +78,6 @@ type AttendanceRecord = {
   checkOutPicture: string;
 };
 
-type AttendanceDraft = {
-  employeeGuid: string;
-  date: Date | null;
-  checkInTime: string;
-  checkOutTime: string;
-};
-
 type SelectOption = {
   value: string;
   label: string;
@@ -119,43 +93,7 @@ const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DELAY_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-const getEmployeeSelectStyles = (): StylesConfig<SelectOption, false> => ({
-  control: (base, state) => ({
-    ...base,
-    minHeight: "40px",
-    borderColor: state.isFocused ? "#cbd5e1" : "#e2e8f0",
-    borderRadius: "0.5rem",
-    boxShadow: "none",
-    "&:hover": {
-      borderColor: "#cbd5e1",
-    },
-  }),
-  valueContainer: (base) => ({ ...base, padding: "0 10px", fontSize: "13px" }),
-  input: (base) => ({ ...base, margin: 0, padding: 0, fontSize: "13px" }),
-  indicatorsContainer: (base) => ({ ...base, height: "38px" }),
-  option: (base, state) => ({
-    ...base,
-    fontSize: "13px",
-    cursor: "pointer",
-    backgroundColor: state.isSelected ? "#e2e8f0" : state.isFocused ? "#f8fafc" : "white",
-    color: "#111827",
-    padding: "8px 10px",
-  }),
-  menu: (base) => ({
-    ...base,
-    zIndex: 100000,
-    borderRadius: "0.5rem",
-    border: "1px solid #e5e7eb",
-  }),
-  menuPortal: (base) => ({
-    ...base,
-    zIndex: 100000,
-  }),
-  singleValue: (base) => ({ ...base, fontSize: "13px" }),
-  placeholder: (base) => ({ ...base, fontSize: "13px", color: "#94a3b8" }),
-});
-
-const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
+export const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
@@ -199,13 +137,6 @@ const normalizeDelayTime = (value: string | null | undefined): string => {
     return value.trim();
   }
   return "";
-};
-
-const normalizeDelayTimeForPayload = (value: string | null | undefined): string => {
-  if (typeof value === "string" && DELAY_TIME_PATTERN.test(value.trim())) {
-    return value.trim();
-  }
-  return "00:00";
 };
 
 const toTimestamp = (value: string | null | undefined): number => {
@@ -315,30 +246,6 @@ const normalizeAttendanceSourceType = (value: unknown): AttendanceSourceType => 
   if (normalized === "absences") return "absences";
   if (normalized === "off_schedule") return "off_schedule";
   return "unknown";
-};
-
-/**
- * Источник строки, который сохраняет правка или согласование. Ручная правка
- * делает строку ручной, но «интеграция» и «вне графика» свой источник
- * сохраняют: иначе согласованная отметка без смены молча стала бы ручной —
- * то есть рабочим днём в обход решения 14.
- */
-const keptSourceType = (sourceType: AttendanceSourceType | undefined): string =>
-  sourceType === "integration" || sourceType === "off_schedule" ? sourceType : "manual";
-
-/**
- * Статус уже сохранённой строки, у которой он почему-то пуст.
- *
- * Читается из её же `delay_time` — он посчитан по графику тем, кто строку
- * записал. Спрашивать сервер заново незачем: ответ уже лежит в строке, а
- * согласование отметки не должно падать из-за недоступности расчёта.
- */
-const resolveActionStatusFromDelay = (
-  checkInTime: string,
-  delayTime: string
-): Exclude<AttendanceActionStatus, "unknown"> => {
-  if (!normalizeTime(checkInTime)) return "absent";
-  return hasDelayValue(normalizeDelayTime(delayTime)) ? "late" : "present";
 };
 
 const getActionStatusTag = (
@@ -487,20 +394,6 @@ const getEmployeeInfo = (
   return { employeeGuid, employeeName, departmentId, officeId };
 };
 
-const getDefaultDraft = (dateFilter: string): AttendanceDraft => {
-  const baseDate = parseIsoDate(dateFilter) || new Date();
-  const now = new Date();
-  const timeNow = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-  return {
-    employeeGuid: "",
-    officeId: "",
-    date: baseDate,
-    checkInTime: timeNow,
-    checkOutTime: "",
-  };
-};
-
 export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode } = {}) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
@@ -510,20 +403,9 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   const [typeFilter, setTypeFilter] = useState<AttendanceActionStatus | "">("");
   const [sourceTypeFilter, setSourceTypeFilter] = useState<AttendanceSourceType | "">("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingGuid, setEditingGuid] = useState<string | null>(null);
-  const [draft, setDraft] = useState<AttendanceDraft>(() => getDefaultDraft(toIsoDate(new Date())));
-  const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
-  const [employeeFallbackLabel, setEmployeeFallbackLabel] = useState("");
   const [toDelete, setToDelete] = useState<AttendanceRecord | null>(null);
-  const [approvalRecord, setApprovalRecord] = useState<AttendanceRecord | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  // «Сейчас» в форме ещё не правили руками — его можно пересобрать по часам
-  // выбранного сотрудника (ADR-0014, п. 2).
-  const [draftTimeIsDefault, setDraftTimeIsDefault] = useState(true);
-
-  const { data: approvalProcesses } = useApprovalProcessesQuery();
-  const approveStageMutation = useApproveStage();
 
   const brandColor = companyStore.mainColor;
   const normalizedDateFilter = useMemo(() => {
@@ -633,10 +515,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
   // берутся координаты офиса и его радиус для сверки с отметкой.
   const offices = useOffices();
 
-  const createMutation = useCreateSettingsDirectoryItem(ATTENDANCE_SLUG);
-  const updateMutation = useUpdateSettingsDirectoryItem(ATTENDANCE_SLUG);
   const deleteMutation = useDeleteSettingsDirectoryItem(ATTENDANCE_SLUG);
-  const isSaving = createMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading;
 
   const records = useMemo<AttendanceRecord[]>(() => {
     const rawRows = (data?.response || []) as AttendanceItem[];
@@ -695,54 +574,38 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     return [...records].sort((left, right) => key(right) - key(left));
   }, [records, zones]);
 
-  const draftDate = draft.date ? toIsoDate(draft.date) : "";
-  const draftZones = useEmployeeTimeZones([draft.employeeGuid], draftDate, draftDate);
-  const draftZone = draft.employeeGuid ? draftZones.zoneOf(draft.employeeGuid, draftDate) : null;
-  const draftTimeZone = draftZone?.timezone ?? "";
+  const review = useAttendanceReview({
+    records,
+    onError: setActionError,
+    onDone: () => setActionError(""),
+    renderDetails: (approvalRecord) =>
+      approvalRecord.checkInGeo || approvalRecord.checkOutGeo ? (
+        <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+              {(
+                [
+                  [t("absence_calendar.check_in"), approvalRecord.checkInTime, approvalRecord.checkInGeo, approvalRecord.checkInReason, approvalRecord.checkInPicture],
+                  [t("absence_calendar.check_out"), approvalRecord.checkOutTime, approvalRecord.checkOutGeo, approvalRecord.checkOutReason, approvalRecord.checkOutPicture],
+                ] as const
+              )
+                .filter(([, , geo]) => geo)
+                .map(([label, time, geo, reason, picture]) => (
+                  <div key={label} className="text-[13px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-gray-800">
+                        {label} {zones.text(approvalRecord.employeeGuid, approvalRecord.date, time) || "—"}
+                      </span>
+                      <DistanceBadge value={geo} office={offices.get(approvalRecord.officeId)} />
+                      <LocationViewLink showDistance={false} value={geo} office={offices.get(approvalRecord.officeId)} />
+                    </div>
+                    {reason ? <p className="mt-1 text-gray-600">{t("attendance.reason", { reason })}</p> : null}
+                    {picture ? <img src={picture} alt={label} className="mt-2 max-h-48 rounded-lg border border-gray-200 object-contain" /> : null}
+                  </div>
+                ))}
+            </div>
+      ) : null,
+  });
 
-
-  // Сотрудника выбрали в открытой форме — «сейчас» и «сегодня» пересобираются
-  // по его часам, пока админ не поправил поле руками.
-  useEffect(() => {
-    if (!isModalOpen || editingGuid || !draftTimeIsDefault || !draftTimeZone) return;
-    const now = nowInZone(draftTimeZone);
-    const filterIsToday = normalizedDateFilter === toIsoDate(new Date());
-    setDraft((prev) => ({
-      ...prev,
-      checkInTime: now.time,
-      ...(filterIsToday ? { date: parseIsoDate(now.date) } : {}),
-    }));
-  }, [isModalOpen, editingGuid, draftTimeIsDefault, draftTimeZone, normalizedDateFilter]);
-
-  // Resolve the approval process for a row from that employee's department.
-  const resolveRecordProcess = (record: AttendanceRecord) =>
-    findApprovalProcessFor(
-      approvalProcesses ?? [],
-      attendanceApprovalType(record.sourceType),
-      record.departmentId
-    );
-
-  // Bulk approval progress for visible rows so finalized rows can still show
-  // the clickable audit badge.
-  const approvalEntityIds = useMemo(
-    () =>
-      records
-        .filter(
-          (record) =>
-            findApprovalProcessFor(
-              approvalProcesses ?? [],
-              attendanceApprovalType(record.sourceType),
-              record.departmentId
-            )
-        )
-        .map((record) => record.guid),
-    [records, approvalProcesses]
-  );
-
-  const { data: approvalProgressMap } = useEntityApprovalsQuery(
-    ATTENDANCE_ENTITY_TYPE,
-    approvalEntityIds
-  );
+  const isSaving = deleteMutation.isLoading || review.isUpdating;
 
   const activeFiltersCount = [employeeFilter, typeFilter, sourceTypeFilter].filter(Boolean).length;
   const isFilterButtonActive = isFiltersOpen || activeFiltersCount > 0;
@@ -781,132 +644,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
       ? t("attendance.showing_range", { from: visibleFrom, to: visibleTo, total: totalCount })
       : t("common.no_data");
   const paginationItems = useMemo(() => buildPaginationItems(page, totalPages), [page, totalPages]);
-  const editingRecord = useMemo(
-    () => records.find((item) => item.guid === editingGuid) || null,
-    [records, editingGuid]
-  );
-
-  // Смена сотрудника на выбранную дату (решение 16): по ней форма показывает,
-  // с чем сверяется опоздание, и понимает, что уход раньше прихода — это уже
-  // следующие сутки ночной смены.
-  const draftShiftsQuery = useShiftsQuery(
-    { from: draftDate, to: draftDate },
-    isModalOpen && Boolean(draftDate) && Boolean(draft.employeeGuid)
-  );
-  const draftShift = useMemo(
-    () => (draftShiftsQuery.data?.response ?? []).find((shift) => shift.user_base_id === draft.employeeGuid) ?? null,
-    [draftShiftsQuery.data, draft.employeeGuid]
-  );
-  const draftShiftPending = draftShiftsQuery.isLoading || draftShiftsQuery.isFetching;
-  // Строки «интеграции» и «вне графика» правятся и без смены: их записал
-  // турникет, а не HR. Новая ручная отметка без смены — нет (решение 16).
-  const draftNeedsShift = !editingRecord || editingRecord.sourceType === "manual" || editingRecord.sourceType === "unknown";
-  const draftCheckOutNextDay = useMemo(() => {
-    const checkIn = timeToMinutes(draft.checkInTime);
-    const checkOut = timeToMinutes(draft.checkOutTime);
-    if (checkOut == null) return false;
-    if (checkIn != null) return checkOut <= checkIn;
-    // Один уход: следующие сутки — только у ночной смены и раньше её начала.
-    const start = timeToMinutes(draftShift?.start_time);
-    return Boolean(draftShift && crossesMidnight(draftShift) && start != null && checkOut < start);
-  }, [draft.checkInTime, draft.checkOutTime, draftShift]);
-
-  const closeModal = () => {
-    if (isSaving) return;
-
-    setIsModalOpen(false);
-    setEditingGuid(null);
-    setDraft(getDefaultDraft(dateFilter));
-    setEmployeeFallbackLabel("");
-    setFormError("");
-  };
-
-  const openCreate = () => {
-    setEditingGuid(null);
-    setDraft(getDefaultDraft(dateFilter));
-    setDraftTimeIsDefault(true);
-    setEmployeeFallbackLabel("");
-    setFormError("");
-    setIsModalOpen(true);
-  };
-
-  const handleSave = async () => {
-    const employeeGuid = String(draft.employeeGuid || "").trim();
-    if (!employeeGuid) {
-      setFormError(t("absence_calendar.validation.employee"));
-      return;
-    }
-
-    if (!draft.date) {
-      setFormError(t("attendance.validation.date"));
-      return;
-    }
-
-    const checkInTime = normalizeTime(draft.checkInTime);
-    const checkOutTime = normalizeTime(draft.checkOutTime);
-
-    if (!checkInTime && !checkOutTime) {
-      setFormError(t("attendance.validation.time"));
-      return;
-    }
-
-    if (draftNeedsShift) {
-      if (draftShiftPending) {
-        setFormError(t("attendance.shift_loading"));
-        return;
-      }
-      if (!draftShift) {
-        setFormError(t("attendance.no_shift"));
-        return;
-      }
-    }
-
-    const date = toIsoDate(draft.date);
-    const companiesId = companyStore.company?.guid || COMPANY_ID;
-
-    let lateness: LatenessResult;
-    try {
-      lateness = await hickvisionService.computeLateness({
-        user_base_id: employeeGuid,
-        companies_id: companiesId,
-        date,
-        check_in_time: checkInTime,
-      });
-    } catch (latenessError) {
-      console.error("Attendance lateness error:", latenessError);
-      setFormError(t("attendance.schedule_error"));
-      return;
-    }
-
-    const payload = {
-      user_base_id: employeeGuid,
-      companies_id: companiesId,
-      date,
-      ...(checkInTime ? { check_in_time: checkInTime } : {}),
-      ...(checkOutTime ? { check_out_time: checkOutTime } : {}),
-      delay_time: normalizeDelayTimeForPayload(lateness.delay_time),
-      status: ["accepted"],
-      action_status: [lateness.action_status],
-      source_type: [keptSourceType(editingRecord?.sourceType)],
-    };
-
-    try {
-      setActionError("");
-      if (editingGuid) {
-        await updateMutation.mutateAsync({
-          guid: editingGuid,
-          data: payload,
-        });
-      } else {
-        await createMutation.mutateAsync(payload);
-      }
-
-      closeModal();
-    } catch (saveError) {
-      console.error("Attendance save error:", saveError);
-      setFormError(t("attendance.save_error"));
-    }
-  };
+  const openCreate = () => setIsModalOpen(true);
 
   const handleDelete = async () => {
     if (!toDelete) return;
@@ -918,98 +656,6 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
     } catch (deleteError) {
       console.error("Attendance delete error:", deleteError);
       setActionError(t("attendance.delete_error"));
-    }
-  };
-
-  const buildReviewPayload = (
-    record: AttendanceRecord,
-    status: "accepted" | "rejected"
-  ) => ({
-    user_base_id: record.employeeGuid,
-    companies_id: companyStore.company?.guid || COMPANY_ID,
-    date: record.date,
-    ...(record.checkInTime ? { check_in_time: record.checkInTime } : {}),
-    ...(record.checkOutTime ? { check_out_time: record.checkOutTime } : {}),
-    delay_time: normalizeDelayTimeForPayload(record.delayTime),
-    status: [status],
-    action_status: [
-      record.actionStatus === "unknown"
-        ? resolveActionStatusFromDelay(record.checkInTime, record.delayTime)
-        : record.actionStatus,
-    ],
-    source_type: [keptSourceType(record.sourceType)],
-  });
-
-  const confirmRecord = (record: AttendanceRecord) =>
-    updateMutation.mutateAsync({
-      guid: record.guid,
-      data: buildReviewPayload(record, "accepted"),
-    });
-
-  // Row "Подтвердить" click. With a configured approval process the change must
-  // pass every stage first → open the approval modal instead of confirming.
-  const handleConfirmRequested = async (record: AttendanceRecord) => {
-    const process = resolveRecordProcess(record);
-    if (process) {
-      const progress = approvalProgressMap?.[record.guid] ?? null;
-      if (!isProcessComplete(process, progress)) {
-        setApprovalRecord(record);
-        return;
-      }
-    }
-    try {
-      setActionError("");
-      await confirmRecord(record);
-    } catch (confirmError) {
-      console.error("Attendance confirm error:", confirmError);
-      setActionError(t("attendance.confirm_error"));
-    }
-  };
-
-  const approvalRecordProcess = approvalRecord
-    ? resolveRecordProcess(approvalRecord)
-    : undefined;
-
-  const handleApproveStage = async (stageId: string, comment: string) => {
-    if (!approvalRecord || !approvalRecordProcess) return;
-    try {
-      await approveStageMutation.mutateAsync({
-        entityType: ATTENDANCE_ENTITY_TYPE,
-        entityId: approvalRecord.guid,
-        processId: approvalRecordProcess.id,
-        stageId,
-        comment,
-      });
-    } catch (stageError) {
-      console.error("Attendance stage approve error:", stageError);
-      setActionError(t("attendance.approve_stage_error"));
-    }
-  };
-
-  const finalizeApproval = async () => {
-    if (!approvalRecord) return;
-    try {
-      setActionError("");
-      await confirmRecord(approvalRecord);
-      setApprovalRecord(null);
-    } catch (confirmError) {
-      console.error("Attendance confirm error:", confirmError);
-      setActionError(t("attendance.confirm_error"));
-    }
-  };
-
-  const rejectFromApproval = async (_comment: string) => {
-    if (!approvalRecord) return;
-    try {
-      setActionError("");
-      await updateMutation.mutateAsync({
-        guid: approvalRecord.guid,
-        data: buildReviewPayload(approvalRecord, "rejected"),
-      });
-      setApprovalRecord(null);
-    } catch (rejectError) {
-      console.error("Attendance reject error:", rejectError);
-      setActionError(t("attendance.reject_error"));
     }
   };
 
@@ -1283,9 +929,9 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                           const requestTag = getWorkflowStatusTag(record.requestStatus);
                           const sourceTag = getSourceTypeTag(record.sourceType);
 
-                          const rowProcess = resolveRecordProcess(record);
+                          const rowProcess = review.resolveProcess(record);
                           const rowProgress = rowProcess
-                            ? approvalProgressMap?.[record.guid] ?? null
+                            ? review.progressMap?.[record.guid] ?? null
                             : null;
                           const hasApprovalHistory =
                             (rowProgress?.approvals?.length ?? 0) > 0;
@@ -1333,7 +979,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                 {showApprovalProgress && rowProcess ? (
                                   <button
                                     type="button"
-                                    onClick={() => setApprovalRecord(record)}
+                                    onClick={() => review.open(record)}
                                     title={`${rowProcess.title} · ${rowApprovedStages}/${rowProcess.stages.length}`}
                                     className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[12px] font-semibold transition hover:opacity-80 ${requestTag.className}`}
                                   >
@@ -1428,14 +1074,14 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
                                       <ApprovalProgressButton
                                         approvedStages={rowApprovedStages}
                                         totalStages={rowProcess.stages.length}
-                                        onClick={() => setApprovalRecord(record)}
+                                        onClick={() => review.open(record)}
                                         disabled={isSaving}
                                       />
                                     ) : (
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          void handleConfirmRequested(record);
+                                          void review.confirm(record);
                                         }}
                                         className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
                                         title={t("common.confirm")}
@@ -1481,147 +1127,11 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         </div>
       </div>
 
-      <Modal
+      <AttendanceMarkModal
         isOpen={isModalOpen}
-        onClose={closeModal}
-        className="max-w-xl w-full p-0 overflow-visible"
-      >
-        <div className="border-b border-slate-200 px-6 py-5">
-          <h4 className="m-0 text-[22px] font-bold text-slate-900">
-            {editingGuid ? t("attendance.edit_title") : t("attendance.add_title")}
-          </h4>
-        </div>
-
-        <div className="space-y-4 px-6 py-5">
-          <div>
-            <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-              {t("absence_request.employee")}
-            </label>
-            <EmployeeInfiniteSelect
-              value={draft.employeeGuid}
-              onChange={(value) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  employeeGuid: value,
-                }))
-              }
-              fallbackLabel={employeeFallbackLabel}
-              placeholder={t("autocomplete.select_employee")}
-              styles={getEmployeeSelectStyles()}
-              menuPortalTarget={menuPortalTarget}
-              classNamePrefix="attendance-employee-select"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                {t("attendance.date")}
-              </label>
-              <DatePicker
-                selected={draft.date}
-                onChange={(date) => {
-                  setDraftTimeIsDefault(false);
-                  setDraft((prev) => ({
-                    ...prev,
-                    date,
-                  }));
-                }}
-                dateFormat="dd.MM.yyyy"
-                placeholderText={t("common.date_placeholder")}
-                showMonthDropdown
-                showYearDropdown
-                dropdownMode="select"
-                wrapperClassName="w-full"
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
-              />
-              {draft.employeeGuid && draftDate ? (
-                draftShiftPending ? (
-                  <p className="mt-1 text-[12px] text-slate-400">{t("attendance.shift_loading")}</p>
-                ) : draftShift ? (
-                  <p className="mt-1 text-[12px] font-medium text-slate-600">
-                    {t("attendance.shift_of_day", { range: formatShiftTime(draftShift) })}
-                    {shiftKind(draftShift) === "remote" ? ` · ${t("attendance.shift_remote")}` : ""}
-                  </p>
-                ) : draftNeedsShift ? (
-                  <p className="mt-1 text-[12px] font-medium text-amber-700">
-                    {t("attendance.no_shift")}{" "}
-                    <Link to="/shifts" className="underline">{t("sidebar.work_schedule")}</Link>
-                  </p>
-                ) : null
-              ) : null}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                {t("attendance.check_in_time")}
-              </label>
-              <TimeInput
-                value={draft.checkInTime}
-                onChange={(next) => {
-                  setDraftTimeIsDefault(false);
-                  setDraft((prev) => ({
-                    ...prev,
-                    checkInTime: next,
-                  }));
-                }}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
-              />
-              {draft.employeeGuid ? <ViewerTimeHint date={draftDate} time={draft.checkInTime} zones={draftZone ? [draftZone] : []} status={draftZones.status} /> : null}
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
-                {t("attendance.check_out_time")}
-                {draftCheckOutNextDay ? (
-                  <span className="ml-1.5 rounded-full bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700">
-                    {t("attendance.next_day")}
-                  </span>
-                ) : null}
-              </label>
-              <TimeInput
-                value={draft.checkOutTime}
-                onChange={(next) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    checkOutTime: next,
-                  }))
-                }
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
-              />
-              {draft.employeeGuid ? <ViewerTimeHint date={draftDate} time={draft.checkOutTime} zones={draftZone ? [draftZone] : []} status={draftZones.status} /> : null}
-            </div>
-          </div>
-
-          {formError ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-600">
-              {formError}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
-          <button
-            type="button"
-            onClick={closeModal}
-            disabled={isSaving}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="h-9 rounded-lg border border-transparent px-4 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            style={{ backgroundColor: brandColor }}
-          >
-            {isSaving ? t("common.saving") : t("common.save")}
-          </button>
-        </div>
-      </Modal>
+        onClose={() => setIsModalOpen(false)}
+        defaultDate={normalizedDateFilter}
+      />
 
       <Modal
         isOpen={Boolean(toDelete)}
@@ -1661,50 +1171,7 @@ export default function TimeAttendancePage({ leftSlot }: { leftSlot?: ReactNode 
         ) : null}
       </Modal>
 
-      <ApprovalProcessModal
-        isOpen={Boolean(approvalRecord)}
-        onClose={() => setApprovalRecord(null)}
-        process={approvalRecordProcess ?? null}
-        progress={
-          approvalRecord ? approvalProgressMap?.[approvalRecord.guid] ?? null : null
-        }
-        onApproveStage={(stageId, comment) =>
-          void handleApproveStage(stageId, comment)
-        }
-        isApprovingStage={approveStageMutation.isLoading}
-        confirmLabel={t("attendance.confirm_record")}
-        onConfirm={() => void finalizeApproval()}
-        isConfirming={updateMutation.isLoading}
-        onReject={(comment) => void rejectFromApproval(comment)}
-        isRejecting={updateMutation.isLoading}
-        readOnly={approvalRecord?.requestStatus !== "requested"}
-        details={
-          approvalRecord && (approvalRecord.checkInGeo || approvalRecord.checkOutGeo) ? (
-            <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-              {(
-                [
-                  [t("absence_calendar.check_in"), approvalRecord.checkInTime, approvalRecord.checkInGeo, approvalRecord.checkInReason, approvalRecord.checkInPicture],
-                  [t("absence_calendar.check_out"), approvalRecord.checkOutTime, approvalRecord.checkOutGeo, approvalRecord.checkOutReason, approvalRecord.checkOutPicture],
-                ] as const
-              )
-                .filter(([, , geo]) => geo)
-                .map(([label, time, geo, reason, picture]) => (
-                  <div key={label} className="text-[13px]">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-gray-800">
-                        {label} {zones.text(approvalRecord.employeeGuid, approvalRecord.date, time) || "—"}
-                      </span>
-                      <DistanceBadge value={geo} office={offices.get(approvalRecord.officeId)} />
-                      <LocationViewLink showDistance={false} value={geo} office={offices.get(approvalRecord.officeId)} />
-                    </div>
-                    {reason ? <p className="mt-1 text-gray-600">{t("attendance.reason", { reason })}</p> : null}
-                    {picture ? <img src={picture} alt={label} className="mt-2 max-h-48 rounded-lg border border-gray-200 object-contain" /> : null}
-                  </div>
-                ))}
-            </div>
-          ) : null
-        }
-      />
+      {review.modal}
     </>
   );
 }

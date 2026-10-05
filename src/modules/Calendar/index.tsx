@@ -59,10 +59,10 @@ const PAGE_SIZE = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ATTENDANCE_RECORDS_SLUG = "attendance_records";
 
-type FilterOption = { value: string; label: string };
+export type FilterOption = { value: string; label: string };
 
 // Matches the /finance/salary filter selects.
-const filterSelectStyles: StylesConfig<FilterOption, true> = {
+export const filterSelectStyles: StylesConfig<FilterOption, true> = {
   control: (base: any, state: any) => ({
     ...base,
     minHeight: 40,
