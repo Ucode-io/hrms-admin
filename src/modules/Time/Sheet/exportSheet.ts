@@ -81,11 +81,11 @@ const cellOf = (cell: SheetCell): Cell => {
 };
 
 const totalsOf = (totals: SheetTotals, withOffSchedule: boolean): Cell[] => [
-  { value: totals.days, style: STYLE.total },
   { value: hours(totals.planMinutes), style: STYLE.totalHours },
   { value: hours(totals.workedMinutes), style: STYLE.totalHours },
   { value: hours(totals.lateMinutes), style: STYLE.totalHours },
   { value: hours(totals.overtimeMinutes), style: STYLE.totalHours },
+  { value: totals.days, style: STYLE.total },
   { value: totals.absences, style: STYLE.total },
   ...(withOffSchedule ? [{ value: totals.offScheduleDays, style: STYLE.total }] : []),
 ];
@@ -149,11 +149,11 @@ export const exportSheetXlsx = async ({
   const withOffSchedule = rows.some((row) => row.totals.offScheduleDays > 0);
 
   const totalsHeader: MessageKey[] = [
-    "attendance_sheet.col.days",
     "attendance_sheet.col.plan",
     "attendance_sheet.col.hours",
     "attendance_sheet.col.late",
     "attendance_sheet.col.overtime",
+    "attendance_sheet.col.days",
     "attendance_sheet.col.absences",
     ...(withOffSchedule ? (["attendance_sheet.col.off_schedule"] as const) : []),
   ];

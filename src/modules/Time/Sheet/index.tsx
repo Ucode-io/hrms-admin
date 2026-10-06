@@ -386,7 +386,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
 /** Нижняя граница закреплённой шапки: обычный border у sticky-ячейки с border-collapse уезжает. */
 const HEAD_EDGE = "shadow-[inset_0_-1px_0_#e2e8f0]";
 
-const TOTAL_COLUMNS = ["days", "plan", "hours", "late", "overtime", "absences", "off_schedule"] as const;
+const TOTAL_COLUMNS = ["plan", "hours", "late", "overtime", "days", "absences", "off_schedule"] as const;
 
 const totalsHeaders = (t: ReturnType<typeof useTranslation>["t"], withOffSchedule: boolean) =>
   TOTAL_COLUMNS.filter((key) => withOffSchedule || key !== "off_schedule").map((key) => ({
@@ -409,11 +409,11 @@ function TotalsCells({ totals, withOffSchedule }: { totals: SheetTotals; withOff
   const cell = "whitespace-nowrap px-2 py-1.5 text-right text-[12px]";
   return (
     <>
-      <td className={`${cell} border-l border-slate-200 font-semibold text-slate-700`}>{totals.days || "—"}</td>
-      <td className={`${cell} text-slate-400`}>{durationText(totals.planMinutes)}</td>
+      <td className={`${cell} border-l border-slate-200 text-slate-400`}>{durationText(totals.planMinutes)}</td>
       <td className={`${cell} font-bold ${hoursColor(totals)}`}>{durationText(totals.workedMinutes)}</td>
-      <td className={`${cell} ${totals.lateMinutes ? "font-semibold text-orange-600" : "text-slate-400"}`}>{durationText(totals.lateMinutes)}</td>
-      <td className={`${cell} ${totals.overtimeMinutes ? "font-semibold text-emerald-600" : "text-slate-400"}`}>{durationText(totals.overtimeMinutes)}</td>
+      <td className={`${cell} font-semibold text-slate-700`}>{durationText(totals.lateMinutes)}</td>
+      <td className={`${cell} font-semibold text-slate-700`}>{durationText(totals.overtimeMinutes)}</td>
+      <td className={`${cell} font-semibold text-slate-700`}>{totals.days || "—"}</td>
       <td className={`${cell} ${totals.absences ? "font-semibold text-rose-600" : "text-slate-400"}`}>{totals.absences || "—"}</td>
       {withOffSchedule ? <td className={`${cell} text-slate-500`}>{totals.offScheduleDays || "—"}</td> : null}
     </>
