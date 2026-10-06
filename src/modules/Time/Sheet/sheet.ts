@@ -83,6 +83,7 @@ export type SheetTotals = {
   workedMinutes: number;
   planMinutes: number;
   lateMinutes: number;
+  /** Баланс за период: max(0, Σ сверх смены − Σ недоработок), не сумма переработок дней. */
   overtimeMinutes: number;
   absences: number;
   offScheduleDays: number;
@@ -220,7 +221,7 @@ export const buildCell = (input: RowInput, date: string): SheetCell => {
 
 const WORKED_KINDS: CellKind[] = ["worked", "late", "at_work", "missing_mark"];
 
-export const totalsOf = (cells: SheetCell[]): SheetTotals => {
+export const totalsOf = (cells: SheetCell[], today: string): SheetTotals => {
   const totals: SheetTotals = {
     days: 0,
     workedMinutes: 0,
@@ -230,9 +231,12 @@ export const totalsOf = (cells: SheetCell[]): SheetTotals => {
     absences: 0,
     offScheduleDays: 0,
   };
+  // Баланс часов: переработка дня (с порогом) плюс недоработка дней со сменой —
+  // опоздание и ранний уход съедают переработку других дней.
+  let balance = 0;
   for (const cell of cells) {
-    // Норма — по всем сменам периода, и будущим тоже: норма месяца.
-    totals.planMinutes += cell.planMinutes;
+    // Норма — по сменам до сегодня включительно: сравнивается с уже отработанным.
+    if (cell.date <= today) totals.planMinutes += cell.planMinutes;
     if (cell.kind === "off_schedule") {
       totals.offScheduleDays += 1;
       continue;
@@ -243,12 +247,19 @@ export const totalsOf = (cells: SheetCell[]): SheetTotals => {
     totals.days += 1;
     totals.workedMinutes += cell.workedMinutes ?? 0;
     totals.lateMinutes += cell.lateMinutes;
-    totals.overtimeMinutes += cell.overtimeMinutes;
+    if (cell.workedMinutes == null) {
+      // Ухода нет — часы неизвестны, но опоздание по приходу уже известно.
+      balance -= cell.lateMinutes;
+    } else if (cell.planMinutes > 0) {
+      // Опоздание этого дня уже внутри Worked Time — второй раз не вычитаем.
+      balance += cell.workedMinutes >= cell.planMinutes ? cell.overtimeMinutes : cell.workedMinutes - cell.planMinutes;
+    }
   }
+  totals.overtimeMinutes = Math.max(0, balance);
   return totals;
 };
 
 export const buildRow = (input: RowInput): { cells: SheetCell[]; totals: SheetTotals } => {
   const cells = input.dates.map((date) => buildCell(input, date));
-  return { cells, totals: totalsOf(cells) };
+  return { cells, totals: totalsOf(cells, input.today) };
 };

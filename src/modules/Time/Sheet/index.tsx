@@ -1,6 +1,6 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import { AlertCircle, ChevronDown, FileSpreadsheet, Info, Loader2, LogIn, MousePointerClick, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, FileSpreadsheet, Info, Loader2, LogIn, MousePointerClick, SlidersHorizontal, X } from "lucide-react";
 import Select from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
@@ -15,16 +15,13 @@ import { useCalendarAttendanceQuery } from "../../../api/services/attendanceCale
 import { useCalendarAbsencesQuery } from "../../../api/services/absenceRequest.service";
 import { isShiftListTruncated, useShiftsQuery } from "../../../api/services/shift.service";
 import { useOffices } from "../../../components/map/useOffices";
-import companyStore from "../../../store/company.store";
-import { BCP47, getLocale, useTranslation } from "../../../i18n";
+import { BCP47, getLocale, translate, useTranslation } from "../../../i18n";
 import { type FilterOption, filterSelectStyles } from "../../Calendar";
 import { EmployeeAvatar } from "../../Timesheet/components/badges";
 import { PeriodRangeNavigator } from "../../Timesheet/components/PeriodNavigator";
 import { SCALE_META, formatDateRu, formatDuration, fromIsoDate, isToday, isWeekend, rangeForScale, shiftDays, toIsoDate, weekdayShort } from "../../Timesheet/constants";
-import EmployeesPaginationFooter from "../../Employees/List/components/EmployeesPaginationFooter";
 import HoverTooltip from "../../../components/ui/tooltip/HoverTooltip";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
-import { buildPaginationItems } from "../Attendance";
 import { type SheetCell, type SheetTotals, buildRow } from "./sheet";
 import { type SheetData, employeeName, isDismissed, sheetInputsOf } from "./sheetData";
 import DayModal from "./DayModal";
@@ -50,7 +47,10 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
   const { t } = useTranslation();
   const [scale, setScale] = useState<Scale>("month");
   const [anchor, setAnchor] = useState(() => toIsoDate(new Date()));
-  const [page, setPage] = useState(1);
+  // Сколько сотрудников показано: растёт по PAGE_SIZE при прокрутке вниз.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -65,8 +65,8 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
     return () => window.clearTimeout(timer);
   }, [search]);
   const range = useMemo(() => rangeForScale(scale, anchor), [scale, anchor]);
-  // Состав зависит и от периода (уволенные в нём), поэтому страница — с первой.
-  useEffect(() => setPage(1), [debouncedSearch, departmentIds, positionIds, locationIds, range.from]);
+  // Состав зависит и от периода (уволенные в нём), поэтому список — с начала.
+  useEffect(() => setVisibleCount(PAGE_SIZE), [debouncedSearch, departmentIds, positionIds, locationIds, range.from]);
   const dates = useMemo(() => datesOf(range), [range]);
   const today = toIsoDate(new Date());
 
@@ -76,23 +76,22 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
     departments_id: departmentIds.length ? departmentIds : undefined,
     locations_id: locationIds.length ? locationIds : undefined,
   };
-  const offset = (page - 1) * PAGE_SIZE;
-  // Состав табеля (решение 8): активные постранично, за ними — уволенные не
-  // раньше начала периода. В Items API нет «$or» и «IS NULL», поэтому это два
-  // запроса, а не один.
-  const activeQuery = useEmployeesQuery({ limit: PAGE_SIZE, offset, status: "active", ...filters });
+  // Состав табеля (решение 8): активные, за ними — уволенные не раньше начала
+  // периода. В Items API нет «$or» и «IS NULL», поэтому это два запроса, а не один.
+  // ponytail: подгрузка — растущий limit с нуля, каждая порция перезапрашивает
+  // уже показанных (и их отметки); хватит на сотни строк, дальше — useInfiniteQuery.
+  const activeQuery = useEmployeesQuery({ limit: visibleCount, offset: 0, status: "active", ...filters });
   const dismissedQuery = useEmployeesQuery({ limit: DISMISSED_LIMIT, offset: 0, status: "dismissed", dismissed_since: range.from, ...filters });
   const activeCount = Number(activeQuery.data?.count || 0);
   const dismissed = useMemo(() => (dismissedQuery.data?.response || []) as Employee[], [dismissedQuery.data?.response]);
   const employees = useMemo(() => {
     const active = (activeQuery.data?.response || []) as Employee[];
-    const start = Math.max(0, offset - activeCount);
-    const rows = [...active, ...dismissed.slice(start, start + PAGE_SIZE - active.length)];
+    const rows = [...active, ...dismissed.slice(0, Math.max(0, visibleCount - active.length))];
     // Принятые после конца периода в нём не работали.
     return rows.filter((employee) => !employee.date_hire || employee.date_hire.slice(0, 10) <= range.to);
-  }, [activeQuery.data?.response, dismissed, offset, activeCount, range.to]);
+  }, [activeQuery.data?.response, dismissed, visibleCount, range.to]);
   const totalCount = activeCount + dismissed.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const hasMore = visibleCount < totalCount;
   const employeeIds = useMemo(() => employees.map((employee) => employee.guid), [employees]);
 
   const attendanceQuery = useCalendarAttendanceQuery({
@@ -148,6 +147,24 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
   const shiftsTruncated = isShiftListTruncated(shiftsQuery.data);
   // Выгрузка берёт смены с экрана — только когда они уже этого периода.
   const shiftsReady = !shiftsQuery.isFetching && !shiftsQuery.isPreviousData;
+
+  // Следующая порция — когда маркер под таблицей подходит к низу её прокрутки.
+  // Пока грузится хоть что-то, не просим новую; после — эффект перепроверит маркер.
+  // Ждём все запросы, а не только порционные: маркер есть лишь у отрисованной
+  // таблицы, а её держит спиннер, пока не дошли уволенные и смены.
+  const isLoadingMore = isFetching;
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore || isLoadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setVisibleCount((count) => count + PAGE_SIZE);
+      },
+      { root: scrollRef.current, rootMargin: "300px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, visibleCount]);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -271,7 +288,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
           </div>
         </div>
 
-        <div className="px-4 py-4 pb-20 lg:px-6">
+        <div className="px-4 py-4 lg:px-6">
           {shiftsTruncated ? (
             <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-700">
               {t("attendance_sheet.shifts_truncated", { count: shiftsQuery.data?.count ?? 0 })}
@@ -286,7 +303,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
             ) : (
               // Своя прокрутка по обеим осям — иначе шапка с датами не закрепится:
               // sticky держится за ближайший прокручиваемый контейнер.
-              <div className="max-h-[calc(100vh-250px)] max-w-full overflow-auto">
+              <div ref={scrollRef} className="max-h-[calc(100vh-260px)] max-w-full overflow-auto">
                 <table className="min-w-full border-collapse text-[12px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50">
@@ -338,24 +355,17 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
                     ))}
                   </tbody>
                 </table>
+                {hasMore ? (
+                  <div ref={sentinelRef} className="sticky left-0 flex h-12 items-center justify-center">
+                    {isLoadingMore ? <Loader2 className="h-5 w-5 animate-spin text-slate-400" /> : null}
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {totalCount > 0 ? (
-        <EmployeesPaginationFooter
-          visibleRangeLabel={t("attendance.showing_range", { from: offset + 1, to: Math.min(offset + PAGE_SIZE, totalCount), total: totalCount })}
-          paginationItems={buildPaginationItems(page, totalPages)}
-          currentPage={page}
-          totalPages={totalPages}
-          brandColor={companyStore.mainColor}
-          onPrevious={() => setPage((current) => Math.max(1, current - 1))}
-          onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
-          onPageChange={setPage}
-        />
-      ) : null}
 
       {selected && selectedEmployee && selectedCell ? (
         <DayModal
@@ -376,7 +386,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
 /** Нижняя граница закреплённой шапки: обычный border у sticky-ячейки с border-collapse уезжает. */
 const HEAD_EDGE = "shadow-[inset_0_-1px_0_#e2e8f0]";
 
-const TOTAL_COLUMNS = ["days", "hours", "plan", "late", "overtime", "absences", "off_schedule"] as const;
+const TOTAL_COLUMNS = ["days", "plan", "hours", "late", "overtime", "absences", "off_schedule"] as const;
 
 const totalsHeaders = (t: ReturnType<typeof useTranslation>["t"], withOffSchedule: boolean) =>
   TOTAL_COLUMNS.filter((key) => withOffSchedule || key !== "off_schedule").map((key) => ({
@@ -384,15 +394,26 @@ const totalsHeaders = (t: ReturnType<typeof useTranslation>["t"], withOffSchedul
     hint: t(`attendance_sheet.col_hint.${key}`),
   }));
 
+/** Итог в часах и минутах; ровные часы — без «00м». */
+const durationText = (minutes: number): string =>
+  minutes > 0 && minutes % 60 === 0 ? translate("timesheet.duration.hours", { hours: minutes / 60 }) : formatDuration(minutes * 60);
+
+/** Часы против нормы: от 80% — зелёный, от 50% — жёлтый, ниже — красный; без нормы — обычный. */
+const hoursColor = ({ workedMinutes, planMinutes }: SheetTotals): string => {
+  if (!planMinutes) return "text-slate-900";
+  const ratio = workedMinutes / planMinutes;
+  return ratio >= 0.8 ? "text-emerald-600" : ratio >= 0.5 ? "text-amber-500" : "text-rose-600";
+};
+
 function TotalsCells({ totals, withOffSchedule }: { totals: SheetTotals; withOffSchedule: boolean }) {
   const cell = "whitespace-nowrap px-2 py-1.5 text-right text-[12px]";
   return (
     <>
       <td className={`${cell} border-l border-slate-200 font-semibold text-slate-700`}>{totals.days || "—"}</td>
-      <td className={`${cell} font-bold text-slate-900`}>{totals.workedMinutes ? hoursText(totals.workedMinutes) : "—"}</td>
-      <td className={`${cell} text-slate-400`}>{totals.planMinutes ? hoursText(totals.planMinutes) : "—"}</td>
-      <td className={`${cell} ${totals.lateMinutes ? "font-semibold text-orange-600" : "text-slate-400"}`}>{formatDuration(totals.lateMinutes * 60)}</td>
-      <td className={`${cell} ${totals.overtimeMinutes ? "font-semibold text-emerald-600" : "text-slate-400"}`}>{formatDuration(totals.overtimeMinutes * 60)}</td>
+      <td className={`${cell} text-slate-400`}>{durationText(totals.planMinutes)}</td>
+      <td className={`${cell} font-bold ${hoursColor(totals)}`}>{durationText(totals.workedMinutes)}</td>
+      <td className={`${cell} ${totals.lateMinutes ? "font-semibold text-orange-600" : "text-slate-400"}`}>{durationText(totals.lateMinutes)}</td>
+      <td className={`${cell} ${totals.overtimeMinutes ? "font-semibold text-emerald-600" : "text-slate-400"}`}>{durationText(totals.overtimeMinutes)}</td>
       <td className={`${cell} ${totals.absences ? "font-semibold text-rose-600" : "text-slate-400"}`}>{totals.absences || "—"}</td>
       {withOffSchedule ? <td className={`${cell} text-slate-500`}>{totals.offScheduleDays || "—"}</td> : null}
     </>
@@ -443,9 +464,7 @@ function SheetCellView({ cell, onOpen }: { cell: SheetCell; onOpen: () => void }
       hints.push(t("attendance_sheet.hint.at_work"), plan);
       break;
     case "missing_mark":
-      content = <AlertCircle size={14} className="mx-auto text-amber-500" />;
-      // Заливка — как у Leave: цвет знака с прозрачностью.
-      style = { backgroundColor: tint("#f59e0b", 0.14) };
+      // Пусто, как «нет данных»: что именно не так — в подсказке и модалке дня.
       hints.push(missing, plan);
       break;
     case "absent":
@@ -505,7 +524,7 @@ function Legend({ policies }: { policies: Record<string, unknown>[] }) {
     { code: <X size={12} strokeWidth={2.5} />, className: "bg-rose-50 text-rose-600", label: t("attendance_sheet.legend.absent"), desc: t("attendance_sheet.hint.absent") },
     { code: t("attendance_sheet.day_off_short"), className: "text-slate-400", label: t("attendance_sheet.legend.day_off"), desc: t("attendance_sheet.hint.day_off") },
     { code: <LogIn size={12} />, className: "text-emerald-600", label: t("attendance_sheet.legend.at_work"), desc: t("attendance_sheet.hint.at_work") },
-    { code: <AlertCircle size={12} />, className: "bg-amber-50 text-amber-500", label: t("attendance_sheet.legend.missing_mark"), desc: t("attendance_sheet.legend_desc.missing_mark") },
+    { code: "", label: t("attendance_sheet.legend.missing_mark"), desc: t("attendance_sheet.legend_desc.missing_mark") },
     { code: "4,0", className: "bg-slate-100 italic text-slate-400", label: t("attendance_sheet.legend.off_schedule"), desc: t("attendance_sheet.hint.off_schedule") },
     { code: <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />, label: t("attendance_sheet.legend.pending"), desc: t("attendance_sheet.legend_desc.pending") },
     ...policies.flatMap((policy) =>

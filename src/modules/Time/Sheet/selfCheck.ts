@@ -116,7 +116,11 @@ assert.equal(cellOf("2026-10-01", { shiftsByDate: new Map([["2026-10-01", day({ 
   assert.equal(row.cells[0].kind, "leave");
   assert.equal(row.cells[0].leave?.title, "Больничный");
   assert.equal(row.cells[1].kind, "future");
-  assert.equal(row.totals.planMinutes, 540);
+  // Будущая смена в норму не входит.
+  assert.equal(row.totals.planMinutes, 0);
+  // Тот же период, когда 07.10 уже наступило: Leave снят, смена 07.10 — в норме.
+  const later = buildRow(input({ dates: ["2026-10-06", "2026-10-07"], today: "2026-10-07", shiftsByDate: shifts, leaves: [leave] }));
+  assert.equal(later.totals.planMinutes, 540);
 }
 
 // Отметка вне радиуса до согласования: видна, не засчитана, точка «mark».
@@ -139,6 +143,47 @@ assert.equal(cellOf("2026-10-01", { shiftsByDate: new Map([["2026-10-01", day({ 
   assert.equal(row.totals.planMinutes, 0);
   const fired = buildRow(input({ dates: ["2026-10-01"], dismissalDate: "2026-09-30", shiftsByDate: shifts }));
   assert.equal(fired.cells[0].kind, "outside");
+}
+
+// Итоги: норма — до сегодня включительно; переработка — баланс часов.
+{
+  const shift = day({ start_time: "09:00", end_time: "18:00" });
+  const dates = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-05", "2026-10-06"];
+  const row = buildRow(input({
+    dates,
+    shiftsByDate: new Map(dates.map((date) => [date, shift])),
+    attendanceByDate: new Map<string, SheetAttendance>([
+      // Задержался на час: +60.
+      ["2026-10-01", { check_in_time: "09:00", check_out_time: "19:00", action_status: ["present"], source_type: ["integration"] }],
+      // Опоздал на 20 и ушёл вовремя: −20.
+      ["2026-10-02", { check_in_time: "09:20", check_out_time: "18:00", delay_time: "00:20", action_status: ["late"], source_type: ["integration"] }],
+      // Опоздал на 20 и отсидел их: 0, второй раз не вычитается.
+      ["2026-10-03", { check_in_time: "09:20", check_out_time: "18:20", delay_time: "00:20", action_status: ["late"], source_type: ["integration"] }],
+      // +10 — ниже порога, не переработка.
+      ["2026-10-05", { check_in_time: "09:00", check_out_time: "18:10", action_status: ["present"], source_type: ["integration"] }],
+    ]),
+  }));
+  assert.equal(row.totals.planMinutes, 4 * 540);
+  assert.equal(row.totals.lateMinutes, 40);
+  assert.equal(row.totals.overtimeMinutes, 40);
+  // Опозданий больше, чем переработки, — ноль, а не минус.
+  const short = buildRow(input({
+    dates: ["2026-10-02"],
+    shiftsByDate: new Map([["2026-10-02", shift]]),
+    attendanceByDate: new Map([["2026-10-02", { check_in_time: "10:00", check_out_time: "18:00", delay_time: "01:00", action_status: ["late"], source_type: ["integration"] }]]),
+  }));
+  assert.equal(short.totals.overtimeMinutes, 0);
+  // Без ухода часы неизвестны, а опоздание вычитается: +139 − 60 = 79.
+  const noOut = buildRow(input({
+    dates: ["2026-10-01", "2026-10-02"],
+    shiftsByDate: new Map([["2026-10-01", day({ hours_per_day: 8 })], ["2026-10-02", shift]]),
+    attendanceByDate: new Map<string, SheetAttendance>([
+      ["2026-10-01", { check_in_time: "08:00", check_out_time: "18:19", action_status: ["present"], source_type: ["integration"] }],
+      ["2026-10-02", { check_in_time: "10:00", delay_time: "01:00", action_status: ["late"], source_type: ["integration"] }],
+    ]),
+  }));
+  assert.equal(noOut.cells[1].kind, "missing_mark");
+  assert.equal(noOut.totals.overtimeMinutes, 79);
 }
 
 console.log("Attendance sheet self-check: ok");

@@ -1,5 +1,6 @@
 // Выгрузка табеля в Excel (решение 13): все сотрудники по фильтрам, а не
-// видимая страница. Часы — числами, знаки — цветами экрана, легенда под таблицей.
+// видимая страница. Часы — числами, знаки — буквами и цветами экрана («П», «В»,
+// «Нет отметки» — пусто), легенда под таблицей.
 
 import { type EmployeesListParams, type Employee, fetchEmployees } from "../../../api/services/employee.service";
 import { fetchCalendarAttendance } from "../../../api/services/attendanceCalendar.service";
@@ -29,7 +30,6 @@ const STYLE = {
   late: { numFmt: HOURS, align: "center", bold: true, color: "EA580C" },
   offSchedule: { numFmt: HOURS, align: "center", italic: true, color: "94A3B8", fill: "F1F5F9" },
   atWork: { align: "center", color: "059669" },
-  missing: { align: "center", color: "B45309", fill: "FEF3C7" },
   absent: { align: "center", color: "E11D48", fill: "FFE4E6" },
   dayOff: { align: "center", color: "94A3B8" },
   pending: { align: "center", italic: true, color: "94A3B8" },
@@ -64,17 +64,15 @@ const cellOf = (cell: SheetCell): Cell => {
       return { value: worked, style: STYLE.offSchedule };
     case "at_work":
       return { value: translate("attendance_sheet.legend.at_work"), style: STYLE.atWork };
-    case "missing_mark":
-      return { value: translate("attendance_sheet.legend.missing_mark"), style: STYLE.missing };
     case "absent":
-      return { value: translate("attendance_sheet.legend.absent"), style: STYLE.absent };
+      return { value: translate("attendance_sheet.absent_short"), style: STYLE.absent };
     case "leave":
       return {
         value: cell.leave?.title || translate("dashboard.fallback.absence"),
         style: { align: "center", fill: lighten(cell.leave?.color || "") },
       };
     case "day_off":
-      return { value: translate("attendance_sheet.csv_day_off"), style: STYLE.dayOff };
+      return { value: translate("attendance_sheet.day_off_short"), style: STYLE.dayOff };
     case "outside":
       return { value: null, style: STYLE.outside };
     default:
@@ -84,8 +82,8 @@ const cellOf = (cell: SheetCell): Cell => {
 
 const totalsOf = (totals: SheetTotals, withOffSchedule: boolean): Cell[] => [
   { value: totals.days, style: STYLE.total },
-  { value: hours(totals.workedMinutes), style: STYLE.totalHours },
   { value: hours(totals.planMinutes), style: STYLE.totalHours },
+  { value: hours(totals.workedMinutes), style: STYLE.totalHours },
   { value: hours(totals.lateMinutes), style: STYLE.totalHours },
   { value: hours(totals.overtimeMinutes), style: STYLE.totalHours },
   { value: totals.absences, style: STYLE.total },
@@ -98,10 +96,10 @@ const legendRows = (policies: Record<string, unknown>[]): Cell[][] => [
   [{ value: 8, style: STYLE.worked }, translate("attendance_sheet.legend.worked")],
   [{ value: 8, style: STYLE.late }, translate("attendance_sheet.legend.late")],
   [{ value: 4, style: STYLE.offSchedule }, translate("attendance_sheet.hint.off_schedule")],
-  [{ value: translate("attendance_sheet.legend.absent"), style: STYLE.absent }, translate("attendance_sheet.hint.absent")],
-  [{ value: translate("attendance_sheet.legend.missing_mark"), style: STYLE.missing }, translate("attendance_sheet.hint.missing_out")],
+  [{ value: translate("attendance_sheet.absent_short"), style: STYLE.absent }, translate("attendance_sheet.hint.absent")],
+  [null, `${translate("attendance_sheet.legend.missing_mark")}: ${translate("attendance_sheet.legend_desc.missing_mark")}`],
   [{ value: translate("attendance_sheet.legend.at_work"), style: STYLE.atWork }, translate("attendance_sheet.hint.at_work")],
-  [{ value: translate("attendance_sheet.csv_day_off"), style: STYLE.dayOff }, translate("attendance_sheet.hint.day_off")],
+  [{ value: translate("attendance_sheet.day_off_short"), style: STYLE.dayOff }, translate("attendance_sheet.hint.day_off")],
   [{ value: `${translate("attendance_sheet.csv_pending")}: 8`, style: STYLE.pending }, translate("attendance_sheet.hint.not_counted")],
   ...policies
     .filter((policy) => typeof policy.title === "string" && policy.title)
@@ -152,8 +150,8 @@ export const exportSheetXlsx = async ({
 
   const totalsHeader: MessageKey[] = [
     "attendance_sheet.col.days",
-    "attendance_sheet.col.hours",
     "attendance_sheet.col.plan",
+    "attendance_sheet.col.hours",
     "attendance_sheet.col.late",
     "attendance_sheet.col.overtime",
     "attendance_sheet.col.absences",
