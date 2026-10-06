@@ -3,7 +3,7 @@
  *   npx tsx src/modules/Time/Sheet/selfCheck.ts
  */
 import assert from "node:assert/strict";
-import { buildRow, workedMinutesOf, type RowInput, type SheetAttendance, type SheetLeave } from "./sheet";
+import { buildRow, permittedMinutesOf, shortCodes, workedMinutesOf, type RowInput, type SheetAttendance, type SheetLeave } from "./sheet";
 
 const day = (shift: { start_time?: string; end_time?: string; hours_per_day?: number }) => [shift];
 
@@ -184,6 +184,42 @@ assert.equal(cellOf("2026-10-01", { shiftsByDate: new Map([["2026-10-01", day({ 
   }));
   assert.equal(noOut.cells[1].kind, "missing_mark");
   assert.equal(noOut.totals.overtimeMinutes, 79);
+}
+
+// Late Permission: от начала самой ранней смены; ночная — через полночь; «часов в день» — 0.
+assert.equal(permittedMinutesOf(day({ start_time: "09:00", end_time: "18:00" }), "11:00"), 120);
+assert.equal(permittedMinutesOf(day({ start_time: "09:00", end_time: "18:00" }), "08:30"), 0);
+assert.equal(permittedMinutesOf(day({ start_time: "22:00", end_time: "06:00" }), "01:00"), 180);
+assert.equal(permittedMinutesOf(day({ hours_per_day: 8 }), "11:00"), 0);
+assert.equal(permittedMinutesOf([], "11:00"), 0);
+
+// Итог: сумма разрешённого до сегодня; разрешённое — не недоработка в балансе.
+{
+  const shift = day({ start_time: "09:00", end_time: "18:00" });
+  const dates = ["2026-10-01", "2026-10-02", "2026-10-06"];
+  const row = buildRow(input({
+    dates,
+    shiftsByDate: new Map(dates.map((date) => [date, shift])),
+    permitByDate: new Map([["2026-10-01", "11:00"], ["2026-10-02", "09:30"], ["2026-10-06", "10:00"]]),
+    attendanceByDate: new Map<string, SheetAttendance>([
+      // Отпросился к 11:00, ушёл в 19:00: 8 ч при «должен» 7 ч — +60.
+      ["2026-10-01", { check_in_time: "11:00", check_out_time: "19:00", action_status: ["present"], source_type: ["integration"] }],
+      // Отпросился к 09:30, пришёл в 09:30, ушёл в 18:00 — ровно, 0.
+      ["2026-10-02", { check_in_time: "09:30", check_out_time: "18:00", action_status: ["present"], source_type: ["integration"] }],
+    ]),
+  }));
+  assert.equal(row.cells[0].permittedMinutes, 120);
+  assert.equal(row.cells[0].overtimeMinutes, 60);
+  // 06.10 после «сегодня» (05.10) — в подсказке есть, в итоге нет.
+  assert.equal(row.cells[2].permitArriveBy, "10:00");
+  assert.equal(row.totals.permittedMinutes, 150);
+  assert.equal(row.totals.overtimeMinutes, 60);
+}
+
+// Коды отсутствий в Excel: 1–2 буквы, без совпадений и мимо знаков табеля.
+{
+  const codes = shortCodes(["Мероприятие", "Командировка", "Больничный", "Отпуск", "Отгул", "Праздник", "Отпуск"], ["П", "В", "Р"]);
+  assert.deepEqual([...codes.values()], ["М", "К", "Б", "О", "От", "Пр"]);
 }
 
 console.log("Attendance sheet self-check: ok");

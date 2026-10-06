@@ -6,7 +6,7 @@
 // `get_calendar_attendance` на день, смены и Leave. Свой расчёт здесь только
 // там, где его нет нигде: Worked Time, норма и переработка.
 
-import { clockMinutes, shiftLengthMinutes, type ShiftLike } from "../../../utils/shiftWindow";
+import { clockMinutes, shiftLengthMinutes, shiftSpan, type ShiftLike } from "../../../utils/shiftWindow";
 import { getAttendanceSourceKind } from "../../../utils/attendanceSourcePriority";
 
 const DAY = 1440;
@@ -68,6 +68,9 @@ export type SheetCell = {
   planMinutes: number;
   lateMinutes: number;
   overtimeMinutes: number;
+  /** Одобренный Late Permission: «приду к» и сколько это от начала смены. */
+  permitArriveBy: string;
+  permittedMinutes: number;
   checkIn: string;
   checkOut: string;
   /** Одобренный Leave дня. */
@@ -83,6 +86,8 @@ export type SheetTotals = {
   workedMinutes: number;
   planMinutes: number;
   lateMinutes: number;
+  /** Сумма одобренных разрешений на опоздание до сегодня включительно. */
+  permittedMinutes: number;
   /** Баланс за период: max(0, Σ сверх смены − Σ недоработок), не сумма переработок дней. */
   overtimeMinutes: number;
   absences: number;
@@ -110,6 +115,20 @@ export const workedMinutesOf = (checkIn: string, checkOut: string): number | nul
   return end >= start ? end - start : end + DAY - start;
 };
 
+/**
+ * Разрешённое опоздание дня: «приду к» − начало самой ранней смены, не меньше
+ * нуля и не больше смены. У ночной смены «к 01:00» — уже после полуночи. Смена
+ * «часов в день» начала не имеет — разрешать нечего.
+ */
+export const permittedMinutesOf = (shifts: ShiftLike[], arriveBy: string): number => {
+  const arrive = clockMinutes(arriveBy);
+  const spans = shifts.map(shiftSpan).filter((span): span is NonNullable<typeof span> => span?.timed === true);
+  if (arrive == null || !spans.length) return 0;
+  const first = spans.reduce((earliest, span) => (span.start < earliest.start ? span : earliest));
+  const at = arrive < first.start && first.end > DAY ? arrive + DAY : arrive;
+  return Math.min(Math.max(0, at - first.start), first.end - first.start);
+};
+
 /** Переработка дня: сверх смены, короче порога — ноль. */
 export const overtimeOf = (worked: number | null, plan: number): number => {
   if (worked == null || plan <= 0) return 0;
@@ -130,6 +149,8 @@ export type RowInput = {
   leaves: SheetLeave[];
   /** Leave по guid — для строк, снятых одобренным отсутствием. */
   leaveById: Map<string, SheetLeave>;
+  /** Одобренные Late Permission сотрудника: дата → «приду к». */
+  permitByDate?: Map<string, string>;
 };
 
 const leaveOn = (leaves: SheetLeave[], date: string, status: SheetLeave["status"]) =>
@@ -141,6 +162,8 @@ export const buildCell = (input: RowInput, date: string): SheetCell => {
   const row = input.attendanceByDate.get(date);
   const approvedLeave = leaveOn(input.leaves, date, "approved");
   const pendingLeave = leaveOn(input.leaves, date, "pending");
+  const permitArriveBy = clockOf(input.permitByDate?.get(date));
+  const permittedMinutes = permitArriveBy ? permittedMinutesOf(shifts, permitArriveBy) : 0;
 
   const cell: SheetCell = {
     date,
@@ -150,6 +173,8 @@ export const buildCell = (input: RowInput, date: string): SheetCell => {
     planMinutes: shiftMinutes,
     lateMinutes: 0,
     overtimeMinutes: 0,
+    permitArriveBy,
+    permittedMinutes,
     checkIn: clockOf(row?.check_in_time),
     checkOut: clockOf(row?.check_out_time),
     leave: null,
@@ -158,7 +183,7 @@ export const buildCell = (input: RowInput, date: string): SheetCell => {
   };
 
   if ((input.hireDate && date < input.hireDate) || (input.dismissalDate && date > input.dismissalDate)) {
-    return { ...cell, kind: "outside", planMinutes: 0, pending: [], pendingLeave: null };
+    return { ...cell, kind: "outside", planMinutes: 0, permittedMinutes: 0, pending: [], pendingLeave: null };
   }
 
   const source = row ? getAttendanceSourceKind(row.source_type) : null;
@@ -166,7 +191,7 @@ export const buildCell = (input: RowInput, date: string): SheetCell => {
   // Leave снимает день целиком — и из нормы тоже (CONTEXT.md → Leave).
   if (source === "absences" || (!row && approvedLeave)) {
     const leave = (row?.absences_id && input.leaveById.get(row.absences_id)) || approvedLeave;
-    return { ...cell, kind: "leave", planMinutes: 0, leave: leave ?? null };
+    return { ...cell, kind: "leave", planMinutes: 0, permittedMinutes: 0, leave: leave ?? null };
   }
 
   if (!row) {
@@ -215,7 +240,8 @@ export const buildCell = (input: RowInput, date: string): SheetCell => {
     counted: !awaiting,
     workedMinutes: worked,
     lateMinutes: delay,
-    overtimeMinutes: overtimeOf(worked, shiftMinutes),
+    // Разрешённое — не недоработка: переработка меряется от смены без него.
+    overtimeMinutes: overtimeOf(worked, shiftMinutes - permittedMinutes),
   };
 };
 
@@ -227,6 +253,7 @@ export const totalsOf = (cells: SheetCell[], today: string): SheetTotals => {
     workedMinutes: 0,
     planMinutes: 0,
     lateMinutes: 0,
+    permittedMinutes: 0,
     overtimeMinutes: 0,
     absences: 0,
     offScheduleDays: 0,
@@ -236,7 +263,10 @@ export const totalsOf = (cells: SheetCell[], today: string): SheetTotals => {
   let balance = 0;
   for (const cell of cells) {
     // Норма — по сменам до сегодня включительно: сравнивается с уже отработанным.
-    if (cell.date <= today) totals.planMinutes += cell.planMinutes;
+    if (cell.date <= today) {
+      totals.planMinutes += cell.planMinutes;
+      totals.permittedMinutes += cell.permittedMinutes;
+    }
     if (cell.kind === "off_schedule") {
       totals.offScheduleDays += 1;
       continue;
@@ -251,8 +281,10 @@ export const totalsOf = (cells: SheetCell[], today: string): SheetTotals => {
       // Ухода нет — часы неизвестны, но опоздание по приходу уже известно.
       balance -= cell.lateMinutes;
     } else if (cell.planMinutes > 0) {
-      // Опоздание этого дня уже внутри Worked Time — второй раз не вычитаем.
-      balance += cell.workedMinutes >= cell.planMinutes ? cell.overtimeMinutes : cell.workedMinutes - cell.planMinutes;
+      // Опоздание этого дня уже внутри Worked Time — второй раз не вычитаем;
+      // разрешённое опоздание недоработкой не считается.
+      const due = cell.planMinutes - cell.permittedMinutes;
+      balance += cell.workedMinutes >= due ? cell.overtimeMinutes : cell.workedMinutes - due;
     }
   }
   totals.overtimeMinutes = Math.max(0, balance);
@@ -262,4 +294,25 @@ export const totalsOf = (cells: SheetCell[], today: string): SheetTotals => {
 export const buildRow = (input: RowInput): { cells: SheetCell[]; totals: SheetTotals } => {
   const cells = input.dates.map((date) => buildCell(input, date));
   return { cells, totals: totalsOf(cells, input.today) };
+};
+
+/**
+ * Код из 1–2 букв на каждое название отсутствия, чтобы ячейка не обрезалась:
+ * первая буква, при совпадении — первая плюс следующая свободная. Знаки табеля
+ * («П», «В», «Р») заняты заранее. Полные названия — в легенде.
+ */
+export const shortCodes = (titles: string[], reserved: string[]): Map<string, string> => {
+  const taken = new Set(reserved.map((code) => code.toLowerCase()));
+  const codes = new Map<string, string>();
+  for (const title of titles) {
+    const letters = [...title.replace(/[^\p{L}\p{N}]/gu, "")];
+    if (codes.has(title) || !letters.length) continue;
+    const first = letters[0].toUpperCase();
+    const candidates = [first, ...letters.slice(1).map((letter) => first + letter.toLowerCase())];
+    // ponytail: все пары заняты — берём первую букву с повтором; при 30+ политиках на одну букву.
+    const code = candidates.find((candidate) => !taken.has(candidate.toLowerCase())) ?? first;
+    taken.add(code.toLowerCase());
+    codes.set(title, code);
+  }
+  return codes;
 };

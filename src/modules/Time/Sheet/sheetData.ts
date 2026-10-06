@@ -5,6 +5,7 @@ import type { Employee } from "../../../api/services/employee.service";
 import type { Absence } from "../../../api/services/absenceRequest.service";
 import type { CalendarAttendanceRow } from "../../../api/services/attendanceCalendar.service";
 import type { Shift } from "../../../api/services/shift.service";
+import type { LatePermission } from "../../../api/services/latePermission.service";
 import type { RowInput, SheetLeave } from "./sheet";
 
 export type SheetData = {
@@ -12,6 +13,8 @@ export type SheetData = {
   absences: Absence[];
   shifts: Shift[];
   policies: Record<string, unknown>[];
+  /** Late Permission периода; в табель идут только одобренные. */
+  latePermissions?: LatePermission[];
 };
 
 export const employeeName = (employee: Employee): string =>
@@ -73,6 +76,14 @@ export const sheetInputsOf = (data: SheetData, dates: string[], today: string) =
     leaveById.set(leave.guid, leave);
   }
 
+  const permits = new Map<string, Map<string, string>>();
+  for (const permit of data.latePermissions ?? []) {
+    if (permit.status !== "approved" || !permit.user_base_id) continue;
+    const byDate = permits.get(permit.user_base_id) ?? new Map();
+    byDate.set(text(permit.date).slice(0, 10), text(permit.arrive_by));
+    permits.set(permit.user_base_id, byDate);
+  }
+
   return (employee: Employee): RowInput => ({
     dates,
     today,
@@ -82,5 +93,6 @@ export const sheetInputsOf = (data: SheetData, dates: string[], today: string) =
     attendanceByDate: attendance.get(employee.guid) ?? new Map(),
     leaves: leaves.get(employee.guid) ?? [],
     leaveById,
+    permitByDate: permits.get(employee.guid),
   });
 };

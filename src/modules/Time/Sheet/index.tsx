@@ -14,6 +14,7 @@ import { useSettingsDirectoryQuery } from "../../../api/services/settingsDirecto
 import { useCalendarAttendanceQuery } from "../../../api/services/attendanceCalendar.service";
 import { useCalendarAbsencesQuery } from "../../../api/services/absenceRequest.service";
 import { isShiftListTruncated, useShiftsQuery } from "../../../api/services/shift.service";
+import { useLatePermissionsQuery } from "../../../api/services/latePermission.service";
 import { useOffices } from "../../../components/map/useOffices";
 import { BCP47, getLocale, translate, useTranslation } from "../../../i18n";
 import { type FilterOption, filterSelectStyles } from "../../Calendar";
@@ -103,6 +104,8 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
     querySettings: { keepPreviousData: true },
   });
   const shiftsQuery = useShiftsQuery(range);
+  // Late Permission всей компании за период — одним запросом, как смены.
+  const permitsQuery = useLatePermissionsQuery({ dateFrom: range.from, dateTo: range.to, status: "approved" });
   const { data: policiesData } = useSettingsDirectoryQuery({ slug: "absence_policies", params: { limit: 1000, offset: 0 } });
   const policies = useMemo(() => ((policiesData as { response?: Record<string, unknown>[] } | undefined)?.response ?? []), [policiesData]);
 
@@ -112,8 +115,9 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
       absences: absencesQuery.data?.response ?? [],
       shifts: shiftsQuery.data?.response ?? [],
       policies,
+      latePermissions: permitsQuery.data ?? [],
     }),
-    [attendanceQuery.data?.response, absencesQuery.data?.response, shiftsQuery.data?.response, policies]
+    [attendanceQuery.data?.response, absencesQuery.data?.response, shiftsQuery.data?.response, policies, permitsQuery.data]
   );
   const rows = useMemo(() => {
     const inputs = sheetInputsOf(data, dates, today);
@@ -140,9 +144,9 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
   const isLoading =
     activeQuery.isLoading ||
     dismissedQuery.isLoading ||
-    (employeeIds.length > 0 && (attendanceQuery.isLoading || absencesQuery.isLoading || shiftsQuery.isLoading));
+    (employeeIds.length > 0 && (attendanceQuery.isLoading || absencesQuery.isLoading || shiftsQuery.isLoading || permitsQuery.isLoading));
   const isFetching =
-    activeQuery.isFetching || dismissedQuery.isFetching || attendanceQuery.isFetching || absencesQuery.isFetching || shiftsQuery.isFetching;
+    activeQuery.isFetching || dismissedQuery.isFetching || attendanceQuery.isFetching || absencesQuery.isFetching || shiftsQuery.isFetching || permitsQuery.isFetching;
   // Смены периода приходят одной выборкой с потолком: обрезанная — это ложные «В» и заниженная норма.
   const shiftsTruncated = isShiftListTruncated(shiftsQuery.data);
   // Выгрузка берёт смены с экрана — только когда они уже этого периода.
@@ -169,7 +173,7 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      await exportSheetXlsx({ filters, range, dates, today, shifts: data.shifts, policies, label: `${range.from}_${range.to}` });
+      await exportSheetXlsx({ filters, range, dates, today, shifts: data.shifts, latePermissions: data.latePermissions, policies, label: `${range.from}_${range.to}` });
     } catch (error) {
       console.error("Attendance sheet export failed:", error);
       toast.error(t("attendance_sheet.export_error"));
@@ -411,7 +415,13 @@ function TotalsCells({ totals, withOffSchedule }: { totals: SheetTotals; withOff
     <>
       <td className={`${cell} border-l border-slate-200 text-slate-400`}>{durationText(totals.planMinutes)}</td>
       <td className={`${cell} font-bold ${hoursColor(totals)}`}>{durationText(totals.workedMinutes)}</td>
-      <td className={`${cell} font-semibold text-slate-700`}>{durationText(totals.lateMinutes)}</td>
+      <td className={`${cell} font-semibold text-slate-700`}>
+        {durationText(totals.lateMinutes)}
+        {/* Под чертой — сколько отпросился (одобренные Late Permission до сегодня). */}
+        {totals.permittedMinutes ? (
+          <div className="mt-0.5 border-t border-slate-200 pt-0.5 text-[11px] font-medium text-slate-400">{durationText(totals.permittedMinutes)}</div>
+        ) : null}
+      </td>
       <td className={`${cell} font-semibold text-slate-700`}>{durationText(totals.overtimeMinutes)}</td>
       <td className={`${cell} font-semibold text-slate-700`}>{totals.days || "—"}</td>
       <td className={`${cell} ${totals.absences ? "font-semibold text-rose-600" : "text-slate-400"}`}>{totals.absences || "—"}</td>
@@ -493,6 +503,9 @@ function SheetCellView({ cell, onOpen }: { cell: SheetCell; onOpen: () => void }
   if (!cell.counted && cell.kind !== "off_schedule") {
     className = "text-slate-400";
     hints.push(t("attendance_sheet.hint.not_counted"));
+  }
+  if (cell.permitArriveBy) {
+    hints.push(t("attendance_sheet.hint.permitted", { time: cell.permitArriveBy, duration: formatDuration(cell.permittedMinutes * 60) }));
   }
   if (cell.pending.includes("mark")) hints.push(t("attendance_sheet.pending.mark"));
   if (cell.pendingLeave) hints.push(t("attendance_sheet.pending.leave", { title: cell.pendingLeave.title }));
