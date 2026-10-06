@@ -3773,6 +3773,7 @@
   "settings_integrations.hickvision.page_description": "Hickvision integration",
   "settings_integrations.hickvision.page_subtitle": "Integration with the access control system",
   "settings_integrations.hickvision.page_title": "Hickvision | Settings",
+  "settings_integrations.hickvision.identity_unresolved": "Employee not identified",
   "settings_integrations.hickvision.source_turnstile": "Turnstile",
   "settings_integrations.hickvision.source_webapp": "App",
   "settings_integrations.hickvision.sync_completed": "Synchronization completed: processed {processed}, added {inserted}, updated {updated}, skipped {skipped}.",

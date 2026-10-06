@@ -3772,6 +3772,7 @@
   "settings_integrations.hickvision.page_description": "Hickvision integratsiyasi",
   "settings_integrations.hickvision.page_subtitle": "Kirishni nazorat qilish tizimi bilan integratsiya",
   "settings_integrations.hickvision.page_title": "Hickvision | Sozlamalar",
+  "settings_integrations.hickvision.identity_unresolved": "Xodim aniqlanmagan",
   "settings_integrations.hickvision.source_turnstile": "Turniket",
   "settings_integrations.hickvision.source_webapp": "Ilova",
   "settings_integrations.hickvision.sync_completed": "Sinxronizatsiya tugadi: qayta ishlangan {processed}, qo'shilgan {inserted}, yangilangan {updated}, o'tkazib yuborilgan {skipped}.",

@@ -1,3 +1,4 @@
+import { isUnresolvedDeviceRecord, recordEnrollment } from "./record-identity";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import DatePicker from "react-datepicker";
@@ -131,6 +132,7 @@ const resolveEmployeeName = (
   item: AttendanceRecordItem,
   uniqueUser?: UniqueUserItem
 ): string => {
+  if (isUnresolvedDeviceRecord(item)) return translate("settings_integrations.hickvision.identity_unresolved");
   const relation = item.user_base_id_data;
   if (relation && typeof relation === "object") {
     const first = typeof relation.first_name === "string" ? relation.first_name : "";
@@ -308,23 +310,6 @@ export default function HickvisionIntegrationSettingsPage() {
   // companies_id plus the terminal's company disambiguate it.
   const offices = useOffices();
 
-  const recordUserByHikvisionId = useMemo(() => {
-    const companyByMac = new Map<string, string>();
-    for (const mac of (recordsMacsQuery.data?.response || []) as CompanyMacAddressItem[]) {
-      const address = String(mac.mac_address || "").trim();
-      if (address && mac.companies_id) companyByMac.set(address, mac.companies_id);
-    }
-
-    const map = new Map<string, UniqueUserItem>();
-    for (const user of (recordsUsersQuery.data?.response || []) as UniqueUserItem[]) {
-      const id = String(user.hikvision_id || "").trim();
-      const company = companyByMac.get(String(user.mac_address || "").trim());
-      // An unregistered terminal leaves the row unusable: showing no face beats
-      // showing a plausible wrong one.
-      if (id && company) map.set(`${id}|${company}`, user);
-    }
-    return map;
-  }, [recordsUsersQuery.data?.response, recordsMacsQuery.data?.response]);
 
   useEffect(() => {
     if (typeof macAddressesQuery.data?.count !== "number") return;
@@ -762,9 +747,14 @@ export default function HickvisionIntegrationSettingsPage() {
                       </TableRow>
                     ) : (
                       records.map((item) => {
-                        const uniqueUser = recordUserByHikvisionId.get(
-                          `${String(item.hikvision_id || "").trim()}|${item.companies_id || ""}`
-                        );
+                        const enrollmentInventory = recordsUsersQuery.data as { response?: UniqueUserItem[]; count?: number } | undefined;
+                        const routeInventory = recordsMacsQuery.data as { response?: CompanyMacAddressItem[]; count?: number } | undefined;
+                        const enrolledUsers = enrollmentInventory?.response || [];
+                        const deviceRoutes = routeInventory?.response || [];
+                        const inventoryComplete = enrollmentInventory?.count === enrolledUsers.length
+                          && routeInventory?.count === deviceRoutes.length;
+                        const uniqueUser = inventoryComplete ? recordEnrollment(item, enrolledUsers, deviceRoutes) : undefined;
+
                         return (
                         <TableRow key={item.guid} className="transition-colors hover:bg-gray-50">
                           <TableCell className="px-4 py-3">

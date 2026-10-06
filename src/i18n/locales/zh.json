@@ -3772,6 +3772,7 @@
   "settings_integrations.hickvision.page_description": "Hickvision 集成",
   "settings_integrations.hickvision.page_subtitle": "与门禁系统的集成",
   "settings_integrations.hickvision.page_title": "Hickvision | 设置",
+  "settings_integrations.hickvision.identity_unresolved": "员工身份未确认",
   "settings_integrations.hickvision.source_turnstile": "闸机",
   "settings_integrations.hickvision.source_webapp": "应用",
   "settings_integrations.hickvision.sync_completed": "同步完成：已处理 {processed}，新增 {inserted}，更新 {updated}，跳过 {skipped}。",

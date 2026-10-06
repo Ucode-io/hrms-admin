@@ -3259,6 +3259,7 @@
   "settings_integrations.hickvision.page_description": "Интеграция Hickvision",
   "settings_integrations.hickvision.page_subtitle": "Интеграция с системой контроля доступа",
   "settings_integrations.hickvision.page_title": "Hickvision | Настройки",
+  "settings_integrations.hickvision.identity_unresolved": "Сотрудник не определён",
   "settings_integrations.hickvision.source_turnstile": "Турникет",
   "settings_integrations.hickvision.source_webapp": "Приложение",
   "settings_integrations.hickvision.sync_completed": "Синхронизация завершена: обработано {processed}, добавлено {inserted}, обновлено {updated}, пропущено {skipped}.",

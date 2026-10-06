@@ -3772,6 +3772,7 @@
   "settings_integrations.hickvision.page_description": "Hickvision интеграциясы",
   "settings_integrations.hickvision.page_subtitle": "Кіруді бақылау жүйесімен интеграция",
   "settings_integrations.hickvision.page_title": "Hickvision | Параметрлер",
+  "settings_integrations.hickvision.identity_unresolved": "Қызметкер анықталмаған",
   "settings_integrations.hickvision.source_turnstile": "Турникет",
   "settings_integrations.hickvision.source_webapp": "Қосымша",
   "settings_integrations.hickvision.sync_completed": "Синхрондау аяқталды: өңделді {processed}, қосылды {inserted}, жаңартылды {updated}, өткізілді {skipped}.",
