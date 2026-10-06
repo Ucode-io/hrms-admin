@@ -419,7 +419,7 @@ function TotalsCells({ totals, withOffSchedule }: { totals: SheetTotals; withOff
         {durationText(totals.lateMinutes)}
         {/* Под чертой — сколько отпросился (одобренные Late Permission до сегодня). */}
         {totals.permittedMinutes ? (
-          <div className="mt-0.5 border-t border-slate-200 pt-0.5 text-[11px] font-medium text-slate-400">{durationText(totals.permittedMinutes)}</div>
+          <div className="mt-0.5 border-t border-slate-200 pt-0.5 text-[11px] font-medium text-slate-400">−{durationText(totals.permittedMinutes)}</div>
         ) : null}
       </td>
       <td className={`${cell} font-semibold text-slate-700`}>{durationText(totals.overtimeMinutes)}</td>
