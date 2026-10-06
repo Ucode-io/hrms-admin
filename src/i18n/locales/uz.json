@@ -5880,5 +5880,13 @@
   "attendance_sheet.col_hint.overtime": "Smenadan ortiq ish, kuniga 15 daqiqadan",
   "attendance_sheet.col_hint.absences": "Smena bor, belgilar va tasdiqlangan ta'til yo'q kunlar",
   "attendance_sheet.col_hint.off_schedule": "Belgilar bor, lekin smena yo'q kunlar",
-  "attendance_sheet.xlsx_legend": "Belgilar"
+  "attendance_sheet.xlsx_legend": "Belgilar",
+  "attendance_sheet.legend.title": "Tabeldagi belgilar",
+  "attendance_sheet.legend.button_hint": "Jadvaldagi qiymatlar nimani anglatadi",
+  "attendance_sheet.legend.footer": "Sariq nuqta — belgi yoki ariza hali qaror kutmoqda. Kun tafsilotlarini ochish uchun katakni bosing.",
+  "attendance_sheet.legend_desc.worked": "Kun davomida haqiqatda ishlangan soatlar: kelishdan ketishgacha",
+  "attendance_sheet.legend_desc.late": "Smena boshlanganidan keyin kelgan — soatlar to'q sariq rangda",
+  "attendance_sheet.legend_desc.missing_mark": "Faqat kelish yoki faqat ketish bor — soatlarni hisoblab bo'lmaydi",
+  "attendance_sheet.legend_desc.pending": "Radiusdan tashqari belgi yoki yo'qlik arizasi hali ko'rib chiqilmagan",
+  "attendance_sheet.legend_desc.leave": "Kompaniya siyosati bo'yicha tasdiqlangan yo'qlik"
 }

@@ -5880,5 +5880,13 @@
   "attendance_sheet.col_hint.overtime": "Ауысымнан тыс жұмыс, күніне 15 минуттан",
   "attendance_sheet.col_hint.absences": "Ауысым бар, белгілер мен мақұлданған демалыс жоқ күндер",
   "attendance_sheet.col_hint.off_schedule": "Белгілер бар, бірақ ауысым жоқ күндер",
-  "attendance_sheet.xlsx_legend": "Белгілер"
+  "attendance_sheet.xlsx_legend": "Белгілер",
+  "attendance_sheet.legend.title": "Табельдегі белгілер",
+  "attendance_sheet.legend.button_hint": "Кестедегі мәндер нені білдіреді",
+  "attendance_sheet.legend.footer": "Сары нүкте — белгі немесе өтінім әлі шешім күтуде. Күн мәліметтерін ашу үшін ұяшықты басыңыз.",
+  "attendance_sheet.legend_desc.worked": "Күн ішінде нақты жұмыс істелген сағаттар: келуден кетуге дейін",
+  "attendance_sheet.legend_desc.late": "Ауысым басталғаннан кейін келді — сағаттар қызғылт сары түспен",
+  "attendance_sheet.legend_desc.missing_mark": "Тек келу немесе тек кету бар — сағаттарды есептеу мүмкін емес",
+  "attendance_sheet.legend_desc.pending": "Радиустан тыс белгі немесе болмау өтінімі әлі қаралмаған",
+  "attendance_sheet.legend_desc.leave": "Компания саясаты бойынша мақұлданған болмау"
 }

@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
-import { AlertCircle, FileSpreadsheet, Loader2, LogIn, SlidersHorizontal, X } from "lucide-react";
+import { AlertCircle, ChevronDown, FileSpreadsheet, Info, Loader2, LogIn, MousePointerClick, SlidersHorizontal, X } from "lucide-react";
 import Select from "react-select";
 import { toast } from "sonner";
 import PageMeta from "../../../components/common/PageMeta";
@@ -23,6 +23,7 @@ import { PeriodRangeNavigator } from "../../Timesheet/components/PeriodNavigator
 import { SCALE_META, formatDateRu, formatDuration, fromIsoDate, isToday, isWeekend, rangeForScale, shiftDays, toIsoDate, weekdayShort } from "../../Timesheet/constants";
 import EmployeesPaginationFooter from "../../Employees/List/components/EmployeesPaginationFooter";
 import HoverTooltip from "../../../components/ui/tooltip/HoverTooltip";
+import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { buildPaginationItems } from "../Attendance";
 import { type SheetCell, type SheetTotals, buildRow } from "./sheet";
 import { type SheetData, employeeName, isDismissed, sheetInputsOf } from "./sheetData";
@@ -191,14 +192,6 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
         <div className="flex flex-wrap items-center gap-2.5 border border-t-0 border-slate-200 bg-white px-4 py-2 lg:px-6">
           {leftSlot}
           <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
-            <div className={PILL_GROUP}>
-              {(["month", "week"] as const).map((item) => (
-                <button key={item} type="button" onClick={() => setScale(item)} className={pillButton(item === scale)}>
-                  {SCALE_META[item].label}
-                </button>
-              ))}
-            </div>
-            <PeriodRangeNavigator scale={scale} anchor={anchor} onAnchorChange={setAnchor} />
             <ExpandableSearchInput
               value={search}
               onChange={setSearch}
@@ -257,8 +250,28 @@ export default function AttendanceSheetView({ leftSlot }: { leftSlot?: ReactNode
           </div>
         ) : null}
 
-        <div className="px-4 py-4 pb-20 lg:px-6">
+        {/* Строка периода — как в прототипе: даты и обозначения слева, масштаб справа. */}
+        <div className="flex flex-wrap items-center gap-2 border-x border-b border-slate-200 bg-white px-4 py-2 lg:px-6">
+          <PeriodRangeNavigator scale={scale} anchor={anchor} onAnchorChange={setAnchor} />
+          <button
+            type="button"
+            onClick={() => setAnchor(toIsoDate(new Date()))}
+            className="inline-flex h-[38px] items-center rounded-[10px] border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            {t("common.today")}
+          </button>
+          <span className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block" />
           <Legend policies={policies} />
+          <div className={`${PILL_GROUP} ml-auto`}>
+            {(["month", "week"] as const).map((item) => (
+              <button key={item} type="button" onClick={() => setScale(item)} className={`${pillButton(item === scale)} min-w-[72px] justify-center`}>
+                {SCALE_META[item].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-4 py-4 pb-20 lg:px-6">
           {shiftsTruncated ? (
             <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-700">
               {t("attendance_sheet.shifts_truncated", { count: shiftsQuery.data?.count ?? 0 })}
@@ -480,27 +493,67 @@ function SheetCellView({ cell, onOpen }: { cell: SheetCell; onOpen: () => void }
   );
 }
 
+/** Знак ячейки в обозначениях — плашка, как в прототипе. */
+const LEGEND_CODE = "inline-flex h-[19px] min-w-[24px] flex-none items-center justify-center rounded px-1 text-[11px] font-semibold tabular-nums ring-1 ring-inset ring-slate-200";
+
 function Legend({ policies }: { policies: Record<string, unknown>[] }) {
   const { t } = useTranslation();
-  const chip = "inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600";
+  const [isOpen, setIsOpen] = useState(false);
+  const items: { code: ReactNode; className?: string; label: string; desc: string }[] = [
+    { code: "8,0", className: "text-slate-800", label: t("attendance_sheet.legend.worked"), desc: t("attendance_sheet.legend_desc.worked") },
+    { code: "8,0", className: "text-orange-600", label: t("attendance_sheet.legend.late"), desc: t("attendance_sheet.legend_desc.late") },
+    { code: <X size={12} strokeWidth={2.5} />, className: "bg-rose-50 text-rose-600", label: t("attendance_sheet.legend.absent"), desc: t("attendance_sheet.hint.absent") },
+    { code: t("attendance_sheet.day_off_short"), className: "text-slate-400", label: t("attendance_sheet.legend.day_off"), desc: t("attendance_sheet.hint.day_off") },
+    { code: <LogIn size={12} />, className: "text-emerald-600", label: t("attendance_sheet.legend.at_work"), desc: t("attendance_sheet.hint.at_work") },
+    { code: <AlertCircle size={12} />, className: "bg-amber-50 text-amber-500", label: t("attendance_sheet.legend.missing_mark"), desc: t("attendance_sheet.legend_desc.missing_mark") },
+    { code: "4,0", className: "bg-slate-100 italic text-slate-400", label: t("attendance_sheet.legend.off_schedule"), desc: t("attendance_sheet.hint.off_schedule") },
+    { code: <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />, label: t("attendance_sheet.legend.pending"), desc: t("attendance_sheet.legend_desc.pending") },
+    ...policies.flatMap((policy) =>
+      typeof policy.guid === "string" && typeof policy.title === "string"
+        ? [{
+            code: <Icon icon={typeof policy.icon === "string" && policy.icon ? policy.icon : "mdi:airplane"} className="h-3.5 w-3.5" style={{ color: typeof policy.color === "string" ? policy.color : undefined }} />,
+            label: policy.title,
+            desc: t("attendance_sheet.legend_desc.leave"),
+          }]
+        : []
+    ),
+  ];
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-1.5">
-      <span className={chip}><b className="tabular-nums text-slate-800">8,0</b>{t("attendance_sheet.legend.worked")}</span>
-      <span className={chip}><b className="tabular-nums text-orange-600">8,0</b>{t("attendance_sheet.legend.late")}</span>
-      <span className={chip}><X size={12} strokeWidth={2.5} className="text-rose-600" />{t("attendance_sheet.legend.absent")}</span>
-      <span className={chip}><b className="text-slate-400">{t("attendance_sheet.day_off_short")}</b>{t("attendance_sheet.legend.day_off")}</span>
-      <span className={chip}><LogIn size={12} className="text-emerald-600" />{t("attendance_sheet.legend.at_work")}</span>
-      <span className={chip}><AlertCircle size={12} className="text-amber-500" />{t("attendance_sheet.legend.missing_mark")}</span>
-      <span className={chip}><i className="text-slate-400">4,0</i>{t("attendance_sheet.legend.off_schedule")}</span>
-      <span className={chip}><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />{t("attendance_sheet.legend.pending")}</span>
-      {policies.map((policy) =>
-        typeof policy.guid === "string" && typeof policy.title === "string" ? (
-          <span key={policy.guid} className={chip}>
-            <Icon icon={typeof policy.icon === "string" && policy.icon ? policy.icon : "mdi:airplane"} className="h-3.5 w-3.5" style={{ color: typeof policy.color === "string" ? policy.color : undefined }} />
-            {policy.title}
-          </span>
-        ) : null
-      )}
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        title={t("attendance_sheet.legend.button_hint")}
+        className={`dropdown-toggle inline-flex h-[30px] items-center gap-1.5 rounded-md px-2 text-[13px] text-slate-600 transition hover:bg-slate-100 ${isOpen ? "bg-slate-100" : ""}`}
+      >
+        <Info size={14} />
+        {t("attendance_sheet.xlsx_legend")}
+        {/* Как в прототипе: второй «8,0» (опоздание) в свёрнутом виде не повторяем. */}
+        <span className="ml-0.5 hidden gap-[3px] md:inline-flex">
+          {items.slice(0, 7).filter((_, index) => index !== 1).map((item, index) => (
+            <em key={index} className={`${LEGEND_CODE} not-italic ${item.className ?? ""}`}>{item.code}</em>
+          ))}
+        </span>
+        <ChevronDown size={14} className={`transition ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      <Dropdown isOpen={isOpen} onClose={() => setIsOpen(false)} className="left-0 w-[380px] max-w-[calc(100vw-32px)] overflow-hidden">
+        <div className="px-3 pb-1 pt-2.5 text-[12px] font-semibold text-slate-500">{t("attendance_sheet.legend.title")}</div>
+        <div className="max-h-[420px] overflow-auto px-1 pb-1">
+          {items.map((item, index) => (
+            <div key={index} className="flex items-start gap-2.5 rounded-md px-2 py-[7px] hover:bg-slate-50">
+              <em className={`${LEGEND_CODE} mt-px h-[22px] min-w-[32px] text-[12px] not-italic ${item.className ?? ""}`}>{item.code}</em>
+              <div className="min-w-0">
+                <b className="block text-[13.5px] font-semibold text-slate-800">{item.label}</b>
+                <small className="block text-[12.5px] leading-snug text-slate-500">{item.desc}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-start gap-2 border-t border-slate-200 px-3 py-2.5 text-[12px] leading-snug text-slate-500">
+          <MousePointerClick size={14} className="mt-px flex-none" />
+          <span>{t("attendance_sheet.legend.footer")}</span>
+        </div>
+      </Dropdown>
     </div>
   );
 }

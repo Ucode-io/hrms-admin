@@ -5949,5 +5949,13 @@
   "attendance_sheet.col_hint.overtime": "Переработка сверх смены, от 15 минут в день",
   "attendance_sheet.col_hint.absences": "Дни со сменой без отметок и без одобренного отсутствия",
   "attendance_sheet.col_hint.off_schedule": "Дни с отметками, но без смены",
-  "attendance_sheet.xlsx_legend": "Обозначения"
+  "attendance_sheet.xlsx_legend": "Обозначения",
+  "attendance_sheet.legend.title": "Обозначения в табеле",
+  "attendance_sheet.legend.button_hint": "Что означают значения в таблице",
+  "attendance_sheet.legend.footer": "Жёлтая точка — отметка или заявка ещё ждёт решения. Нажмите на ячейку, чтобы открыть подробности дня.",
+  "attendance_sheet.legend_desc.worked": "Фактически отработанные часы за день: от отметки прихода до ухода",
+  "attendance_sheet.legend_desc.late": "Пришёл позже начала смены — часы выделены оранжевым",
+  "attendance_sheet.legend_desc.missing_mark": "Есть только приход или только уход — часы посчитать нельзя",
+  "attendance_sheet.legend_desc.pending": "Отметка вне радиуса или заявка на отсутствие ещё не рассмотрены",
+  "attendance_sheet.legend_desc.leave": "Одобренное отсутствие по политике компании"
 }

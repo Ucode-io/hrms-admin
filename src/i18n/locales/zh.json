@@ -5880,5 +5880,13 @@
   "attendance_sheet.col_hint.overtime": "超出班次的加班，每天 15 分钟起算",
   "attendance_sheet.col_hint.absences": "有班次但没有打卡和已批准请假的天数",
   "attendance_sheet.col_hint.off_schedule": "有打卡但没有班次的天数",
-  "attendance_sheet.xlsx_legend": "图例"
+  "attendance_sheet.xlsx_legend": "图例",
+  "attendance_sheet.legend.title": "考勤表图例",
+  "attendance_sheet.legend.button_hint": "表格中数值的含义",
+  "attendance_sheet.legend.footer": "黄点——打卡或申请仍待审批。点击单元格查看当天详情。",
+  "attendance_sheet.legend_desc.worked": "当天实际工作小时：从上班打卡到下班打卡",
+  "attendance_sheet.legend_desc.late": "晚于班次开始到岗——小时以橙色显示",
+  "attendance_sheet.legend_desc.missing_mark": "只有上班或只有下班打卡——无法计算小时",
+  "attendance_sheet.legend_desc.pending": "范围外打卡或请假申请尚未审批",
+  "attendance_sheet.legend_desc.leave": "按公司政策批准的缺勤"
 }

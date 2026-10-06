@@ -5985,5 +5985,13 @@
   "attendance_sheet.col_hint.overtime": "Overtime beyond the shift, from 15 minutes a day",
   "attendance_sheet.col_hint.absences": "Days with a shift but no marks and no approved leave",
   "attendance_sheet.col_hint.off_schedule": "Days with marks but no shift",
-  "attendance_sheet.xlsx_legend": "Legend"
+  "attendance_sheet.xlsx_legend": "Legend",
+  "attendance_sheet.legend.title": "Attendance sheet legend",
+  "attendance_sheet.legend.button_hint": "What the values in the table mean",
+  "attendance_sheet.legend.footer": "Yellow dot — a mark or request is still pending. Click a cell to open the day details.",
+  "attendance_sheet.legend_desc.worked": "Hours actually worked that day: from check-in to check-out",
+  "attendance_sheet.legend_desc.late": "Arrived after the shift start — hours are highlighted in orange",
+  "attendance_sheet.legend_desc.missing_mark": "Only check-in or only check-out — hours can't be calculated",
+  "attendance_sheet.legend_desc.pending": "An out-of-radius mark or a leave request hasn't been reviewed yet",
+  "attendance_sheet.legend_desc.leave": "Approved absence under a company policy"
 }
