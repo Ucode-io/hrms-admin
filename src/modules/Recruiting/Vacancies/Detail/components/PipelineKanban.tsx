@@ -13,6 +13,7 @@ import {
   type StageDef,
   type Vacancy,
 } from "../../../types";
+import { useTranslation } from "../../../../../i18n";
 
 interface PipelineKanbanProps {
   vacancy: Vacancy;
@@ -30,6 +31,7 @@ export default function PipelineKanban({
   onOutcome,
   onOpenCandidate,
 }: PipelineKanbanProps) {
+  const { t } = useTranslation();
   const stages = useMemo(() => sortStages(vacancy.stages), [vacancy.stages]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export default function PipelineKanban({
   if (stages.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-5 py-16 text-center text-sm text-gray-400">
-        У вакансии нет этапов — добавьте их через «Редактировать»
+        {t("recruiting.kanban.no_stages")}
       </div>
     );
   }
@@ -118,9 +120,9 @@ export default function PipelineKanban({
           <div className="flex w-full max-w-[640px] gap-3 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-2xl backdrop-blur">
             {(
               [
-                { outcome: "hired", label: "Нанят", icon: <Trophy size={18} />, cls: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-400" },
-                { outcome: "rejected", label: "Отказ", icon: <ThumbsDown size={18} />, cls: "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-400" },
-                { outcome: "reserve", label: "Резерв", icon: <Archive size={18} />, cls: "border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-400" },
+                { outcome: "hired", label: t("recruiting.candidate_outcome.hired"), icon: <Trophy size={18} />, cls: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-400" },
+                { outcome: "rejected", label: t("recruiting.candidate_outcome.rejected"), icon: <ThumbsDown size={18} />, cls: "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-400" },
+                { outcome: "reserve", label: t("recruiting.candidate_outcome.reserve"), icon: <Archive size={18} />, cls: "border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-400" },
               ] as const
             ).map((zone) => (
               <div
@@ -152,9 +154,9 @@ export default function PipelineKanban({
             className="flex w-full items-center justify-between px-5 py-3.5 text-sm font-medium text-gray-700"
           >
             <span>
-              Завершённые · {terminal.length}
+              {t("recruiting.kanban.finished")} · {terminal.length}
               <span className="ml-2 text-xs font-normal text-gray-400">
-                нанятые, отказы и резерв
+                {t("recruiting.kanban.terminal_hint")}
               </span>
             </span>
             {showTerminal ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -182,7 +184,7 @@ export default function PipelineKanban({
                   <ScoreBadge score={candidate.avgScore} />
                   <button
                     type="button"
-                    title="Вернуть в воронку"
+                    title={t("recruiting.common.back_to_pipeline")}
                     onClick={(e) => {
                       e.stopPropagation();
                       const target = returnStageId(candidate);
@@ -221,6 +223,7 @@ function KanbanColumn({
   onDrop: () => void;
   renderCard: (candidate: Candidate) => React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const config = STAGE_COLOR_CONFIG[stage.color];
   return (
     <div
@@ -245,7 +248,7 @@ function KanbanColumn({
       <div className="flex flex-1 flex-col gap-2 px-2.5 pb-3">
         {candidates.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-gray-200 py-8 text-xs text-gray-300">
-            Пусто
+            {t("recruiting.kanban.empty")}
           </div>
         ) : (
           candidates.map(renderCard)
@@ -270,6 +273,7 @@ function KanbanCard({
   onDragEnd: () => void;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const config = STAGE_COLOR_CONFIG[stage.color];
   const evaluation = candidate.evaluations.find((e) => e.stageId === stage.id);
   const commentsCount = evaluation?.comments.length ?? 0;
@@ -290,7 +294,7 @@ function KanbanCard({
           <div className="truncate text-[13px] font-semibold text-gray-800">{candidate.fullName}</div>
           <div className="truncate text-[11px] text-gray-400">
             {candidate.level && `${candidate.level} · `}
-            на этапе {daysOpenLabel(candidate.stageChangedAt)}
+            {t("recruiting.kanban.on_stage", { days: daysOpenLabel(candidate.stageChangedAt) })}
           </div>
         </div>
       </div>

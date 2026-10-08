@@ -33,15 +33,12 @@ import {
   type Vacancy,
   type VacancyStatus,
 } from "../../types";
+import { useTranslation } from "../../../../i18n";
 
 type ViewMode = "cards" | "table";
 type PaginationItem = number | string;
 
 const PAGE_SIZE = 9;
-const BREADCRUMBS = [
-  { label: "Рекрутинг", to: "/recruiting/vacancies" },
-  { label: "Вакансии", to: "/recruiting/vacancies" },
-];
 
 const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -64,7 +61,15 @@ const selectCls =
   "h-10 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 transition focus:border-brand-400 focus:outline-none appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')] bg-[right_0.5rem_center] bg-no-repeat";
 
 function VacanciesList() {
-  useHeaderBreadcrumbItems(BREADCRUMBS);
+  const { t } = useTranslation();
+  const breadcrumbs = useMemo(
+    () => [
+      { label: t("recruiting.common.breadcrumb_recruiting"), to: "/recruiting/vacancies" },
+      { label: t("recruiting.vacancies_list.breadcrumb_vacancies"), to: "/recruiting/vacancies" },
+    ],
+    [t]
+  );
+  useHeaderBreadcrumbItems(breadcrumbs);
   const navigate = useNavigate();
   const brandColor = companyStore.mainColor || "#2563eb";
 
@@ -105,9 +110,9 @@ function VacanciesList() {
         ? MOCK_DEPARTMENTS
         : (departmentsData?.response ?? []).map((item) => ({
             value: item.guid,
-            label: item.title || "Без названия",
+            label: item.title || t("recruiting.common.untitled"),
           })),
-    [departmentsData?.response]
+    [departmentsData?.response, t]
   );
 
   const totalCount = vacanciesData?.count ?? 0;
@@ -119,11 +124,11 @@ function VacanciesList() {
   );
 
   const visibleRangeLabel = useMemo(() => {
-    if (totalCount === 0) return isLoading ? "Загрузка..." : "Нет вакансий";
+    if (totalCount === 0) return isLoading ? t("recruiting.common.loading") : t("recruiting.vacancies_list.no_vacancies_short");
     const start = (safePage - 1) * PAGE_SIZE + 1;
     const end = Math.min(safePage * PAGE_SIZE, totalCount);
-    return `Отображение ${start}–${end} из ${totalCount}`;
-  }, [safePage, totalCount, isLoading]);
+    return t("recruiting.common.showing_range", { start, end, total: totalCount });
+  }, [safePage, totalCount, isLoading, t]);
 
   const hasActiveFilters = Boolean(searchQuery || statusFilter || departmentFilter);
   const activeFiltersCount = (statusFilter ? 1 : 0) + (departmentFilter ? 1 : 0);
@@ -144,15 +149,18 @@ function VacanciesList() {
     try {
       await deleteMutation.mutateAsync(deletingItem.id);
       setDeletingItem(null);
-      toast.success("Вакансия удалена");
+      toast.success(t("recruiting.vacancies_list.deleted_success"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось удалить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.delete_failed"));
     }
   };
 
   return (
     <>
-      <PageMeta title="Вакансии | Рекрутинг" description="Управление открытыми вакансиями компании" />
+      <PageMeta
+        title={t("recruiting.vacancies_list.page_title")}
+        description={t("recruiting.vacancies_list.page_description")}
+      />
 
       {/* Toolbar */}
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
@@ -174,8 +182,8 @@ function VacanciesList() {
             value={viewMode}
             onChange={setViewMode}
             items={[
-              { key: "cards", label: "Карточки", icon: <LayoutGrid size={16} /> },
-              { key: "table", label: "Таблица", icon: <List size={16} /> },
+              { key: "cards", label: t("recruiting.view_mode.cards"), icon: <LayoutGrid size={16} /> },
+              { key: "table", label: t("recruiting.view_mode.table"), icon: <List size={16} /> },
             ]}
           />
 
@@ -187,7 +195,7 @@ function VacanciesList() {
                 setCurrentPage(1);
               }}
               inputId="vacancy-search"
-              placeholder="Поиск по названию вакансии..."
+              placeholder={t("recruiting.vacancies_list.search_placeholder")}
               expandedWidth={360}
               collapsedSize={40}
               brandColor={brandColor}
@@ -195,8 +203,8 @@ function VacanciesList() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen((o) => !o)}
-              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
-              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              aria-label={activeFiltersCount > 0 ? t("recruiting.vacancies_list.filter_label_count", { count: activeFiltersCount }) : t("recruiting.vacancies_list.filter_label")}
+              title={activeFiltersCount > 0 ? t("recruiting.vacancies_list.filter_label_count", { count: activeFiltersCount }) : t("recruiting.vacancies_list.filter_label")}
               className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFiltersOpen || activeFiltersCount > 0
                   ? "border-brand-200 bg-brand-50 text-brand-600"
@@ -211,7 +219,7 @@ function VacanciesList() {
               ) : null}
             </button>
             <Button startIcon={<Plus size={16} />} onClick={openCreate} className="h-10 rounded-xl px-4">
-              Создать
+              {t("recruiting.vacancies_list.create_button")}
             </Button>
           </div>
         </div>
@@ -237,7 +245,7 @@ function VacanciesList() {
                 setCurrentPage(1);
               }}
             >
-              <option value="">Все статусы</option>
+              <option value="">{t("recruiting.vacancies_list.all_statuses")}</option>
               {VACANCY_STATUS_ORDER.map((s) => (
                 <option key={s} value={s}>
                   {VACANCY_STATUS_CONFIG[s].label}
@@ -252,7 +260,7 @@ function VacanciesList() {
                 setCurrentPage(1);
               }}
             >
-              <option value="">Все отделы</option>
+              <option value="">{t("recruiting.vacancies_list.all_departments")}</option>
               {departmentOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -265,7 +273,7 @@ function VacanciesList() {
                 onClick={resetFilters}
                 className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
               >
-                Сбросить
+                {t("recruiting.vacancies_list.reset_filters")}
               </button>
             )}
           </div>
@@ -278,14 +286,14 @@ function VacanciesList() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-          <p className="text-sm text-gray-400">Загрузка...</p>
+          <p className="text-sm text-gray-400">{t("recruiting.common.loading")}</p>
         </div>
       ) : vacancies.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center">
           <Briefcase size={36} className="text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">Вакансии не найдены</p>
+          <p className="text-sm font-medium text-gray-500">{t("recruiting.vacancies_list.no_vacancies")}</p>
           <p className="text-xs text-gray-400">
-            {hasActiveFilters ? "Измените фильтры или сбросьте их" : "Создайте первую вакансию"}
+            {hasActiveFilters ? t("recruiting.vacancies_list.change_filters") : t("recruiting.vacancies_list.create_first_vacancy")}
           </p>
         </div>
       ) : viewMode === "cards" ? (
@@ -332,14 +340,13 @@ function VacanciesList() {
         className="m-4 max-w-[420px]"
       >
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900">Удалить вакансию?</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t("recruiting.vacancies_list.delete_title")}</h3>
           <p className="mt-2 text-sm text-gray-500">
-            Вакансия <span className="font-medium text-gray-700">«{deletingItem?.title}»</span> и все её
-            кандидаты будут удалены. Это действие нельзя отменить.
+            {t("recruiting.vacancies_list.delete_confirmation", { title: deletingItem?.title ?? "" })}
           </p>
           <div className="mt-6 flex items-center justify-end gap-3">
             <Button variant="outline" onClick={() => setDeletingItem(null)} className="px-5">
-              Отменить
+              {t("recruiting.common.cancel")}
             </Button>
             <button
               type="button"
@@ -347,7 +354,7 @@ function VacanciesList() {
               disabled={deleteMutation.isLoading}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 px-5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("recruiting.vacancies_list.deleting") : t("recruiting.common.delete")}
             </button>
           </div>
         </div>

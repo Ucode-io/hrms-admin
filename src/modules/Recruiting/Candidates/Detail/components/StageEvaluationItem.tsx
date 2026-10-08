@@ -9,6 +9,7 @@ import {
   type StageDef,
   type StageEvaluation,
 } from "../../../types";
+import { useTranslation } from "../../../../../i18n";
 
 interface StageEvaluationItemProps {
   stage: StageDef;
@@ -42,6 +43,7 @@ export default function StageEvaluationItem({
   isScoring = false,
   isCommenting = false,
 }: StageEvaluationItemProps) {
+  const { t } = useTranslation();
   const config = STAGE_COLOR_CONFIG[stage.color];
 
   return (
@@ -65,12 +67,12 @@ export default function StageEvaluationItem({
             <span className="text-sm font-semibold text-gray-900">{stage.name}</span>
             {isCurrent && (
               <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-600">
-                ТЕКУЩИЙ
+                {t("recruiting.stage_evaluation.current_badge")}
               </span>
             )}
           </span>
           {enteredAt && (
-            <span className="text-[11px] text-gray-400">с {formatDate(enteredAt)}</span>
+            <span className="text-[11px] text-gray-400">{t("recruiting.stage_evaluation.since_date", { date: formatDate(enteredAt) })}</span>
           )}
         </span>
         <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-gray-400">
@@ -89,13 +91,13 @@ export default function StageEvaluationItem({
         <div className="space-y-5 border-t border-gray-100 bg-white px-4 py-4">
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[13px] font-medium text-gray-600">Оценка этапа (1–10)</span>
-              {isScoring && <span className="text-xs text-gray-400">Сохранение…</span>}
+              <span className="text-[13px] font-medium text-gray-600">{t("recruiting.stage_evaluation.score")}</span>
+              {isScoring && <span className="text-xs text-gray-400">{t("recruiting.common.saving")}</span>}
             </div>
             <ScorePicker value={evaluation.score} onChange={onScore} disabled={isScoring} />
           </div>
           <div>
-            <span className="mb-2 block text-[13px] font-medium text-gray-600">Комментарии</span>
+            <span className="mb-2 block text-[13px] font-medium text-gray-600">{t("recruiting.stage_evaluation.comments")}</span>
             <CommentThread
               comments={evaluation.comments}
               documents={documents}

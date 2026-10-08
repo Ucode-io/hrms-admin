@@ -10,6 +10,7 @@ import {
   type CandidateDocument,
   type StageComment,
 } from "../types";
+import { translate, useTranslation } from "../../../i18n";
 
 // Демо-режим хранит файлы в localStorage — поэтому жёсткий лимит на размер.
 const MAX_FILE_SIZE = 1.5 * 1024 * 1024;
@@ -37,15 +38,15 @@ const htmlToPlainText = (value: string) => {
 const toolbarBtnClass =
   "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-gray-500 transition hover:border-gray-200 hover:bg-white hover:text-gray-700 data-[active=true]:border-brand-200 data-[active=true]:bg-brand-50 data-[active=true]:text-brand-600";
 
-const BtnBold = createButton("Жирный", <Bold size={14} />, "bold");
-const BtnItalic = createButton("Курсив", <Italic size={14} />, "italic");
-const BtnBulletList = createButton("Список", <List size={14} />, "insertUnorderedList");
-const BtnLink = createButton("Ссылка", <LinkIcon size={14} />, ({ $selection }) => {
+const BtnBold = createButton(translate("recruiting.editor.bold"), <Bold size={14} />, "bold");
+const BtnItalic = createButton(translate("recruiting.editor.italic"), <Italic size={14} />, "italic");
+const BtnBulletList = createButton(translate("recruiting.editor.list"), <List size={14} />, "insertUnorderedList");
+const BtnLink = createButton(translate("recruiting.common.link"), <LinkIcon size={14} />, ({ $selection }) => {
   if ($selection?.nodeName === "A") {
     document.execCommand("unlink");
     return;
   }
-  const url = window.prompt("Введите URL", "https://");
+  const url = window.prompt(translate("recruiting.editor.enter_url"), "https://");
   if (!url) return;
   document.execCommand("createLink", false, url);
 });
@@ -68,6 +69,7 @@ export default function CommentThread({
   onAttach,
   isSubmitting = false,
 }: CommentThreadProps) {
+  const { t } = useTranslation();
   const [html, setHtml] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +85,7 @@ export default function CommentThread({
   const handleFilePick = (picked: File | undefined) => {
     if (!picked || !onAttach) return;
     if (picked.size > MAX_FILE_SIZE) {
-      toast.error("В демо-режиме файлы до 1.5 МБ.");
+      toast.error(t("recruiting.common.demo_file_limit"));
       return;
     }
     const reader = new FileReader();
@@ -155,7 +157,7 @@ export default function CommentThread({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isSubmitting}
-                    title="Прикрепить файл"
+                    title={t("recruiting.comments.attach")}
                     className={toolbarBtnClass}
                   >
                     <Paperclip size={14} />
@@ -182,7 +184,7 @@ export default function CommentThread({
           onClick={() => void submit()}
           disabled={isEmpty || isSubmitting}
           className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white transition hover:bg-brand-600 disabled:opacity-40"
-          title="Отправить (Ctrl+Enter)"
+          title={t("recruiting.comments.send")}
         >
           <SendHorizonal size={17} />
         </button>
@@ -200,7 +202,7 @@ function CommentBody({
   documents: CandidateDocument[];
 }) {
   if (comment.text.startsWith(FILE_COMMENT_MARKER)) {
-    let meta: { name: string; size: number | null } = { name: "Файл", size: null };
+    let meta: { name: string; size: number | null } = { name: translate("recruiting.common.file"), size: null };
     try {
       meta = JSON.parse(comment.text.slice(FILE_COMMENT_MARKER.length));
     } catch {

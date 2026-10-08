@@ -3,6 +3,7 @@ import Avatar from "../../components/Avatar";
 import { LevelChip, ScoreBadge } from "../../components/Chips";
 import OutcomeBadge from "../../components/OutcomeBadge";
 import StagePill from "../../components/StagePill";
+import { useTranslation } from "../../../../i18n";
 import {
   sourceLabel,
   formatDate,
@@ -34,17 +35,18 @@ export default function CandidateTable({
   onEdit,
   onDelete,
 }: CandidateTableProps) {
+  const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[920px] text-sm">
         <thead className="border-b border-gray-100 bg-gray-50/60">
           <tr>
-            <Th>Кандидат</Th>
-            <Th>Вакансия</Th>
-            <Th>Этап</Th>
-            <Th>Оценка</Th>
-            <Th>Источник</Th>
-            <Th>Отклик</Th>
+            <Th>{t("recruiting.candidate_table.candidate")}</Th>
+            <Th>{t("recruiting.candidate_table.vacancy")}</Th>
+            <Th>{t("recruiting.candidate_table.stage")}</Th>
+            <Th>{t("recruiting.candidate_table.score")}</Th>
+            <Th>{t("recruiting.candidate_table.source")}</Th>
+            <Th>{t("recruiting.candidate_table.applied")}</Th>
             <Th className="w-24" />
           </tr>
         </thead>
@@ -93,7 +95,7 @@ export default function CandidateTable({
                     type="button"
                     onClick={() => onEdit(candidate)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-                    title="Редактировать"
+                    title={t("recruiting.common.edit")}
                   >
                     <Pencil size={15} />
                   </button>
@@ -101,7 +103,7 @@ export default function CandidateTable({
                     type="button"
                     onClick={() => onDelete(candidate)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-500"
-                    title="Удалить"
+                    title={t("recruiting.common.delete")}
                   >
                     <Trash2 size={15} />
                   </button>

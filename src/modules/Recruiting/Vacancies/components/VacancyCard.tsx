@@ -5,11 +5,13 @@ import {
   STAGE_COLOR_CONFIG,
   VACANCY_PRIORITY_CONFIG,
   VACANCY_STATUS_CONFIG,
+  countLabel,
   daysOpenLabel,
   formatSalaryRange,
   sortStages,
   type Vacancy,
 } from "../../types";
+import { useTranslation } from "../../../../i18n";
 
 interface VacancyCardProps {
   vacancy: Vacancy;
@@ -20,6 +22,7 @@ interface VacancyCardProps {
 }
 
 export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete }: VacancyCardProps) {
+  const { t } = useTranslation();
   const status = VACANCY_STATUS_CONFIG[vacancy.status];
   const priority = VACANCY_PRIORITY_CONFIG[vacancy.priority];
   const stages = sortStages(vacancy.stages);
@@ -55,7 +58,7 @@ export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete 
             type="button"
             onClick={() => onEdit(vacancy)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            title="Редактировать"
+            title={t("recruiting.common.edit")}
           >
             <Pencil size={15} />
           </button>
@@ -63,7 +66,7 @@ export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete 
             type="button"
             onClick={() => onDelete(vacancy)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-500"
-            title="Удалить"
+            title={t("recruiting.common.delete")}
           >
             <Trash2 size={15} />
           </button>
@@ -84,7 +87,7 @@ export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete 
         )}
         <span className="inline-flex items-center gap-1">
           <CalendarDays size={12} />
-          открыта {daysOpenLabel(vacancy.openedAt)}
+          {t("recruiting.common.opened", { days: daysOpenLabel(vacancy.openedAt) })}
         </span>
       </div>
 
@@ -114,7 +117,7 @@ export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete 
         </div>
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
           {activeTotal === 0 ? (
-            <span className="text-[11px] text-gray-400">Нет активных кандидатов</span>
+            <span className="text-[11px] text-gray-400">{t("recruiting.vacancy_card.no_active")}</span>
           ) : (
             stages.map((stage) => {
               const count = byStage[stage.id] ?? 0;
@@ -137,11 +140,11 @@ export default function VacancyCard({ vacancy, counts, onOpen, onEdit, onDelete 
         <div className="flex items-center gap-3 text-xs text-gray-500">
           <span className="inline-flex items-center gap-1">
             <Users size={13} />
-            {vacancy.candidatesCount} кандидатов
+            {countLabel("candidates", vacancy.candidatesCount)}
           </span>
           <span className="inline-flex items-center gap-1 text-emerald-600">
             <UserCheck size={13} />
-            {vacancy.hiredCount} из {vacancy.openings} нанято
+            {t("recruiting.common.of_hired", { hired: vacancy.hiredCount, total: vacancy.openings })}
           </span>
         </div>
       </div>

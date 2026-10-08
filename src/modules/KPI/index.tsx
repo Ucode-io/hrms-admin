@@ -32,7 +32,6 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import DatePicker, { registerLocale } from "react-datepicker";
-import { ru } from "date-fns/locale/ru";
 import "react-datepicker/dist/react-datepicker.css";
 import { observer } from "mobx-react-lite";
 import {
@@ -80,9 +79,21 @@ import reportsService, {
   type KpiTableGroup,
   type KpiTableItem,
 } from "../../api/services/reports.service";
-import { useTranslation } from "../../i18n";
+import {
+  BCP47,
+  DATE_FNS_LOCALES,
+  getLocale,
+  monthNames,
+  translate,
+  useTranslation,
+  weekdayNames,
+} from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
-registerLocale("ru", ru);
+Object.entries(DATE_FNS_LOCALES).forEach(([code, dateLocale]) => registerLocale(code, dateLocale));
+
+/** Intl-код текущего языка — для функций вне компонента. */
+const intlLocale = (): string => BCP47[getLocale()];
 
 type KpiPeriodMode = KpiPeriodType;
 
@@ -149,22 +160,9 @@ type ChildSlot = {
   label: string;
 };
 
-const MONTH_NAMES_FULL = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь",
-];
 
-const DAY_NAMES_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+const dayNamesShort = (): string[] => weekdayNames(getLocale());
 
 const dayOfWeekIndex = (date: Date): number => {
   const day = date.getDay();
@@ -207,10 +205,10 @@ const buildMondayFridayWeeksForMonth = (monthDate: Date): Array<{ start: Date; e
 
 const formatPeriodSlotLabel = (periodType: KpiPeriodMode, start: Date, end: Date): string => {
   if (periodType === "daily") {
-    return `${DAY_NAMES_SHORT[dayOfWeekIndex(start)]} ${pad(start.getDate())}.${pad(start.getMonth() + 1)}`;
+    return `${dayNamesShort()[dayOfWeekIndex(start)]} ${pad(start.getDate())}.${pad(start.getMonth() + 1)}`;
   }
   if (periodType === "monthly") {
-    return `${MONTH_NAMES_FULL[start.getMonth()]} ${start.getFullYear()}`;
+    return `${monthNames(getLocale())[start.getMonth()]} ${start.getFullYear()}`;
   }
   if (periodType === "weekly") {
     const s = `${pad(start.getDate())}.${pad(start.getMonth() + 1)}`;
@@ -219,9 +217,9 @@ const formatPeriodSlotLabel = (periodType: KpiPeriodMode, start: Date, end: Date
   }
   if (periodType === "quarterly") {
     const q = Math.floor(start.getMonth() / 3) + 1;
-    return `${q} кв. ${start.getFullYear()}`;
+    return translate("kpi.period.quarter_short_year", { n: q, year: start.getFullYear() });
   }
-  return `${start.getFullYear()} г.`;
+  return translate("kpi.period.year", { year: start.getFullYear() });
 };
 
 const computeChildSlots = (
@@ -306,7 +304,7 @@ const computeTopBuckets = (
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(weekStart);
       date.setDate(weekStart.getDate() + i);
-      const dayLabel = DAY_NAMES_SHORT[i];
+      const dayLabel = dayNamesShort()[i];
       return {
         key: `day-${i + 1}`,
         label: `${dayLabel} ${pad(date.getDate())}.${pad(date.getMonth() + 1)}`,
@@ -324,7 +322,7 @@ const computeTopBuckets = (
       return {
         key: `wk-${i + 1}`,
         label: formatPeriodSlotLabel("weekly", start, end),
-        shortLabel: `Нед ${i + 1}`,
+        shortLabel: translate("kpi.period.week_n", { n: i + 1 }),
         startIso: toIsoDate(start),
         endIso: toIsoDate(end),
         canExpand: canExpandByIndex[i] || false,
@@ -338,7 +336,7 @@ const computeTopBuckets = (
     return Array.from({ length: 3 }, (_, i) => {
       const monthDate = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + i, 1);
       const monthEnd = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + i + 1, 0);
-      const monthName = new Intl.DateTimeFormat("ru-RU", { month: "short" })
+      const monthName = new Intl.DateTimeFormat(intlLocale(), { month: "short" })
         .format(monthDate)
         .replace(".", "");
       const cap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
@@ -360,8 +358,8 @@ const computeTopBuckets = (
     const end = new Date(cursorDate.getFullYear(), quarterStartMonth + 3, 0);
     return {
       key: `q-${i + 1}`,
-      label: `${i + 1} квартал`,
-      shortLabel: `${i + 1} кв.`,
+      label: translate("kpi.period.quarter_n", { n: i + 1 }),
+      shortLabel: translate("kpi.period.quarter_short", { n: i + 1 }),
       startIso: toIsoDate(start),
       endIso: toIsoDate(end),
       canExpand: canExpandByIndex[i] || false,
@@ -381,7 +379,7 @@ const computeSubBuckets = (top: TopBucket): SubBucket[] => {
     return Array.from({ length: 3 }, (_, i) => {
       const monthStart = new Date(year, firstMonth + i, 1);
       const monthEnd = new Date(year, firstMonth + i + 1, 0);
-      const monthName = new Intl.DateTimeFormat("ru-RU", { month: "short" })
+      const monthName = new Intl.DateTimeFormat(intlLocale(), { month: "short" })
         .format(monthStart)
         .replace(".", "");
       const cap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
@@ -451,7 +449,7 @@ const buildLeafBuckets = (
       leaves.push({
         key: `${top.key}-total`,
         topKey: top.key,
-        label: `${top.shortLabel} Итого`,
+        label: translate("kpi.period.subtotal", { label: top.shortLabel }),
         pathIndices: [i],
         isToggle: true,
         toggleState: "expanded",
@@ -571,11 +569,11 @@ const getBucketBgClass = (periodType: KpiPeriodMode): string => {
 //   return "Развернуть";
 // };
 
-const KPI_PERIOD_TABS: { key: KpiPeriodMode; label: string }[] = [
-  { key: "yearly", label: "Годовой KPI" },
-  { key: "quarterly", label: "Квартальный KPI" },
-  { key: "monthly", label: "Месячный KPI" },
-  { key: "weekly", label: "Недельный KPI" },
+const KPI_PERIOD_TABS: { key: KpiPeriodMode; labelKey: MessageKey }[] = [
+  { key: "yearly", labelKey: "kpi.tabs.yearly" },
+  { key: "quarterly", labelKey: "kpi.tabs.quarterly" },
+  { key: "monthly", labelKey: "kpi.tabs.monthly" },
+  { key: "weekly", labelKey: "kpi.tabs.weekly" },
 ];
 
 const pad = (value: number): string => String(value).padStart(2, "0");
@@ -728,7 +726,7 @@ const getPeriodRange = (cursorDate: Date, mode: KpiPeriodMode): { from: string; 
 
 const formatPeriodLabel = (cursorDate: Date, mode: KpiPeriodMode): string => {
   if (mode === "monthly") {
-    const formatted = new Intl.DateTimeFormat("ru-RU", {
+    const formatted = new Intl.DateTimeFormat(intlLocale(), {
       month: "long",
       year: "numeric",
     }).format(cursorDate);
@@ -736,10 +734,10 @@ const formatPeriodLabel = (cursorDate: Date, mode: KpiPeriodMode): string => {
   }
   if (mode === "quarterly") {
     const quarter = Math.floor(cursorDate.getMonth() / 3) + 1;
-    return `${quarter} квартал ${cursorDate.getFullYear()} г.`;
+    return translate("kpi.period.quarter_year", { n: quarter, year: cursorDate.getFullYear() });
   }
   if (mode === "yearly") {
-    return `${cursorDate.getFullYear()} г.`;
+    return translate("kpi.period.year", { year: cursorDate.getFullYear() });
   }
   const day = cursorDate.getDay();
   const mondayShift = day === 0 ? -6 : 1 - day;
@@ -760,11 +758,11 @@ const getPickerDateFormatByPeriod = (periodType: KpiPeriodMode): string => {
 };
 
 const getGoalTypeBadgeLabel = (periodType: KpiPeriodMode): string => {
-  if (periodType === "daily") return "Дн.";
-  if (periodType === "weekly") return "Нед.";
-  if (periodType === "quarterly") return "Кв.";
-  if (periodType === "yearly") return "Год.";
-  return "Мес.";
+  if (periodType === "daily") return translate("kpi.badge.daily");
+  if (periodType === "weekly") return translate("kpi.badge.weekly");
+  if (periodType === "quarterly") return translate("kpi.badge.quarterly");
+  if (periodType === "yearly") return translate("kpi.badge.yearly");
+  return translate("kpi.badge.monthly");
 };
 
 const getGoalTypeBadgeClass = (periodType: KpiPeriodMode | string | undefined): string => {
@@ -790,28 +788,28 @@ const getPeriodTypeTagLabel = (option: ParentSelectOption): string => {
   const endDate = toDatePickerValue(option.endDate || "");
 
   if (periodType === "yearly" && startDate) {
-    return `Годовой ${startDate.getFullYear()}`;
+    return `${translate("kpi.tag.yearly")} ${startDate.getFullYear()}`;
   }
   if (periodType === "quarterly" && startDate) {
     const quarter = Math.floor(startDate.getMonth() / 3) + 1;
-    return `Квартальный ${quarter}`;
+    return `${translate("kpi.tag.quarterly")} ${quarter}`;
   }
   if (periodType === "monthly" && startDate) {
-    const monthShort = new Intl.DateTimeFormat("ru-RU", { month: "short" }).format(startDate);
+    const monthShort = new Intl.DateTimeFormat(intlLocale(), { month: "short" }).format(startDate);
     const monthLabel = monthShort.charAt(0).toUpperCase() + monthShort.slice(1);
-    return `Месячный ${monthLabel}`;
+    return `${translate("kpi.tag.monthly")} ${monthLabel}`;
   }
   if (periodType === "weekly" && startDate && endDate) {
-    return `Недельный ${formatDisplayDate(toIsoDate(startDate)).slice(0, 5)} – ${formatDisplayDate(toIsoDate(endDate)).slice(0, 5)}`;
+    return `${translate("kpi.tag.weekly")} ${formatDisplayDate(toIsoDate(startDate)).slice(0, 5)} – ${formatDisplayDate(toIsoDate(endDate)).slice(0, 5)}`;
   }
   if (periodType === "daily" && startDate) {
-    return `Дневной ${formatDisplayDate(toIsoDate(startDate)).slice(0, 5)}`;
+    return `${translate("kpi.tag.daily")} ${formatDisplayDate(toIsoDate(startDate)).slice(0, 5)}`;
   }
-  if (periodType === "yearly") return "Годовой";
-  if (periodType === "quarterly") return "Квартальный";
-  if (periodType === "monthly") return "Месячный";
-  if (periodType === "weekly") return "Недельный";
-  if (periodType === "daily") return "Дневной";
+  if (periodType === "yearly") return translate("kpi.tag.yearly");
+  if (periodType === "quarterly") return translate("kpi.tag.quarterly");
+  if (periodType === "monthly") return translate("kpi.tag.monthly");
+  if (periodType === "weekly") return translate("kpi.tag.weekly");
+  if (periodType === "daily") return translate("kpi.tag.daily");
   return "";
 };
 
@@ -828,10 +826,10 @@ const formatCompactPeriodLabel = (
     return String(start.getFullYear());
   }
   if (periodType === "quarterly") {
-    return `${Math.floor(start.getMonth() / 3) + 1} кв.`;
+    return translate("kpi.period.quarter_short", { n: Math.floor(start.getMonth() / 3) + 1 });
   }
   if (periodType === "monthly") {
-    const monthShort = new Intl.DateTimeFormat("ru-RU", { month: "short" }).format(start);
+    const monthShort = new Intl.DateTimeFormat(intlLocale(), { month: "short" }).format(start);
     return monthShort.charAt(0).toUpperCase() + monthShort.slice(1);
   }
   if (periodType === "weekly") {
@@ -882,11 +880,11 @@ const aggregateChildActuals = (
   }
 };
 
-const AGGREGATION_OPTIONS: { value: KpiAggregationType; label: string; hint: string }[] = [
-  { value: "sum", label: "Сумма", hint: "Факт = сумма дочерних" },
-  { value: "min", label: "Мин. значение", hint: "Факт = минимум из дочерних" },
-  { value: "max", label: "Макс. значение", hint: "Факт = максимум из дочерних" },
-  { value: "avg", label: "Среднее", hint: "Факт = среднее дочерних" },
+const AGGREGATION_OPTIONS: { value: KpiAggregationType; labelKey: MessageKey; hintKey: MessageKey }[] = [
+  { value: "sum", labelKey: "kpi.aggregation.sum", hintKey: "kpi.aggregation.sum_hint" },
+  { value: "min", labelKey: "kpi.aggregation.min", hintKey: "kpi.aggregation.min_hint" },
+  { value: "max", labelKey: "kpi.aggregation.max", hintKey: "kpi.aggregation.max_hint" },
+  { value: "avg", labelKey: "kpi.aggregation.avg", hintKey: "kpi.aggregation.avg_hint" },
 ];
 
 const formatDraftPeriodRangeLabel = (
@@ -898,7 +896,7 @@ const formatDraftPeriodRangeLabel = (
   const end = toDatePickerValue(endDateIso);
   if (!start || !end) return "";
   if (periodType === "monthly") {
-    const formatted = new Intl.DateTimeFormat("ru-RU", {
+    const formatted = new Intl.DateTimeFormat(intlLocale(), {
       month: "long",
       year: "numeric",
     }).format(start);
@@ -906,13 +904,16 @@ const formatDraftPeriodRangeLabel = (
   }
   if (periodType === "quarterly") {
     const quarter = Math.floor(start.getMonth() / 3) + 1;
-    return `${quarter} квартал ${start.getFullYear()} г.`;
+    return translate("kpi.period.quarter_year", { n: quarter, year: start.getFullYear() });
   }
   if (periodType === "yearly") {
-    return `${start.getFullYear()} г.`;
+    return translate("kpi.period.year", { year: start.getFullYear() });
   }
   return `${formatDisplayDate(startDateIso)} - ${formatDisplayDate(endDateIso)}`;
 };
+
+// ponytail: «Вручную» — значение, которое хранится в БД; переводим только при показе.
+const MANUAL_SOURCE = "Вручную";
 
 const mapApiItem = (item: KpiTableItem): KpiRecord => {
   const periodType = normalizePeriodType(item.period_type);
@@ -921,10 +922,10 @@ const mapApiItem = (item: KpiTableItem): KpiRecord => {
     id: item.guid,
     parentId: item.parent_id || null,
     positionsId: item.positions_id || null,
-    position: item.position || "Без должности",
-    name: item.title || "Без названия",
+    position: item.position || translate("kpi.no_position"),
+    name: item.title || translate("common.untitled"),
     description: item.description || "",
-    source: item.source || "Вручную",
+    source: item.source || MANUAL_SOURCE,
     valueSymbol: typeof item.value_symbol === "string" ? item.value_symbol : "",
     valueSymbolPosition: item.value_symbol_position === "prefix" ? "prefix" : "suffix",
     periodType,
@@ -1111,7 +1112,7 @@ const getDefaultDraft = (periodType: KpiPeriodMode): CreateKpiDraft => {
     positionId: "",
     positionTitle: "",
     employeeIds: [],
-    source: "Вручную",
+    source: "",
     valueSymbol: "",
     valueSymbolPosition: "suffix",
     name: "",
@@ -1264,6 +1265,7 @@ function SortablePositionRow({
 }
 
 function KpiPage() {
+  const { t, locale } = useTranslation();
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [periodMode, setPeriodMode] = useState<KpiPeriodMode>("yearly");
   const [cursorDate, setCursorDate] = useState(new Date());
@@ -1319,10 +1321,10 @@ function KpiPage() {
 
   const valueSymbolPositionOptions = useMemo<FilterOption[]>(
     () => [
-      { value: "suffix", label: "После значения" },
-      { value: "prefix", label: "Перед значением" },
+      { value: "suffix", label: t("kpi.symbol_suffix") },
+      { value: "prefix", label: t("kpi.symbol_prefix") },
     ],
-    []
+    [t]
   );
 
   const selectedValueSymbolPositionOption = useMemo<FilterOption | null>(
@@ -1471,9 +1473,10 @@ function KpiPage() {
     () => toDatePickerValue(draft.startDate) || toDatePickerValue(draft.endDate),
     [draft.startDate, draft.endDate]
   );
+  // locale в зависимостях ниже: подписи периодов собираются через translate() вне компонента.
   const draftPeriodRangeLabel = useMemo(
     () => formatDraftPeriodRangeLabel(draft.startDate, draft.endDate, draft.periodType),
-    [draft.startDate, draft.endDate, draft.periodType]
+    [draft.startDate, draft.endDate, draft.periodType, locale]
   );
 
   useEffect(() => {
@@ -1514,7 +1517,7 @@ function KpiPage() {
         );
         setParentOptions(parents);
       } catch {
-        if (!cancelled) toast.error("Не удалось загрузить фильтры KPI");
+        if (!cancelled) toast.error(translate("kpi.load_filters_error"));
       } finally {
         if (!cancelled) setIsLoadingFilters(false);
       }
@@ -1552,7 +1555,7 @@ function KpiPage() {
         if (!cancelled) {
           setKpiItems([]);
           setKpiGroups([]);
-          toast.error("Не удалось загрузить KPI");
+          toast.error(translate("kpi.load_error"));
         }
       } finally {
         skipTableLoaderRef.current = false;
@@ -1576,7 +1579,7 @@ function KpiPage() {
 
   const currentPeriodLabel = useMemo(
     () => formatPeriodLabel(cursorDate, periodMode),
-    [cursorDate, periodMode]
+    [cursorDate, periodMode, locale]
   );
 
   // KPI активного листа: явно привязанные к нему + (для листа по умолчанию)
@@ -1616,7 +1619,7 @@ function KpiPage() {
 
   const leafBuckets = useMemo(
     () => buildLeafBuckets(periodMode, cursorDate, expandedColumns, hasLevel1, canExpandByIndex),
-    [periodMode, cursorDate, expandedColumns, hasLevel1, canExpandByIndex]
+    [periodMode, cursorDate, expandedColumns, hasLevel1, canExpandByIndex, locale]
   );
 
   // Reset expanded columns when tab changes.
@@ -1670,7 +1673,7 @@ function KpiPage() {
 
   const parentSelectOptions = useMemo<ParentSelectOption[]>(
     () => [
-      { value: "", label: "Не задан (корневой KPI)", isRoot: true },
+      { value: "", label: t("kpi.parent_root"), isRoot: true },
       ...parentOptions
         .filter((option) =>
           allowedParentPeriodTypes.includes(normalizePeriodType(option.period_type))
@@ -1683,7 +1686,7 @@ function KpiPage() {
           endDate: option.end_date,
         })),
     ],
-    [parentOptions, allowedParentPeriodTypes]
+    [parentOptions, allowedParentPeriodTypes, t]
   );
 
   const selectedParentOption = useMemo<ParentSelectOption | null>(
@@ -1739,7 +1742,7 @@ function KpiPage() {
     // умолчанию: на остальных листах группа появляется вместе со своими KPI.
     if (isDefaultActive && kpiGroups.length > 0) {
       for (const group of kpiGroups) {
-        const position = group.position || "Без должности";
+        const position = group.position || t("kpi.no_position");
         if (!groups.has(position)) {
           groups.set(position, { position, positionsId: null, items: [] });
         }
@@ -1755,7 +1758,7 @@ function KpiPage() {
       entry.items.push(item);
     }
     return [...groups.values()];
-  }, [sheetKpiItems, kpiGroups, isDefaultActive]);
+  }, [sheetKpiItems, kpiGroups, isDefaultActive, t]);
 
   const [orderedGroups, setOrderedGroups] = useState<GroupEntry[]>([]);
   const orderedGroupsRef = useRef<GroupEntry[]>([]);
@@ -1816,8 +1819,8 @@ function KpiPage() {
         positions_id: group.positionsId,
         ordered_ids: group.items.map((item) => item.id),
       })
-      .catch(() => toast.error("Не удалось сохранить порядок KPI"));
-  }, []);
+      .catch(() => toast.error(t("kpi.order_error")));
+  }, [t]);
 
   const persistPositionOrder = useCallback((groups: GroupEntry[]) => {
     if (groups.length === 0) return;
@@ -1826,8 +1829,8 @@ function KpiPage() {
         mode: "positions",
         ordered_position_ids: groups.map((entry) => entry.positionsId),
       })
-      .catch(() => toast.error("Не удалось сохранить порядок должностей"));
-  }, []);
+      .catch(() => toast.error(t("kpi.position_order_error")));
+  }, [t]);
 
   // While a position header is being dragged we collapse every KPI row (across
   // all groups) so only the headers remain — the group reorder then reads as a
@@ -2029,7 +2032,7 @@ function KpiPage() {
       positionTitle: item.position,
       // Привязанные сотрудники приходят из get_kpi_table (employee_ids).
       employeeIds: item.employeeIds,
-      source: item.source || "Вручную",
+      source: item.source === MANUAL_SOURCE ? "" : item.source || "",
       valueSymbol: item.valueSymbol || "",
       valueSymbolPosition: item.valueSymbolPosition || "suffix",
       name: item.name,
@@ -2071,10 +2074,10 @@ function KpiPage() {
     try {
       await reportsService.deleteKpi({ guid: kpiToDelete.id });
       sheetsApi.clearKpiAssignment(kpiToDelete.id);
-      toast.success("KPI удален");
+      toast.success(t("kpi.deleted"));
       setReloadToken((prev) => prev + 1);
     } catch {
-      toast.error("Не удалось удалить KPI");
+      toast.error(t("kpi.delete_error"));
     }
     closeDeleteModal();
   };
@@ -2100,7 +2103,7 @@ function KpiPage() {
         skipTableLoaderRef.current = true;
         setSilentReloadToken((prev) => prev + 1);
       } catch {
-        toast.error("Не удалось сохранить фактическое значение");
+        toast.error(t("kpi.fact_save_error"));
         skipTableLoaderRef.current = true;
         setSilentReloadToken((prev) => prev + 1);
       }
@@ -2181,26 +2184,26 @@ function KpiPage() {
     const positionId = draft.positionId.trim();
 
     if (!positionId) {
-      setCreateError("Выберите должность");
+      setCreateError(t("kpi.validation.position"));
       return;
     }
     if (!name) {
-      setCreateError("Введите название KPI");
+      setCreateError(t("kpi.validation.name"));
       return;
     }
     if (!draft.startDate || !draft.endDate) {
-      setCreateError("Укажите период KPI");
+      setCreateError(t("kpi.validation.period"));
       return;
     }
 
     const planTotal = parsePlanInputValue(draft.planValue);
     if (!Number.isFinite(planTotal) || planTotal <= 0) {
-      setCreateError("Плановое значение должно быть больше 0");
+      setCreateError(t("kpi.validation.plan_positive"));
       return;
     }
     // Правила динамических полей проверяем до запроса.
     if (!dynamic.validate()) {
-      setCreateError("Проверьте дополнительные поля");
+      setCreateError(t("kpi.validation.extra_fields"));
       return;
     }
 
@@ -2215,18 +2218,18 @@ function KpiPage() {
 
     if (draft.hasChildren) {
       if (draft.children.length === 0) {
-        setCreateError("Дочерние KPI отсутствуют");
+        setCreateError(t("kpi.validation.no_children"));
         return;
       }
       for (const child of draft.children) {
         const childName = child.name.trim();
         if (!childName) {
-          setCreateError("Заполните название каждого дочернего KPI");
+          setCreateError(t("kpi.validation.child_name"));
           return;
         }
         const childPlan = parsePlanInputValue(child.planValue);
         if (!Number.isFinite(childPlan) || childPlan < 0) {
-          setCreateError("План дочернего KPI не может быть отрицательным");
+          setCreateError(t("kpi.validation.child_plan_negative"));
           return;
         }
         childrenPayload.push({
@@ -2247,7 +2250,10 @@ function KpiPage() {
         );
         if (Math.abs(childrenSum - planTotal) > 0.01) {
           setCreateError(
-            `Сумма планов дочерних KPI (${formatMetricDisplayValue(childrenSum)}) должна быть равна плановому значению родителя (${formatMetricDisplayValue(planTotal)})`
+            t("kpi.validation.children_sum", {
+              children: formatMetricDisplayValue(childrenSum),
+              parent: formatMetricDisplayValue(planTotal),
+            })
           );
           return;
         }
@@ -2269,7 +2275,7 @@ function KpiPage() {
         positions_id: positionId,
         title: name,
         description: draft.description.trim(),
-        source: draft.source.trim() || "Вручную",
+        source: draft.source.trim() || MANUAL_SOURCE,
         value_symbol: draft.valueSymbol.trim() || undefined,
         value_symbol_position: draft.valueSymbolPosition,
         period_type: draft.periodType,
@@ -2293,11 +2299,11 @@ function KpiPage() {
       setIsCreateModalOpen(false);
       setCreateError("");
       setEditingKpiId(null);
-      toast.success(editingKpiId ? "KPI обновлен" : "KPI добавлен");
+      toast.success(editingKpiId ? t("kpi.updated") : t("kpi.added"));
       setReloadToken((prev) => prev + 1);
       setDraft(getDefaultDraft(periodMode));
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Не удалось сохранить KPI");
+      setCreateError(error instanceof Error ? error.message : t("kpi.save_error"));
     } finally {
       setIsCreateSaving(false);
     }
@@ -2330,11 +2336,11 @@ function KpiPage() {
     if (item.isAuto) {
       return (
         <span
-          title="Автоматический показатель — рассчитывается из данных задач/проектов"
+          title={t("kpi.auto_hint")}
           className="inline-flex h-7 min-w-[90px] items-center justify-center gap-1 rounded-md px-2 text-center text-[13px] font-semibold text-slate-800"
         >
           {formatValueWithSymbol(item.actualValue, item.valueSymbol, item.valueSymbolPosition)}
-          <span className="text-[10px] font-medium text-indigo-500">авто</span>
+          <span className="text-[10px] font-medium text-indigo-500">{t("kpi.auto")}</span>
         </span>
       );
     }
@@ -2386,7 +2392,7 @@ function KpiPage() {
     if (child.hasChildren || child.isAuto) {
       return (
         <span
-          title={child.isAuto ? "Автоматический показатель — рассчитывается из данных задач/проектов" : undefined}
+          title={child.isAuto ? t("kpi.auto_hint") : undefined}
           className="inline-flex h-7 min-w-[70px] items-center justify-center text-[12px] font-semibold text-slate-700"
         >
           {formatValueWithSymbol(child.actualValue, parent.valueSymbol, parent.valueSymbolPosition)}
@@ -2457,7 +2463,7 @@ function KpiPage() {
               {...handle.attributes}
               {...handle.listeners}
               className="cursor-grab touch-none text-slate-300 opacity-0 transition hover:text-slate-500 group-hover:opacity-100 active:cursor-grabbing"
-              aria-label="Перетащить KPI"
+              aria-label={t("kpi.drag_kpi")}
             >
               <GripVertical size={14} />
             </button>
@@ -2483,7 +2489,7 @@ function KpiPage() {
                   : "border-transparent text-slate-400 opacity-0 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-600 group-hover:opacity-100 focus:opacity-100"
               }`}
               onClick={(event) => openActionMenu(event, item.id)}
-              aria-label={`Действия для ${item.name}`}
+              aria-label={t("kpi.actions_for", { name: item.name })}
             >
               <MoreHorizontal size={14} />
             </button>
@@ -2503,7 +2509,7 @@ function KpiPage() {
                   withCellComment(
                     node.id,
                     "plan",
-                    `План · ${leaf.label}`,
+                    t("kpi.cell_label", { column: t("kpi.plan"), label: leaf.label }),
                     formatValueWithSymbol(nodePlan, item.valueSymbol, item.valueSymbolPosition)
                   )
                 ) : (
@@ -2512,7 +2518,7 @@ function KpiPage() {
               </td>
               <td className={`whitespace-nowrap px-1 py-1.5 text-center text-[13px] font-semibold text-slate-800 ${cellBg}`}>
                 {node
-                  ? withCellComment(node.id, "fact", `Факт · ${leaf.label}`, renderBucketFactCell(item, node))
+                  ? withCellComment(node.id, "fact", t("kpi.cell_label", { column: t("kpi.fact"), label: leaf.label }), renderBucketFactCell(item, node))
                   : renderBucketFactCell(item, node)}
               </td>
               <td className={`px-1 py-1.5 text-center ${cellBg}`}>
@@ -2536,7 +2542,7 @@ function KpiPage() {
           {withCellComment(
             item.id,
             "plan",
-            "План · Итого",
+            t("kpi.cell_label", { column: t("kpi.plan"), label: t("kpi.total") }),
             formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)
           )}
         </td>
@@ -2544,7 +2550,7 @@ function KpiPage() {
           {withCellComment(
             item.id,
             "fact",
-            "Факт · Итого",
+            t("kpi.cell_label", { column: t("kpi.fact"), label: t("kpi.total") }),
             item.hasChildren ? (
               <span>
                 {formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}
@@ -2599,7 +2605,7 @@ function KpiPage() {
                     {...handle.attributes}
                     {...handle.listeners}
                     className="cursor-grab touch-none text-slate-300 opacity-0 transition hover:text-slate-500 group-hover:opacity-100 active:cursor-grabbing"
-                    aria-label="Перетащить KPI"
+                    aria-label={t("kpi.drag_kpi")}
                   >
                     <GripVertical size={14} />
                   </button>
@@ -2617,7 +2623,7 @@ function KpiPage() {
                   type="button"
                   onClick={() => toggleTreeNodeExpand(item.id)}
                   className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
-                  aria-label={isExpanded ? "Свернуть KPI" : "Развернуть KPI"}
+                  aria-label={isExpanded ? t("kpi.collapse") : t("kpi.expand")}
                 >
                   <ChevronDown
                     size={12}
@@ -2638,7 +2644,7 @@ function KpiPage() {
                         : "border-transparent text-slate-400 opacity-0 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-600 group-hover:opacity-100 focus:opacity-100"
                     }`}
                     onClick={(event) => openActionMenu(event, item.id)}
-                    aria-label={`Действия для ${item.name}`}
+                    aria-label={t("kpi.actions_for", { name: item.name })}
                   >
                     <MoreHorizontal size={14} />
                   </button>
@@ -2649,7 +2655,7 @@ function KpiPage() {
               </div>
             </div>
           </td>
-          <td className="py-2 pr-3 text-center text-[13px] text-slate-700">{item.source || "—"}</td>
+          <td className="py-2 pr-3 text-center text-[13px] text-slate-700">{item.source === MANUAL_SOURCE ? t("kpi.source_manual") : item.source || "—"}</td>
           <td className="py-2 pr-3 text-center text-[13px] text-slate-700">
             <span
               className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getGoalTypeBadgeClass(item.periodType)}`}
@@ -2662,7 +2668,7 @@ function KpiPage() {
             {withCellComment(
               item.id,
               "plan",
-              "План",
+              t("kpi.plan"),
               formatValueWithSymbol(totalPlan, item.valueSymbol, item.valueSymbolPosition)
             )}
           </td>
@@ -2670,7 +2676,7 @@ function KpiPage() {
             {withCellComment(
               item.id,
               "fact",
-              "Факт",
+              t("kpi.fact"),
               item.hasChildren ? (
                 <span>{formatValueWithSymbol(totalActual, item.valueSymbol, item.valueSymbolPosition)}</span>
               ) : (
@@ -2734,9 +2740,9 @@ function KpiPage() {
       link.href = `data:${result.mime_type};base64,${result.file_base64}`;
       link.download = result.file_name;
       link.click();
-      toast.success(`Шаблон скачан: ${result.rows_count} KPI.`);
+      toast.success(t("kpi.excel.downloaded", { count: result.rows_count }));
     } catch (error) {
-      toast.error(error instanceof Error && error.message ? error.message : "Не удалось скачать шаблон Excel.");
+      toast.error(error instanceof Error && error.message ? error.message : t("kpi.excel.download_error"));
     } finally {
       setExcelBusy(null);
     }
@@ -2748,7 +2754,7 @@ function KpiPage() {
       const fileBase64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error("Не удалось прочитать файл."));
+        reader.onerror = () => reject(new Error(t("kpi.excel.read_error")));
         reader.readAsDataURL(file);
       });
       const { result } = await reportsService.importKpiExcel({
@@ -2758,19 +2764,19 @@ function KpiPage() {
         date_to: periodRange.to,
       });
       const skipped = result.skipped || {};
-      toast.success(`Импорт завершён: добавлено ${result.created_count}, обновлено ${result.updated_count} KPI.`);
+      toast.success(t("kpi.excel.imported", { created: result.created_count, updated: result.updated_count }));
       const problems = [
         result.unknown_positions?.length
-          ? `должность не найдена: ${result.unknown_positions.join(", ")}`
+          ? t("kpi.excel.unknown_positions", { list: result.unknown_positions.join(", ") })
           : "",
-        skipped.invalid_period ? `неверный период: ${skipped.invalid_period}` : "",
-        skipped.invalid_value ? `неверное число: ${skipped.invalid_value}` : "",
-        skipped.not_editable ? `родительские или авто KPI: ${skipped.not_editable}` : "",
+        skipped.invalid_period ? t("kpi.excel.invalid_period", { count: skipped.invalid_period }) : "",
+        skipped.invalid_value ? t("kpi.excel.invalid_value", { count: skipped.invalid_value }) : "",
+        skipped.not_editable ? t("kpi.excel.not_editable", { count: skipped.not_editable }) : "",
       ].filter(Boolean);
-      if (problems.length) toast.warning(`Пропущены строки — ${problems.join("; ")}.`);
+      if (problems.length) toast.warning(t("kpi.excel.skipped", { problems: problems.join("; ") }));
       setReloadToken((prev) => prev + 1);
     } catch (error) {
-      toast.error(error instanceof Error && error.message ? error.message : "Не удалось загрузить Excel.");
+      toast.error(error instanceof Error && error.message ? error.message : t("kpi.excel.upload_error"));
     } finally {
       setExcelBusy(null);
     }
@@ -2778,7 +2784,7 @@ function KpiPage() {
 
   return (
     <>
-      <PageMeta title="KPI | HRMS" description="Управление KPI по должностям" />
+      <PageMeta title={t("kpi.page_title")} description={t("kpi.page_description")} />
 
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
         <div
@@ -2799,8 +2805,8 @@ function KpiPage() {
             value={viewMode}
             onChange={setViewMode}
             items={[
-              { key: "list", label: "Таблица", icon: <List size={16} /> },
-              { key: "calendar", label: "Сетка", icon: <LayoutGrid size={16} /> },
+              { key: "list", label: t("kpi.view.list"), icon: <List size={16} /> },
+              { key: "calendar", label: t("kpi.view.grid"), icon: <LayoutGrid size={16} /> },
             ]}
           />
 
@@ -2811,7 +2817,7 @@ function KpiPage() {
               value={searchQuery}
               onChange={setSearchQuery}
               inputId="kpi-search"
-              placeholder="Поиск KPI..."
+              placeholder={t("kpi.search")}
               expandedWidth={300}
               collapsedSize={40}
               brandColor={companyStore.mainColor}
@@ -2820,8 +2826,8 @@ function KpiPage() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen((open) => !open)}
-              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
-              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              aria-label={activeFiltersCount > 0 ? t("kpi.filter_count", { count: activeFiltersCount }) : t("kpi.filter")}
+              title={activeFiltersCount > 0 ? t("kpi.filter_count", { count: activeFiltersCount }) : t("kpi.filter")}
               className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFilterButtonActive
                   ? "border-brand-200 bg-brand-50 text-brand-500"
@@ -2842,7 +2848,7 @@ function KpiPage() {
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
             >
               <Plus size={16} />
-              Добавить KPI
+              {t("kpi.add")}
             </button>
 
             <button
@@ -2850,7 +2856,7 @@ function KpiPage() {
               type="button"
               className={`dropdown-toggle inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 ${isExcelMenuOpen ? "border-slate-300 bg-slate-50" : ""}`}
               onClick={() => setIsExcelMenuOpen((open) => !open)}
-              aria-label="Действия с шаблоном"
+              aria-label={t("kpi.excel.template_actions")}
             >
               <MoreHorizontal size={16} />
             </button>
@@ -2869,7 +2875,7 @@ function KpiPage() {
                 className={`flex items-center gap-2 rounded-lg ${excelBusy === "download" ? "opacity-60" : ""}`}
               >
                 <Download size={16} />
-                {excelBusy === "download" ? "Скачивание..." : "Скачать шаблон"}
+                {excelBusy === "download" ? t("kpi.excel.downloading") : t("kpi.excel.download")}
               </DropdownItem>
               <DropdownItem
                 onClick={() => {
@@ -2879,7 +2885,7 @@ function KpiPage() {
                 className={`flex items-center gap-2 rounded-lg ${excelBusy === "upload" ? "opacity-60" : ""}`}
               >
                 <Upload size={16} />
-                {excelBusy === "upload" ? "Загрузка..." : "Загрузить Excel"}
+                {excelBusy === "upload" ? t("kpi.excel.uploading") : t("kpi.excel.upload")}
               </DropdownItem>
             </Dropdown>
             <input
@@ -2915,7 +2921,7 @@ function KpiPage() {
                 options={positionFilterOptions}
                 value={selectedPositionFilterOption}
                 onChange={(option) => setPositionFilter(option?.value || "")}
-                placeholder="Все должности"
+                placeholder={t("kpi.all_positions")}
                 isClearable
                 isDisabled={isLoadingFilters}
                 styles={filterSelectStyles}
@@ -2929,7 +2935,7 @@ function KpiPage() {
                 options={sourceFilterOptions}
                 value={selectedSourceFilterOption}
                 onChange={(option) => setSourceFilter(option?.value || "")}
-                placeholder="Все типы"
+                placeholder={t("kpi.all_types")}
                 isClearable
                 isDisabled={isLoadingFilters}
                 styles={filterSelectStyles}
@@ -2947,7 +2953,7 @@ function KpiPage() {
                 }}
                 className="inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
               >
-                Сбросить
+                {t("common.reset")}
               </button>
             ) : null}
           </div>
@@ -2981,7 +2987,7 @@ function KpiPage() {
                         boxShadow: isActive ? "0 1px 2px rgba(15, 23, 42, 0.06)" : "none",
                       }}
                     >
-                      {tab.label}
+                      {t(tab.labelKey)}
                     </button>
                   );
                 })}
@@ -3002,7 +3008,7 @@ function KpiPage() {
                   type="button"
                   onClick={() => handleMovePeriod("prev")}
                   className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                  aria-label="Предыдущий период"
+                  aria-label={t("kpi.prev_period")}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -3013,7 +3019,7 @@ function KpiPage() {
                   type="button"
                   onClick={() => handleMovePeriod("next")}
                   className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-transparent text-slate-600 transition hover:bg-white hover:border-slate-200"
-                  aria-label="Следующий период"
+                  aria-label={t("kpi.next_period")}
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -3023,20 +3029,19 @@ function KpiPage() {
             <div className="px-4 py-4">
               {isLoading ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
-                  <p className="m-0 text-[13px] text-slate-500">Загрузка KPI...</p>
+                  <p className="m-0 text-[13px] text-slate-500">{t("kpi.loading")}</p>
                 </div>
               ) : kpiItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
-                  <p className="m-0 text-[13px] text-slate-500">KPI не найдены</p>
+                  <p className="m-0 text-[13px] text-slate-500">{t("kpi.empty")}</p>
                 </div>
               ) : sheetKpiItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-10 text-center">
                   <p className="m-0 text-[13px] font-medium text-slate-600">
-                    На этом листе пока нет KPI
+                    {t("kpi.sheet_empty_title")}
                   </p>
                   <p className="mx-auto mt-1 max-w-md text-[12px] text-slate-500">
-                    Создайте новый KPI на этом листе или переместите существующий
-                    через меню строки «Переместить в лист».
+                    {t("kpi.sheet_empty_hint")}
                   </p>
                   <button
                     type="button"
@@ -3044,7 +3049,7 @@ function KpiPage() {
                     className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl bg-brand-500 px-3.5 text-[13px] font-semibold text-white transition hover:bg-brand-600"
                   >
                     <Plus size={14} />
-                    Добавить KPI
+                    {t("kpi.add")}
                   </button>
                 </div>
               ) : (
@@ -3080,7 +3085,7 @@ function KpiPage() {
                             rowSpan={2}
                             className="py-2 pl-4 pr-3 text-left text-[12px] font-semibold text-slate-500"
                           >
-                            KPI / Название
+                            {t("kpi.col.name")}
                           </th>
                           {leafBuckets.map((leaf) => {
                             // const isExpanded = leaf.toggleState === "expanded"; // Временно скрыто вместе с кнопкой сворачивания
@@ -3113,7 +3118,7 @@ function KpiPage() {
                             colSpan={3}
                             className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}bg-blue-50/60 px-2 py-2 text-center text-[12px] font-semibold text-slate-600`}
                           >
-                            Итого
+                            {t("kpi.total")}
                           </th>
                         </tr>
                         <tr className="border-b border-slate-200">
@@ -3121,10 +3126,10 @@ function KpiPage() {
                             return (
                               <Fragment key={`${leaf.key}-sub`}>
                                 <th className="px-1 py-1 text-center text-[11px] font-semibold text-slate-500">
-                                  План
+                                  {t("kpi.plan")}
                                 </th>
                                 <th className="px-1 py-1 text-center text-[11px] font-semibold text-slate-500">
-                                  Факт
+                                  {t("kpi.fact")}
                                 </th>
                                 <th className="px-1 py-1 text-center text-[11px] font-semibold text-slate-500">
                                   %
@@ -3135,10 +3140,10 @@ function KpiPage() {
                           <th
                             className={`${leafBuckets.length > 0 ? "border-l-2 border-blue-100 " : ""}bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600`}
                           >
-                            План
+                            {t("kpi.plan")}
                           </th>
                           <th className="bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600">
-                            Факт
+                            {t("kpi.fact")}
                           </th>
                           <th className="bg-blue-50/60 px-1 py-1 text-center text-[11px] font-semibold text-slate-600">
                             %
@@ -3164,7 +3169,7 @@ function KpiPage() {
                                         {...handle.attributes}
                                         {...handle.listeners}
                                         className="cursor-grab touch-none text-slate-400 opacity-0 transition hover:text-slate-600 group-hover:opacity-100 active:cursor-grabbing"
-                                        aria-label="Перетащить должность"
+                                        aria-label={t("kpi.drag_position")}
                                       >
                                         <GripVertical size={14} />
                                       </button>
@@ -3212,15 +3217,15 @@ function KpiPage() {
                             #
                           </th>
                           <th className="py-2 pl-4 pr-3 text-left text-[12px] font-semibold text-slate-500">
-                            KPI / Название
+                            {t("kpi.col.name")}
                           </th>
                           <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">
-                            Источник
+                            {t("kpi.col.source")}
                           </th>
-                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">Тип</th>
-                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">Период</th>
-                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">План</th>
-                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">Факт</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">{t("kpi.col.type")}</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">{t("kpi.col.period")}</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">{t("kpi.plan")}</th>
+                          <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">{t("kpi.fact")}</th>
                           <th className="py-2 pr-3 text-center text-[12px] font-semibold text-slate-500">%</th>
                         </tr>
                       </thead>
@@ -3243,7 +3248,7 @@ function KpiPage() {
                                         {...handle.attributes}
                                         {...handle.listeners}
                                         className="cursor-grab touch-none text-slate-400 opacity-0 transition hover:text-slate-600 group-hover:opacity-100 active:cursor-grabbing"
-                                        aria-label="Перетащить должность"
+                                        aria-label={t("kpi.drag_position")}
                                       >
                                         <GripVertical size={14} />
                                       </button>
@@ -3297,19 +3302,19 @@ function KpiPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">
-                {editingKpiId ? "Редактировать KPI" : "Добавить KPI"}
+                {editingKpiId ? t("kpi.modal.edit_title") : t("kpi.add")}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
                 {editingKpiId
-                  ? "Обновите поля KPI и сохраните изменения."
-                  : "Заполните поля и сохраните KPI."}
+                  ? t("kpi.modal.edit_hint")
+                  : t("kpi.modal.create_hint")}
               </p>
             </div>
             <button
               type="button"
               onClick={closeCreateModal}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
-              aria-label="Закрыть модальное окно"
+              aria-label={t("kpi.modal.close")}
             >
               <X size={18} />
             </button>
@@ -3318,7 +3323,7 @@ function KpiPage() {
           <div className="max-h-[70vh] overflow-y-auto pr-1">
             <div className="space-y-6">
               <div className="space-y-2">
-                <span className="text-xs font-medium text-slate-500">Родительский KPI</span>
+                <span className="text-xs font-medium text-slate-500">{t("kpi.modal.parent")}</span>
                 <Select
                   options={parentSelectOptions}
                   value={selectedParentOption}
@@ -3340,7 +3345,7 @@ function KpiPage() {
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Должность *</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.position")}</span>
                   <RemoteSingleSelect
                     value={draft.positionId}
                     onChange={(value) =>
@@ -3355,21 +3360,21 @@ function KpiPage() {
                     }
                     loadOptions={loadPositionOptions}
                     fallbackOption={selectedPositionFallbackOption}
-                    placeholder="Выберите должность"
+                    placeholder={t("kpi.validation.position")}
                     classNamePrefix="kpi-position-select"
                     menuPortalTarget={selectPortalTarget}
                   />
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Сотрудники</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.employees")}</span>
                   <EmployeesInfiniteMultiSelect
                     value={draft.employeeIds}
                     onChange={(ids) => setDraft((prev) => ({ ...prev, employeeIds: ids }))}
                     positionsId={draft.positionId || undefined}
                     isDisabled={!draft.positionId}
                     placeholder={
-                      draft.positionId ? "Выберите сотрудников" : "Сначала выберите должность"
+                      draft.positionId ? t("kpi.modal.select_employees") : t("kpi.modal.select_position_first")
                     }
                     styles={employeeSelectStyles}
                     menuPortalTarget={selectPortalTarget}
@@ -3380,18 +3385,18 @@ function KpiPage() {
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Название KPI *</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.name")}</span>
                   <input
                     type="text"
                     value={draft.name}
                     onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
-                    placeholder="Например: Продажи 2025"
+                    placeholder={t("kpi.modal.name_placeholder")}
                     className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
                   />
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Источник</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.col.source")}</span>
                   <input
                     type="text"
                     list="kpi-source-options"
@@ -3411,12 +3416,12 @@ function KpiPage() {
                       }));
                     }}
                     className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-                    placeholder="Вручную"
+                    placeholder={t("kpi.source_manual")}
                   />
                   <datalist id="kpi-source-options">
                     {autoMetricOptions.map((option) => (
                       <option key={option.value} value={option.value}>
-                        {option.label} (авто)
+                        {t("kpi.auto_suffix", { label: option.label })}
                       </option>
                     ))}
                     {sourceFilterOptions
@@ -3430,25 +3435,25 @@ function KpiPage() {
                   </datalist>
                   {autoMetricOptions.some((option) => option.value === draft.source.trim()) ? (
                     <span className="text-[11px] font-medium text-indigo-500">
-                      Автоматический показатель — «Факт» рассчитывается из данных задач/проектов
+                      {t("kpi.auto_fact_hint")}
                     </span>
                   ) : null}
                 </label>
               </div>
 
               <label className="block space-y-2">
-                <span className="text-xs font-medium text-slate-500">Описание</span>
+                <span className="text-xs font-medium text-slate-500">{t("kpi.modal.description")}</span>
                 <textarea
                   value={draft.description}
                   onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder="Краткое описание метрики..."
+                  placeholder={t("kpi.modal.description_placeholder")}
                   rows={3}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-300"
                 />
               </label>
 
               <div className="space-y-2">
-                <div className="text-xs font-medium text-slate-500">Тип KPI *</div>
+                <div className="text-xs font-medium text-slate-500">{t("kpi.modal.type")}</div>
                 <div className="flex flex-wrap gap-4">
                   {KPI_PERIOD_TABS.map((tab) => {
                     const isActive = draft.periodType === tab.key;
@@ -3473,7 +3478,7 @@ function KpiPage() {
                             : "border-slate-200 text-slate-600 hover:bg-slate-50"
                         }`}
                       >
-                        {tab.label}
+                        {t(tab.labelKey)}
                       </button>
                     );
                   })}
@@ -3482,13 +3487,13 @@ function KpiPage() {
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Период *</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.period")}</span>
                   <DatePicker
                     selected={selectedDraftPeriodDate}
                     onChange={handleDraftPeriodChange}
-                    locale="ru"
+                    locale={locale}
                     dateFormat={getPickerDateFormatByPeriod(draft.periodType)}
-                    placeholderText="Выберите период"
+                    placeholderText={t("kpi.modal.select_period")}
                     className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
                     popperClassName="kpi-datepicker-popper"
                     calendarClassName={`kpi-period-calendar kpi-period-calendar--${draft.periodType}`}
@@ -3508,7 +3513,7 @@ function KpiPage() {
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Сумма вознаграждения</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.reward")}</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -3519,18 +3524,18 @@ function KpiPage() {
                         rewardAmount: formatPlanInputValue(event.target.value),
                       }))
                     }
-                    placeholder="Например: 1 000 000"
+                    placeholder={t("kpi.modal.reward_placeholder")}
                     className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
                   />
                   <span className="text-[11px] text-slate-400">
-                    Выплата пропорциональна выполнению KPI: 100% — вся сумма, 50% — половина
+                    {t("kpi.modal.reward_hint")}
                   </span>
                 </label>
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Плановое значение *</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.plan")}</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -3547,7 +3552,7 @@ function KpiPage() {
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Символ/текст возле значения</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.symbol")}</span>
                   <input
                     type="text"
                     value={draft.valueSymbol}
@@ -3555,12 +3560,12 @@ function KpiPage() {
                       setDraft((prev) => ({ ...prev, valueSymbol: event.target.value }))
                     }
                     className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-700 outline-none transition focus:border-slate-300"
-                    placeholder="Например: $, %, сум"
+                    placeholder={t("kpi.modal.symbol_placeholder")}
                   />
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-xs font-medium text-slate-500">Позиция символа</span>
+                  <span className="text-xs font-medium text-slate-500">{t("kpi.modal.symbol_position")}</span>
                   <Select
                     options={valueSymbolPositionOptions}
                     value={selectedValueSymbolPositionOption}
@@ -3581,15 +3586,15 @@ function KpiPage() {
               <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/40 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">Дочерние KPI</div>
+                    <div className="text-sm font-semibold text-slate-900">{t("kpi.modal.children")}</div>
                     <div className="text-xs text-slate-500">
                       {childrenSupported(draft.periodType)
-                        ? "Факт родителя автоматически считается из дочерних KPI. Тип и период привязаны к родителю."
-                        : "Недельный KPI не поддерживает дочерние KPI"}
+                        ? t("kpi.modal.children_hint")
+                        : t("kpi.modal.children_unsupported")}
                     </div>
                   </div>
                   <label className={`inline-flex items-center gap-2 ${childrenSupported(draft.periodType) ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
-                    <span className="text-xs font-medium text-slate-600">Есть дочерние KPI</span>
+                    <span className="text-xs font-medium text-slate-600">{t("kpi.modal.has_children")}</span>
                     <span
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
                         draft.hasChildren ? "bg-brand-500" : "bg-slate-300"
@@ -3627,7 +3632,7 @@ function KpiPage() {
                 {draft.hasChildren && childrenSupported(draft.periodType) ? (
                   <div className="space-y-1.5">
                     <span className="text-xs font-medium text-slate-600">
-                      Как считать факт родителя
+                      {t("kpi.modal.aggregation")}
                     </span>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {AGGREGATION_OPTIONS.map((option) => {
@@ -3662,14 +3667,14 @@ function KpiPage() {
                                 };
                               })
                             }
-                            title={option.hint}
+                            title={t(option.hintKey)}
                             className={`rounded-lg border px-3 py-2 text-left text-[13px] font-medium transition ${
                               isActive
                                 ? "border-brand-300 bg-brand-50 text-brand-600"
                                 : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                             }`}
                           >
-                            {option.label}
+                            {t(option.labelKey)}
                           </button>
                         );
                       })}
@@ -3683,16 +3688,16 @@ function KpiPage() {
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
                           <th className="px-3 py-2 text-left text-[12px] font-semibold text-slate-500">
-                            Название
+                            {t("kpi.modal.child_name")}
                           </th>
                           <th className="px-3 py-2 text-left text-[12px] font-semibold text-slate-500">
-                            Тип
+                            {t("kpi.col.type")}
                           </th>
                           <th className="px-3 py-2 text-left text-[12px] font-semibold text-slate-500">
-                            Период
+                            {t("kpi.col.period")}
                           </th>
                           <th className="px-3 py-2 text-right text-[12px] font-semibold text-slate-500">
-                            План
+                            {t("kpi.plan")}
                           </th>
                         </tr>
                       </thead>
@@ -3713,7 +3718,7 @@ function KpiPage() {
                                   onChange={(event) =>
                                     updateChildDraft(child.uid, { name: event.target.value })
                                   }
-                                  placeholder="Название дочернего KPI"
+                                  placeholder={t("kpi.modal.child_name_placeholder")}
                                   className="h-9 w-full rounded-md border border-slate-200 px-2 text-[13px] text-slate-700 outline-none transition focus:border-slate-300"
                                 />
                               </td>
@@ -3770,7 +3775,7 @@ function KpiPage() {
               onClick={closeCreateModal}
               className="inline-flex h-10 items-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -3781,10 +3786,10 @@ function KpiPage() {
               className="inline-flex h-10 items-center rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isCreateSaving
-                ? "Сохранение..."
+                ? t("common.saving")
                 : editingKpiId
-                  ? "Сохранить изменения"
-                  : "Сохранить KPI"}
+                  ? t("kpi.modal.save_changes")
+                  : t("kpi.modal.save")}
             </button>
           </div>
         </div>
@@ -3806,7 +3811,7 @@ function KpiPage() {
           className="flex items-center gap-2 rounded-lg text-slate-700"
         >
           <Pencil size={14} />
-          Редактировать
+          {t("common.edit_action")}
         </DropdownItem>
         <DropdownItem
           onClick={() => {
@@ -3817,14 +3822,14 @@ function KpiPage() {
           className="flex items-center gap-2 rounded-lg text-rose-600 hover:bg-rose-50 hover:text-rose-700"
         >
           <Trash2 size={14} />
-          Удалить
+          {t("common.delete")}
         </DropdownItem>
 
         {actionMenuIsRootItem && sheetsApi.sheets.length > 1 ? (
           <>
             <div className="my-1 h-px bg-slate-100" aria-hidden="true" />
             <div className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Переместить в лист
+              {t("kpi.menu.move_to_sheet")}
             </div>
             {sheetsApi.sheets
               .filter((sheet) => actionMenuItemId && sheet.id !== sheetIdOf(actionMenuItemId))
@@ -3834,7 +3839,7 @@ function KpiPage() {
                   onClick={() => {
                     if (!actionMenuItemId) return;
                     sheetsApi.moveKpiToSheet(actionMenuItemId, sheet.id);
-                    toast.success(`KPI перемещён в лист «${sheet.name}»`);
+                    toast.success(t("kpi.moved_to_sheet", { name: sheet.name }));
                   }}
                   onItemClick={closeActionMenu}
                   className="flex items-center gap-2 rounded-lg text-slate-700"
@@ -3859,9 +3864,9 @@ function KpiPage() {
       >
         <div className="space-y-4">
           <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-slate-900">Удалить KPI?</h3>
+            <h3 className="text-lg font-semibold text-slate-900">{t("kpi.delete_title")}</h3>
             <p className="text-sm text-slate-500">
-              Это действие нельзя отменить. Дочерние KPI также будут удалены.
+              {t("kpi.delete_body")}
             </p>
             {kpiToDelete ? (
               <p className="text-sm font-medium text-slate-700">{kpiToDelete.name}</p>
@@ -3873,14 +3878,14 @@ function KpiPage() {
               onClick={closeDeleteModal}
               className="inline-flex h-10 items-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
               onClick={handleDeleteKpi}
               className="inline-flex h-10 items-center rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
             >
-              Удалить
+              {t("common.delete")}
             </button>
           </div>
         </div>

@@ -26,6 +26,7 @@ import {
 import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
 import { useDynamicValues } from "../../../Settings/CustomFields/useDynamicValues";
 import DynamicFieldsBlock from "../../../Settings/CustomFields/DynamicFieldsBlock";
+import { useTranslation } from "../../../../i18n";
 
 const CANDIDATE_SOURCES_SLUG = "candidate_sources";
 
@@ -35,9 +36,12 @@ const labelCls = "mb-1.5 block text-sm font-medium text-gray-700";
 
 const LEVELS = ["Junior", "Middle", "Senior", "Lead"].map((v) => ({ value: v, label: v }));
 // Fallback used until the `candidate_sources` directory is populated.
+// Значение — код источника: sourceLabel() переводит его при показе.
 const FALLBACK_SOURCE_OPTIONS = CANDIDATE_SOURCE_ORDER.map((s) => ({
-  value: CANDIDATE_SOURCE_CONFIG[s].label,
-  label: CANDIDATE_SOURCE_CONFIG[s].label,
+  value: s,
+  get label() {
+    return CANDIDATE_SOURCE_CONFIG[s].label;
+  },
 }));
 const CURRENCY_OPTIONS = [
   { value: "UZS", label: "UZS" },
@@ -71,6 +75,7 @@ const Field = ({
 );
 
 export default function CandidateForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -81,11 +86,11 @@ export default function CandidateForm() {
   useHeaderBreadcrumbItems(
     useMemo(
       () => [
-        { label: "Рекрутинг", to: "/recruiting/vacancies" },
-        { label: "Кандидаты", to: "/recruiting/candidates" },
-        { label: isEdit ? "Редактировать" : "Новый кандидат", to: "#" },
+        { label: t("recruiting.common.breadcrumb_recruiting"), to: "/recruiting/vacancies" },
+        { label: t("recruiting.common.breadcrumb_candidates"), to: "/recruiting/candidates" },
+        { label: isEdit ? t("recruiting.common.edit") : t("recruiting.candidate_form.new"), to: "#" },
       ],
-      [isEdit]
+      [isEdit, t]
     )
   );
 
@@ -109,11 +114,11 @@ export default function CandidateForm() {
     const fromDirectory = (sourcesData?.response ?? [])
       .map((item) => ({
         value: item.guid,
-        label: String(item.title || "").trim() || "Без названия",
+        label: String(item.title || "").trim() || t("recruiting.common.untitled"),
       }))
       .filter((item) => item.value);
     return fromDirectory.length > 0 ? fromDirectory : FALLBACK_SOURCE_OPTIONS;
-  }, [sourcesData]);
+  }, [sourcesData, t]);
 
   const candidate = useMemo(
     () => (candidateRow ? mapCandidateRow(candidateRow) : null),
@@ -135,8 +140,8 @@ export default function CandidateForm() {
           // В выборе — только активные вакансии (текущая вакансия кандидата остаётся).
           return status === "open" || status === "paused" || row.guid === draft.vacancyId;
         })
-        .map((row) => ({ value: row.guid, label: String(row.title ?? "Без названия") })),
-    [vacanciesData, draft.vacancyId]
+        .map((row) => ({ value: row.guid, label: String(row.title ?? t("recruiting.common.untitled")) })),
+    [vacanciesData, draft.vacancyId, t]
   );
 
   // Смена вакансии заблокирована, если кандидат уже двигался по этапам.
@@ -149,18 +154,18 @@ export default function CandidateForm() {
 
   const handleSubmit = async () => {
     if (!draft.firstName.trim() || !draft.lastName.trim()) {
-      setError("Укажите имя и фамилию кандидата");
+      setError(t("recruiting.candidate_form.name_required"));
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (!draft.vacancyId) {
-      setError("Выберите вакансию — кандидат всегда привязан к вакансии");
+      setError(t("recruiting.candidate_form.vacancy_required"));
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     // Правила динамических полей проверяем до запроса.
     if (!dynamic.validate()) {
-      setError("Проверьте дополнительные поля");
+      setError(t("recruiting.common.extra_fields_error"));
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
       return;
     }
@@ -174,17 +179,17 @@ export default function CandidateForm() {
       };
       if (isEdit && id) {
         await updateMutation.mutateAsync({ guid: id, draft: payload });
-        toast.success("Кандидат обновлён");
+        toast.success(t("recruiting.candidate_form.updated"));
         navigate(`/recruiting/candidates/${id}`);
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Кандидат добавлен в воронку");
+        toast.success(t("recruiting.candidate_form.created"));
         navigate(
           presetVacancyId ? `/recruiting/vacancies/${presetVacancyId}` : "/recruiting/candidates"
         );
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Не удалось сохранить";
+      const message = err instanceof Error ? err.message : t("recruiting.common.save_failed");
       setError(message);
       toast.error(message);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -202,8 +207,8 @@ export default function CandidateForm() {
   return (
     <>
       <PageMeta
-        title={isEdit ? "Редактировать кандидата | Рекрутинг" : "Новый кандидат | Рекрутинг"}
-        description="Анкета кандидата"
+        title={t("recruiting.common.page_suffix", { title: isEdit ? t("recruiting.candidate_form.edit_title") : t("recruiting.candidate_form.new") })}
+        description={t("recruiting.candidate_form.description")}
       />
 
       <div className="mx-auto max-w-[920px] space-y-5 pb-24">
@@ -216,33 +221,33 @@ export default function CandidateForm() {
           </span>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {isEdit ? "Редактирование кандидата" : "Новый кандидат"}
+              {isEdit ? t("recruiting.candidate_form.editing") : t("recruiting.candidate_form.new")}
             </h2>
             <p className="text-sm text-gray-500">
               {isEdit
-                ? "Анкета — оценки и комментарии ставятся в профиле кандидата"
-                : "Кандидат попадёт на первый этап воронки выбранной вакансии"}
+                ? t("recruiting.candidate_form.edit_hint")
+                : t("recruiting.candidate_form.create_hint")}
             </p>
           </div>
         </div>
 
-        <Card title="Личные данные">
+        <Card title={t("recruiting.candidate_form.personal")}>
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Фамилия" required>
+              <Field label={t("recruiting.candidate_form.last_name")} required>
                 <input
                   className={inputCls}
                   value={draft.lastName}
                   onChange={(e) => set("lastName", e.target.value)}
-                  placeholder="Фамилия"
+                  placeholder={t("recruiting.candidate_form.last_name")}
                 />
               </Field>
-              <Field label="Имя" required>
+              <Field label={t("recruiting.candidate_form.first_name")} required>
                 <input
                   className={inputCls}
                   value={draft.firstName}
                   onChange={(e) => set("firstName", e.target.value)}
-                  placeholder="Имя"
+                  placeholder={t("recruiting.candidate_form.first_name")}
                 />
               </Field>
             </div>
@@ -256,7 +261,7 @@ export default function CandidateForm() {
                   placeholder="email@example.com"
                 />
               </Field>
-              <Field label="Телефон">
+              <Field label={t("recruiting.common.phone")}>
                 <input
                   className={inputCls}
                   value={draft.phone}
@@ -265,15 +270,15 @@ export default function CandidateForm() {
                 />
               </Field>
             </div>
-            <Field label="Ссылки (LinkedIn, hh.uz, GitHub…)">
+            <Field label={t("recruiting.candidate_form.links")}>
               <TagsInput
                 value={draft.links}
                 onChange={(v) => set("links", v)}
-                placeholder="Вставьте ссылку и нажмите Enter"
+                placeholder={t("recruiting.candidate_form.links_placeholder")}
               />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Уровень">
+              <Field label={t("recruiting.common.level")}>
                 <FormSelect
                   options={LEVELS}
                   value={draft.level}
@@ -282,11 +287,11 @@ export default function CandidateForm() {
                   menuPortal
                 />
               </Field>
-              <Field label="Навыки">
+              <Field label={t("recruiting.common.skills")}>
                 <TagsInput
                   value={draft.skills}
                   onChange={(v) => set("skills", v)}
-                  placeholder="Навык + Enter"
+                  placeholder={t("recruiting.candidate_form.skill_placeholder")}
                 />
               </Field>
             </div>
@@ -301,25 +306,25 @@ export default function CandidateForm() {
           </div>
         </Card>
 
-        <Card title="Отклик">
+        <Card title={t("recruiting.common.applied")}>
           <div className="space-y-4">
-            <Field label="Вакансия" required>
+            <Field label={t("recruiting.common.vacancy")} required>
               <FormSelect
                 options={vacancyOptions}
                 value={draft.vacancyId}
                 onChange={(v) => set("vacancyId", v || null)}
-                placeholder="Выберите вакансию"
+                placeholder={t("recruiting.candidate_form.select_vacancy")}
                 isDisabled={vacancyLocked}
                 menuPortal
               />
               {vacancyLocked && (
                 <p className="mt-1.5 text-xs text-gray-400">
-                  Кандидат уже двигался по этапам — смена вакансии недоступна.
+                  {t("recruiting.candidate_form.vacancy_locked")}
                 </p>
               )}
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Источник">
+              <Field label={t("recruiting.common.source")}>
                 <FormSelect
                   options={sourceOptions}
                   value={draft.source}
@@ -328,12 +333,12 @@ export default function CandidateForm() {
                   menuPortal
                 />
               </Field>
-              <Field label="Дата отклика">
+              <Field label={t("recruiting.common.applied_date")}>
                 <FormDatePicker value={draft.appliedDate} onChange={(v) => set("appliedDate", v)} />
               </Field>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px]">
-              <Field label="Ожидания по ЗП">
+              <Field label={t("recruiting.common.salary_expectation")}>
                 <input
                   type="number"
                   className={inputCls}
@@ -341,10 +346,10 @@ export default function CandidateForm() {
                   onChange={(e) =>
                     set("salaryExpectation", e.target.value ? Number(e.target.value) : null)
                   }
-                  placeholder="Сумма"
+                  placeholder={t("recruiting.candidate_form.amount")}
                 />
               </Field>
-              <Field label="Валюта">
+              <Field label={t("recruiting.common.currency")}>
                 <FormSelect
                   options={CURRENCY_OPTIONS}
                   value={draft.salaryCurrency}
@@ -354,7 +359,7 @@ export default function CandidateForm() {
                 />
               </Field>
             </div>
-            <Field label="Ссылка на резюме">
+            <Field label={t("recruiting.candidate_form.resume_link")}>
               <input
                 className={inputCls}
                 value={draft.resumeUrl ?? ""}
@@ -362,13 +367,13 @@ export default function CandidateForm() {
                 placeholder="https://..."
               />
             </Field>
-            <Field label="Заметки">
+            <Field label={t("recruiting.common.notes")}>
               <textarea
                 rows={3}
                 className={`${inputCls} h-auto resize-none py-2.5`}
                 value={draft.notes}
                 onChange={(e) => set("notes", e.target.value)}
-                placeholder="Свободные заметки о кандидате"
+                placeholder={t("recruiting.candidate_form.notes_placeholder")}
               />
             </Field>
           </div>
@@ -378,14 +383,14 @@ export default function CandidateForm() {
       {/* Sticky save bar */}
       <SidebarAwareFixedFooter>
         <span className="text-sm text-gray-500">
-          {isEdit ? "Редактирование кандидата" : "Новый кандидат"}
+          {isEdit ? t("recruiting.candidate_form.editing") : t("recruiting.candidate_form.new")}
         </span>
         <div className="ml-auto flex items-center gap-3">
           <Button variant="outline" onClick={() => navigate(-1)} className="px-5">
-            Отменить
+            {t("recruiting.common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="px-6">
-            {isSaving ? "Сохранение..." : isEdit ? "Сохранить" : "Добавить кандидата"}
+            {isSaving ? t("recruiting.common.saving") : isEdit ? t("recruiting.common.save") : t("recruiting.create_candidate")}
           </Button>
         </div>
       </SidebarAwareFixedFooter>

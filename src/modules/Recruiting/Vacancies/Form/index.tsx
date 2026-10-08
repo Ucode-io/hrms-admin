@@ -34,6 +34,8 @@ import {
   VACANCY_STATUS_CONFIG,
   VACANCY_STATUS_ORDER,
   WORK_MODE_CONFIG,
+  EMPLOYMENT_TYPE_KEYS,
+  employmentTypeLabel,
   cloneStagesWithNewIds,
   createEmptyVacancyDraft,
   vacancyDraftFromItem,
@@ -42,29 +44,36 @@ import {
   type VacancyStatus,
   type WorkMode,
 } from "../../types";
+import { useTranslation } from "../../../../i18n";
 
 const inputCls =
   "h-11 w-full rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-800 transition placeholder:text-gray-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100";
 const labelCls = "mb-1.5 block text-sm font-medium text-gray-700";
 
 const LEVELS = ["Junior", "Middle", "Senior", "Lead"].map((v) => ({ value: v, label: v }));
-const EMPLOYMENT_TYPES = [
-  "Полная занятость",
-  "Частичная занятость",
-  "Проектная работа",
-  "Стажировка",
-].map((v) => ({ value: v, label: v }));
+const EMPLOYMENT_TYPES = Object.keys(EMPLOYMENT_TYPE_KEYS).map((v) => ({
+  value: v,
+  get label() {
+    return employmentTypeLabel(v);
+  },
+}));
 const WORK_MODE_OPTIONS = (["office", "remote", "hybrid"] as WorkMode[]).map((v) => ({
   value: v,
-  label: WORK_MODE_CONFIG[v].label,
+  get label() {
+    return WORK_MODE_CONFIG[v].label;
+  },
 }));
 const STATUS_OPTIONS = VACANCY_STATUS_ORDER.map((v) => ({
   value: v,
-  label: VACANCY_STATUS_CONFIG[v].label,
+  get label() {
+    return VACANCY_STATUS_CONFIG[v].label;
+  },
 }));
 const PRIORITY_OPTIONS = (["high", "medium", "low"] as VacancyPriority[]).map((v) => ({
   value: v,
-  label: VACANCY_PRIORITY_CONFIG[v].label,
+  get label() {
+    return VACANCY_PRIORITY_CONFIG[v].label;
+  },
 }));
 const CURRENCY_OPTIONS = [
   { value: "UZS", label: "UZS" },
@@ -98,6 +107,7 @@ const Field = ({
 );
 
 export default function VacancyForm() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -106,11 +116,11 @@ export default function VacancyForm() {
   useHeaderBreadcrumbItems(
     useMemo(
       () => [
-        { label: "Рекрутинг", to: "/recruiting/vacancies" },
-        { label: "Вакансии", to: "/recruiting/vacancies" },
-        { label: isEdit ? "Редактировать" : "Новая вакансия", to: "#" },
+        { label: t("recruiting.common.breadcrumb_recruiting"), to: "/recruiting/vacancies" },
+        { label: t("recruiting.vacancies_list.breadcrumb_vacancies"), to: "/recruiting/vacancies" },
+        { label: isEdit ? t("recruiting.common.edit") : t("recruiting.vacancy_form.new"), to: "#" },
       ],
-      [isEdit]
+      [isEdit, t]
     )
   );
 
@@ -147,9 +157,9 @@ export default function VacancyForm() {
         ? MOCK_DEPARTMENTS
         : (departmentsData?.response ?? []).map((item) => ({
             value: item.guid,
-            label: item.title || "Без названия",
+            label: item.title || t("recruiting.common.untitled"),
           })),
-    [departmentsData?.response]
+    [departmentsData?.response, t]
   );
   const positionOptions = useMemo(
     () =>
@@ -157,9 +167,9 @@ export default function VacancyForm() {
         ? MOCK_POSITIONS
         : (positionsData?.response ?? []).map((item) => ({
             value: item.guid,
-            label: item.title || "Без названия",
+            label: item.title || t("recruiting.common.untitled"),
           })),
-    [positionsData?.response]
+    [positionsData?.response, t]
   );
   const locationOptions = useMemo(
     () =>
@@ -167,9 +177,9 @@ export default function VacancyForm() {
         ? MOCK_LOCATIONS
         : (locationsData?.response ?? []).map((item) => ({
             value: item.guid,
-            label: item.title || "Без названия",
+            label: item.title || t("recruiting.common.untitled"),
           })),
-    [locationsData?.response]
+    [locationsData?.response, t]
   );
 
   useEffect(() => {
@@ -206,33 +216,36 @@ export default function VacancyForm() {
   };
 
   const templateOptions = useMemo(
-    () => templates.map((t) => ({ value: t.id, label: t.isDefault ? `${t.name} (по умолчанию)` : t.name })),
-    [templates]
+    () => templates.map((tpl) => ({
+      value: tpl.id,
+      label: tpl.isDefault ? t("recruiting.vacancy_form.template_default", { name: tpl.name }) : tpl.name,
+    })),
+    [templates, t]
   );
 
   const isSaving = createMutation.isLoading || updateMutation.isLoading;
 
   const handleSubmit = async () => {
     if (!draft.title.trim()) {
-      setError("Укажите название вакансии");
+      setError(t("recruiting.vacancy_form.title_required"));
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (draft.salaryMin && draft.salaryMax && draft.salaryMin > draft.salaryMax) {
-      setError("Минимальная зарплата не может быть больше максимальной");
+      setError(t("recruiting.vacancy_form.salary_range_error"));
       return;
     }
     if (draft.stages.length === 0) {
-      setError("Добавьте хотя бы один этап подбора");
+      setError(t("recruiting.common.no_stages_error"));
       return;
     }
     if (draft.stages.some((s) => !s.name.trim())) {
-      setError("У всех этапов должно быть название");
+      setError(t("recruiting.common.stage_names_error"));
       return;
     }
     // Правила динамических полей проверяем до запроса.
     if (!dynamic.validate()) {
-      setError("Проверьте дополнительные поля");
+      setError(t("recruiting.common.extra_fields_error"));
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
       return;
     }
@@ -248,15 +261,15 @@ export default function VacancyForm() {
       };
       if (isEdit && id) {
         await updateMutation.mutateAsync({ guid: id, draft: payload });
-        toast.success("Вакансия обновлена");
+        toast.success(t("recruiting.vacancy_form.updated"));
         navigate(`/recruiting/vacancies/${id}`);
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Вакансия создана");
+        toast.success(t("recruiting.vacancy_form.created"));
         navigate("/recruiting/vacancies");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.save_failed"));
     }
   };
 
@@ -271,8 +284,8 @@ export default function VacancyForm() {
   return (
     <>
       <PageMeta
-        title={isEdit ? "Редактировать вакансию | Рекрутинг" : "Новая вакансия | Рекрутинг"}
-        description="Форма вакансии"
+        title={t("recruiting.common.page_suffix", { title: isEdit ? t("recruiting.vacancy_form.edit_title") : t("recruiting.vacancy_form.new") })}
+        description={t("recruiting.vacancy_form.description")}
       />
 
       <div className="mx-auto max-w-[920px] space-y-5 pb-24">
@@ -285,46 +298,46 @@ export default function VacancyForm() {
           </span>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {isEdit ? "Редактирование вакансии" : "Новая вакансия"}
+              {isEdit ? t("recruiting.vacancy_form.editing") : t("recruiting.vacancy_form.new")}
             </h2>
-            <p className="text-sm text-gray-500">Заполните данные о позиции и настройте этапы подбора</p>
+            <p className="text-sm text-gray-500">{t("recruiting.vacancy_form.subtitle")}</p>
           </div>
         </div>
 
-        <Card title="Основное">
+        <Card title={t("recruiting.vacancy_form.main")}>
           <div className="space-y-4">
-            <Field label="Название вакансии" required>
+            <Field label={t("recruiting.vacancy_form.title_label")} required>
               <input
                 className={inputCls}
                 value={draft.title}
                 onChange={(e) => set("title", e.target.value)}
-                placeholder="Напр. Backend Developer (Senior)"
+                placeholder={t("recruiting.vacancy_form.title_placeholder")}
               />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Департамент">
+              <Field label={t("recruiting.common.department")}>
                 <FormSelect
                   options={departmentOptions}
                   value={draft.departmentId}
                   onChange={(v) => set("departmentId", v || null)}
-                  placeholder="Выберите департамент"
+                  placeholder={t("recruiting.vacancy_form.select_department")}
                   isClearable
                   menuPortal
                 />
               </Field>
-              <Field label="Должность">
+              <Field label={t("recruiting.common.position")}>
                 <FormSelect
                   options={positionOptions}
                   value={draft.positionId}
                   onChange={(v) => set("positionId", v || null)}
-                  placeholder="Должность"
+                  placeholder={t("recruiting.common.position")}
                   isClearable
                   menuPortal
                 />
               </Field>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Тег (BACKEND, QA…)">
+              <Field label={t("recruiting.vacancy_form.tag")}>
                 <input
                   className={`${inputCls} uppercase`}
                   value={draft.tag}
@@ -332,7 +345,7 @@ export default function VacancyForm() {
                   placeholder="BACKEND"
                 />
               </Field>
-              <Field label="Уровень">
+              <Field label={t("recruiting.common.level")}>
                 <FormSelect
                   options={LEVELS}
                   value={draft.experienceLevel}
@@ -342,11 +355,11 @@ export default function VacancyForm() {
                 />
               </Field>
             </div>
-            <Field label="Ключевые навыки">
+            <Field label={t("recruiting.vacancy_form.key_skills")}>
               <TagsInput
                 value={draft.skills}
                 onChange={(v) => set("skills", v)}
-                placeholder="Введите навык и нажмите Enter"
+                placeholder={t("recruiting.vacancy_form.skill_placeholder")}
               />
             </Field>
 
@@ -368,24 +381,23 @@ export default function VacancyForm() {
           title={
             <span className="inline-flex items-center gap-2">
               <ListChecks size={17} className="text-brand-500" />
-              Этапы подбора
+              {t("recruiting.common.recruiting_stages")}
             </span>
           }
         >
           <div className="space-y-4">
-            <Field label="Шаблон этапов">
+            <Field label={t("recruiting.vacancy_form.stage_template")}>
               <FormSelect
                 options={templateOptions}
                 value={draft.stageTemplateId}
                 onChange={applyTemplate}
-                placeholder={templates.length ? "Выберите шаблон" : "Шаблонов пока нет"}
+                placeholder={templates.length ? t("recruiting.vacancy_form.select_template") : t("recruiting.templates.empty")}
                 isSearchable={false}
                 isDisabled={templates.length === 0}
                 menuPortal
               />
               <p className="mt-1.5 text-xs text-gray-400">
-                Этапы берутся из выбранного шаблона. Изменить набор шаблонов можно в разделе
-                «Шаблоны этапов».
+                {t("recruiting.vacancy_form.template_hint")}
               </p>
             </Field>
             {draft.stages.length > 0 && (
@@ -409,20 +421,20 @@ export default function VacancyForm() {
           </div>
         </Card>
 
-        <Card title="Условия">
+        <Card title={t("recruiting.vacancy_description.conditions")}>
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Филиал">
+              <Field label={t("recruiting.common.location")}>
                 <FormSelect
                   options={locationOptions}
                   value={draft.locationId}
                   onChange={(v) => set("locationId", v || null)}
-                  placeholder="Филиал"
+                  placeholder={t("recruiting.common.location")}
                   isClearable
                   menuPortal
                 />
               </Field>
-              <Field label="Формат">
+              <Field label={t("recruiting.common.work_mode")}>
                 <FormSelect
                   options={WORK_MODE_OPTIONS}
                   value={draft.workMode}
@@ -431,7 +443,7 @@ export default function VacancyForm() {
                   menuPortal
                 />
               </Field>
-              <Field label="Тип занятости">
+              <Field label={t("recruiting.common.employment_type")}>
                 <FormSelect
                   options={EMPLOYMENT_TYPES}
                   value={draft.employmentType}
@@ -443,25 +455,25 @@ export default function VacancyForm() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_1fr_120px]">
-              <Field label="Зарплата от">
+              <Field label={t("recruiting.vacancy_form.salary_from")}>
                 <input
                   type="number"
                   className={inputCls}
                   value={draft.salaryMin ?? ""}
                   onChange={(e) => set("salaryMin", e.target.value ? Number(e.target.value) : null)}
-                  placeholder="От"
+                  placeholder={t("recruiting.vacancy_form.from")}
                 />
               </Field>
-              <Field label="Зарплата до">
+              <Field label={t("recruiting.vacancy_form.salary_to")}>
                 <input
                   type="number"
                   className={inputCls}
                   value={draft.salaryMax ?? ""}
                   onChange={(e) => set("salaryMax", e.target.value ? Number(e.target.value) : null)}
-                  placeholder="До"
+                  placeholder={t("recruiting.vacancy_form.to")}
                 />
               </Field>
-              <Field label="Кол-во позиций">
+              <Field label={t("recruiting.vacancy_form.openings")}>
                 <input
                   type="number"
                   min={1}
@@ -470,7 +482,7 @@ export default function VacancyForm() {
                   onChange={(e) => set("openings", Math.max(1, Number(e.target.value) || 1))}
                 />
               </Field>
-              <Field label="Валюта">
+              <Field label={t("recruiting.common.currency")}>
                 <FormSelect
                   options={CURRENCY_OPTIONS}
                   value={draft.salaryCurrency}
@@ -482,7 +494,7 @@ export default function VacancyForm() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Статус">
+              <Field label={t("recruiting.common.status")}>
                 <FormSelect
                   options={STATUS_OPTIONS}
                   value={draft.status}
@@ -500,7 +512,7 @@ export default function VacancyForm() {
                   menuPortal
                 />
               </Field>
-              <Field label="Приоритет">
+              <Field label={t("recruiting.common.priority")}>
                 <FormSelect
                   options={PRIORITY_OPTIONS}
                   value={draft.priority}
@@ -512,17 +524,17 @@ export default function VacancyForm() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Дата открытия">
+              <Field label={t("recruiting.vacancy_form.opened_at")}>
                 <FormDatePicker value={draft.openedAt} onChange={(v) => set("openedAt", v)} />
               </Field>
-              <Field label="Дедлайн">
+              <Field label={t("recruiting.common.deadline")}>
                 <FormDatePicker value={draft.deadline} onChange={(v) => set("deadline", v)} />
               </Field>
             </div>
 
             {draft.status === "closed" && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Дата закрытия">
+                <Field label={t("recruiting.vacancy_form.closed_at")}>
                   <FormDatePicker value={draft.closedAt} onChange={(v) => set("closedAt", v)} />
                 </Field>
               </div>
@@ -530,10 +542,9 @@ export default function VacancyForm() {
           </div>
         </Card>
 
-        <Card title="Описание">
+        <Card title={t("recruiting.vacancy_description.description")}>
           <p className="mb-3 text-xs text-gray-400">
-            Разделы «Описание», «Обязанности», «Требования», «Условия» можно переименовать или
-            дополнить — это обычный текст.
+            {t("recruiting.vacancy_form.description_hint")}
           </p>
           <RichTextEditor
             value={draft.description}
@@ -547,14 +558,14 @@ export default function VacancyForm() {
       {/* Sticky save bar */}
       <SidebarAwareFixedFooter>
         <span className="text-sm text-gray-500">
-          {isEdit ? "Редактирование вакансии" : "Новая вакансия"}
+          {isEdit ? t("recruiting.vacancy_form.editing") : t("recruiting.vacancy_form.new")}
         </span>
         <div className="ml-auto flex items-center gap-3">
           <Button variant="outline" onClick={() => navigate(-1)} className="px-5">
-            Отменить
+            {t("recruiting.common.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={isSaving} className="px-6">
-            {isSaving ? "Сохранение..." : isEdit ? "Сохранить" : "Создать вакансию"}
+            {isSaving ? t("recruiting.common.saving") : isEdit ? t("recruiting.common.save") : t("recruiting.create_vacancy")}
           </Button>
         </div>
       </SidebarAwareFixedFooter>

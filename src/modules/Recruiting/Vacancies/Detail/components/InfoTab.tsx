@@ -9,11 +9,13 @@ import { sanitizeRichText } from "../../../../../components/form/richText";
 import {
   STAGE_COLOR_CONFIG,
   WORK_MODE_CONFIG,
+  employmentTypeLabel,
   formatDate,
   sortStages,
   type StageDef,
   type Vacancy,
 } from "../../../types";
+import { useTranslation } from "../../../../../i18n";
 
 interface InfoTabProps {
   vacancy: Vacancy;
@@ -32,6 +34,7 @@ const Card = ({ title, action, children }: { title: string; action?: React.React
 
 
 export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
+  const { t } = useTranslation();
   const updateStagesMutation = useUpdateVacancyStages();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [draftStages, setDraftStages] = useState<StageDef[]>([]);
@@ -48,40 +51,40 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
 
   const saveStages = async () => {
     if (draftStages.length === 0) {
-      toast.error("Добавьте хотя бы один этап");
+      toast.error(t("recruiting.common.no_stages_error"));
       return;
     }
     if (draftStages.some((s) => !s.name.trim())) {
-      toast.error("У всех этапов должно быть название");
+      toast.error(t("recruiting.common.stage_names_error"));
       return;
     }
     try {
       await updateStagesMutation.mutateAsync({ guid: vacancy.id, stages: draftStages });
-      toast.success("Этапы обновлены");
+      toast.success(t("recruiting.info.stages_updated"));
       setIsEditorOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить этапы");
+      toast.error(err instanceof Error ? err.message : t("recruiting.info.stages_failed"));
     }
   };
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
-        <Card title="Описание">
+        <Card title={t("recruiting.vacancy_description.description")}>
           {descriptionHtml ? (
             <div
               className="comment-body text-sm leading-relaxed text-gray-600"
               dangerouslySetInnerHTML={{ __html: descriptionHtml }}
             />
           ) : (
-            <p className="text-sm text-gray-300">Не заполнено</p>
+            <p className="text-sm text-gray-300">{t("recruiting.info.not_filled")}</p>
           )}
         </Card>
       </div>
 
       <div className="space-y-4">
         <Card
-          title="Этапы подбора"
+          title={t("recruiting.common.recruiting_stages")}
           action={
             <button
               type="button"
@@ -89,7 +92,7 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
               className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 transition hover:text-brand-700"
             >
               <Pencil size={14} />
-              Изменить
+              {t("recruiting.common.change")}
             </button>
           }
         >
@@ -111,18 +114,18 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
           </ol>
         </Card>
 
-        <Card title="Детали">
+        <Card title={t("recruiting.info.details")}>
           <dl className="space-y-3 text-sm">
             {[
-              ["Департамент", vacancy.departmentTitle],
-              ["Должность", vacancy.positionTitle],
-              ["Формат", WORK_MODE_CONFIG[vacancy.workMode].label],
-              ["Тип занятости", vacancy.employmentType],
-              ["Уровень", vacancy.experienceLevel || "—"],
-              ["Филиал", vacancy.location || "—"],
-              ["Открыта", formatDate(vacancy.openedAt)],
-              ...(vacancy.closedAt ? [["Закрыта", formatDate(vacancy.closedAt)]] : []),
-              ["Дедлайн", formatDate(vacancy.deadline)],
+              [t("recruiting.common.department"), vacancy.departmentTitle],
+              [t("recruiting.common.position"), vacancy.positionTitle],
+              [t("recruiting.common.work_mode"), WORK_MODE_CONFIG[vacancy.workMode].label],
+              [t("recruiting.common.employment_type"), employmentTypeLabel(vacancy.employmentType)],
+              [t("recruiting.common.level"), vacancy.experienceLevel || "—"],
+              [t("recruiting.common.location"), vacancy.location || "—"],
+              [t("recruiting.vacancy_status.open"), formatDate(vacancy.openedAt)],
+              ...(vacancy.closedAt ? [[t("recruiting.vacancy_status.closed"), formatDate(vacancy.closedAt)]] : []),
+              [t("recruiting.common.deadline"), formatDate(vacancy.deadline)],
             ].map(([label, value]) => (
               <div key={label} className="flex items-baseline justify-between gap-3">
                 <dt className="shrink-0 text-gray-400">{label}</dt>
@@ -133,7 +136,7 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
         </Card>
 
         {vacancy.skills.length > 0 && (
-          <Card title="Навыки">
+          <Card title={t("recruiting.common.skills")}>
             <div className="flex flex-wrap gap-1.5">
               {vacancy.skills.map((skill) => (
                 <span
@@ -152,7 +155,7 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
       <BottomSheet
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
-        title="Этапы подбора"
+        title={t("recruiting.common.recruiting_stages")}
         subtitle={vacancy.title}
         leading={
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
@@ -162,10 +165,10 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
         footer={
           <div className="ml-auto flex items-center gap-3">
             <Button variant="outline" onClick={() => setIsEditorOpen(false)} className="px-5">
-              Отменить
+              {t("recruiting.common.cancel")}
             </Button>
             <Button onClick={saveStages} disabled={updateStagesMutation.isLoading} className="px-6">
-              {updateStagesMutation.isLoading ? "Сохранение..." : "Сохранить этапы"}
+              {updateStagesMutation.isLoading ? t("recruiting.common.saving") : t("recruiting.info.save_stages")}
             </Button>
           </div>
         }
@@ -173,7 +176,7 @@ export default function InfoTab({ vacancy, countsByStage = {} }: InfoTabProps) {
         <div className="mx-auto max-w-[720px] space-y-4">
           {lockedStageIds.size > 0 && (
             <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-700">
-              Этапы, на которых находятся кандидаты, удалить нельзя — сначала переместите кандидатов.
+              {t("recruiting.info.stages_locked")}
             </p>
           )}
           <StageListEditor

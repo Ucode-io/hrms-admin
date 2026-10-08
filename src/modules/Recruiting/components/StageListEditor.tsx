@@ -8,6 +8,7 @@ import {
   type StageColor,
   type StageDef,
 } from "../types";
+import { useTranslation } from "../../../i18n";
 
 interface StageListEditorProps {
   stages: StageDef[];
@@ -25,6 +26,7 @@ export default function StageListEditor({
   onChange,
   lockedStageIds,
 }: StageListEditorProps) {
+  const { t } = useTranslation();
   const [newName, setNewName] = useState("");
   const ordered = sortStages(stages);
 
@@ -58,7 +60,7 @@ export default function StageListEditor({
     <div className="space-y-2">
       {ordered.length === 0 && (
         <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-4 text-center text-sm text-gray-400">
-          Этапы не заданы — добавьте первый этап
+          {t("recruiting.stages.empty")}
         </p>
       )}
 
@@ -82,13 +84,13 @@ export default function StageListEditor({
             <input
               value={stage.name}
               onChange={(e) => rename(stage.id, e.target.value)}
-              placeholder="Название этапа"
+              placeholder={t("recruiting.stages.name_placeholder")}
               className="h-9 min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 text-sm text-gray-800 transition hover:border-gray-200 focus:border-brand-400 focus:bg-white focus:outline-none"
             />
 
             {locked && (
               <span className="hidden shrink-0 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-600 sm:inline">
-                есть кандидаты
+                {t("recruiting.stages.has_candidates")}
               </span>
             )}
 
@@ -113,7 +115,7 @@ export default function StageListEditor({
                 type="button"
                 onClick={() => remove(stage.id)}
                 disabled={locked}
-                title={locked ? "На этапе есть кандидаты — сначала переместите их" : "Удалить этап"}
+                title={locked ? t("recruiting.stages.locked") : t("recruiting.stages.delete")}
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <Trash2 size={15} />
@@ -133,7 +135,7 @@ export default function StageListEditor({
               add();
             }
           }}
-          placeholder="Новый этап (напр. Финальное интервью)"
+          placeholder={t("recruiting.stages.new_placeholder")}
           className="h-10 flex-1 rounded-xl border border-gray-200 bg-white px-3.5 text-sm text-gray-800 transition placeholder:text-gray-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
         />
         <button
@@ -143,7 +145,7 @@ export default function StageListEditor({
           className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
         >
           <Plus size={15} />
-          Добавить
+          {t("recruiting.common.add")}
         </button>
       </div>
     </div>
@@ -157,13 +159,14 @@ function ColorSwatchPicker({
   value: StageColor;
   onChange: (color: StageColor) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <div className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        title="Цвет этапа"
+        title={t("recruiting.stages.color")}
         className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 transition hover:bg-gray-50"
       >
         <span className={`h-3.5 w-3.5 rounded-full ${STAGE_COLOR_CONFIG[value].dotClassName}`} />

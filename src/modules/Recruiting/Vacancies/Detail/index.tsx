@@ -42,16 +42,18 @@ import {
   type CandidateOutcome,
   type VacancyStatus,
 } from "../../types";
+import { translate, useTranslation } from "../../../../i18n";
 
 type TabKey = "pipeline" | "candidates" | "info";
 
 const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
-  { key: "pipeline", label: "Воронка", icon: <Columns3 size={15} /> },
-  { key: "candidates", label: "Кандидаты", icon: <Users size={15} /> },
-  { key: "info", label: "Информация", icon: <Info size={15} /> },
+  { key: "pipeline", get label() { return translate("recruiting.vacancy_detail.tab_pipeline"); }, icon: <Columns3 size={15} /> },
+  { key: "candidates", get label() { return translate("recruiting.candidates.title"); }, icon: <Users size={15} /> },
+  { key: "info", get label() { return translate("recruiting.vacancy_detail.tab_info"); }, icon: <Info size={15} /> },
 ];
 
 export default function VacancyDetail() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -83,11 +85,11 @@ export default function VacancyDetail() {
   useHeaderBreadcrumbItems(
     useMemo(
       () => [
-        { label: "Рекрутинг", to: "/recruiting/vacancies" },
-        { label: "Вакансии", to: "/recruiting/vacancies" },
-        { label: vacancy?.title ?? "Вакансия", to: "#" },
+        { label: t("recruiting.common.breadcrumb_recruiting"), to: "/recruiting/vacancies" },
+        { label: t("recruiting.vacancies_list.breadcrumb_vacancies"), to: "/recruiting/vacancies" },
+        { label: vacancy?.title ?? t("recruiting.common.vacancy"), to: "#" },
       ],
-      [vacancy?.title]
+      [vacancy?.title, t]
     )
   );
 
@@ -99,7 +101,7 @@ export default function VacancyDetail() {
     try {
       await moveMutation.mutateAsync({ guid: candidate.id, toStageId });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось переместить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.move_failed"));
     }
   };
 
@@ -111,10 +113,12 @@ export default function VacancyDetail() {
     try {
       await outcomeMutation.mutateAsync({ guid: candidate.id, outcome });
       toast.success(
-        outcome === "hired" ? `${candidate.fullName} — нанят 🎉` : `${candidate.fullName} — в резерве`
+        outcome === "hired"
+          ? t("recruiting.common.hired_toast", { name: candidate.fullName })
+          : t("recruiting.common.reserve_toast", { name: candidate.fullName })
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось обновить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.update_failed"));
     }
   };
 
@@ -122,9 +126,9 @@ export default function VacancyDetail() {
     if (!id) return;
     try {
       await statusMutation.mutateAsync({ guid: id, status });
-      toast.success(`Статус изменён: ${VACANCY_STATUS_CONFIG[status].label}`);
+      toast.success(t("recruiting.vacancy_detail.status_changed", { status: VACANCY_STATUS_CONFIG[status].label }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось изменить статус");
+      toast.error(err instanceof Error ? err.message : t("recruiting.vacancy_detail.status_failed"));
     }
   };
 
@@ -141,7 +145,10 @@ export default function VacancyDetail() {
 
   return (
     <>
-      <PageMeta title={`${vacancy.title} | Рекрутинг`} description="Воронка вакансии" />
+      <PageMeta
+        title={t("recruiting.common.page_suffix", { title: vacancy.title })}
+        description={t("recruiting.vacancy_detail.page_description")}
+      />
 
       {/* Header card */}
       <div className="rounded-2xl border border-gray-200 bg-white px-6 py-5">
@@ -170,7 +177,7 @@ export default function VacancyDetail() {
                 )}
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays size={13} />
-                  открыта {daysOpenLabel(vacancy.openedAt)}
+                  {t("recruiting.common.opened", { days: daysOpenLabel(vacancy.openedAt) })}
                 </span>
                 <span className="font-medium text-gray-700">
                   {formatSalaryRange(vacancy.salaryMin, vacancy.salaryMax, vacancy.salaryCurrency)}
@@ -178,7 +185,7 @@ export default function VacancyDetail() {
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-500">
                 <span className="text-emerald-600">
-                  {vacancy.hiredCount} из {vacancy.openings} нанято
+                  {t("recruiting.common.of_hired", { hired: vacancy.hiredCount, total: vacancy.openings })}
                 </span>
               </div>
             </div>
@@ -190,8 +197,8 @@ export default function VacancyDetail() {
               <select
                 value={vacancy.status}
                 onChange={(e) => handleStatusChange(e.target.value as VacancyStatus)}
-                aria-label="Статус вакансии"
-                title="Изменить статус"
+                aria-label={t("recruiting.vacancy_detail.status_aria")}
+                title={t("recruiting.vacancy_detail.change_status")}
                 className={`h-10 cursor-pointer appearance-none rounded-xl border border-transparent py-0 pl-3 pr-9 text-sm font-medium shadow-sm ring-1 ring-inset ring-black/5 transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-brand-300 ${status.badgeClassName}`}
               >
                 {VACANCY_STATUS_ORDER.map((s) => (
@@ -211,14 +218,14 @@ export default function VacancyDetail() {
               onClick={() => navigate(`/recruiting/vacancies/${vacancy.id}/edit`)}
               className="h-10 rounded-xl px-4"
             >
-              Редактировать
+              {t("recruiting.common.edit")}
             </Button>
             <Button
               startIcon={<Plus size={15} />}
               onClick={() => navigate(`/recruiting/candidates/new?vacancyId=${vacancy.id}`)}
               className="h-10 rounded-xl px-4"
             >
-              Кандидат
+              {t("recruiting.common.candidate")}
             </Button>
           </div>
         </div>
@@ -282,10 +289,10 @@ export default function VacancyDetail() {
               outcome: "rejected",
               rejectionReason: reason,
             });
-            toast.success(`${rejectingCandidate.fullName} — отказ`);
+            toast.success(t("recruiting.common.rejected_toast", { name: rejectingCandidate.fullName }));
             setRejectingCandidate(null);
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Не удалось обновить");
+            toast.error(err instanceof Error ? err.message : t("recruiting.common.update_failed"));
           }
         }}
       />

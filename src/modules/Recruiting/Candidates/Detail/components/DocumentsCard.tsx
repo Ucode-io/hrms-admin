@@ -17,13 +17,16 @@ import {
   type Candidate,
   type CandidateDocumentType,
 } from "../../../types";
+import { useTranslation } from "../../../../../i18n";
 
 // Демо-режим хранит файлы в localStorage — поэтому жёсткий лимит на размер.
 const MAX_FILE_SIZE = 1.5 * 1024 * 1024;
 
-const TYPE_OPTIONS = DOCUMENT_TYPE_ORDER.map((t) => ({
-  value: t,
-  label: DOCUMENT_TYPE_CONFIG[t].label,
+const TYPE_OPTIONS = DOCUMENT_TYPE_ORDER.map((type) => ({
+  value: type,
+  get label() {
+    return DOCUMENT_TYPE_CONFIG[type].label;
+  },
 }));
 
 const inputCls =
@@ -35,6 +38,7 @@ interface DocumentsCardProps {
 
 /** CV, сертификаты и прочие файлы кандидата. */
 export default function DocumentsCard({ candidate }: DocumentsCardProps) {
+  const { t } = useTranslation();
   const addMutation = useAddCandidateDocument();
   const deleteMutation = useDeleteCandidateDocument();
 
@@ -57,7 +61,7 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
   const handleFilePick = (picked: File | undefined) => {
     if (!picked) return;
     if (picked.size > MAX_FILE_SIZE) {
-      toast.error("В демо-режиме файлы до 1.5 МБ. Для больших файлов добавьте ссылку.");
+      toast.error(t("recruiting.documents.demo_limit"));
       return;
     }
     const reader = new FileReader();
@@ -71,40 +75,40 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
   const handleAdd = async () => {
     const name = docName.trim() || (mode === "file" ? file?.name : "") || "";
     if (!name) {
-      toast.error("Укажите название документа");
+      toast.error(t("recruiting.documents.name_required_short"));
       return;
     }
     let doc: NewCandidateDocument;
     if (mode === "file") {
       if (!file) {
-        toast.error("Выберите файл");
+        toast.error(t("recruiting.documents.file_required_short"));
         return;
       }
       doc = { name, type: docType, url: file.dataUrl, size: file.size };
     } else {
       const url = docUrl.trim();
       if (!/^https?:\/\//.test(url)) {
-        toast.error("Укажите корректную ссылку (https://…)");
+        toast.error(t("recruiting.documents.invalid_link_short"));
         return;
       }
       doc = { name, type: docType, url, size: null };
     }
     try {
       await addMutation.mutateAsync({ guid: candidate.id, doc });
-      toast.success("Документ добавлен");
+      toast.success(t("recruiting.documents.added"));
       setIsAddOpen(false);
       resetForm();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось добавить документ");
+      toast.error(err instanceof Error ? err.message : t("recruiting.documents.add_failed_short"));
     }
   };
 
   const handleDelete = async (documentId: string, name: string) => {
     try {
       await deleteMutation.mutateAsync({ guid: candidate.id, documentId });
-      toast.success(`«${name}» удалён`);
+      toast.success(t("recruiting.documents.deleted_named", { name }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось удалить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.delete_failed"));
     }
   };
 
@@ -112,7 +116,7 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
     <div className="rounded-2xl border border-gray-200 bg-white">
       <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
         <span className="text-[15px] font-semibold text-gray-900">
-          Документы
+          {t("recruiting.documents.title_short")}
           {candidate.documents.length > 0 && (
             <span className="ml-1.5 font-normal text-gray-400">· {candidate.documents.length}</span>
           )}
@@ -123,7 +127,7 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
           className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 transition hover:text-brand-700"
         >
           <Plus size={14} />
-          Добавить
+          {t("recruiting.common.add")}
         </button>
       </div>
 
@@ -131,8 +135,8 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
         {candidate.documents.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 py-6 text-center">
             <Paperclip size={24} className="text-gray-300" />
-            <p className="text-sm text-gray-400">Документов нет</p>
-            <p className="text-xs text-gray-300">CV, сертификаты, тестовые задания…</p>
+            <p className="text-sm text-gray-400">{t("recruiting.documents.empty_short")}</p>
+            <p className="text-xs text-gray-300">{t("recruiting.documents.empty_hint_short")}</p>
           </div>
         ) : (
           <ul className="space-y-2">
@@ -178,7 +182,7 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
                       rel="noreferrer"
                       {...(isDataUrl ? { download: doc.name } : {})}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-                      title={isDataUrl ? "Скачать" : "Открыть"}
+                      title={isDataUrl ? t("recruiting.documents.download") : t("recruiting.documents.open_link")}
                     >
                       <ExternalLink size={14} />
                     </a>
@@ -187,7 +191,7 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
                       onClick={() => handleDelete(doc.id, doc.name)}
                       disabled={deleteMutation.isLoading}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-500"
-                      title="Удалить"
+                      title={t("recruiting.common.delete")}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -207,14 +211,14 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
         className="m-4 max-w-[460px]"
       >
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900">Добавить документ</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t("recruiting.documents.add_document")}</h3>
 
           {/* Mode switch */}
           <div className="mt-4 inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
             {(
               [
-                { key: "file", label: "Файл", icon: <Upload size={14} /> },
-                { key: "link", label: "Ссылка", icon: <LinkIcon size={14} /> },
+                { key: "file", label: t("recruiting.common.file"), icon: <Upload size={14} /> },
+                { key: "link", label: t("recruiting.common.link"), icon: <LinkIcon size={14} /> },
               ] as const
             ).map((m) => (
               <button
@@ -233,7 +237,7 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
 
           <div className="mt-4 space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Тип документа</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">{t("recruiting.documents.type")}</label>
               <FormSelect
                 options={TYPE_OPTIONS}
                 value={docType}
@@ -245,7 +249,7 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
 
             {mode === "file" ? (
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Файл</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t("recruiting.common.file")}</label>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -264,13 +268,13 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
                       {file.name} · {formatFileSize(file.size)}
                     </span>
                   ) : (
-                    "Выбрать файл (до 1.5 МБ)"
+                    t("recruiting.documents.pick_file_limit")
                   )}
                 </button>
               </div>
             ) : (
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Ссылка</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t("recruiting.common.link")}</label>
                 <input
                   className={inputCls}
                   value={docUrl}
@@ -281,22 +285,22 @@ export default function DocumentsCard({ candidate }: DocumentsCardProps) {
             )}
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Название</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">{t("recruiting.common.name")}</label>
               <input
                 className={inputCls}
                 value={docName}
                 onChange={(e) => setDocName(e.target.value)}
-                placeholder="Напр. CV_Иванов.pdf"
+                placeholder={t("recruiting.documents.name_example")}
               />
             </div>
           </div>
 
           <div className="mt-6 flex items-center justify-end gap-3">
             <Button variant="outline" onClick={() => setIsAddOpen(false)} className="px-5">
-              Отменить
+              {t("recruiting.common.cancel")}
             </Button>
             <Button onClick={handleAdd} disabled={addMutation.isLoading} className="px-6">
-              {addMutation.isLoading ? "Сохранение..." : "Добавить"}
+              {addMutation.isLoading ? t("recruiting.common.saving") : t("recruiting.common.add")}
             </Button>
           </div>
         </div>

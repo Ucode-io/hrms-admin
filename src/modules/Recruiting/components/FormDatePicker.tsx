@@ -12,6 +12,7 @@
 // в каждом месте вызова.
 
 import DateInput from "../../../components/form/DateInput";
+import { translate } from "../../../i18n";
 
 interface FormDatePickerProps {
   /** ISO date string (yyyy-MM-dd) or null. */
@@ -24,7 +25,7 @@ interface FormDatePickerProps {
 export default function FormDatePicker({
   value,
   onChange,
-  placeholder = "дд.мм.гггг",
+  placeholder = translate("common.date_placeholder"),
   disabled = false,
 }: FormDatePickerProps) {
   return (

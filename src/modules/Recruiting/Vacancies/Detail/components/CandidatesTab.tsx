@@ -10,6 +10,7 @@ import {
   type Candidate,
   type Vacancy,
 } from "../../../types";
+import { useTranslation } from "../../../../../i18n";
 
 interface CandidatesTabProps {
   vacancy: Vacancy;
@@ -27,6 +28,7 @@ const Th = ({ children, className = "" }: { children?: React.ReactNode; classNam
 
 /** Flat list of the vacancy's candidates. */
 export default function CandidatesTab({ vacancy, candidates, onOpenCandidate }: CandidatesTabProps) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -43,14 +45,14 @@ export default function CandidatesTab({ vacancy, candidates, onOpenCandidate }: 
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
       <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3.5">
         <span className="text-sm font-semibold text-gray-800">
-          Кандидаты <span className="font-normal text-gray-400">· {candidates.length}</span>
+          {t("recruiting.candidates.title")} <span className="font-normal text-gray-400">· {candidates.length}</span>
         </span>
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по имени..."
+            placeholder={t("recruiting.vacancy_detail.search_name")}
             className="h-9 w-56 rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-800 transition placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
           />
         </div>
@@ -60,7 +62,7 @@ export default function CandidatesTab({ vacancy, candidates, onOpenCandidate }: 
         <div className="flex flex-col items-center justify-center gap-2 px-5 py-16 text-center">
           <Users size={32} className="text-gray-300" />
           <p className="text-sm text-gray-400">
-            {candidates.length === 0 ? "Кандидатов пока нет" : "Никто не найден"}
+            {candidates.length === 0 ? t("recruiting.vacancy_detail.no_candidates") : t("recruiting.vacancy_detail.nobody_found")}
           </p>
         </div>
       ) : (
@@ -68,11 +70,11 @@ export default function CandidatesTab({ vacancy, candidates, onOpenCandidate }: 
           <table className="w-full min-w-[760px] text-sm">
             <thead className="border-b border-gray-100 bg-gray-50/60">
               <tr>
-                <Th>Кандидат</Th>
-                <Th>Этап</Th>
-                <Th>Оценка</Th>
-                <Th>Источник</Th>
-                <Th>Отклик</Th>
+                <Th>{t("recruiting.common.candidate")}</Th>
+                <Th>{t("recruiting.common.stage")}</Th>
+                <Th>{t("recruiting.common.score")}</Th>
+                <Th>{t("recruiting.common.source")}</Th>
+                <Th>{t("recruiting.common.applied")}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

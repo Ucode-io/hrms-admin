@@ -47,12 +47,14 @@ import {
   sourceLabel,
   OUTCOME_CONFIG,
   formatDate,
-  formatSalaryRange,
+  formatSalaryAmount,
   sortStages,
   type StageDef,
 } from "../../types";
+import { useTranslation } from "../../../../i18n";
 
 export default function CandidateDetail() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -84,11 +86,11 @@ export default function CandidateDetail() {
   useHeaderBreadcrumbItems(
     useMemo(
       () => [
-        { label: "Рекрутинг", to: "/recruiting/vacancies" },
-        { label: "Кандидаты", to: "/recruiting/candidates" },
-        { label: candidate?.fullName ?? "Кандидат", to: "#" },
+        { label: t("recruiting.common.breadcrumb_recruiting"), to: "/recruiting/vacancies" },
+        { label: t("recruiting.common.breadcrumb_candidates"), to: "/recruiting/candidates" },
+        { label: candidate?.fullName ?? t("recruiting.common.candidate"), to: "#" },
       ],
-      [candidate?.fullName]
+      [candidate?.fullName, t]
     )
   );
 
@@ -124,19 +126,23 @@ export default function CandidateDetail() {
     try {
       await moveMutation.mutateAsync({ guid: candidate.id, toStageId });
       const name = stages.find((s) => s.id === toStageId)?.name ?? "";
-      toast.success(`Кандидат перемещён${name ? `: ${name}` : ""}`);
+      toast.success(name ? t("recruiting.candidate_detail.moved_to_stage", { name }) : t("recruiting.candidate_detail.moved_short"));
       setExpandedStages(new Set([toStageId]));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось переместить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.move_failed"));
     }
   };
 
   const handleOutcome = async (outcome: "hired" | "reserve") => {
     try {
       await outcomeMutation.mutateAsync({ guid: candidate.id, outcome });
-      toast.success(outcome === "hired" ? `${candidate.fullName} — нанят 🎉` : "Кандидат в резерве");
+      toast.success(
+        outcome === "hired"
+          ? t("recruiting.common.hired_toast", { name: candidate.fullName })
+          : t("recruiting.candidate_detail.reserve_short")
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось обновить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.update_failed"));
     }
   };
 
@@ -145,7 +151,7 @@ export default function CandidateDetail() {
     const target =
       (lastStage && stages.some((s) => s.id === lastStage) ? lastStage : stages[0]?.id) ?? null;
     if (!target) {
-      toast.error("У вакансии нет этапов");
+      toast.error(t("recruiting.candidate_detail.vacancy_no_stages"));
       return;
     }
     await handleMove(target);
@@ -155,7 +161,7 @@ export default function CandidateDetail() {
     try {
       await scoreMutation.mutateAsync({ guid: candidate.id, stageId, score });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить оценку");
+      toast.error(err instanceof Error ? err.message : t("recruiting.candidate_detail.score_failed"));
     }
   };
 
@@ -163,7 +169,7 @@ export default function CandidateDetail() {
     try {
       await commentMutation.mutateAsync({ guid: candidate.id, stageId, text });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось добавить комментарий");
+      toast.error(err instanceof Error ? err.message : t("recruiting.candidate_detail.comment_failed"));
     }
   };
 
@@ -179,9 +185,9 @@ export default function CandidateDetail() {
         stageId,
         text: FILE_COMMENT_MARKER + JSON.stringify({ name: file.name, size: file.size }),
       });
-      toast.success("Файл добавлен");
+      toast.success(t("recruiting.candidate_detail.file_added"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось загрузить файл");
+      toast.error(err instanceof Error ? err.message : t("recruiting.candidate_detail.file_failed"));
     }
   };
 
@@ -201,7 +207,7 @@ export default function CandidateDetail() {
     },
     {
       icon: <Phone size={15} />,
-      label: "Телефон",
+      label: t("recruiting.common.phone"),
       value: candidate.phone ? (
         <a href={`tel:${candidate.phone}`} className="hover:text-brand-600">
           {candidate.phone}
@@ -212,29 +218,29 @@ export default function CandidateDetail() {
     },
     {
       icon: <UserRound size={15} />,
-      label: "Источник",
+      label: t("recruiting.common.source"),
       value: sourceLabel(candidate.source),
     },
     {
       icon: <CalendarDays size={15} />,
-      label: "Дата отклика",
+      label: t("recruiting.common.applied_date"),
       value: formatDate(candidate.appliedDate),
     },
     {
       icon: <Wallet size={15} />,
-      label: "Ожидания по ЗП",
+      label: t("recruiting.common.salary_expectation"),
       value: candidate.salaryExpectation
-        ? formatSalaryRange(candidate.salaryExpectation, null, candidate.salaryCurrency).replace(
-            "от ",
-            ""
-          )
+        ? formatSalaryAmount(candidate.salaryExpectation, candidate.salaryCurrency)
         : "—",
     },
   ];
 
   return (
     <>
-      <PageMeta title={`${candidate.fullName} | Рекрутинг`} description="Профиль кандидата" />
+      <PageMeta
+        title={t("recruiting.common.page_suffix", { title: candidate.fullName })}
+        description={t("recruiting.candidate_detail.page_description")}
+      />
 
       {/* Title bar */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -249,7 +255,7 @@ export default function CandidateDetail() {
           onClick={() => navigate(`/recruiting/candidates/${candidate.id}/edit`)}
           className="h-9 rounded-xl px-4"
         >
-          Изменить
+          {t("recruiting.common.change")}
         </Button>
       </div>
 
@@ -276,7 +282,7 @@ export default function CandidateDetail() {
               )}
               <div className="mt-2.5 flex items-center gap-2">
                 <ScoreBadge score={candidate.avgScore} size="md" />
-                <span className="text-xs text-gray-400">средний балл</span>
+                <span className="text-xs text-gray-400">{t("recruiting.candidate_detail.avg_score_label")}</span>
               </div>
             </div>
 
@@ -297,7 +303,7 @@ export default function CandidateDetail() {
             {candidate.skills.length > 0 && (
               <div className="mt-5 border-t border-gray-100 pt-5">
                 <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-400">
-                  Навыки
+                  {t("recruiting.common.skills")}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {candidate.skills.map((skill) => (
@@ -315,7 +321,7 @@ export default function CandidateDetail() {
             {(candidate.links.length > 0 || candidate.resumeUrl) && (
               <div className="mt-5 border-t border-gray-100 pt-5">
                 <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-400">
-                  Ссылки
+                  {t("recruiting.common.links")}
                 </div>
                 <ul className="space-y-1.5">
                   {candidate.resumeUrl && (
@@ -327,7 +333,7 @@ export default function CandidateDetail() {
                         className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700"
                       >
                         <FileText size={13} className="shrink-0" />
-                        Открыть резюме
+                        {t("recruiting.candidate_detail.open_resume")}
                       </a>
                     </li>
                   )}
@@ -351,7 +357,7 @@ export default function CandidateDetail() {
             {candidate.notes && (
               <div className="mt-5 border-t border-gray-100 pt-5">
                 <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-400">
-                  Заметки
+                  {t("recruiting.common.notes")}
                 </div>
                 <p className="whitespace-pre-wrap text-sm text-gray-600">{candidate.notes}</p>
               </div>
@@ -366,11 +372,11 @@ export default function CandidateDetail() {
           {/* Воронка подбора */}
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[15px] font-semibold text-gray-900">Воронка подбора</h3>
+              <h3 className="text-[15px] font-semibold text-gray-900">{t("recruiting.candidate_detail.pipeline")}</h3>
               {isActive ? (
                 currentStage && (
                   <span className="text-sm text-gray-500">
-                    Текущий этап: <span className="font-medium text-gray-800">{currentStage.name}</span>
+                    {t("recruiting.candidate_detail.current_stage")} <span className="font-medium text-gray-800">{currentStage.name}</span>
                   </span>
                 )
               ) : (
@@ -421,7 +427,7 @@ export default function CandidateDetail() {
                       type="button"
                       onClick={() => handleMove(nextStage.id)}
                       disabled={moveMutation.isLoading}
-                      title={`Следующий этап: ${nextStage.name}`}
+                      title={t("recruiting.candidate_detail.next_stage", { name: nextStage.name })}
                       className="inline-flex h-[44px] items-center gap-1.5 rounded-xl bg-brand-500 px-4 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50"
                     >
                       {nextStage.name}
@@ -437,7 +443,7 @@ export default function CandidateDetail() {
                   className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3.5 text-sm font-medium text-brand-600 transition hover:border-brand-300 disabled:opacity-50"
                 >
                   <RotateCcw size={14} />
-                  Вернуть в воронку
+                  {t("recruiting.common.back_to_pipeline")}
                 </button>
               )}
 
@@ -450,7 +456,7 @@ export default function CandidateDetail() {
                     className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 text-sm font-medium text-emerald-700 transition hover:border-emerald-300 disabled:opacity-50"
                   >
                     <Trophy size={14} />
-                    Нанять
+                    {t("recruiting.candidate_detail.hire")}
                   </button>
                   <button
                     type="button"
@@ -458,7 +464,7 @@ export default function CandidateDetail() {
                     className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 text-sm font-medium text-rose-600 transition hover:border-rose-300"
                   >
                     <ThumbsDown size={14} />
-                    Отказ
+                    {t("recruiting.candidate_outcome.rejected")}
                   </button>
                   <button
                     type="button"
@@ -467,7 +473,7 @@ export default function CandidateDetail() {
                     className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
                   >
                     <Archive size={14} />
-                    Резерв
+                    {t("recruiting.candidate_outcome.reserve")}
                   </button>
                 </div>
               )}
@@ -477,16 +483,16 @@ export default function CandidateDetail() {
           {/* Оценка по этапам */}
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <h3 className="mb-4 text-[15px] font-semibold text-gray-900">
-              Оценка по этапам
+              {t("recruiting.candidate_detail.stage_scores")}
               {stages.length > 0 && (
                 <span className="ml-1.5 font-normal text-gray-400">
-                  · {evaluatedStages.length} из {stages.length}
+                  · {t("recruiting.candidate_detail.of", { done: evaluatedStages.length, total: stages.length })}
                 </span>
               )}
             </h3>
             {evaluatedStages.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-200 px-5 py-12 text-center text-sm text-gray-400">
-                Кандидат ещё не проходил этапы
+                {t("recruiting.candidate_detail.no_evaluations")}
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -523,7 +529,7 @@ export default function CandidateDetail() {
             >
               <span className="inline-flex items-center gap-2 text-[15px] font-semibold text-gray-900">
                 <History size={16} className="text-gray-400" />
-                История
+                {t("recruiting.common.history")}
                 {candidate.history.length > 0 && (
                   <span className="font-normal text-gray-400">· {candidate.history.length}</span>
                 )}
@@ -554,10 +560,10 @@ export default function CandidateDetail() {
               outcome: "rejected",
               rejectionReason: reason,
             });
-            toast.success(`${candidate.fullName} — отказ`);
+            toast.success(t("recruiting.common.rejected_toast", { name: candidate.fullName }));
             setIsRejectOpen(false);
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Не удалось обновить");
+            toast.error(err instanceof Error ? err.message : t("recruiting.common.update_failed"));
           }
         }}
       />

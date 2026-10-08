@@ -1,3 +1,6 @@
+import { getLocale, pluralForm, translate } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
+
 // Domain types, constants and formatters for the Recruiting (Рекрутинг) module.
 //
 // Core model:
@@ -160,10 +163,10 @@ export const newStageId = (): string =>
 
 /** Fallback stages when no template exists yet. */
 export const DEFAULT_STAGE_PRESET: Array<{ name: string; color: StageColor }> = [
-  { name: "Скрининг", color: "blue" },
-  { name: "Интервью", color: "violet" },
-  { name: "Тех. интервью", color: "indigo" },
-  { name: "Оффер", color: "emerald" },
+  { get name() { return translate("recruiting.default_stage.screening"); }, color: "blue" },
+  { get name() { return translate("recruiting.default_stage.interview"); }, color: "violet" },
+  { get name() { return translate("recruiting.default_stage.tech_interview"); }, color: "indigo" },
+  { get name() { return translate("recruiting.default_stage.offer"); }, color: "emerald" },
 ];
 
 export const buildStages = (preset: Array<{ name: string; color: StageColor }>): StageDef[] =>
@@ -255,22 +258,30 @@ export const VACANCY_STATUS_CONFIG: Record<
   { label: string; badgeClassName: string; dotClassName: string }
 > = {
   open: {
-    label: "Открыта",
+    get label() {
+      return translate("recruiting.vacancy_status.open");
+    },
     badgeClassName: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
     dotClassName: "bg-emerald-500",
   },
   paused: {
-    label: "На паузе",
+    get label() {
+      return translate("recruiting.vacancy_status.paused");
+    },
     badgeClassName: "bg-amber-50 text-amber-700 ring-1 ring-amber-100",
     dotClassName: "bg-amber-500",
   },
   closed: {
-    label: "Закрыта",
+    get label() {
+      return translate("recruiting.vacancy_status.closed");
+    },
     badgeClassName: "bg-rose-50 text-rose-700 ring-1 ring-rose-100",
     dotClassName: "bg-rose-500",
   },
   draft: {
-    label: "Черновик",
+    get label() {
+      return translate("recruiting.vacancy_status.draft");
+    },
     badgeClassName: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
     dotClassName: "bg-slate-400",
   },
@@ -280,15 +291,15 @@ export const VACANCY_PRIORITY_CONFIG: Record<
   VacancyPriority,
   { label: string; badgeClassName: string }
 > = {
-  high: { label: "Высокий", badgeClassName: "bg-rose-50 text-rose-600 ring-1 ring-rose-100" },
-  medium: { label: "Средний", badgeClassName: "bg-amber-50 text-amber-600 ring-1 ring-amber-100" },
-  low: { label: "Низкий", badgeClassName: "bg-slate-100 text-slate-500 ring-1 ring-slate-200" },
+  high: { get label() { return translate("recruiting.vacancy_priority.high"); }, badgeClassName: "bg-rose-50 text-rose-600 ring-1 ring-rose-100" },
+  medium: { get label() { return translate("recruiting.vacancy_priority.medium"); }, badgeClassName: "bg-amber-50 text-amber-600 ring-1 ring-amber-100" },
+  low: { get label() { return translate("recruiting.vacancy_priority.low"); }, badgeClassName: "bg-slate-100 text-slate-500 ring-1 ring-slate-200" },
 };
 
 export const WORK_MODE_CONFIG: Record<WorkMode, { label: string }> = {
-  office: { label: "Офис" },
-  remote: { label: "Удалённо" },
-  hybrid: { label: "Гибрид" },
+  office: { get label() { return translate("recruiting.work_mode.office"); } },
+  remote: { get label() { return translate("recruiting.work_mode.remote"); } },
+  hybrid: { get label() { return translate("recruiting.work_mode.hybrid"); } },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -305,22 +316,30 @@ export const OUTCOME_CONFIG: Record<
   { label: string; badgeClassName: string; dotClassName: string }
 > = {
   active: {
-    label: "В работе",
+    get label() {
+      return translate("recruiting.candidate_outcome.active");
+    },
     badgeClassName: "bg-blue-50 text-blue-700 ring-1 ring-blue-100",
     dotClassName: "bg-blue-500",
   },
   hired: {
-    label: "Нанят",
+    get label() {
+      return translate("recruiting.candidate_outcome.hired");
+    },
     badgeClassName: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
     dotClassName: "bg-emerald-500",
   },
   rejected: {
-    label: "Отказ",
+    get label() {
+      return translate("recruiting.candidate_outcome.rejected");
+    },
     badgeClassName: "bg-rose-50 text-rose-700 ring-1 ring-rose-100",
     dotClassName: "bg-rose-500",
   },
   reserve: {
-    label: "Резерв",
+    get label() {
+      return translate("recruiting.candidate_outcome.reserve");
+    },
     badgeClassName: "bg-gray-100 text-gray-600 ring-1 ring-gray-200",
     dotClassName: "bg-gray-400",
   },
@@ -350,15 +369,15 @@ export const CANDIDATE_SOURCE_ORDER: CandidateSource[] = [
 ];
 
 export const CANDIDATE_SOURCE_CONFIG: Record<CandidateSource, { label: string }> = {
-  headhunter: { label: "HeadHunter" },
-  career_site: { label: "Карьерный сайт" },
-  linkedin: { label: "LinkedIn" },
-  telegram: { label: "Telegram job каналы" },
-  networking: { label: "Нетворкинг" },
-  applications: { label: "Отклики" },
-  referral: { label: "Реферал" },
-  external_recruiter: { label: "Внешний рекрутер" },
-  other: { label: "Другое" },
+  headhunter: { get label() { return translate("recruiting.candidate_source.headhunter"); } },
+  career_site: { get label() { return translate("recruiting.candidate_source.career_site"); } },
+  linkedin: { get label() { return translate("recruiting.candidate_source.linkedin"); } },
+  telegram: { get label() { return translate("recruiting.candidate_source.telegram"); } },
+  networking: { get label() { return translate("recruiting.candidate_source.networking"); } },
+  applications: { get label() { return translate("recruiting.candidate_source.applications"); } },
+  referral: { get label() { return translate("recruiting.candidate_source.referral"); } },
+  external_recruiter: { get label() { return translate("recruiting.candidate_source.external_recruiter"); } },
+  other: { get label() { return translate("recruiting.candidate_source.other"); } },
 };
 
 /**
@@ -420,21 +439,21 @@ export const CANDIDATE_REJECTION_REASON_ORDER: CandidateRejectionReason[] = [
 ];
 
 export const CANDIDATE_REJECTION_REASON_CONFIG: Record<CandidateRejectionReason, { label: string }> = {
-  resume_rejected: { label: "Отказ по резюме" },
-  not_relevant: { label: "Не релевантный кандидат" },
-  insufficient_qualification: { label: "Недостаточная квалификация" },
-  experience_mismatch: { label: "Не подходит опыт" },
-  grade_mismatch: { label: "Не подходит по грейду" },
-  vacancy_closed_other: { label: "Вакансия закрылась другим" },
-  self_not_interested: { label: "Кандидат не заинтересован" },
-  language_barrier: { label: "Языковой барьер" },
-  location_mismatch: { label: "Не подходит локация" },
-  culture_mismatch: { label: "Не подходит по культуре" },
-  salary_expectations: { label: "Завышенные ожидания по ЗП" },
-  soft_skills_mismatch: { label: "Не соответствует soft skills" },
-  no_show: { label: "Не пришёл на собеседование" },
-  found_job: { label: "Нашёл другую работу" },
-  other: { label: "Другое" },
+  resume_rejected: { get label() { return translate("recruiting.rejection_reason.resume_rejected"); } },
+  not_relevant: { get label() { return translate("recruiting.rejection_reason.not_relevant"); } },
+  insufficient_qualification: { get label() { return translate("recruiting.rejection_reason.insufficient_qualification"); } },
+  experience_mismatch: { get label() { return translate("recruiting.rejection_reason.experience_mismatch"); } },
+  grade_mismatch: { get label() { return translate("recruiting.rejection_reason.grade_mismatch"); } },
+  vacancy_closed_other: { get label() { return translate("recruiting.rejection_reason.vacancy_closed_other"); } },
+  self_not_interested: { get label() { return translate("recruiting.rejection_reason.self_not_interested"); } },
+  language_barrier: { get label() { return translate("recruiting.rejection_reason.language_barrier"); } },
+  location_mismatch: { get label() { return translate("recruiting.rejection_reason.location_mismatch"); } },
+  culture_mismatch: { get label() { return translate("recruiting.rejection_reason.culture_mismatch"); } },
+  salary_expectations: { get label() { return translate("recruiting.rejection_reason.salary_expectations"); } },
+  soft_skills_mismatch: { get label() { return translate("recruiting.rejection_reason.soft_skills_mismatch"); } },
+  no_show: { get label() { return translate("recruiting.rejection_reason.no_show"); } },
+  found_job: { get label() { return translate("recruiting.rejection_reason.found_job"); } },
+  other: { get label() { return translate("recruiting.rejection_reason.other"); } },
 };
 
 // ───── Candidate documents (CV, сертификаты и т.д.) ─────
@@ -453,11 +472,11 @@ export const DOCUMENT_TYPE_CONFIG: Record<
   CandidateDocumentType,
   { label: string; badgeClassName: string }
 > = {
-  cv: { label: "Резюме / CV", badgeClassName: "bg-blue-50 text-blue-700" },
-  certificate: { label: "Сертификат", badgeClassName: "bg-emerald-50 text-emerald-700" },
-  portfolio: { label: "Портфолио", badgeClassName: "bg-violet-50 text-violet-700" },
-  test_task: { label: "Тестовое задание", badgeClassName: "bg-amber-50 text-amber-700" },
-  other: { label: "Другое", badgeClassName: "bg-slate-100 text-slate-600" },
+  cv: { get label() { return translate("recruiting.document_type.cv"); }, badgeClassName: "bg-blue-50 text-blue-700" },
+  certificate: { get label() { return translate("recruiting.document_type.certificate"); }, badgeClassName: "bg-emerald-50 text-emerald-700" },
+  portfolio: { get label() { return translate("recruiting.document_type.portfolio"); }, badgeClassName: "bg-violet-50 text-violet-700" },
+  test_task: { get label() { return translate("recruiting.document_type.test_task"); }, badgeClassName: "bg-amber-50 text-amber-700" },
+  other: { get label() { return translate("recruiting.document_type.other"); }, badgeClassName: "bg-slate-100 text-slate-600" },
 };
 
 export interface CandidateDocument {
@@ -474,9 +493,9 @@ export interface CandidateDocument {
 
 export const formatFileSize = (bytes: number | null): string => {
   if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} Б`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+  if (bytes < 1024) return translate("recruiting.size.b", { value: bytes });
+  if (bytes < 1024 * 1024) return translate("recruiting.size.kb", { value: Math.round(bytes / 1024) });
+  return translate("recruiting.size.mb", { value: (bytes / (1024 * 1024)).toFixed(1) });
 };
 
 /** One comment in a stage evaluation thread. */
@@ -632,24 +651,30 @@ export const levelColor = (level: string): string =>
 // Formatters
 // ─────────────────────────────────────────────────────────────────────────────
 
+const fmtMoney = (v: number) => {
+  if (v >= 1_000_000) {
+    const m = v / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  if (v >= 1_000) return `${Math.round(v / 1_000)}K`;
+  return String(v);
+};
+
+/** Одна сумма без «от/до» — например, ожидания кандидата. */
+export const formatSalaryAmount = (value: number, currency: string): string =>
+  `${fmtMoney(value)} ${currency || "UZS"}`;
+
 export const formatSalaryRange = (
   min: number | null,
   max: number | null,
   currency: string
 ): string => {
-  const fmt = (v: number) => {
-    if (v >= 1_000_000) {
-      const m = v / 1_000_000;
-      return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
-    }
-    if (v >= 1_000) return `${Math.round(v / 1_000)}K`;
-    return String(v);
-  };
+  const fmt = fmtMoney;
   const cur = currency || "UZS";
   if (min && max) return `${fmt(min)}–${fmt(max)} ${cur}`;
-  if (min) return `от ${fmt(min)} ${cur}`;
-  if (max) return `до ${fmt(max)} ${cur}`;
-  return "По договорённости";
+  if (min) return translate("recruiting.salary.from", { value: fmt(min), currency: cur });
+  if (max) return translate("recruiting.salary.to", { value: fmt(max), currency: cur });
+  return translate("recruiting.salary.negotiable");
 };
 
 export const formatDate = (iso: string | null): string => {
@@ -687,18 +712,16 @@ export const daysSince = (iso: string | null): number | null => {
   return Math.max(0, Math.floor(diff / 86_400_000));
 };
 
-export const pluralDays = (d: number): string => {
-  const mod10 = d % 10;
-  const mod100 = d % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${d} день`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${d} дня`;
-  return `${d} дней`;
-};
+/** «3 дня», «5 кандидатов» — форма слова по текущему языку. */
+export const countLabel = (base: "days" | "candidates" | "stages", count: number): string =>
+  translate(`recruiting.count.${base}.${pluralForm(getLocale(), count)}` as MessageKey, { count });
+
+export const pluralDays = (d: number): string => countLabel("days", d);
 
 export const daysOpenLabel = (iso: string | null): string => {
   const d = daysSince(iso);
   if (d === null) return "—";
-  if (d === 0) return "сегодня";
+  if (d === 0) return translate("recruiting.common.today_lower");
   return pluralDays(d);
 };
 
@@ -732,12 +755,30 @@ export const avatarTint = (seed: string): string => {
 // ───── Vacancy description (single rich-text field) ─────
 
 /** Разделы по умолчанию для редактора описания вакансии. */
-export const VACANCY_DESCRIPTION_SECTIONS = ["Описание", "Обязанности", "Требования", "Условия"];
+export const vacancyDescriptionSections = (): string[] =>
+  (["description", "responsibilities", "requirements", "conditions"] as const).map((key) =>
+    translate(`recruiting.vacancy_description.${key}`)
+  );
 
 /** Пустой каркас описания: 4 редактируемых заголовка с пустыми абзацами. */
-export const DEFAULT_VACANCY_DESCRIPTION_HTML = VACANCY_DESCRIPTION_SECTIONS.map(
-  (label) => `<h3>${label}</h3><p></p>`
-).join("");
+export const defaultVacancyDescriptionHtml = (): string =>
+  vacancyDescriptionSections()
+    .map((label) => `<h3>${label}</h3><p></p>`)
+    .join("");
+
+/**
+ * Типы занятости хранятся в БД русской строкой — переводим только подпись.
+ * ponytail: значения зашиты, справочник — когда понадобятся свои типы.
+ */
+export const EMPLOYMENT_TYPE_KEYS: Record<string, MessageKey> = {
+  "Полная занятость": "recruiting.employment.full_time",
+  "Частичная занятость": "recruiting.employment.part_time",
+  "Проектная работа": "recruiting.employment.project",
+  "Стажировка": "recruiting.employment.internship",
+};
+
+export const employmentTypeLabel = (value: string): string =>
+  EMPLOYMENT_TYPE_KEYS[value] ? translate(EMPLOYMENT_TYPE_KEYS[value]) : value;
 
 export const createEmptyVacancyDraft = (): VacancyDraft => ({
   title: "",
@@ -754,7 +795,7 @@ export const createEmptyVacancyDraft = (): VacancyDraft => ({
   status: "open",
   priority: "medium",
   openings: 1,
-  description: DEFAULT_VACANCY_DESCRIPTION_HTML,
+  description: defaultVacancyDescriptionHtml(),
   skills: [],
   deadline: null,
   openedAt: formatDateIso(new Date().toISOString()),
@@ -778,7 +819,7 @@ export const vacancyDraftFromItem = (v: Vacancy): VacancyDraft => ({
   status: v.status,
   priority: v.priority,
   openings: v.openings,
-  description: v.description || DEFAULT_VACANCY_DESCRIPTION_HTML,
+  description: v.description || defaultVacancyDescriptionHtml(),
   skills: v.skills,
   deadline: v.deadline,
   openedAt: v.openedAt,

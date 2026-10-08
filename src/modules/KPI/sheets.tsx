@@ -26,6 +26,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { Check, ChevronDown, GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Modal } from "../../components/ui/modal";
 import reportsService from "../../api/services/reports.service";
+import { translate, useTranslation } from "../../i18n";
+import type { MessageKey } from "../../i18n/messages";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Листы KPI (как листы в Google Sheets): каждый лист держит свой набор KPI.
@@ -54,14 +56,14 @@ type StoredSheetsState = {
 
 const STORAGE_PREFIX = "kpi-sheets::";
 
-export const SHEET_COLOR_OPTIONS: { value: string | null; label: string }[] = [
-  { value: null, label: "Без цвета" },
-  { value: "#3b82f6", label: "Синий" },
-  { value: "#10b981", label: "Зелёный" },
-  { value: "#f59e0b", label: "Жёлтый" },
-  { value: "#ef4444", label: "Красный" },
-  { value: "#8b5cf6", label: "Фиолетовый" },
-  { value: "#ec4899", label: "Розовый" },
+export const SHEET_COLOR_OPTIONS: { value: string | null; labelKey: MessageKey }[] = [
+  { value: null, labelKey: "kpi.sheets.color_none" },
+  { value: "#3b82f6", labelKey: "kpi.sheets.color_blue" },
+  { value: "#10b981", labelKey: "kpi.sheets.color_green" },
+  { value: "#f59e0b", labelKey: "kpi.sheets.color_yellow" },
+  { value: "#ef4444", labelKey: "kpi.sheets.color_red" },
+  { value: "#8b5cf6", labelKey: "kpi.sheets.color_purple" },
+  { value: "#ec4899", labelKey: "kpi.sheets.color_pink" },
 ];
 
 const makeSheetId = (): string => {
@@ -72,7 +74,7 @@ const makeSheetId = (): string => {
 };
 
 const createDefaultState = (): StoredSheetsState => {
-  const sheet: KpiSheet = { id: makeSheetId(), name: "Лист 1", color: null };
+  const sheet: KpiSheet = { id: makeSheetId(), name: translate("tasks.sheets.default_name", { n: 1 }), color: null };
   return {
     sheets: [sheet],
     activeSheetId: sheet.id,
@@ -89,7 +91,7 @@ const sanitizeState = (raw: unknown): StoredSheetsState => {
     ? value.sheets
         .map((sheet) => ({
           id: typeof sheet?.id === "string" ? sheet.id : "",
-          name: typeof sheet?.name === "string" && sheet.name.trim() ? sheet.name : "Лист",
+          name: typeof sheet?.name === "string" && sheet.name.trim() ? sheet.name : translate("kpi.sheets.sheet"),
           color: typeof sheet?.color === "string" ? sheet.color : null,
         }))
         .filter((sheet) => sheet.id)
@@ -139,8 +141,9 @@ const saveSheetsState = (storageKey: string, state: StoredSheetsState): void => 
 const nextSheetName = (sheets: KpiSheet[]): string => {
   const taken = new Set(sheets.map((sheet) => sheet.name.trim().toLowerCase()));
   let index = sheets.length + 1;
-  while (taken.has(`лист ${index}`)) index += 1;
-  return `Лист ${index}`;
+  const nameOf = (n: number) => translate("tasks.sheets.default_name", { n });
+  while (taken.has(nameOf(index).toLowerCase())) index += 1;
+  return nameOf(index);
 };
 
 const ACTIVE_PREFIX = "kpi-sheets-active::";
@@ -191,7 +194,7 @@ export function useKpiSheets(companyId: string) {
         }
         const sheets: KpiSheet[] = result.sheets.map((sheet) => ({
           id: sheet.guid,
-          name: sheet.name || "Лист",
+          name: sheet.name || translate("kpi.sheets.sheet"),
           color: sheet.color || null,
         }));
         const defaultSheetId =
@@ -411,6 +414,7 @@ function SortableSheetRow({ sheet,
   onSetColor: (color: string | null) => void;
   onRequestDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
     id: sheet.id,
   });
@@ -453,7 +457,7 @@ function SortableSheetRow({ sheet,
           {...attributes}
           {...listeners}
           className="inline-flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-slate-300 opacity-0 transition hover:text-slate-500 group-hover/row:opacity-100 active:cursor-grabbing"
-          aria-label="Переместить лист"
+          aria-label={t("kpi.sheets.move")}
         >
           <GripVertical size={13} />
         </button>
@@ -475,7 +479,7 @@ function SortableSheetRow({ sheet,
             onBlur={() => onCommitRename(renameValue)}
             onFocus={(event) => event.currentTarget.select()}
             className="h-6 min-w-0 flex-1 rounded-md border border-blue-300 bg-white px-1.5 text-[13px] font-medium text-slate-900 outline-none"
-            aria-label="Название листа"
+            aria-label={t("kpi.sheets.name_aria")}
           />
         ) : (
           <button
@@ -502,7 +506,7 @@ function SortableSheetRow({ sheet,
             className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-200/70 hover:text-slate-600 ${
               isMenuOpen ? "bg-slate-200/70 text-slate-600" : "opacity-0 group-hover/row:opacity-100"
             }`}
-            aria-label={`Действия с листом ${sheet.name}`}
+            aria-label={t("tasks.sheets.actions_aria", { name: sheet.name })}
           >
             <MoreHorizontal size={14} />
           </button>
@@ -517,7 +521,7 @@ function SortableSheetRow({ sheet,
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] font-medium text-slate-700 transition hover:bg-white"
           >
             <Pencil size={13} />
-            Переименовать
+            {t("tasks.sheets.rename")}
           </button>
 
           <div className="flex items-center gap-1.5 px-2 py-1.5">
@@ -528,8 +532,8 @@ function SortableSheetRow({ sheet,
                   key={option.value || "none"}
                   type="button"
                   onClick={() => onSetColor(option.value)}
-                  title={option.label}
-                  aria-label={option.label}
+                  title={t(option.labelKey)}
+                  aria-label={t(option.labelKey)}
                   className={`h-4 w-4 rounded-full border transition hover:scale-110 ${
                     isSelected ? "ring-2 ring-blue-500 ring-offset-1" : ""
                   } ${option.value ? "border-transparent" : "border-slate-300"}`}
@@ -553,7 +557,7 @@ function SortableSheetRow({ sheet,
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] font-medium text-rose-600 transition hover:bg-white disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
           >
             <Trash2 size={13} />
-            Удалить
+            {t("common.delete")}
           </button>
         </div>
       ) : null}
@@ -562,6 +566,7 @@ function SortableSheetRow({ sheet,
 }
 
 export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
+  const { t } = useTranslation();
   const { sheets, activeSheetId, defaultSheetId } = api;
   const activeSheet = useMemo(
     () => sheets.find((sheet) => sheet.id === activeSheetId) || sheets[0],
@@ -649,7 +654,7 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
             }`}
             style={activeSheet?.color ? { backgroundColor: activeSheet.color } : undefined}
           />
-          <span className="truncate">{activeSheet?.name || "Лист"}</span>
+          <span className="truncate">{activeSheet?.name || t("kpi.sheets.sheet")}</span>
           <ChevronDown
             size={15}
             className={`shrink-0 text-slate-400 transition ${open ? "rotate-180" : ""}`}
@@ -660,7 +665,7 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
           <div className="absolute left-0 top-full z-40 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
             <div className="flex items-center justify-between px-2 pb-1.5 pt-1">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                Листы
+                {t("kpi.sheets.list_title")}
               </span>
               <button
                 type="button"
@@ -671,7 +676,7 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
                 className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-semibold text-blue-600 transition hover:bg-blue-50"
               >
                 <Plus size={13} />
-                Добавить
+                {t("common.add")}
               </button>
             </div>
 
@@ -719,7 +724,7 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
             </div>
 
             <p className="border-t border-slate-100 px-2 pb-1 pt-1.5 text-[11px] text-slate-400">
-              Двойной клик по названию — переименовать
+              {t("kpi.sheets.rename_hint")}
             </p>
           </div>
         ) : null}
@@ -733,16 +738,11 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
       >
         <div className="space-y-4">
           <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-slate-900">Удалить лист?</h3>
+            <h3 className="text-lg font-semibold text-slate-900">{t("tasks.sheets.delete_confirm_title")}</h3>
             <p className="text-sm text-slate-500">
-              Сами KPI не удаляются
-              {deleteTargetName ? (
-                <>
-                  {" "}— они переместятся в лист{" "}
-                  <span className="font-medium text-slate-700">«{deleteTargetName}»</span>
-                </>
-              ) : null}
-              .
+              {deleteTargetName
+                ? t("kpi.sheets.delete_body_target", { name: deleteTargetName })
+                : `${t("kpi.sheets.delete_body")}.`}
             </p>
             {sheetToDelete ? (
               <p className="text-sm font-medium text-slate-700">{sheetToDelete.name}</p>
@@ -754,7 +754,7 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
               onClick={() => setSheetToDelete(null)}
               className="inline-flex h-10 items-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              Отмена
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -764,7 +764,7 @@ export function KpiSheetSelect({ api }: { api: KpiSheetsApi }) {
               }}
               className="inline-flex h-10 items-center rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
             >
-              Удалить
+              {t("common.delete")}
             </button>
           </div>
         </div>

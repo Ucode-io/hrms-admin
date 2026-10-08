@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import { MessageSquare, MessageSquarePlus } from "lucide-react";
 import reportsService from "../../api/services/reports.service";
+import { useTranslation } from "../../i18n";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Комментарии к ячейкам План/Факт (в стиле Google Sheets): у каждой ячейки может
@@ -158,6 +159,7 @@ export function CommentableCell({
   /** Короткое имя ячейки для заголовка редактора, напр. «План · 1 квартал». */
   label?: string;
 }) {
+  const { t } = useTranslation();
   const hasComment = comment.trim().length > 0;
 
   const wrapRef = useRef<HTMLSpanElement>(null);
@@ -244,7 +246,7 @@ export function CommentableCell({
         <button
           type="button"
           onClick={openEditor}
-          aria-label="Изменить комментарий"
+          aria-label={t("kpi.comments.edit")}
           className="group/note absolute right-0 top-0 flex h-3.5 w-3.5 items-start justify-end"
         >
           <svg
@@ -259,8 +261,8 @@ export function CommentableCell({
         <button
           type="button"
           onClick={openEditor}
-          aria-label="Добавить комментарий"
-          title="Добавить комментарий"
+          aria-label={t("kpi.comments.add")}
+          title={t("kpi.comments.add")}
           className="absolute right-0 top-1/2 inline-flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-[3px] text-slate-300 opacity-0 transition hover:text-slate-500 focus:opacity-100 group-hover/cell:opacity-100"
         >
           <MessageSquarePlus size={12} />
@@ -302,7 +304,7 @@ export function CommentableCell({
               >
                 <div className="flex items-center gap-1.5 px-1 pb-1.5 pt-0.5 text-[11px] font-semibold text-slate-500">
                   <MessageSquare size={12} className="text-amber-500" />
-                  {label ? `Комментарий · ${label}` : "Комментарий"}
+                  {label ? t("kpi.comments.title_for", { label }) : t("kpi.comments.title")}
                 </div>
                 <textarea
                   autoFocus
@@ -314,11 +316,11 @@ export function CommentableCell({
                     event.currentTarget.setSelectionRange(v.length, v.length);
                   }}
                   rows={3}
-                  placeholder="Напишите заметку к ячейке…"
+                  placeholder={t("kpi.comments.placeholder")}
                   className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-[13px] text-slate-800 outline-none transition focus:border-slate-300"
                 />
                 <div className="flex items-center justify-between gap-2 px-0.5 pt-1.5">
-                  <span className="text-[10px] text-slate-400">Enter — сохранить</span>
+                  <span className="text-[10px] text-slate-400">{t("kpi.comments.enter_hint")}</span>
                   <div className="flex items-center gap-1">
                     {hasComment ? (
                       <button
@@ -326,7 +328,7 @@ export function CommentableCell({
                         onClick={() => commit("")}
                         className="rounded-md px-2 py-1 text-[12px] font-medium text-rose-600 transition hover:bg-rose-50"
                       >
-                        Удалить
+                        {t("common.delete")}
                       </button>
                     ) : null}
                     <button
@@ -334,7 +336,7 @@ export function CommentableCell({
                       onClick={() => commit(draft)}
                       className="rounded-md bg-brand-500 px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-brand-600"
                     >
-                      Сохранить
+                      {t("common.save")}
                     </button>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { scoreTone } from "../types";
+import { useTranslation } from "../../../i18n";
 
 interface ScorePickerProps {
   /** 1..10 or null when not scored yet. */
@@ -11,8 +12,9 @@ interface ScorePickerProps {
  * Segmented 1–10 score control. Clicking the active value clears the score.
  */
 export default function ScorePicker({ value, onChange, disabled = false }: ScorePickerProps) {
+  const { t } = useTranslation();
   return (
-    <div className="inline-flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Оценка по 10-балльной шкале">
+    <div className="inline-flex flex-wrap items-center gap-1" role="radiogroup" aria-label={t("recruiting.score_picker.aria_label")}>
       {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
         const isActive = value === n;
         const tone = scoreTone(n);

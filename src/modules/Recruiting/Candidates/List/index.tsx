@@ -25,20 +25,21 @@ import {
   type StageDef,
 } from "../../types";
 import { useSettingsDirectoryQuery } from "../../../../api/services/settingsDirectory.service";
+import { useTranslation } from "../../../../i18n";
+import type { MessageKey } from "../../../../i18n/messages";
 
 const CANDIDATE_SOURCES_SLUG = "candidate_sources";
+// Значение — код источника, как в форме кандидата: sourceLabel() переводит его при показе.
 const FALLBACK_SOURCE_OPTIONS = CANDIDATE_SOURCE_ORDER.map((s) => ({
-  value: CANDIDATE_SOURCE_CONFIG[s].label,
-  label: CANDIDATE_SOURCE_CONFIG[s].label,
+  value: s,
+  get label() {
+    return CANDIDATE_SOURCE_CONFIG[s].label;
+  },
 }));
 
 type PaginationItem = number | string;
 
 const PAGE_SIZE = 12;
-const BREADCRUMBS = [
-  { label: "Рекрутинг", to: "/recruiting/vacancies" },
-  { label: "Кандидаты", to: "/recruiting/candidates" },
-];
 
 const buildPaginationItems = (currentPage: number, totalPages: number): PaginationItem[] => {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -60,15 +61,23 @@ const buildPaginationItems = (currentPage: number, totalPages: number): Paginati
 const selectCls =
   "h-10 rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 transition focus:border-brand-400 focus:outline-none appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%226 9 12 15 18 9%22/></svg>')] bg-[right_0.5rem_center] bg-no-repeat";
 
-const CANDIDATE_TABS: Array<{ value: CandidateOutcome; label: string }> = [
-  { value: "active", label: "Активные" },
-  { value: "hired", label: "Нанятые" },
-  { value: "rejected", label: "Отказанные" },
-  { value: "reserve", label: "Резервные" },
+const CANDIDATE_TABS: Array<{ value: CandidateOutcome; labelKey: MessageKey }> = [
+  { value: "active", labelKey: "recruiting.candidates_list.tab_active" },
+  { value: "hired", labelKey: "recruiting.candidates_list.tab_hired" },
+  { value: "rejected", labelKey: "recruiting.candidates_list.tab_rejected" },
+  { value: "reserve", labelKey: "recruiting.candidates_list.tab_reserve" },
 ];
 
 function CandidatesList() {
-  useHeaderBreadcrumbItems(BREADCRUMBS);
+  const { t } = useTranslation();
+  const breadcrumbs = useMemo(
+    () => [
+      { label: t("recruiting.common.breadcrumb_recruiting"), to: "/recruiting/vacancies" },
+      { label: t("recruiting.common.breadcrumb_candidates"), to: "/recruiting/candidates" },
+    ],
+    [t]
+  );
+  useHeaderBreadcrumbItems(breadcrumbs);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const brandColor = companyStore.mainColor || "#2563eb";
@@ -89,11 +98,11 @@ function CandidatesList() {
     const fromDirectory = (sourcesData?.response ?? [])
       .map((item) => ({
         value: item.guid,
-        label: String(item.title || "").trim() || "Без названия",
+        label: String(item.title || "").trim() || t("recruiting.common.untitled"),
       }))
       .filter((item) => item.value);
     return fromDirectory.length > 0 ? fromDirectory : FALLBACK_SOURCE_OPTIONS;
-  }, [sourcesData]);
+  }, [sourcesData, t]);
 
   const queryParams = useMemo(
     () => ({
@@ -142,11 +151,11 @@ function CandidatesList() {
   );
 
   const visibleRangeLabel = useMemo(() => {
-    if (totalCount === 0) return isLoading ? "Загрузка..." : "Нет кандидатов";
+    if (totalCount === 0) return isLoading ? t("recruiting.common.loading") : t("recruiting.candidates_list.no_candidates_short");
     const start = (safePage - 1) * PAGE_SIZE + 1;
     const end = Math.min(safePage * PAGE_SIZE, totalCount);
-    return `Отображение ${start}–${end} из ${totalCount}`;
-  }, [safePage, totalCount, isLoading]);
+    return t("recruiting.common.showing_range", { start, end, total: totalCount });
+  }, [safePage, totalCount, isLoading, t]);
 
   const hasActiveFilters = Boolean(searchQuery || vacancyFilter || sourceFilter);
   const activeFiltersCount = (vacancyFilter ? 1 : 0) + (sourceFilter ? 1 : 0);
@@ -163,15 +172,18 @@ function CandidatesList() {
     try {
       await deleteMutation.mutateAsync(deletingItem.id);
       setDeletingItem(null);
-      toast.success("Кандидат удалён");
+      toast.success(t("recruiting.candidates_list.deleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось удалить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.delete_failed"));
     }
   };
 
   return (
     <>
-      <PageMeta title="Кандидаты | Рекрутинг" description="Все кандидаты по вакансиям" />
+      <PageMeta
+        title={t("recruiting.candidates_list.page_title")}
+        description={t("recruiting.candidates_list.page_description")}
+      />
 
       {/* Toolbar */}
       <div className="-mx-3 md:-mx-4 -mt-3 md:-mt-4">
@@ -226,7 +238,7 @@ function CandidatesList() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>
@@ -238,7 +250,7 @@ function CandidatesList() {
                 setCurrentPage(1);
               }}
               inputId="candidate-search"
-              placeholder="Поиск по имени, email..."
+              placeholder={t("recruiting.candidates_list.search_placeholder")}
               expandedWidth={360}
               collapsedSize={40}
               brandColor={brandColor}
@@ -246,8 +258,8 @@ function CandidatesList() {
             <button
               type="button"
               onClick={() => setIsFiltersOpen((o) => !o)}
-              aria-label={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
-              title={`Фильтр${activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}`}
+              aria-label={activeFiltersCount > 0 ? t("recruiting.vacancies_list.filter_label_count", { count: activeFiltersCount }) : t("recruiting.vacancies_list.filter_label")}
+              title={activeFiltersCount > 0 ? t("recruiting.vacancies_list.filter_label_count", { count: activeFiltersCount }) : t("recruiting.vacancies_list.filter_label")}
               className={`relative inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 isFiltersOpen || activeFiltersCount > 0
                   ? "border-brand-200 bg-brand-50 text-brand-600"
@@ -266,7 +278,7 @@ function CandidatesList() {
               onClick={() => navigate("/recruiting/candidates/new")}
               className="h-10 rounded-xl px-4"
             >
-              Добавить
+              {t("recruiting.candidates_list.add")}
             </Button>
           </div>
         </div>
@@ -292,7 +304,7 @@ function CandidatesList() {
                 setCurrentPage(1);
               }}
             >
-              <option value="">Все вакансии</option>
+              <option value="">{t("recruiting.candidates_list.all_vacancies")}</option>
               {vacancies.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.title}
@@ -307,7 +319,7 @@ function CandidatesList() {
                 setCurrentPage(1);
               }}
             >
-              <option value="">Все источники</option>
+              <option value="">{t("recruiting.candidates_list.all_sources")}</option>
               {sourceOptions.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
@@ -320,7 +332,7 @@ function CandidatesList() {
                 onClick={resetFilters}
                 className="inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white px-3.5 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
               >
-                Сбросить
+                {t("recruiting.vacancies_list.reset_filters")}
               </button>
             )}
           </div>
@@ -333,14 +345,14 @@ function CandidatesList() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-          <p className="text-sm text-gray-400">Загрузка...</p>
+          <p className="text-sm text-gray-400">{t("recruiting.common.loading")}</p>
         </div>
       ) : candidates.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center">
           <Users size={36} className="text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">Кандидаты не найдены</p>
+          <p className="text-sm font-medium text-gray-500">{t("recruiting.candidates_list.empty")}</p>
           <p className="text-xs text-gray-400">
-            {hasActiveFilters ? "Измените фильтры или сбросьте их" : "Добавьте первого кандидата"}
+            {hasActiveFilters ? t("recruiting.vacancies_list.change_filters") : t("recruiting.candidates_list.add_first")}
           </p>
         </div>
       ) : (
@@ -375,14 +387,13 @@ function CandidatesList() {
         className="m-4 max-w-[420px]"
       >
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900">Удалить кандидата?</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t("recruiting.candidates_list.delete_title")}</h3>
           <p className="mt-2 text-sm text-gray-500">
-            Кандидат <span className="font-medium text-gray-700">{deletingItem?.fullName}</span>, все
-            оценки и комментарии будут удалены. Это действие нельзя отменить.
+            {t("recruiting.candidates_list.delete_body", { name: deletingItem?.fullName ?? "" })}
           </p>
           <div className="mt-6 flex items-center justify-end gap-3">
             <Button variant="outline" onClick={() => setDeletingItem(null)} className="px-5">
-              Отменить
+              {t("recruiting.common.cancel")}
             </Button>
             <button
               type="button"
@@ -390,7 +401,7 @@ function CandidatesList() {
               disabled={deleteMutation.isLoading}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 px-5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("recruiting.vacancies_list.deleting") : t("recruiting.common.delete")}
             </button>
           </div>
         </div>

@@ -5,6 +5,7 @@ import {
   type Candidate,
   type StageDef,
 } from "../../../types";
+import { useTranslation } from "../../../../../i18n";
 
 interface HistoryTimelineProps {
   candidate: Candidate;
@@ -13,13 +14,14 @@ interface HistoryTimelineProps {
 
 /** Chronological log of pipeline movements (newest first). */
 export default function HistoryTimeline({ candidate, stages }: HistoryTimelineProps) {
+  const { t } = useTranslation();
   const stageName = (id: string | null): string =>
-    id ? stages.find((s) => s.id === id)?.name ?? "Удалённый этап" : "";
+    id ? stages.find((s) => s.id === id)?.name ?? t("recruiting.history.deleted_stage_name") : "";
 
   const entries = [...candidate.history].reverse();
 
   if (entries.length === 0) {
-    return <p className="text-sm text-gray-300">История пуста</p>;
+    return <p className="text-sm text-gray-300">{t("recruiting.history.empty_short")}</p>;
   }
 
   return (
@@ -44,7 +46,7 @@ export default function HistoryTimeline({ candidate, stages }: HistoryTimelinePr
           </span>
         ) : (
           <span>
-            Добавлен в воронку{entry.toStageId ? `: ${stageName(entry.toStageId)}` : ""}
+            {t("recruiting.history.added")}{entry.toStageId ? `: ${stageName(entry.toStageId)}` : ""}
           </span>
         );
 

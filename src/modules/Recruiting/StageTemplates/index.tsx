@@ -11,16 +11,21 @@ import {
   useStageTemplatesQuery,
   useUpdateStageTemplate,
 } from "../../../api/services/stageTemplate.service";
-import { STAGE_COLOR_CONFIG, formatDate, type StageTemplate } from "../types";
+import { STAGE_COLOR_CONFIG, countLabel, formatDate, type StageTemplate } from "../types";
 import TemplateEditorSheet from "./components/TemplateEditorSheet";
+import { useTranslation } from "../../../i18n";
 
-const BREADCRUMBS = [
-  { label: "Настройки", to: "/settings" },
-  { label: "Шаблоны этапов", to: "/settings/stage-templates" },
-];
 
 export default function StageTemplatesPage() {
-  useHeaderBreadcrumbItems(BREADCRUMBS);
+  const { t } = useTranslation();
+  const breadcrumbs = useMemo(
+    () => [
+      { label: t("recruiting.templates.breadcrumb_settings"), to: "/settings" },
+      { label: t("recruiting.templates.title"), to: "/settings/stage-templates" },
+    ],
+    [t]
+  );
+  useHeaderBreadcrumbItems(breadcrumbs);
 
   const { data, isLoading } = useStageTemplatesQuery();
   const updateMutation = useUpdateStageTemplate();
@@ -56,9 +61,9 @@ export default function StageTemplatesPage() {
           isDefault: true,
         },
       });
-      toast.success(`«${template.name}» — шаблон по умолчанию`);
+      toast.success(t("recruiting.templates.default_set", { name: template.name }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось обновить шаблон");
+      toast.error(err instanceof Error ? err.message : t("recruiting.templates.update_failed"));
     }
   };
 
@@ -67,17 +72,17 @@ export default function StageTemplatesPage() {
     try {
       await deleteMutation.mutateAsync(deletingItem.id);
       setDeletingItem(null);
-      toast.success("Шаблон удалён");
+      toast.success(t("recruiting.templates.deleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось удалить");
+      toast.error(err instanceof Error ? err.message : t("recruiting.common.delete_failed"));
     }
   };
 
   return (
     <>
       <PageMeta
-        title="Шаблоны этапов | Рекрутинг"
-        description="Наборы этапов для воронок подбора"
+        title={t("recruiting.common.page_suffix", { title: t("recruiting.templates.title") })}
+        description={t("recruiting.templates.subtitle")}
       />
 
       {/* Header */}
@@ -87,14 +92,14 @@ export default function StageTemplatesPage() {
             <ListChecks size={20} />
           </span>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Шаблоны этапов</h1>
+            <h1 className="text-lg font-semibold text-gray-900">{t("recruiting.templates.title")}</h1>
             <p className="text-sm text-gray-500">
-              Наборы этапов, из которых создаётся воронка вакансии
+              {t("recruiting.templates.subtitle")}
             </p>
           </div>
         </div>
         <Button startIcon={<Plus size={16} />} onClick={openCreate} className="h-10 rounded-xl px-4">
-          Новый шаблон
+          {t("recruiting.templates.new")}
         </Button>
       </div>
 
@@ -102,13 +107,13 @@ export default function StageTemplatesPage() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-          <p className="text-sm text-gray-400">Загрузка...</p>
+          <p className="text-sm text-gray-400">{t("recruiting.common.loading")}</p>
         </div>
       ) : templates.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-20 text-center">
           <ListChecks size={36} className="text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">Шаблонов пока нет</p>
-          <p className="text-xs text-gray-400">Создайте первый шаблон этапов подбора</p>
+          <p className="text-sm font-medium text-gray-500">{t("recruiting.templates.empty")}</p>
+          <p className="text-xs text-gray-400">{t("recruiting.templates.empty_hint")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -126,7 +131,7 @@ export default function StageTemplatesPage() {
                     {template.isDefault && (
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-600">
                         <Star size={11} className="fill-amber-400 text-amber-400" />
-                        По умолчанию
+                        {t("recruiting.templates.default_badge")}
                       </span>
                     )}
                   </div>
@@ -139,7 +144,7 @@ export default function StageTemplatesPage() {
                     type="button"
                     onClick={() => openEdit(template)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-                    title="Редактировать"
+                    title={t("recruiting.common.edit")}
                   >
                     <Pencil size={15} />
                   </button>
@@ -147,7 +152,7 @@ export default function StageTemplatesPage() {
                     type="button"
                     onClick={() => setDeletingItem(template)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-500"
-                    title="Удалить"
+                    title={t("recruiting.common.delete")}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -171,7 +176,7 @@ export default function StageTemplatesPage() {
 
               <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
                 <span className="text-xs text-gray-400">
-                  {template.stages.length} этапов · {formatDate(template.createdAt)}
+                  {countLabel("stages", template.stages.length)} · {formatDate(template.createdAt)}
                 </span>
                 {!template.isDefault && (
                   <button
@@ -179,7 +184,7 @@ export default function StageTemplatesPage() {
                     onClick={() => makeDefault(template)}
                     className="text-xs font-medium text-brand-600 transition hover:text-brand-700"
                   >
-                    Сделать по умолчанию
+                    {t("recruiting.templates.make_default")}
                   </button>
                 )}
               </div>
@@ -201,14 +206,13 @@ export default function StageTemplatesPage() {
         className="m-4 max-w-[420px]"
       >
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900">Удалить шаблон?</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t("recruiting.templates.delete_title")}</h3>
           <p className="mt-2 text-sm text-gray-500">
-            Шаблон <span className="font-medium text-gray-700">«{deletingItem?.name}»</span> будет
-            удалён. Существующие вакансии не пострадают — у них своя копия этапов.
+            {t("recruiting.templates.delete_body", { name: deletingItem?.name ?? "" })}
           </p>
           <div className="mt-6 flex items-center justify-end gap-3">
             <Button variant="outline" onClick={() => setDeletingItem(null)} className="px-5">
-              Отменить
+              {t("recruiting.common.cancel")}
             </Button>
             <button
               type="button"
@@ -216,7 +220,7 @@ export default function StageTemplatesPage() {
               disabled={deleteMutation.isLoading}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-600 px-5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
             >
-              {deleteMutation.isLoading ? "Удаление..." : "Удалить"}
+              {deleteMutation.isLoading ? t("recruiting.vacancies_list.deleting") : t("recruiting.common.delete")}
             </button>
           </div>
         </div>

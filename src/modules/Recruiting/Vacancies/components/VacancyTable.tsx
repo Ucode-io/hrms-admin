@@ -7,6 +7,7 @@ import {
   formatSalaryRange,
   type Vacancy,
 } from "../../types";
+import { useTranslation } from "../../../../i18n";
 
 interface VacancyTableProps {
   vacancies: Vacancy[];
@@ -24,18 +25,19 @@ const Th = ({ children, className = "" }: { children?: React.ReactNode; classNam
 );
 
 export default function VacancyTable({ vacancies, onOpen, onEdit, onDelete }: VacancyTableProps) {
+  const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[860px] text-sm">
         <thead className="border-b border-gray-100 bg-gray-50/60">
           <tr>
-            <Th>Вакансия</Th>
-            <Th>Департамент</Th>
-            <Th>Статус</Th>
-            <Th>Приоритет</Th>
-            <Th>Зарплата</Th>
-            <Th>Кандидаты</Th>
-            <Th>В работе</Th>
+            <Th>{t("recruiting.common.vacancy")}</Th>
+            <Th>{t("recruiting.common.department")}</Th>
+            <Th>{t("recruiting.common.status")}</Th>
+            <Th>{t("recruiting.common.priority")}</Th>
+            <Th>{t("recruiting.common.salary")}</Th>
+            <Th>{t("recruiting.candidates.title")}</Th>
+            <Th>{t("recruiting.vacancy_table.days_open")}</Th>
             <Th className="w-24" />
           </tr>
         </thead>
@@ -76,7 +78,7 @@ export default function VacancyTable({ vacancies, onOpen, onEdit, onDelete }: Va
                 </td>
                 <td className="px-4 py-3">
                   <span className="font-medium text-gray-800">{vacancy.candidatesCount}</span>
-                  <span className="text-gray-400"> · {vacancy.hiredCount} нанято</span>
+                  <span className="text-gray-400"> · {t("recruiting.vacancy_table.hired", { count: vacancy.hiredCount })}</span>
                 </td>
                 <td className="px-4 py-3 text-gray-500">{daysOpenLabel(vacancy.openedAt)}</td>
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -85,7 +87,7 @@ export default function VacancyTable({ vacancies, onOpen, onEdit, onDelete }: Va
                       type="button"
                       onClick={() => onEdit(vacancy)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-                      title="Редактировать"
+                      title={t("recruiting.common.edit")}
                     >
                       <Pencil size={15} />
                     </button>
@@ -93,7 +95,7 @@ export default function VacancyTable({ vacancies, onOpen, onEdit, onDelete }: Va
                       type="button"
                       onClick={() => onDelete(vacancy)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-rose-50 hover:text-rose-500"
-                      title="Удалить"
+                      title={t("recruiting.common.delete")}
                     >
                       <Trash2 size={15} />
                     </button>

@@ -1,4 +1,5 @@
 import Select, { type StylesConfig } from "react-select";
+import { translate } from "../../../i18n";
 
 export interface FormSelectOption {
   value: string;
@@ -52,7 +53,7 @@ export default function FormSelect({
   options,
   value,
   onChange,
-  placeholder = "Выберите...",
+  placeholder = translate("recruiting.form_select.placeholder"),
   isSearchable = true,
   isClearable = false,
   isDisabled = false,
@@ -68,7 +69,7 @@ export default function FormSelect({
       isSearchable={isSearchable}
       isClearable={isClearable}
       isDisabled={isDisabled}
-      noOptionsMessage={() => "Ничего не найдено"}
+      noOptionsMessage={() => translate("recruiting.form_select.no_options")}
       styles={styles}
       classNamePrefix="recruiting-select"
       menuPortalTarget={menuPortal && typeof document !== "undefined" ? document.body : undefined}
